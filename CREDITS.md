@@ -1,0 +1,121 @@
+# Asset credits
+
+Generated from docs/research/assets.json by scripts/assets/build-assets.mjs.
+
+## Creative Commons Attribution
+
+- "Kurla local train station Mumbai (2)" by sankalp (https://freesound.org/s/180430/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+- "Ambience near Kharghar station Mumbai" by sankalp (https://freesound.org/s/181118/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+- "CROWS in Mumbai.WAV" by The_Sound_Side (https://freesound.org/s/289657/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+- "train local-train_ladies.mp3" by chhavi (https://freesound.org/s/471832/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+- "Kolkata hawker call" by rain+ (https://freesound.org/s/608765/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+
+## Fonts (SIL Open Font License 1.1, licence files in fonts/)
+
+- Baloo 2 by Ek Type
+- Baloo Bhai 2 by Ek Type
+- Bebas Neue by Ryoichi Tsunekawa
+- Kalam by Indian Type Foundry
+- Modak by Ek Type
+- Mukta by Ek Type
+- Noto Nastaliq Urdu by Google
+- Noto Sans Devanagari by Google
+- Oswald by Vernon Adams, Kalapi Gajjar, Cyreal
+- Rozha One by Indian Type Foundry
+- Teko by Indian Type Foundry
+- Yatra One by Catherine Leigh Schmidt
+
+## Public domain (CC0), with thanks
+
+- Universal Animation Library (Quaternius) by Quaternius — https://quaternius.com/packs/universalanimationlibrary.html
+- Universal Animation Library 2 (Quaternius) by Quaternius — https://quaternius.com/packs/universalanimationlibrary2.html
+- Animated Characters 3 (Kenney) by Kenney — https://opengameart.org/content/animated-characters-3
+- Ultimate Animated Character Pack (Quaternius) by Quaternius — https://opengameart.org/content/animated-characters-pack
+- Belfast Sunset (Pure Sky) by Greg Zaal, Dimitrios Savva, Jarod Guest (Poly Haven) — https://polyhaven.com/a/belfast_sunset_puresky
+- Industrial Sunset (Pure Sky) by Jarod Guest, Sergej Majboroda (Poly Haven) — https://polyhaven.com/a/industrial_sunset_puresky
+- Kloofendal 28d Misty (Pure Sky) by Greg Zaal, Jenelle van Heerden (Poly Haven) — https://polyhaven.com/a/kloofendal_28d_misty_puresky
+- Kloofendal Overcast (Pure Sky) by Greg Zaal (Poly Haven) — https://polyhaven.com/a/kloofendal_overcast_puresky
+- Kloppenheim 02 (Pure Sky) by Greg Zaal, Jarod Guest (Poly Haven) — https://polyhaven.com/a/kloppenheim_02_puresky
+- Kloppenheim 07 (Pure Sky) by Greg Zaal, Jarod Guest (Poly Haven) — https://polyhaven.com/a/kloppenheim_07_puresky
+- Overcast Soil (Pure Sky) by Jarod Guest, Sergej Majboroda (Poly Haven) — https://polyhaven.com/a/overcast_soil_puresky
+- Qwantani Late Afternoon (Pure Sky) by Greg Zaal, Jarod Guest (Poly Haven) — https://polyhaven.com/a/qwantani_late_afternoon_puresky
+- City Kit Commercial (Kenney) by Kenney — https://kenney.nl/assets/city-kit-commercial
+- City Kit Roads (Kenney) by Kenney — https://kenney.nl/assets/city-kit-roads
+- City Kit Suburban (Kenney) by Kenney — https://kenney.nl/assets/city-kit-suburban
+- Furniture Kit (Kenney) by Kenney — https://kenney.nl/assets/furniture-kit
+- Modular Buildings (Kenney) by Kenney — https://opengameart.org/content/modular-buildings
+- Exterior Aircon Unit by Monsta3D (Poly Haven) — https://polyhaven.com/a/exterior_aircon_unit
+- Metal Trash Can by GurJas Studios (Poly Haven) — https://polyhaven.com/a/metal_trash_can
+- Painted Wooden Bench by Kirill Sannikov (Poly Haven) — https://polyhaven.com/a/painted_wooden_bench
+- Plastic Crate 02 by Fabi_G (Poly Haven) — https://polyhaven.com/a/plastic_crate_02
+- Plastic Monobloc Chair 01 by Kuutti Siitonen (Poly Haven) — https://polyhaven.com/a/plastic_monobloc_chair_01
+- Street Lamp 02 by Josh Dean (Poly Haven) — https://polyhaven.com/a/street_lamp_02
+- Trash Bag by Benny Weimer (Poly Haven) — https://polyhaven.com/a/trashbag
+- Utility Box 01 by James Ray Cock (Poly Haven) — https://polyhaven.com/a/utility_box_01
+- Wooden Crate 02 by James Ray Cock, Jurita Burger (Poly Haven) — https://polyhaven.com/a/wooden_crate_02
+- LowPoly Modular Street Pack (Quaternius) by Quaternius — https://opengameart.org/content/lowpoly-modular-street-pack
+- Car Horn.wav by BeatsbyCasper (Freesound) — https://freesound.org/people/BeatsbyCasper/sounds/170243/
+- INSIDE AN AUTO RICKSHAW IN MUMBAI.mp3 by ambar das (Freesound) — https://freesound.org/people/ambar%20das/sounds/203177/
+- Mumbai (Bombay) Street Sounds, Traffic by dafiles (Freesound) — https://freesound.org/people/dafiles/sounds/221639/
+- 3Wheeler Starts by azdipu (Freesound) — https://freesound.org/people/azdipu/sounds/339682/
+- truck throaty real horn honks annoyed angry by kyles (Freesound) — https://freesound.org/people/kyles/sounds/406888/
+- India outdoor crowd.WAV by Martin.Sadoux (Freesound) — https://freesound.org/people/Martin.Sadoux/sounds/423510/
+- House Crow at the beach.wav by Breview777 (Freesound) — https://freesound.org/people/Breview777/sounds/486870/
+- Rainstorm hitting pavement_1.wav by jdsutter (Freesound) — https://freesound.org/people/jdsutter/sounds/518423/
+- Fleamarket in India Atmosphere by nickcase (Freesound) — https://freesound.org/people/nickcase/sounds/552692/
+- Rickshaw ride Nortthern India.mp3 by Anzbot (Freesound) — https://freesound.org/people/Anzbot/sounds/562744/
+- Ext Mumbai City Traffic Ambience.wav by seventhsamurai (Freesound) — https://freesound.org/people/seventhsamurai/sounds/585731/
+- Train Horn 71 (Distant, Clean).mp3 by FunWithSound (Freesound) — https://freesound.org/people/FunWithSound/sounds/591873/
+- Train Passing By 155 with Horn, Engine.mp3 by FunWithSound (Freesound) — https://freesound.org/people/FunWithSound/sounds/593092/
+- Heavy Rain and gutter.WAV by barkenov (Freesound) — https://freesound.org/people/barkenov/sounds/640651/
+- Sea Waves Against Rocks by emainta (Freesound) — https://freesound.org/people/emainta/sounds/648860/
+- Bells at a Hindu temple 3 by barryshamir (Freesound) — https://freesound.org/people/barryshamir/sounds/876449/
+- Asphalt025C by ambientCG (Lennart Demes) — https://ambientcg.com/view?id=Asphalt025C
+- Bricks089 by ambientCG (Lennart Demes) — https://ambientcg.com/view?id=Bricks089
+- Bricks096 by ambientCG (Lennart Demes) — https://ambientcg.com/view?id=Bricks096
+- Grass004 by ambientCG (Lennart Demes) — https://ambientcg.com/view?id=Grass004
+- Ground050 by ambientCG (Lennart Demes) — https://ambientcg.com/view?id=Ground050
+- PavingStones152 by ambientCG (Lennart Demes) — https://ambientcg.com/view?id=PavingStones152
+- Asphalt 02 by Rob Tuytel (Poly Haven) — https://polyhaven.com/a/asphalt_02
+- Asphalt 03 by Dario Barresi, Charlotte Baglioni (Poly Haven) — https://polyhaven.com/a/asphalt_03
+- Beige Wall 001 by Dimitrios Savva, Rico Cilliers (Poly Haven) — https://polyhaven.com/a/beige_wall_001
+- Blue Plaster Weathered by Amal Kumar (Poly Haven) — https://polyhaven.com/a/blue_plaster_weathered
+- Brown Mud Dry by Rob Tuytel (Poly Haven) — https://polyhaven.com/a/brown_mud_dry
+- Brown Planks 03 by Rob Tuytel (Poly Haven) — https://polyhaven.com/a/brown_planks_03
+- Castle Brick 07 by Rob Tuytel (Poly Haven) — https://polyhaven.com/a/castle_brick_07
+- Clay Roof Tiles 02 by Amal Kumar (Poly Haven) — https://polyhaven.com/a/clay_roof_tiles_02
+- Coast Sand 01 by Rob Tuytel (Poly Haven) — https://polyhaven.com/a/coast_sand_01
+- Concrete Pavement by Charlotte Baglioni (Poly Haven) — https://polyhaven.com/a/concrete_pavement
+- Concrete Tile Facade by Charlotte Baglioni (Poly Haven) — https://polyhaven.com/a/concrete_tile_facade
+- Concrete Wall 008 by Dario Barresi, Charlotte Baglioni (Poly Haven) — https://polyhaven.com/a/concrete_wall_008
+- Damaged Plaster by Amal Kumar (Poly Haven) — https://polyhaven.com/a/damaged_plaster
+- Damp Beach Sand by Dimitrios Savva (Poly Haven) — https://polyhaven.com/a/damp_beach_sand
+- Dirty Concrete by Rob Tuytel (Poly Haven) — https://polyhaven.com/a/dirty_concrete
+- Grass Path 2 by Rob Tuytel (Poly Haven) — https://polyhaven.com/a/grass_path_2
+- Gravel Floor 02 by Jenelle van Heerden, Dimitrios Savva (Poly Haven) — https://polyhaven.com/a/gravel_floor_02
+- Painted Metal Shutter by Dario Barresi, Rico Cilliers, Charlotte Baglioni (Poly Haven) — https://polyhaven.com/a/painted_metal_shutter
+- Painted Plaster Wall by Amal Kumar (Poly Haven) — https://polyhaven.com/a/painted_plaster_wall
+- Patterned Concrete Pavers by Amal Kumar (Poly Haven) — https://polyhaven.com/a/patterned_concrete_pavers
+- Patterned Paving by Charlotte Baglioni (Poly Haven) — https://polyhaven.com/a/patterned_paving
+- Peeling Painted Wall by Dimitrios Savva (Poly Haven) — https://polyhaven.com/a/peeling_painted_wall
+- Plastered Wall 02 by Charlotte Baglioni (Poly Haven) — https://polyhaven.com/a/plastered_wall_02
+- Red Brick by Rob Tuytel (Poly Haven) — https://polyhaven.com/a/red_brick
+- Red Plaster Weathered by Amal Kumar (Poly Haven) — https://polyhaven.com/a/red_plaster_weathered
+- Road Damaged by Dimitrios Savva (Poly Haven) — https://polyhaven.com/a/road_damaged
+- Rusty Corrugated Iron by Charlotte Baglioni (Poly Haven) — https://polyhaven.com/a/rusty_corrugated_iron
+- Rusty Metal Grid by Amal Kumar (Poly Haven) — https://polyhaven.com/a/rusty_metal_grid
+- Rusty Metal Shutter by Charlotte Baglioni (Poly Haven) — https://polyhaven.com/a/rusty_metal_shutter
+- Sandstone Blocks 08 by Rob Tuytel (Poly Haven) — https://polyhaven.com/a/sandstone_blocks_08
+- Stone Block Wall by Amal Kumar (Poly Haven) — https://polyhaven.com/a/stone_block_wall
+- Plastic 0019 by TextureCan — https://www.texturecan.com/details/446/
+- Nature Kit (Kenney) by Kenney — https://kenney.nl/assets/nature-kit
+- Exotic Palms - Lowpoly Style by FabinhoSC — https://opengameart.org/content/exotic-palms-lowpoly-style
+- Jacaranda Tree by Poly Haven — https://polyhaven.com/a/jacaranda_tree
+- Planter Pot Clay by Amal Kumar (Poly Haven) — https://polyhaven.com/a/planter_pot_clay
+- Potted Plant 04 by James Ray Cock (Poly Haven) — https://polyhaven.com/a/potted_plant_04
+- Shrub 03 by Rico Cilliers (Poly Haven) — https://polyhaven.com/a/shrub_03
+- Textured Stylized Trees (Quaternius) by Quaternius — https://opengameart.org/content/lowpoly-textured-trees
+- Ultimate Nature Pack (Quaternius) by Quaternius — https://opengameart.org/content/low-poly-nature-pack-1
+- Car Kit (Kenney) by Kenney — https://kenney.nl/assets/car-kit
+- LowPoly Cars (Quaternius) by Quaternius — https://opengameart.org/content/lowpoly-cars
+- LowPoly Public Transport (Quaternius) by Quaternius — https://opengameart.org/content/lowpoly-public-transport

@@ -1,0 +1,56 @@
+jobs: 5
+status: 0
+--- stdout ---
+blender 4.2.3 LTS fbx importer: True gltf exporter: True
+INFO Draco mesh compression is available, use library at /home/runner/blender-4.2.3-linux-x64/4.2/python/lib/python3.11/site-packages/libextern_draco.so
+animations []
+converted /tmp/fbx-Qf25wA/Car_Pack/FBX/BasicCar.fbx -> /tmp/fbx-Qf25wA/Car_Pack/FBX/BasicCar.glb
+animations []
+converted /tmp/fbx-Qf25wA/Car_Pack/FBX/CopCar.fbx -> /tmp/fbx-Qf25wA/Car_Pack/FBX/CopCar.glb
+animations []
+converted /tmp/fbx-Qf25wA/Car_Pack/FBX/SimpleCarHigh.fbx -> /tmp/fbx-Qf25wA/Car_Pack/FBX/SimpleCarHigh.glb
+animations []
+converted /tmp/fbx-Qf25wA/Car_Pack/FBX/SimpleCarShort.fbx -> /tmp/fbx-Qf25wA/Car_Pack/FBX/SimpleCarShort.glb
+animations []
+converted /tmp/fbx-Qf25wA/Car_Pack/FBX/Taxi.fbx -> /tmp/fbx-Qf25wA/Car_Pack/FBX/Taxi.glb
+--- stderr (tail) ---
+13:28:20 | INFO: Starting glTF 2.0 export
+13:28:20 | INFO: Extracting primitive: Cylinder.006
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Extracting primitive: Cylinder.003
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Extracting primitive: Cube
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Finished glTF 2.0 export in 0.013131380081176758 s
+13:28:20 | INFO: Starting glTF 2.0 export
+13:28:20 | INFO: Extracting primitive: Cylinder.004
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Extracting primitive: Cylinder.001
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Extracting primitive: Cube.001
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Finished glTF 2.0 export in 0.009436607360839844 s
+13:28:20 | INFO: Starting glTF 2.0 export
+13:28:20 | INFO: Extracting primitive: Cylinder.000
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Extracting primitive: Cylinder.001
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Extracting primitive: Mesh
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Finished glTF 2.0 export in 0.009067296981811523 s
+13:28:20 | INFO: Starting glTF 2.0 export
+13:28:20 | INFO: Extracting primitive: Cylinder.000
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Extracting primitive: Cylinder.001
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Extracting primitive: Mesh
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Finished glTF 2.0 export in 0.009826183319091797 s
+13:28:20 | INFO: Starting glTF 2.0 export
+13:28:20 | INFO: Extracting primitive: Cylinder.003
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Extracting primitive: Cylinder.001
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Extracting primitive: Cube.001
+13:28:20 | INFO: Primitives created: 1
+13:28:20 | INFO: Finished glTF 2.0 export in 0.014552116394042969 s

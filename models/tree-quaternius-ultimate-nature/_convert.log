@@ -1,0 +1,78 @@
+jobs: 12
+status: 0
+--- stdout ---
+blender 4.2.3 LTS fbx importer: True gltf exporter: True
+INFO Draco mesh compression is available, use library at /home/runner/blender-4.2.3-linux-x64/4.2/python/lib/python3.11/site-packages/libextern_draco.so
+animations []
+converted /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/BushBerries_1.fbx -> /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/BushBerries_1.glb
+animations []
+converted /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/Bush_1.fbx -> /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/Bush_1.glb
+animations []
+converted /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/Bush_2.fbx -> /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/Bush_2.glb
+animations []
+converted /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/CommonTree_1.fbx -> /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/CommonTree_1.glb
+animations []
+converted /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/CommonTree_2.fbx -> /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/CommonTree_2.glb
+animations []
+converted /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/CommonTree_3.fbx -> /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/CommonTree_3.glb
+animations []
+converted /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/CommonTree_4.fbx -> /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/CommonTree_4.glb
+animations []
+converted /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/CommonTree_5.fbx -> /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/CommonTree_5.glb
+animations []
+converted /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/PalmTree_1.fbx -> /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/PalmTree_1.glb
+animations []
+converted /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/PalmTree_2.fbx -> /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/PalmTree_2.glb
+animations []
+converted /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/PalmTree_3.fbx -> /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/PalmTree_3.glb
+animations []
+converted /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/PalmTree_4.fbx -> /tmp/fbx-yINDFs/Ultimate_Nature_Pack_-_Jun_2019/FBX/PalmTree_4.glb
+--- stderr (tail) ---
+13:28:06 | INFO: Starting glTF 2.0 export
+13:28:06 | INFO: Extracting primitive: Cube.044
+13:28:06 | INFO: Primitives created: 2
+13:28:06 | INFO: Finished glTF 2.0 export in 0.013432025909423828 s
+13:28:06 | INFO: Starting glTF 2.0 export
+13:28:06 | INFO: Extracting primitive: Cube.045
+13:28:07 | INFO: Primitives created: 1
+13:28:07 | INFO: Finished glTF 2.0 export in 0.004639387130737305 s
+13:28:07 | INFO: Starting glTF 2.0 export
+13:28:07 | INFO: Extracting primitive: Cube.042
+13:28:07 | INFO: Primitives created: 1
+13:28:07 | INFO: Finished glTF 2.0 export in 0.007616996765136719 s
+13:28:07 | INFO: Starting glTF 2.0 export
+13:28:07 | INFO: Extracting primitive: Cube.049
+13:28:07 | INFO: Primitives created: 2
+13:28:07 | INFO: Finished glTF 2.0 export in 0.014132499694824219 s
+13:28:07 | INFO: Starting glTF 2.0 export
+13:28:07 | INFO: Extracting primitive: Cube.036
+13:28:07 | INFO: Primitives created: 2
+13:28:07 | INFO: Finished glTF 2.0 export in 0.01430368423461914 s
+13:28:07 | INFO: Starting glTF 2.0 export
+13:28:07 | INFO: Extracting primitive: Cube.031
+13:28:07 | INFO: Primitives created: 3
+13:28:07 | INFO: Finished glTF 2.0 export in 0.020839214324951172 s
+13:28:07 | INFO: Starting glTF 2.0 export
+13:28:07 | INFO: Extracting primitive: Cube.001
+13:28:07 | INFO: Primitives created: 3
+13:28:07 | INFO: Finished glTF 2.0 export in 0.018489599227905273 s
+13:28:07 | INFO: Starting glTF 2.0 export
+13:28:07 | INFO: Extracting primitive: Cube.014
+13:28:07 | INFO: Primitives created: 2
+13:28:07 | INFO: Finished glTF 2.0 export in 0.01419830322265625 s
+13:28:07 | INFO: Starting glTF 2.0 export
+13:28:07 | INFO: Extracting primitive: Cylinder.041
+13:28:07 | INFO: Primitives created: 3
+13:28:07 | INFO: Finished glTF 2.0 export in 0.01880478858947754 s
+13:28:07 | INFO: Starting glTF 2.0 export
+13:28:07 | INFO: Extracting primitive: Cylinder.039
+13:28:07 | INFO: Primitives created: 3
+13:28:07 | INFO: Finished glTF 2.0 export in 0.018716096878051758 s
+13:28:07 | INFO: Starting glTF 2.0 export
+13:28:07 | INFO: Extracting primitive: Cylinder.037
+13:28:07 | INFO: Primitives created: 4
+13:28:07 | INFO: Finished glTF 2.0 export in 0.02453017234802246 s
+13:28:07 | INFO: Starting glTF 2.0 export
+13:28:07 | INFO: Extracting primitive: Cylinder.036
+13:28:07 | INFO: Primitives created: 4
+13:28:07 | INFO: Finished glTF 2.0 export in 0.024033784866333008 s

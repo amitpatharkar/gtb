@@ -1,0 +1,12 @@
+167212	Model/characterMedium.fbx
+33627	Skins/humanFemaleA.png
+35497	Skins/humanMaleA.png
+34589	Skins/zombieFemaleA.png
+40176	Skins/zombieMaleA.png
+688	License.txt
+213490	Preview.png
+45	Visit Kenney.url
+55	Visit Patreon.url
+608188	Animations/idle.fbx
+562796	Animations/jump.fbx
+572732	Animations/run.fbx

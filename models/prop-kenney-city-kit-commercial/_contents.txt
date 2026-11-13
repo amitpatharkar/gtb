@@ -1,0 +1,219 @@
+708	License.txt
+56672	Models/FBX format/building-a.fbx
+56096	Models/FBX format/building-b.fbx
+57920	Models/FBX format/building-c.fbx
+56320	Models/FBX format/building-d.fbx
+64192	Models/FBX format/building-e.fbx
+71216	Models/FBX format/building-f.fbx
+73536	Models/FBX format/building-g.fbx
+62960	Models/FBX format/building-h.fbx
+85424	Models/FBX format/building-i.fbx
+154032	Models/FBX format/building-j.fbx
+98816	Models/FBX format/building-k.fbx
+110864	Models/FBX format/building-l.fbx
+109696	Models/FBX format/building-m.fbx
+129408	Models/FBX format/building-n.fbx
+56832	Models/FBX format/building-skyscraper-a.fbx
+63296	Models/FBX format/building-skyscraper-b.fbx
+69344	Models/FBX format/building-skyscraper-c.fbx
+73200	Models/FBX format/building-skyscraper-d.fbx
+51616	Models/FBX format/building-skyscraper-e.fbx
+28576	Models/FBX format/detail-awning-wide.fbx
+28528	Models/FBX format/detail-awning.fbx
+26576	Models/FBX format/detail-overhang-wide.fbx
+26560	Models/FBX format/detail-overhang.fbx
+26608	Models/FBX format/detail-parasol-a.fbx
+27536	Models/FBX format/detail-parasol-b.fbx
+27760	Models/FBX format/low-detail-building-a.fbx
+27968	Models/FBX format/low-detail-building-b.fbx
+26864	Models/FBX format/low-detail-building-c.fbx
+25936	Models/FBX format/low-detail-building-d.fbx
+26160	Models/FBX format/low-detail-building-e.fbx
+25504	Models/FBX format/low-detail-building-f.fbx
+27312	Models/FBX format/low-detail-building-g.fbx
+31072	Models/FBX format/low-detail-building-h.fbx
+26688	Models/FBX format/low-detail-building-i.fbx
+27936	Models/FBX format/low-detail-building-j.fbx
+25392	Models/FBX format/low-detail-building-k.fbx
+26784	Models/FBX format/low-detail-building-l.fbx
+27872	Models/FBX format/low-detail-building-m.fbx
+26592	Models/FBX format/low-detail-building-n.fbx
+27040	Models/FBX format/low-detail-building-wide-a.fbx
+28704	Models/FBX format/low-detail-building-wide-b.fbx
+11002	Models/FBX format/Textures/colormap.png
+108936	Models/GLB format/building-a.glb
+106408	Models/GLB format/building-b.glb
+102788	Models/GLB format/building-c.glb
+95160	Models/GLB format/building-d.glb
+128208	Models/GLB format/building-e.glb
+148952	Models/GLB format/building-f.glb
+166356	Models/GLB format/building-g.glb
+127384	Models/GLB format/building-h.glb
+209728	Models/GLB format/building-i.glb
+440652	Models/GLB format/building-j.glb
+246976	Models/GLB format/building-k.glb
+290516	Models/GLB format/building-l.glb
+301004	Models/GLB format/building-m.glb
+341232	Models/GLB format/building-n.glb
+111336	Models/GLB format/building-skyscraper-a.glb
+138480	Models/GLB format/building-skyscraper-b.glb
+149524	Models/GLB format/building-skyscraper-c.glb
+167148	Models/GLB format/building-skyscraper-d.glb
+101880	Models/GLB format/building-skyscraper-e.glb
+5544	Models/GLB format/detail-awning-wide.glb
+5528	Models/GLB format/detail-awning.glb
+6716	Models/GLB format/detail-overhang-wide.glb
+6704	Models/GLB format/detail-overhang.glb
+10320	Models/GLB format/detail-parasol-a.glb
+12120	Models/GLB format/detail-parasol-b.glb
+14340	Models/GLB format/low-detail-building-a.glb
+16336	Models/GLB format/low-detail-building-b.glb
+12284	Models/GLB format/low-detail-building-c.glb
+8716	Models/GLB format/low-detail-building-d.glb
+8240	Models/GLB format/low-detail-building-e.glb
+6932	Models/GLB format/low-detail-building-f.glb
+16320	Models/GLB format/low-detail-building-g.glb
+26812	Models/GLB format/low-detail-building-h.glb
+11768	Models/GLB format/low-detail-building-i.glb
+16404	Models/GLB format/low-detail-building-j.glb
+7556	Models/GLB format/low-detail-building-k.glb
+12128	Models/GLB format/low-detail-building-l.glb
+15112	Models/GLB format/low-detail-building-m.glb
+5904	Models/GLB format/low-detail-building-n.glb
+12736	Models/GLB format/low-detail-building-wide-a.glb
+18736	Models/GLB format/low-detail-building-wide-b.glb
+11002	Models/GLB format/Textures/colormap.png
+98	Models/OBJ format/building-a.mtl
+101104	Models/OBJ format/building-a.obj
+98	Models/OBJ format/building-b.mtl
+104189	Models/OBJ format/building-b.obj
+98	Models/OBJ format/building-c.mtl
+101022	Models/OBJ format/building-c.obj
+98	Models/OBJ format/building-d.mtl
+91677	Models/OBJ format/building-d.obj
+98	Models/OBJ format/building-e.mtl
+128576	Models/OBJ format/building-e.obj
+98	Models/OBJ format/building-f.mtl
+146264	Models/OBJ format/building-f.obj
+98	Models/OBJ format/building-g.mtl
+170583	Models/OBJ format/building-g.obj
+98	Models/OBJ format/building-h.mtl
+122178	Models/OBJ format/building-h.obj
+98	Models/OBJ format/building-i.mtl
+211145	Models/OBJ format/building-i.obj
+98	Models/OBJ format/building-j.mtl
+453979	Models/OBJ format/building-j.obj
+98	Models/OBJ format/building-k.mtl
+258659	Models/OBJ format/building-k.obj
+98	Models/OBJ format/building-l.mtl
+307812	Models/OBJ format/building-l.obj
+98	Models/OBJ format/building-m.mtl
+317657	Models/OBJ format/building-m.obj
+98	Models/OBJ format/building-n.mtl
+386751	Models/OBJ format/building-n.obj
+98	Models/OBJ format/building-skyscraper-a.mtl
+118235	Models/OBJ format/building-skyscraper-a.obj
+98	Models/OBJ format/building-skyscraper-b.mtl
+144571	Models/OBJ format/building-skyscraper-b.obj
+98	Models/OBJ format/building-skyscraper-c.mtl
+158350	Models/OBJ format/building-skyscraper-c.obj
+98	Models/OBJ format/building-skyscraper-d.mtl
+184014	Models/OBJ format/building-skyscraper-d.obj
+98	Models/OBJ format/building-skyscraper-e.mtl
+95108	Models/OBJ format/building-skyscraper-e.obj
+98	Models/OBJ format/detail-awning-wide.mtl
+3570	Models/OBJ format/detail-awning-wide.obj
+98	Models/OBJ format/detail-awning.mtl
+3555	Models/OBJ format/detail-awning.obj
+98	Models/OBJ format/detail-overhang-wide.mtl
+4747	Models/OBJ format/detail-overhang-wide.obj
+98	Models/OBJ format/detail-overhang.mtl
+4740	Models/OBJ format/detail-overhang.obj
+98	Models/OBJ format/detail-parasol-a.mtl
+7340	Models/OBJ format/detail-parasol-a.obj
+98	Models/OBJ format/detail-parasol-b.mtl
+9073	Models/OBJ format/detail-parasol-b.obj
+98	Models/OBJ format/low-detail-building-a.mtl
+12263	Models/OBJ format/low-detail-building-a.obj
+98	Models/OBJ format/low-detail-building-b.mtl
+13493	Models/OBJ format/low-detail-building-b.obj
+98	Models/OBJ format/low-detail-building-c.mtl
+10959	Models/OBJ format/low-detail-building-c.obj
+98	Models/OBJ format/low-detail-building-d.mtl
+7495	Models/OBJ format/low-detail-building-d.obj
+98	Models/OBJ format/low-detail-building-e.mtl
+8115	Models/OBJ format/low-detail-building-e.obj
+98	Models/OBJ format/low-detail-building-f.mtl
+6371	Models/OBJ format/low-detail-building-f.obj
+98	Models/OBJ format/low-detail-building-g.mtl
+12303	Models/OBJ format/low-detail-building-g.obj
+98	Models/OBJ format/low-detail-building-h.mtl
+25271	Models/OBJ format/low-detail-building-h.obj
+98	Models/OBJ format/low-detail-building-i.mtl
+10741	Models/OBJ format/low-detail-building-i.obj
+98	Models/OBJ format/low-detail-building-j.mtl
+13662	Models/OBJ format/low-detail-building-j.obj
+98	Models/OBJ format/low-detail-building-k.mtl
+6042	Models/OBJ format/low-detail-building-k.obj
+98	Models/OBJ format/low-detail-building-l.mtl
+10767	Models/OBJ format/low-detail-building-l.obj
+98	Models/OBJ format/low-detail-building-m.mtl
+12951	Models/OBJ format/low-detail-building-m.obj
+98	Models/OBJ format/low-detail-building-n.mtl
+4725	Models/OBJ format/low-detail-building-n.obj
+98	Models/OBJ format/low-detail-building-wide-a.mtl
+10014	Models/OBJ format/low-detail-building-wide-a.obj
+98	Models/OBJ format/low-detail-building-wide-b.mtl
+16678	Models/OBJ format/low-detail-building-wide-b.obj
+11002	Models/OBJ format/Textures/colormap.png
+11020	Models/Textures/variation-a.png
+10897	Models/Textures/variation-b.png
+9864	Overview.html
+539349	Preview (Variation A).png
+517133	Preview (Variation B).png
+148760	Preview.png
+1870	Previews/building-a.png
+1948	Previews/building-b.png
+2026	Previews/building-c.png
+1752	Previews/building-d.png
+2194	Previews/building-e.png
+1750	Previews/building-f.png
+1783	Previews/building-g.png
+1741	Previews/building-h.png
+1848	Previews/building-i.png
+2139	Previews/building-j.png
+2020	Previews/building-k.png
+1695	Previews/building-l.png
+1558	Previews/building-m.png
+1921	Previews/building-n.png
+1652	Previews/building-skyscraper-a.png
+1527	Previews/building-skyscraper-b.png
+1506	Previews/building-skyscraper-c.png
+1424	Previews/building-skyscraper-d.png
+1538	Previews/building-skyscraper-e.png
+1336	Previews/detail-awning-wide.png
+1542	Previews/detail-awning.png
+1330	Previews/detail-overhang-wide.png
+1528	Previews/detail-overhang.png
+1748	Previews/detail-parasol-a.png
+1728	Previews/detail-parasol-b.png
+1488	Previews/low-detail-building-a.png
+1239	Previews/low-detail-building-b.png
+1449	Previews/low-detail-building-c.png
+1447	Previews/low-detail-building-d.png
+1530	Previews/low-detail-building-e.png
+1318	Previews/low-detail-building-f.png
+1439	Previews/low-detail-building-g.png
+1342	Previews/low-detail-building-h.png
+1389	Previews/low-detail-building-i.png
+1365	Previews/low-detail-building-j.png
+1512	Previews/low-detail-building-k.png
+1449	Previews/low-detail-building-l.png
+1396	Previews/low-detail-building-m.png
+1725	Previews/low-detail-building-n.png
+1812	Previews/low-detail-building-wide-a.png
+1744	Previews/low-detail-building-wide-b.png
+190728	Sample.png
+185	View Documentation.url
+118	Visit Kenney.url
+55	Visit Patreon.url

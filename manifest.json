@@ -1,0 +1,3087 @@
+{
+ "generated": "2026-11-13T13:28:46.775Z",
+ "textureSize": 1024,
+ "assets": [
+  {
+   "id": "animation-quaternius-ual1",
+   "category": "animation",
+   "title": "Universal Animation Library (Quaternius)",
+   "use": "120+ humanoid animations: idle, walk, jog, sprint, jump, sit, push, crawl, swim, death etc.",
+   "licence": "CC0-1.0",
+   "author": "Quaternius",
+   "attribution": "",
+   "source_page": "https://quaternius.com/packs/universalanimationlibrary.html",
+   "files": [
+    "models/animation-quaternius-ual1/Animation_Library_Standard_/Godot/AnimationLibrary_Godot_Standard.glb",
+    "models/animation-quaternius-ual1/_contents.txt"
+   ],
+   "meta": {
+    "models": 1,
+    "packFiles": 7,
+    "formats": [
+     ".glb",
+     ".txt",
+     ".png",
+     ".fbx"
+    ]
+   }
+  },
+  {
+   "id": "animation-quaternius-ual2",
+   "category": "animation",
+   "title": "Universal Animation Library 2 (Quaternius)",
+   "use": "Second animation set (more sitting, interaction, emotes) — complements UAL1",
+   "licence": "CC0-1.0",
+   "author": "Quaternius",
+   "attribution": "",
+   "source_page": "https://quaternius.com/packs/universalanimationlibrary2.html",
+   "files": [
+    "models/animation-quaternius-ual2/Universal_Animation_Library_2_Standard_/Female_Mannequin/Unreal-Godot/Mannequin_F.glb",
+    "models/animation-quaternius-ual2/Universal_Animation_Library_2_Standard_/Unreal-Godot/UAL2_Standard.glb",
+    "models/animation-quaternius-ual2/_contents.txt"
+   ],
+   "meta": {
+    "models": 2,
+    "packFiles": 10,
+    "formats": [
+     ".blend",
+     ".txt",
+     ".fbx",
+     ".glb",
+     ".png"
+    ]
+   }
+  },
+  {
+   "id": "character-kenney-animated-characters-3",
+   "category": "character",
+   "title": "Animated Characters 3 (Kenney)",
+   "use": "Light rigged humanoid with skin swaps (idle, run, jump) — crowd LOD / pedestrians",
+   "licence": "CC0-1.0",
+   "author": "Kenney",
+   "attribution": "",
+   "source_page": "https://opengameart.org/content/animated-characters-3",
+   "files": [
+    "models/character-kenney-animated-characters-3/_contents.txt"
+   ],
+   "meta": {
+    "models": 0,
+    "packFiles": 12,
+    "formats": [
+     ".fbx",
+     ".png",
+     ".txt",
+     ".url"
+    ]
+   }
+  },
+  {
+   "id": "character-quaternius-animated-pack",
+   "category": "character",
+   "title": "Ultimate Animated Character Pack (Quaternius)",
+   "use": "Rigged low-poly humans (men/women, varied clothes) with idle/walk/run/jump etc.",
+   "licence": "CC0-1.0",
+   "author": "Quaternius",
+   "attribution": "",
+   "source_page": "https://opengameart.org/content/animated-characters-pack",
+   "files": [
+    "models/character-quaternius-animated-pack/converted/Casual2_Female.glb",
+    "models/character-quaternius-animated-pack/converted/Casual2_Male.glb",
+    "models/character-quaternius-animated-pack/converted/Casual3_Female.glb",
+    "models/character-quaternius-animated-pack/converted/Casual3_Male.glb",
+    "models/character-quaternius-animated-pack/converted/Casual_Bald.glb",
+    "models/character-quaternius-animated-pack/converted/Casual_Female.glb",
+    "models/character-quaternius-animated-pack/converted/Casual_Male.glb",
+    "models/character-quaternius-animated-pack/converted/Chef_Female.glb",
+    "models/character-quaternius-animated-pack/converted/Chef_Male.glb",
+    "models/character-quaternius-animated-pack/converted/Cow.glb",
+    "models/character-quaternius-animated-pack/converted/Doctor_Female_Young.glb",
+    "models/character-quaternius-animated-pack/converted/Doctor_Male_Young.glb",
+    "models/character-quaternius-animated-pack/converted/OldClassy_Female.glb",
+    "models/character-quaternius-animated-pack/converted/OldClassy_Male.glb",
+    "models/character-quaternius-animated-pack/converted/Pug.glb",
+    "models/character-quaternius-animated-pack/converted/Soldier_Female.glb",
+    "models/character-quaternius-animated-pack/converted/Soldier_Male.glb",
+    "models/character-quaternius-animated-pack/converted/Suit_Female.glb",
+    "models/character-quaternius-animated-pack/converted/Suit_Male.glb",
+    "models/character-quaternius-animated-pack/converted/Worker_Female.glb",
+    "models/character-quaternius-animated-pack/converted/Worker_Male.glb",
+    "models/character-quaternius-animated-pack/_contents.txt"
+   ],
+   "meta": {
+    "models": 21,
+    "packFiles": 209,
+    "formats": [
+     ".blend",
+     ".fbx",
+     ".mtl",
+     ".obj",
+     ".png"
+    ]
+   }
+  },
+  {
+   "id": "font-baloo2",
+   "category": "font",
+   "title": "Baloo 2",
+   "use": "Rounded friendly Devanagari + Latin (variable weight) — modern shop signs, UI",
+   "licence": "OFL-1.1",
+   "author": "Ek Type",
+   "attribution": "",
+   "source_page": "https://fonts.google.com/specimen/Baloo+2",
+   "files": [
+    "fonts/font-baloo2.ttf",
+    "fonts/font-baloo2.OFL.txt"
+   ]
+  },
+  {
+   "id": "font-baloobhai2",
+   "category": "font",
+   "title": "Baloo Bhai 2",
+   "use": "Gujarati + Latin — Gujarati shop boards (Kalbadevi, Bhuleshwar, Ghatkopar)",
+   "licence": "OFL-1.1",
+   "author": "Ek Type",
+   "attribution": "",
+   "source_page": "https://fonts.google.com/specimen/Baloo+Bhai+2",
+   "files": [
+    "fonts/font-baloobhai2.ttf",
+    "fonts/font-baloobhai2.OFL.txt"
+   ]
+  },
+  {
+   "id": "font-bebasneue",
+   "category": "font",
+   "title": "Bebas Neue",
+   "use": "Tall caps Latin — hoardings, cinema boards",
+   "licence": "OFL-1.1",
+   "author": "Ryoichi Tsunekawa",
+   "attribution": "",
+   "source_page": "https://fonts.google.com/specimen/Bebas+Neue",
+   "files": [
+    "fonts/font-bebasneue.ttf",
+    "fonts/font-bebasneue.OFL.txt"
+   ]
+  },
+  {
+   "id": "font-kalam",
+   "category": "font",
+   "title": "Kalam",
+   "use": "Handwritten Devanagari + Latin — chalk boards, hand-lettered menus, graffiti",
+   "licence": "OFL-1.1",
+   "author": "Indian Type Foundry",
+   "attribution": "",
+   "source_page": "https://fonts.google.com/specimen/Kalam",
+   "files": [
+    "fonts/font-kalam.ttf",
+    "fonts/font-kalam.OFL.txt"
+   ]
+  },
+  {
+   "id": "font-modak",
+   "category": "font",
+   "title": "Modak",
+   "use": "Fat, bubbly display Devanagari + Latin — hoardings, sweet shops, kids' brands",
+   "licence": "OFL-1.1",
+   "author": "Ek Type",
+   "attribution": "",
+   "source_page": "https://fonts.google.com/specimen/Modak",
+   "files": [
+    "fonts/font-modak.ttf",
+    "fonts/font-modak.OFL.txt"
+   ]
+  },
+  {
+   "id": "font-mukta",
+   "category": "font",
+   "title": "Mukta",
+   "use": "Clean sans Devanagari + Latin — official signs (BMC, railway), road signs",
+   "licence": "OFL-1.1",
+   "author": "Ek Type",
+   "attribution": "",
+   "source_page": "https://fonts.google.com/specimen/Mukta",
+   "files": [
+    "fonts/font-mukta.ttf",
+    "fonts/font-mukta.OFL.txt"
+   ]
+  },
+  {
+   "id": "font-notonastaliqurdu",
+   "category": "font",
+   "title": "Noto Nastaliq Urdu",
+   "use": "Urdu Nastaliq — signs in Mohammed Ali Road, Bhendi Bazaar, Mahim",
+   "licence": "OFL-1.1",
+   "author": "Google",
+   "attribution": "",
+   "source_page": "https://fonts.google.com/specimen/Noto+Nastaliq+Urdu",
+   "files": [
+    "fonts/font-notonastaliqurdu.ttf",
+    "fonts/font-notonastaliqurdu.OFL.txt"
+   ]
+  },
+  {
+   "id": "font-notosansdevanagari",
+   "category": "font",
+   "title": "Noto Sans Devanagari",
+   "use": "Fallback Devanagari with full Marathi coverage (variable)",
+   "licence": "OFL-1.1",
+   "author": "Google",
+   "attribution": "",
+   "source_page": "https://fonts.google.com/specimen/Noto+Sans+Devanagari",
+   "files": [
+    "fonts/font-notosansdevanagari.ttf",
+    "fonts/font-notosansdevanagari.OFL.txt"
+   ]
+  },
+  {
+   "id": "font-oswald",
+   "category": "font",
+   "title": "Oswald",
+   "use": "Condensed Latin — HUD, street-name plates",
+   "licence": "OFL-1.1",
+   "author": "Vernon Adams, Kalapi Gajjar, Cyreal",
+   "attribution": "",
+   "source_page": "https://fonts.google.com/specimen/Oswald",
+   "files": [
+    "fonts/font-oswald.ttf",
+    "fonts/font-oswald.OFL.txt"
+   ]
+  },
+  {
+   "id": "font-rozhaone",
+   "category": "font",
+   "title": "Rozha One",
+   "use": "High-contrast bold Devanagari + Latin — newspaper mastheads, jewellers, old shop boards",
+   "licence": "OFL-1.1",
+   "author": "Indian Type Foundry",
+   "attribution": "",
+   "source_page": "https://fonts.google.com/specimen/Rozha+One",
+   "files": [
+    "fonts/font-rozhaone.ttf",
+    "fonts/font-rozhaone.OFL.txt"
+   ]
+  },
+  {
+   "id": "font-teko",
+   "category": "font",
+   "title": "Teko",
+   "use": "Condensed Devanagari + Latin — station boards, bus destination boards, HUD",
+   "licence": "OFL-1.1",
+   "author": "Indian Type Foundry",
+   "attribution": "",
+   "source_page": "https://fonts.google.com/specimen/Teko",
+   "files": [
+    "fonts/font-teko.ttf",
+    "fonts/font-teko.OFL.txt"
+   ]
+  },
+  {
+   "id": "font-yatraone",
+   "category": "font",
+   "title": "Yatra One",
+   "use": "Hand-painted / brush Devanagari + Latin — Indian truck art and shop board look (top pick)",
+   "licence": "OFL-1.1",
+   "author": "Catherine Leigh Schmidt",
+   "attribution": "",
+   "source_page": "https://fonts.google.com/specimen/Yatra+One",
+   "files": [
+    "fonts/font-yatraone.ttf",
+    "fonts/font-yatraone.OFL.txt"
+   ]
+  },
+  {
+   "id": "hdri-belfast-sunset-puresky",
+   "category": "hdri",
+   "title": "Belfast Sunset (Pure Sky)",
+   "use": "Cloudier sunset alternative",
+   "licence": "CC0-1.0",
+   "author": "Greg Zaal, Dimitrios Savva, Jarod Guest (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/belfast_sunset_puresky",
+   "files": [
+    "hdri/hdri-belfast-sunset-puresky.hdr"
+   ],
+   "meta": {
+    "resolution": "1k"
+   }
+  },
+  {
+   "id": "hdri-industrial-sunset-puresky",
+   "category": "hdri",
+   "title": "Industrial Sunset (Pure Sky)",
+   "use": "Hazy sunset over the Arabian Sea (Marine Drive)",
+   "licence": "CC0-1.0",
+   "author": "Jarod Guest, Sergej Majboroda (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/industrial_sunset_puresky",
+   "files": [
+    "hdri/hdri-industrial-sunset-puresky.hdr"
+   ],
+   "meta": {
+    "resolution": "1k"
+   }
+  },
+  {
+   "id": "hdri-kloofendal-28d-misty-puresky",
+   "category": "hdri",
+   "title": "Kloofendal 28d Misty (Pure Sky)",
+   "use": "Hazy tropical afternoon (default daytime sky)",
+   "licence": "CC0-1.0",
+   "author": "Greg Zaal, Jenelle van Heerden (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/kloofendal_28d_misty_puresky",
+   "files": [
+    "hdri/hdri-kloofendal-28d-misty-puresky.hdr"
+   ],
+   "meta": {
+    "resolution": "1k"
+   }
+  },
+  {
+   "id": "hdri-kloofendal-overcast-puresky",
+   "category": "hdri",
+   "title": "Kloofendal Overcast (Pure Sky)",
+   "use": "Overcast monsoon day",
+   "licence": "CC0-1.0",
+   "author": "Greg Zaal (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/kloofendal_overcast_puresky",
+   "files": [
+    "hdri/hdri-kloofendal-overcast-puresky.hdr"
+   ],
+   "meta": {
+    "resolution": "1k"
+   }
+  },
+  {
+   "id": "hdri-kloppenheim-02-puresky",
+   "category": "hdri",
+   "title": "Kloppenheim 02 (Pure Sky)",
+   "use": "Clear night with stars (reduce stars; Mumbai sky is hazy)",
+   "licence": "CC0-1.0",
+   "author": "Greg Zaal, Jarod Guest (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/kloppenheim_02_puresky",
+   "files": [
+    "hdri/hdri-kloppenheim-02-puresky.hdr"
+   ],
+   "meta": {
+    "resolution": "1k"
+   }
+  },
+  {
+   "id": "hdri-kloppenheim-07-puresky",
+   "category": "hdri",
+   "title": "Kloppenheim 07 (Pure Sky)",
+   "use": "Overcast night — tint orange for city light pollution",
+   "licence": "CC0-1.0",
+   "author": "Greg Zaal, Jarod Guest (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/kloppenheim_07_puresky",
+   "files": [
+    "hdri/hdri-kloppenheim-07-puresky.hdr"
+   ],
+   "meta": {
+    "resolution": "1k"
+   }
+  },
+  {
+   "id": "hdri-overcast-soil-puresky",
+   "category": "hdri",
+   "title": "Overcast Soil (Pure Sky)",
+   "use": "Darker overcast monsoon alternative",
+   "licence": "CC0-1.0",
+   "author": "Jarod Guest, Sergej Majboroda (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/overcast_soil_puresky",
+   "files": [
+    "hdri/hdri-overcast-soil-puresky.hdr"
+   ],
+   "meta": {
+    "resolution": "1k"
+   }
+  },
+  {
+   "id": "hdri-qwantani-late-afternoon-puresky",
+   "category": "hdri",
+   "title": "Qwantani Late Afternoon (Pure Sky)",
+   "use": "Clear warm late afternoon (winter season)",
+   "licence": "CC0-1.0",
+   "author": "Greg Zaal, Jarod Guest (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/qwantani_late_afternoon_puresky",
+   "files": [
+    "hdri/hdri-qwantani-late-afternoon-puresky.hdr"
+   ],
+   "meta": {
+    "resolution": "1k"
+   }
+  },
+  {
+   "id": "prop-kenney-city-kit-commercial",
+   "category": "prop",
+   "title": "City Kit Commercial (Kenney)",
+   "use": "Shop/awning/sign pieces, rooftop details (AC units, water tanks) for kit-bashing buildings",
+   "licence": "CC0-1.0",
+   "author": "Kenney",
+   "attribution": "",
+   "source_page": "https://kenney.nl/assets/city-kit-commercial",
+   "files": [
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-a.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-b.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-c.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-d.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-e.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-f.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-g.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-h.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-i.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-j.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-k.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-l.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-m.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-n.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-skyscraper-a.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-skyscraper-b.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-skyscraper-c.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-skyscraper-d.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/building-skyscraper-e.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/detail-awning-wide.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/detail-awning.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/detail-overhang-wide.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/detail-overhang.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/detail-parasol-a.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/detail-parasol-b.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-a.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-b.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-c.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-d.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-e.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-f.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-g.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-h.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-i.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-j.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-k.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-l.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-m.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-n.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-wide-a.glb",
+    "models/prop-kenney-city-kit-commercial/Models/GLB_format/low-detail-building-wide-b.glb",
+    "models/prop-kenney-city-kit-commercial/_contents.txt"
+   ],
+   "meta": {
+    "models": 41,
+    "packFiles": 219,
+    "formats": [
+     ".txt",
+     ".fbx",
+     ".png",
+     ".glb",
+     ".mtl",
+     ".obj",
+     ".html",
+     ".url"
+    ]
+   }
+  },
+  {
+   "id": "prop-kenney-city-kit-roads",
+   "category": "prop",
+   "title": "City Kit Roads (Kenney)",
+   "use": "Road tiles, traffic lights, street lights, barriers, cones, bridge/flyover pieces",
+   "licence": "CC0-1.0",
+   "author": "Kenney",
+   "attribution": "",
+   "source_page": "https://kenney.nl/assets/city-kit-roads",
+   "files": [
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/bridge-pillar-wide.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/bridge-pillar.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/construction-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/construction-cone.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/construction-fence.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/construction-light.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/dumpster.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/electricity-pole-single.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/electricity-pole-wide.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/electricity-pole.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/electricity-side-single.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/electricity-side-wide.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/electricity-side.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/electricity-wires-wide.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/electricity-wires.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/light-curved-cross.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/light-curved-double.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/light-curved.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/light-square-cross.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/light-square-double.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/light-square.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-bend-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-bend-sidewalk.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-bend-square-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-bend-square.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-bend.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-bridge.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-crossing.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-crossroad-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-crossroad-line.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-crossroad-path.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-crossroad.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-curve-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-curve-intersection-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-curve-intersection.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-curve-pavement.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-curve.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-driveway-double-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-driveway-double.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-driveway-single-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-driveway-single.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-end-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-end-round-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-end-round.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-end.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-intersection-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-intersection-line.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-intersection-path.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-intersection.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-roundabout-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-roundabout.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-side-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-side-entry-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-side-entry.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-side-exit-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-side-exit.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-side.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-sign-empty-hanging.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-sign-empty.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-sign-object-stop.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-sign-object-street.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-sign-object-warning.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-sign-stop.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-sign-street.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-sign-warning.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-slant-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-slant-curve-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-slant-curve.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-slant-flat-curve.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-slant-flat-high.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-slant-flat.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-slant-high-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-slant-high.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-slant.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-split-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-split.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-square-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-square.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-straight-barrier-end.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-straight-barrier-half.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-straight-barrier.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-straight-half.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/road-straight.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/sign-highway-detailed.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/sign-highway-wide.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/sign-highway.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/tile-high.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/tile-low.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/tile-slant.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/tile-slantHigh.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/traffic-light-hanging.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/traffic-light-object-hanging.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/traffic-light-object-horizontal.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/traffic-light-object-vertical.glb",
+    "models/prop-kenney-city-kit-roads/Models/GLB_format/traffic-light.glb",
+    "models/prop-kenney-city-kit-roads/_contents.txt"
+   ],
+   "meta": {
+    "models": 95,
+    "packFiles": 487,
+    "formats": [
+     ".txt",
+     ".fbx",
+     ".png",
+     ".glb",
+     ".mtl",
+     ".obj",
+     ".html",
+     ".url"
+    ]
+   }
+  },
+  {
+   "id": "prop-kenney-city-kit-suburban",
+   "category": "prop",
+   "title": "City Kit Suburban (Kenney)",
+   "use": "Low houses, fences, details (Bandra village / Khotachiwadi bungalows base)",
+   "licence": "CC0-1.0",
+   "author": "Kenney",
+   "attribution": "",
+   "source_page": "https://kenney.nl/assets/city-kit-suburban",
+   "files": [
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-a.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-b.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-c.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-d.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-e.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-f.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-g.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-h.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-i.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-j.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-k.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-l.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-m.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-n.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-o.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-p.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-q.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-r.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-s.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-t.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/building-type-u.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/driveway-long.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/driveway-short.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/fence-1x2.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/fence-1x3.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/fence-1x4.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/fence-2x2.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/fence-2x3.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/fence-3x2.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/fence-3x3.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/fence-low.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/fence.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/path-long.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/path-short.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/path-stones-long.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/path-stones-messy.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/path-stones-short.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/planter.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/tree-large.glb",
+    "models/prop-kenney-city-kit-suburban/Models/GLB_format/tree-small.glb",
+    "models/prop-kenney-city-kit-suburban/_contents.txt"
+   ],
+   "meta": {
+    "models": 40,
+    "packFiles": 216,
+    "formats": [
+     ".txt",
+     ".fbx",
+     ".png",
+     ".glb",
+     ".mtl",
+     ".obj",
+     ".html",
+     ".url"
+    ]
+   }
+  },
+  {
+   "id": "prop-kenney-furniture-kit",
+   "category": "prop",
+   "title": "Furniture Kit (Kenney)",
+   "use": "Tables, chairs, stools, crates for stalls and cafés (Irani café interiors)",
+   "licence": "CC0-1.0",
+   "author": "Kenney",
+   "attribution": "",
+   "source_page": "https://kenney.nl/assets/furniture-kit",
+   "files": [
+    "models/prop-kenney-furniture-kit/_contents.txt"
+   ],
+   "meta": {
+    "models": 0,
+    "packFiles": 982,
+    "formats": [
+     ".png",
+     ".url",
+     ".txt",
+     ".fbx",
+     ".mtl",
+     ".obj",
+     ".mat",
+     ".unitypackage"
+    ]
+   }
+  },
+  {
+   "id": "prop-kenney-modular-buildings",
+   "category": "prop",
+   "title": "Modular Buildings (Kenney)",
+   "use": "Modular facade pieces (windows, doors, balconies) for building generator",
+   "licence": "CC0-1.0",
+   "author": "Kenney",
+   "attribution": "",
+   "source_page": "https://opengameart.org/content/modular-buildings",
+   "files": [
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-block.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-corner-bottom.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-corner-top.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-corner-window-middle.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-corner-window-narrow.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-corner-window-sill.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-corner-window-top-round.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-corner-window-top-square.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-corner-window.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-corner.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-door-window-narrow.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-door-window.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-door.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-edges-door.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-sample-house-a.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-sample-house-b.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-sample-house-c.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-sample-tower-a.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-sample-tower-b.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-sample-tower-c.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-sample-tower-d.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-steps-narrow-windows-round.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-steps-narrow-windows.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-steps-narrow.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-steps-wide.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-awnings.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-balcony.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-door-window-round.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-door-window.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-large-left.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-large-middle.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-large-right.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-large.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-left-sill.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-left.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-right-sill.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-right.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-sill.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-wide-sill.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window-wide.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-window.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-windows-high-middle.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-windows-high-top-round.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-windows-high-top-square.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-windows-round.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-windows-sills-round.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-windows-sills.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/building-windows.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/detail-ac-a.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/detail-ac-b.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/door-brown-glass.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/door-brown-window.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/door-brown.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/door-white-glass.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/door-white-window.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/door-white.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-awning-a.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-awning-b.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-awning-c.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-border-center-corner.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-border-center.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-border-corner-slanted-passage.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-border-corner-slanted.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-border-corner.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-border-end.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-border-side.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-border-straight.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-center.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-corner-high.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-corner.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-detail-a.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-detail-b.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-detail-c.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-detail-d.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-flat-top.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-gable-corner.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-gable-end.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-gable.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-slanted-corner-a.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-slanted-corner-b.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-slanted-corner-c.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-slanted-corner-inner.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-slanted-detail.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-slanted-flat.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-slanted-window.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/roof-slanted.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-brown-detailed.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-brown-large.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-brown-narrow.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-brown-round-low.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-brown-round-middle.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-brown-round-narrow.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-brown-round-top.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-brown-round-wide.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-brown-tall.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-brown-wide.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-brown.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-white-detailed.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-white-large.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-white-narrow.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-white-round-low.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-white-round-middle.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-white-round-narrow.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-white-round-top.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-white-round-wide.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-white-tall.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-white-wide.glb",
+    "models/prop-kenney-modular-buildings/Models/GLB_format/window-white.glb",
+    "models/prop-kenney-modular-buildings/_contents.txt"
+   ],
+   "meta": {
+    "models": 108,
+    "packFiles": 554,
+    "formats": [
+     ".txt",
+     ".fbx",
+     ".png",
+     ".glb",
+     ".mtl",
+     ".obj",
+     ".html",
+     ".url"
+    ]
+   }
+  },
+  {
+   "id": "prop-ph-exterior-aircon-unit",
+   "category": "prop",
+   "title": "Exterior Aircon Unit",
+   "use": "Window/split AC outdoor units on every facade — DECIMATE to <2k or bake into facade normal map",
+   "licence": "CC0-1.0",
+   "author": "Monsta3D (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/exterior_aircon_unit",
+   "files": [
+    "models/prop-ph-exterior-aircon-unit/exterior_aircon_unit_1k.gltf",
+    "models/prop-ph-exterior-aircon-unit/textures/exterior_aircon_unit_01_nor_gl_1k.jpg",
+    "models/prop-ph-exterior-aircon-unit/textures/exterior_aircon_unit_01_opacity_1k.jpg",
+    "models/prop-ph-exterior-aircon-unit/textures/exterior_aircon_unit_rusted_01_arm_1k.jpg",
+    "models/prop-ph-exterior-aircon-unit/textures/exterior_aircon_unit_01_arm_1k.jpg",
+    "models/prop-ph-exterior-aircon-unit/textures/exterior_aircon_unit_02_arm_1k.jpg",
+    "models/prop-ph-exterior-aircon-unit/textures/exterior_aircon_unit_rusted_02_arm_1k.jpg",
+    "models/prop-ph-exterior-aircon-unit/exterior_aircon_unit.bin",
+    "models/prop-ph-exterior-aircon-unit/textures/exterior_aircon_unit_02_nor_gl_1k.jpg",
+    "models/prop-ph-exterior-aircon-unit/textures/exterior_aircon_unit_rusted_01_nor_gl_1k.jpg",
+    "models/prop-ph-exterior-aircon-unit/textures/exterior_aircon_unit_rusted_01_diff_1k.jpg",
+    "models/prop-ph-exterior-aircon-unit/textures/exterior_aircon_unit_01_diff_1k.jpg",
+    "models/prop-ph-exterior-aircon-unit/textures/exterior_aircon_unit_rusted_02_opacity_1k.jpg",
+    "models/prop-ph-exterior-aircon-unit/textures/exterior_aircon_unit_rusted_02_nor_gl_1k.jpg"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "prop-ph-metal-trash-can",
+   "category": "prop",
+   "title": "Metal Trash Can",
+   "use": "Dustbin (decimate)",
+   "licence": "CC0-1.0",
+   "author": "GurJas Studios (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/metal_trash_can",
+   "files": [
+    "models/prop-ph-metal-trash-can/metal_trash_can_1k.gltf",
+    "models/prop-ph-metal-trash-can/textures/metal_trash_can_diff_1k.jpg",
+    "models/prop-ph-metal-trash-can/textures/metal_trash_can_rust_diff_1k.jpg",
+    "models/prop-ph-metal-trash-can/textures/metal_trash_can_arm_1k.jpg",
+    "models/prop-ph-metal-trash-can/textures/metal_trash_can_rust_nor_gl_1k.jpg",
+    "models/prop-ph-metal-trash-can/textures/metal_trash_can_nor_gl_1k.jpg",
+    "models/prop-ph-metal-trash-can/metal_trash_can.bin",
+    "models/prop-ph-metal-trash-can/textures/metal_trash_can_rust_arm_1k.jpg"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "prop-ph-painted-wooden-bench",
+   "category": "prop",
+   "title": "Painted Wooden Bench",
+   "use": "Promenade / park bench",
+   "licence": "CC0-1.0",
+   "author": "Kirill Sannikov (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/painted_wooden_bench",
+   "files": [
+    "models/prop-ph-painted-wooden-bench/painted_wooden_bench_1k.gltf",
+    "models/prop-ph-painted-wooden-bench/textures/painted_wooden_bench_diff_1k.jpg",
+    "models/prop-ph-painted-wooden-bench/textures/painted_wooden_bench_nor_gl_1k.jpg",
+    "models/prop-ph-painted-wooden-bench/textures/painted_wooden_bench_arm_1k.jpg",
+    "models/prop-ph-painted-wooden-bench/painted_wooden_bench.bin"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "prop-ph-plastic-crate-02",
+   "category": "prop",
+   "title": "Plastic Crate 02",
+   "use": "Vegetable / milk crates at hawker stalls",
+   "licence": "CC0-1.0",
+   "author": "Fabi_G (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/plastic_crate_02",
+   "files": [
+    "models/prop-ph-plastic-crate-02/plastic_crate_02_1k.gltf",
+    "models/prop-ph-plastic-crate-02/textures/plastic_crate_02_nor_gl_1k.jpg",
+    "models/prop-ph-plastic-crate-02/textures/plastic_crate_02_diff_1k.jpg",
+    "models/prop-ph-plastic-crate-02/textures/plastic_crate_02_arm_1k.jpg",
+    "models/prop-ph-plastic-crate-02/plastic_crate_02.bin"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "prop-ph-plastic-monobloc-chair-01",
+   "category": "prop",
+   "title": "Plastic Monobloc Chair 01",
+   "use": "White/red plastic chairs — chai stalls, shops, building gates",
+   "licence": "CC0-1.0",
+   "author": "Kuutti Siitonen (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/plastic_monobloc_chair_01",
+   "files": [
+    "models/prop-ph-plastic-monobloc-chair-01/plastic_monobloc_chair_01_1k.gltf",
+    "models/prop-ph-plastic-monobloc-chair-01/plastic_monobloc_chair_01.bin",
+    "models/prop-ph-plastic-monobloc-chair-01/textures/plastic_monobloc_chair_01_arm_1k.jpg",
+    "models/prop-ph-plastic-monobloc-chair-01/textures/plastic_monobloc_chair_01_diff_1k.jpg",
+    "models/prop-ph-plastic-monobloc-chair-01/textures/plastic_monobloc_chair_01_nor_gl_1k.jpg"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "prop-ph-street-lamp-02",
+   "category": "prop",
+   "title": "Street Lamp 02",
+   "use": "Street light reference (decimate; or use Kenney/Quaternius lamp)",
+   "licence": "CC0-1.0",
+   "author": "Josh Dean (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/street_lamp_02",
+   "files": [
+    "models/prop-ph-street-lamp-02/street_lamp_02_1k.gltf",
+    "models/prop-ph-street-lamp-02/textures/street_lamp_02_diff_1k.jpg",
+    "models/prop-ph-street-lamp-02/textures/street_lamp_02_arm_1k.jpg",
+    "models/prop-ph-street-lamp-02/street_lamp_02.bin",
+    "models/prop-ph-street-lamp-02/textures/street_lamp_02_nor_gl_1k.jpg"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "prop-ph-trashbag",
+   "category": "prop",
+   "title": "Trash Bag",
+   "use": "Garbage bags piled at street corners",
+   "licence": "CC0-1.0",
+   "author": "Benny Weimer (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/trashbag",
+   "files": [
+    "models/prop-ph-trashbag/trashbag_1k.gltf",
+    "models/prop-ph-trashbag/textures/trashbag_nor_gl_1k.jpg",
+    "models/prop-ph-trashbag/textures/trashbag_diff_1k.jpg",
+    "models/prop-ph-trashbag/textures/trashbag_arm_1k.jpg",
+    "models/prop-ph-trashbag/trashbag.bin"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "prop-ph-utility-box-01",
+   "category": "prop",
+   "title": "Utility Box 01",
+   "use": "Electric junction boxes on footpaths",
+   "licence": "CC0-1.0",
+   "author": "James Ray Cock (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/utility_box_01",
+   "files": [
+    "models/prop-ph-utility-box-01/utility_box_01_1k.gltf",
+    "models/prop-ph-utility-box-01/textures/utility_box_01_diff_1k.jpg",
+    "models/prop-ph-utility-box-01/textures/utility_box_01_nor_gl_1k.jpg",
+    "models/prop-ph-utility-box-01/textures/utility_box_01_arm_1k.jpg",
+    "models/prop-ph-utility-box-01/utility_box_01.bin"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "prop-ph-wooden-crate-02",
+   "category": "prop",
+   "title": "Wooden Crate 02",
+   "use": "Wooden crates (Crawford Market, docks)",
+   "licence": "CC0-1.0",
+   "author": "James Ray Cock, Jurita Burger (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/wooden_crate_02",
+   "files": [
+    "models/prop-ph-wooden-crate-02/wooden_crate_02_1k.gltf",
+    "models/prop-ph-wooden-crate-02/textures/wooden_crate_02_diff_1k.jpg",
+    "models/prop-ph-wooden-crate-02/textures/wooden_crate_02_arm_1k.jpg",
+    "models/prop-ph-wooden-crate-02/wooden_crate_02.bin",
+    "models/prop-ph-wooden-crate-02/textures/wooden_crate_02_nor_gl_1k.jpg"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "prop-quaternius-street-pack",
+   "category": "prop",
+   "title": "LowPoly Modular Street Pack (Quaternius)",
+   "use": "Traffic lights, street lights, benches, bins, cones, barriers, hydrants, signs",
+   "licence": "CC0-1.0",
+   "author": "Quaternius",
+   "attribution": "",
+   "source_page": "https://opengameart.org/content/lowpoly-modular-street-pack",
+   "files": [
+    "models/prop-quaternius-street-pack/converted/Sign_NoParking.glb",
+    "models/prop-quaternius-street-pack/converted/Sign_Stop.glb",
+    "models/prop-quaternius-street-pack/converted/Sign_Triangle.glb",
+    "models/prop-quaternius-street-pack/converted/Streetlight_Double.glb",
+    "models/prop-quaternius-street-pack/converted/Streetlight_Single.glb",
+    "models/prop-quaternius-street-pack/converted/TrafficLight.glb",
+    "models/prop-quaternius-street-pack/converted/TrafficLight_2.glb",
+    "models/prop-quaternius-street-pack/_contents.txt"
+   ],
+   "meta": {
+    "models": 7,
+    "packFiles": 102,
+    "formats": [
+     ".blend",
+     ".fbx",
+     ".txt",
+     ".mtl",
+     ".obj",
+     ".png"
+    ]
+   }
+  },
+  {
+   "id": "sound-fs-170243",
+   "category": "sound",
+   "title": "Car Horn.wav",
+   "use": "Short car horn beep",
+   "licence": "CC0-1.0",
+   "author": "BeatsbyCasper (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/BeatsbyCasper/sounds/170243/",
+   "files": [
+    "sounds/sound-fs-170243.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-180430",
+   "category": "sound",
+   "title": "Kurla local train station Mumbai (2)",
+   "use": "Mumbai local train at Kurla station (authentic arrival/platform)",
+   "licence": "CC-BY-4.0",
+   "author": "sankalp (Freesound)",
+   "attribution": "\"Kurla local train station Mumbai (2)\" by sankalp (https://freesound.org/s/180430/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+   "source_page": "https://freesound.org/people/sankalp/sounds/180430/",
+   "files": [
+    "sounds/sound-fs-180430.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-181118",
+   "category": "sound",
+   "title": "Ambience near Kharghar station Mumbai",
+   "use": "Station-area ambience",
+   "licence": "CC-BY-4.0",
+   "author": "sankalp (Freesound)",
+   "attribution": "\"Ambience near Kharghar station Mumbai\" by sankalp (https://freesound.org/s/181118/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+   "source_page": "https://freesound.org/people/sankalp/sounds/181118/",
+   "files": [
+    "sounds/sound-fs-181118.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-203177",
+   "category": "sound",
+   "title": "INSIDE AN AUTO RICKSHAW IN MUMBAI.mp3",
+   "use": "In-auto driving loop (engine + street from inside)",
+   "licence": "CC0-1.0",
+   "author": "ambar das (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/ambar%20das/sounds/203177/",
+   "files": [
+    "sounds/sound-fs-203177.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-221639",
+   "category": "sound",
+   "title": "Mumbai (Bombay) Street Sounds, Traffic",
+   "use": "Street-level Mumbai traffic with horns",
+   "licence": "CC0-1.0",
+   "author": "dafiles (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/dafiles/sounds/221639/",
+   "files": [
+    "sounds/sound-fs-221639.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-289657",
+   "category": "sound",
+   "title": "CROWS in Mumbai.WAV",
+   "use": "House crows recorded in Mumbai",
+   "licence": "CC-BY-4.0",
+   "author": "The_Sound_Side (Freesound)",
+   "attribution": "\"CROWS in Mumbai.WAV\" by The_Sound_Side (https://freesound.org/s/289657/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+   "source_page": "https://freesound.org/people/The_Sound_Side/sounds/289657/",
+   "files": [
+    "sounds/sound-fs-289657.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-339682",
+   "category": "sound",
+   "title": "3Wheeler Starts",
+   "use": "Auto-rickshaw engine start + idle",
+   "licence": "CC0-1.0",
+   "author": "azdipu (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/azdipu/sounds/339682/",
+   "files": [
+    "sounds/sound-fs-339682.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-406888",
+   "category": "sound",
+   "title": "truck throaty real horn honks annoyed angry",
+   "use": "Truck horns",
+   "licence": "CC0-1.0",
+   "author": "kyles (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/kyles/sounds/406888/",
+   "files": [
+    "sounds/sound-fs-406888.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-423510",
+   "category": "sound",
+   "title": "India outdoor crowd.WAV",
+   "use": "Crowd murmur (Indian)",
+   "licence": "CC0-1.0",
+   "author": "Martin.Sadoux (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/Martin.Sadoux/sounds/423510/",
+   "files": [
+    "sounds/sound-fs-423510.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-471832",
+   "category": "sound",
+   "title": "train local-train_ladies.mp3",
+   "use": "Inside a Mumbai local train (ladies' compartment)",
+   "licence": "CC-BY-4.0",
+   "author": "chhavi (Freesound)",
+   "attribution": "\"train local-train_ladies.mp3\" by chhavi (https://freesound.org/s/471832/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+   "source_page": "https://freesound.org/people/chhavi/sounds/471832/",
+   "files": [
+    "sounds/sound-fs-471832.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-486870",
+   "category": "sound",
+   "title": "House Crow at the beach.wav",
+   "use": "Single house crow calls (CC0 alternative)",
+   "licence": "CC0-1.0",
+   "author": "Breview777 (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/Breview777/sounds/486870/",
+   "files": [
+    "sounds/sound-fs-486870.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-518423",
+   "category": "sound",
+   "title": "Rainstorm hitting pavement_1.wav",
+   "use": "Rain on pavement (layer)",
+   "licence": "CC0-1.0",
+   "author": "jdsutter (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/jdsutter/sounds/518423/",
+   "files": [
+    "sounds/sound-fs-518423.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-552692",
+   "category": "sound",
+   "title": "Fleamarket in India Atmosphere",
+   "use": "Market crowd / Crawford Market, Chor Bazaar",
+   "licence": "CC0-1.0",
+   "author": "nickcase (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/nickcase/sounds/552692/",
+   "files": [
+    "sounds/sound-fs-552692.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-562744",
+   "category": "sound",
+   "title": "Rickshaw ride Nortthern India.mp3",
+   "use": "Auto-rickshaw engine while riding (rev source)",
+   "licence": "CC0-1.0",
+   "author": "Anzbot (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/Anzbot/sounds/562744/",
+   "files": [
+    "sounds/sound-fs-562744.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-585731",
+   "category": "sound",
+   "title": "Ext Mumbai City Traffic Ambience.wav",
+   "use": "Main city traffic ambience (recorded in Mumbai, balcony 20 floors up)",
+   "licence": "CC0-1.0",
+   "author": "seventhsamurai (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/seventhsamurai/sounds/585731/",
+   "files": [
+    "sounds/sound-fs-585731.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-591873",
+   "category": "sound",
+   "title": "Train Horn 71 (Distant, Clean).mp3",
+   "use": "Distant train horn",
+   "licence": "CC0-1.0",
+   "author": "FunWithSound (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/FunWithSound/sounds/591873/",
+   "files": [
+    "sounds/sound-fs-591873.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-593092",
+   "category": "sound",
+   "title": "Train Passing By 155 with Horn, Engine.mp3",
+   "use": "Train passing / arrival",
+   "licence": "CC0-1.0",
+   "author": "FunWithSound (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/FunWithSound/sounds/593092/",
+   "files": [
+    "sounds/sound-fs-593092.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-608765",
+   "category": "sound",
+   "title": "Kolkata hawker call",
+   "use": "Vendor / hawker call (Kolkata — use for generic hawker shouts)",
+   "licence": "CC-BY-4.0",
+   "author": "rain+ (Freesound)",
+   "attribution": "\"Kolkata hawker call\" by rain+ (https://freesound.org/s/608765/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+   "source_page": "https://freesound.org/people/rain+/sounds/608765/",
+   "files": [
+    "sounds/sound-fs-608765.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-640651",
+   "category": "sound",
+   "title": "Heavy Rain and gutter.WAV",
+   "use": "Monsoon heavy rain + gutter run-off",
+   "licence": "CC0-1.0",
+   "author": "barkenov (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/barkenov/sounds/640651/",
+   "files": [
+    "sounds/sound-fs-640651.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-648860",
+   "category": "sound",
+   "title": "Sea Waves Against Rocks",
+   "use": "Waves on Marine Drive tetrapods / sea wall",
+   "licence": "CC0-1.0",
+   "author": "emainta (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/emainta/sounds/648860/",
+   "files": [
+    "sounds/sound-fs-648860.ogg"
+   ]
+  },
+  {
+   "id": "sound-fs-876449",
+   "category": "sound",
+   "title": "Bells at a Hindu temple 3",
+   "use": "Temple bells (Babulnath, Mumbadevi, Siddhivinayak areas)",
+   "licence": "CC0-1.0",
+   "author": "barryshamir (Freesound)",
+   "attribution": "",
+   "source_page": "https://freesound.org/people/barryshamir/sounds/876449/",
+   "files": [
+    "sounds/sound-fs-876449.ogg"
+   ]
+  },
+  {
+   "id": "tex-acg-asphalt025c",
+   "category": "texture",
+   "title": "Asphalt025C",
+   "use": "Wet dark asphalt for monsoon (2K zip is 32 MB, so 1K is listed; switch textures per weather)",
+   "licence": "CC0-1.0",
+   "author": "ambientCG (Lennart Demes)",
+   "attribution": "",
+   "source_page": "https://ambientcg.com/view?id=Asphalt025C",
+   "files": [
+    "textures/tex-acg-asphalt025c/color.ktx2",
+    "textures/tex-acg-asphalt025c/normal.ktx2",
+    "textures/tex-acg-asphalt025c/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": true,
+    "hasRoughness": true
+   }
+  },
+  {
+   "id": "tex-acg-bricks089",
+   "category": "texture",
+   "title": "Bricks089",
+   "use": "Dark grey random stone wall — alternative basalt",
+   "licence": "CC0-1.0",
+   "author": "ambientCG (Lennart Demes)",
+   "attribution": "",
+   "source_page": "https://ambientcg.com/view?id=Bricks089",
+   "files": [
+    "textures/tex-acg-bricks089/color.ktx2",
+    "textures/tex-acg-bricks089/normal.ktx2",
+    "textures/tex-acg-bricks089/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     512
+    ],
+    "hasAO": true,
+    "hasRoughness": true
+   }
+  },
+  {
+   "id": "tex-acg-bricks096",
+   "category": "texture",
+   "title": "Bricks096",
+   "use": "Dark grey old stone blocks — closest CC0 match to the dark basalt rubble of CST / Fort Gothic buildings",
+   "licence": "CC0-1.0",
+   "author": "ambientCG (Lennart Demes)",
+   "attribution": "",
+   "source_page": "https://ambientcg.com/view?id=Bricks096",
+   "files": [
+    "textures/tex-acg-bricks096/color.ktx2",
+    "textures/tex-acg-bricks096/normal.ktx2",
+    "textures/tex-acg-bricks096/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     512
+    ],
+    "hasAO": true,
+    "hasRoughness": true
+   }
+  },
+  {
+   "id": "tex-acg-grass004",
+   "category": "texture",
+   "title": "Grass004",
+   "use": "Dense green grass for gardens / monsoon-season maidans (2K zip is 40 MB)",
+   "licence": "CC0-1.0",
+   "author": "ambientCG (Lennart Demes)",
+   "attribution": "",
+   "source_page": "https://ambientcg.com/view?id=Grass004",
+   "files": [
+    "textures/tex-acg-grass004/color.ktx2",
+    "textures/tex-acg-grass004/normal.ktx2",
+    "textures/tex-acg-grass004/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": true,
+    "hasRoughness": true
+   }
+  },
+  {
+   "id": "tex-acg-ground050",
+   "category": "texture",
+   "title": "Ground050",
+   "use": "Mud with puddles — monsoon lanes and maidans (2K zip is 25.5 MB)",
+   "licence": "CC0-1.0",
+   "author": "ambientCG (Lennart Demes)",
+   "attribution": "",
+   "source_page": "https://ambientcg.com/view?id=Ground050",
+   "files": [
+    "textures/tex-acg-ground050/color.ktx2",
+    "textures/tex-acg-ground050/normal.ktx2",
+    "textures/tex-acg-ground050/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": true,
+    "hasRoughness": true
+   }
+  },
+  {
+   "id": "tex-acg-pavingstones152",
+   "category": "texture",
+   "title": "PavingStones152",
+   "use": "Dirty worn interlocking pavers (2K zip is 28 MB)",
+   "licence": "CC0-1.0",
+   "author": "ambientCG (Lennart Demes)",
+   "attribution": "",
+   "source_page": "https://ambientcg.com/view?id=PavingStones152",
+   "files": [
+    "textures/tex-acg-pavingstones152/color.ktx2",
+    "textures/tex-acg-pavingstones152/normal.ktx2",
+    "textures/tex-acg-pavingstones152/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": true,
+    "hasRoughness": true
+   }
+  },
+  {
+   "id": "tex-ph-asphalt-02",
+   "category": "texture",
+   "title": "Asphalt 02",
+   "use": "Main road asphalt (new-ish, light cracks)",
+   "licence": "CC0-1.0",
+   "author": "Rob Tuytel (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/asphalt_02",
+   "files": [
+    "textures/tex-ph-asphalt-02/color.ktx2",
+    "textures/tex-ph-asphalt-02/normal.ktx2",
+    "textures/tex-ph-asphalt-02/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     3.000000238418579,
+     3
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-asphalt-03",
+   "category": "texture",
+   "title": "Asphalt 03",
+   "use": "Worn dirty asphalt for side streets",
+   "licence": "CC0-1.0",
+   "author": "Dario Barresi, Charlotte Baglioni (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/asphalt_03",
+   "files": [
+    "textures/tex-ph-asphalt-03/color.ktx2",
+    "textures/tex-ph-asphalt-03/normal.ktx2",
+    "textures/tex-ph-asphalt-03/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2.049999713897705,
+     2.049999713897705
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-beige-wall-001",
+   "category": "texture",
+   "title": "Beige Wall 001",
+   "use": "Clean painted stucco for newer buildings / Marine Drive Art Deco",
+   "licence": "CC0-1.0",
+   "author": "Dimitrios Savva, Rico Cilliers (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/beige_wall_001",
+   "files": [
+    "textures/tex-ph-beige-wall-001/color.ktx2",
+    "textures/tex-ph-beige-wall-001/normal.ktx2",
+    "textures/tex-ph-beige-wall-001/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     3,
+     3.000000238418579
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-blue-plaster-weathered",
+   "category": "texture",
+   "title": "Blue Plaster Weathered",
+   "use": "Weathered blue-washed plaster, common on chawls",
+   "licence": "CC0-1.0",
+   "author": "Amal Kumar (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/blue_plaster_weathered",
+   "files": [
+    "textures/tex-ph-blue-plaster-weathered/color.ktx2",
+    "textures/tex-ph-blue-plaster-weathered/normal.ktx2",
+    "textures/tex-ph-blue-plaster-weathered/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-brown-mud-dry",
+   "category": "texture",
+   "title": "Brown Mud Dry",
+   "use": "Dry mud for maidans (Oval, Azad, Cross) and unpaved lanes",
+   "licence": "CC0-1.0",
+   "author": "Rob Tuytel (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/brown_mud_dry",
+   "files": [
+    "textures/tex-ph-brown-mud-dry/color.ktx2",
+    "textures/tex-ph-brown-mud-dry/normal.ktx2",
+    "textures/tex-ph-brown-mud-dry/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     1.299996018409729,
+     1.299996018409729
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-brown-planks-03",
+   "category": "texture",
+   "title": "Brown Planks 03",
+   "use": "Wooden planks: stalls, handcarts, balconies, doors",
+   "licence": "CC0-1.0",
+   "author": "Rob Tuytel (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/brown_planks_03",
+   "files": [
+    "textures/tex-ph-brown-planks-03/color.ktx2",
+    "textures/tex-ph-brown-planks-03/normal.ktx2",
+    "textures/tex-ph-brown-planks-03/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-castle-brick-07",
+   "category": "texture",
+   "title": "Castle Brick 07",
+   "use": "Rough uneven stone for sea walls / old compound walls",
+   "licence": "CC0-1.0",
+   "author": "Rob Tuytel (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/castle_brick_07",
+   "files": [
+    "textures/tex-ph-castle-brick-07/color.ktx2",
+    "textures/tex-ph-castle-brick-07/normal.ktx2",
+    "textures/tex-ph-castle-brick-07/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2.5,
+     2.5
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-clay-roof-tiles-02",
+   "category": "texture",
+   "title": "Clay Roof Tiles 02",
+   "use": "Terracotta Mangalore-style roof tiles (Indian source) for old bungalows/Khotachiwadi",
+   "licence": "CC0-1.0",
+   "author": "Amal Kumar (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/clay_roof_tiles_02",
+   "files": [
+    "textures/tex-ph-clay-roof-tiles-02/color.ktx2",
+    "textures/tex-ph-clay-roof-tiles-02/normal.ktx2",
+    "textures/tex-ph-clay-roof-tiles-02/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2.5,
+     2.5
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-coast-sand-01",
+   "category": "texture",
+   "title": "Coast Sand 01",
+   "use": "Dry beach sand (Chowpatty, Juhu)",
+   "licence": "CC0-1.0",
+   "author": "Rob Tuytel (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/coast_sand_01",
+   "files": [
+    "textures/tex-ph-coast-sand-01/color.ktx2",
+    "textures/tex-ph-coast-sand-01/normal.ktx2",
+    "textures/tex-ph-coast-sand-01/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     15,
+     15
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-concrete-pavement",
+   "category": "texture",
+   "title": "Concrete Pavement",
+   "use": "Kerb stone / concrete edge, promenade slabs",
+   "licence": "CC0-1.0",
+   "author": "Charlotte Baglioni (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/concrete_pavement",
+   "files": [
+    "textures/tex-ph-concrete-pavement/color.ktx2",
+    "textures/tex-ph-concrete-pavement/normal.ktx2",
+    "textures/tex-ph-concrete-pavement/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     1.8000000715255737,
+     1.8000000715255737
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-concrete-tile-facade",
+   "category": "texture",
+   "title": "Concrete Tile Facade",
+   "use": "Modern office facade (Nariman Point / BKC style)",
+   "licence": "CC0-1.0",
+   "author": "Charlotte Baglioni (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/concrete_tile_facade",
+   "files": [
+    "textures/tex-ph-concrete-tile-facade/color.ktx2",
+    "textures/tex-ph-concrete-tile-facade/normal.ktx2",
+    "textures/tex-ph-concrete-tile-facade/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2.0899999141693115,
+     2.0899999141693115
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-concrete-wall-008",
+   "category": "texture",
+   "title": "Concrete Wall 008",
+   "use": "Stained / chipped concrete (1970s towers, flyover piers)",
+   "licence": "CC0-1.0",
+   "author": "Dario Barresi, Charlotte Baglioni (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/concrete_wall_008",
+   "files": [
+    "textures/tex-ph-concrete-wall-008/color.ktx2",
+    "textures/tex-ph-concrete-wall-008/normal.ktx2",
+    "textures/tex-ph-concrete-wall-008/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2.7100000381469727,
+     2.7100000381469727
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-damaged-plaster",
+   "category": "texture",
+   "title": "Damaged Plaster",
+   "use": "Plaster with exposed brick, monsoon-damaged walls",
+   "licence": "CC0-1.0",
+   "author": "Amal Kumar (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/damaged_plaster",
+   "files": [
+    "textures/tex-ph-damaged-plaster/color.ktx2",
+    "textures/tex-ph-damaged-plaster/normal.ktx2",
+    "textures/tex-ph-damaged-plaster/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     1.8500001430511475,
+     1.8500001430511475
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-damp-beach-sand",
+   "category": "texture",
+   "title": "Damp Beach Sand",
+   "use": "Wet sand near waterline",
+   "licence": "CC0-1.0",
+   "author": "Dimitrios Savva (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/damp_beach_sand",
+   "files": [
+    "textures/tex-ph-damp-beach-sand/color.ktx2",
+    "textures/tex-ph-damp-beach-sand/normal.ktx2",
+    "textures/tex-ph-damp-beach-sand/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-dirty-concrete",
+   "category": "texture",
+   "title": "Dirty Concrete",
+   "use": "Stained concrete ground, compounds, parking",
+   "licence": "CC0-1.0",
+   "author": "Rob Tuytel (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/dirty_concrete",
+   "files": [
+    "textures/tex-ph-dirty-concrete/color.ktx2",
+    "textures/tex-ph-dirty-concrete/normal.ktx2",
+    "textures/tex-ph-dirty-concrete/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     3,
+     3
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-grass-path-2",
+   "category": "texture",
+   "title": "Grass Path 2",
+   "use": "Worn grass with dirt for maidans / cricket grounds",
+   "licence": "CC0-1.0",
+   "author": "Rob Tuytel (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/grass_path_2",
+   "files": [
+    "textures/tex-ph-grass-path-2/color.ktx2",
+    "textures/tex-ph-grass-path-2/normal.ktx2",
+    "textures/tex-ph-grass-path-2/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-gravel-floor-02",
+   "category": "texture",
+   "title": "Gravel Floor 02",
+   "use": "Gravel for maidans' edges, railway ballast, construction sites",
+   "licence": "CC0-1.0",
+   "author": "Jenelle van Heerden, Dimitrios Savva (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/gravel_floor_02",
+   "files": [
+    "textures/tex-ph-gravel-floor-02/color.ktx2",
+    "textures/tex-ph-gravel-floor-02/normal.ktx2",
+    "textures/tex-ph-gravel-floor-02/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-painted-metal-shutter",
+   "category": "texture",
+   "title": "Painted Metal Shutter",
+   "use": "Painted rolling shutters, tint green/blue/grey",
+   "licence": "CC0-1.0",
+   "author": "Dario Barresi, Rico Cilliers, Charlotte Baglioni (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/painted_metal_shutter",
+   "files": [
+    "textures/tex-ph-painted-metal-shutter/color.ktx2",
+    "textures/tex-ph-painted-metal-shutter/normal.ktx2",
+    "textures/tex-ph-painted-metal-shutter/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-painted-plaster-wall",
+   "category": "texture",
+   "title": "Painted Plaster Wall",
+   "use": "Clean-ish painted plaster for chawls / residential walls (tint per building)",
+   "licence": "CC0-1.0",
+   "author": "Amal Kumar (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/painted_plaster_wall",
+   "files": [
+    "textures/tex-ph-painted-plaster-wall/color.ktx2",
+    "textures/tex-ph-painted-plaster-wall/normal.ktx2",
+    "textures/tex-ph-painted-plaster-wall/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-patterned-concrete-pavers",
+   "category": "texture",
+   "title": "Patterned Concrete Pavers",
+   "use": "Interlocking zig-zag paver blocks — THE Mumbai footpath look (Indian source); tint red/grey",
+   "licence": "CC0-1.0",
+   "author": "Amal Kumar (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/patterned_concrete_pavers",
+   "files": [
+    "textures/tex-ph-patterned-concrete-pavers/color.ktx2",
+    "textures/tex-ph-patterned-concrete-pavers/normal.ktx2",
+    "textures/tex-ph-patterned-concrete-pavers/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     1.7999999523162842,
+     1.7999999523162842
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-patterned-paving",
+   "category": "texture",
+   "title": "Patterned Paving",
+   "use": "Alternative footpath pavers",
+   "licence": "CC0-1.0",
+   "author": "Charlotte Baglioni (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/patterned_paving",
+   "files": [
+    "textures/tex-ph-patterned-paving/color.ktx2",
+    "textures/tex-ph-patterned-paving/normal.ktx2",
+    "textures/tex-ph-patterned-paving/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-peeling-painted-wall",
+   "category": "texture",
+   "title": "Peeling Painted Wall",
+   "use": "Peeling paint on old Girgaon/Byculla buildings",
+   "licence": "CC0-1.0",
+   "author": "Dimitrios Savva (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/peeling_painted_wall",
+   "files": [
+    "textures/tex-ph-peeling-painted-wall/color.ktx2",
+    "textures/tex-ph-peeling-painted-wall/normal.ktx2",
+    "textures/tex-ph-peeling-painted-wall/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     1.8000000715255737,
+     1.8000000715255737
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-plastered-wall-02",
+   "category": "texture",
+   "title": "Plastered Wall 02",
+   "use": "Rough weathered plaster, generic old building",
+   "licence": "CC0-1.0",
+   "author": "Charlotte Baglioni (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/plastered_wall_02",
+   "files": [
+    "textures/tex-ph-plastered-wall-02/color.ktx2",
+    "textures/tex-ph-plastered-wall-02/normal.ktx2",
+    "textures/tex-ph-plastered-wall-02/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2.229999542236328,
+     2.229999542236328
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-red-brick",
+   "category": "texture",
+   "title": "Red Brick",
+   "use": "Exposed red brick (under-construction, slums, Byculla mills)",
+   "licence": "CC0-1.0",
+   "author": "Rob Tuytel (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/red_brick",
+   "files": [
+    "textures/tex-ph-red-brick/color.ktx2",
+    "textures/tex-ph-red-brick/normal.ktx2",
+    "textures/tex-ph-red-brick/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     1.399999976158142,
+     1.399999976158142
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-red-plaster-weathered",
+   "category": "texture",
+   "title": "Red Plaster Weathered",
+   "use": "Weathered coloured plaster (ochre/red) — Indian photo source",
+   "licence": "CC0-1.0",
+   "author": "Amal Kumar (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/red_plaster_weathered",
+   "files": [
+    "textures/tex-ph-red-plaster-weathered/color.ktx2",
+    "textures/tex-ph-red-plaster-weathered/normal.ktx2",
+    "textures/tex-ph-red-plaster-weathered/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-road-damaged",
+   "category": "texture",
+   "title": "Road Damaged",
+   "use": "Patched / pot-holed road, monsoon damage",
+   "licence": "CC0-1.0",
+   "author": "Dimitrios Savva (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/road_damaged",
+   "files": [
+    "textures/tex-ph-road-damaged/color.ktx2",
+    "textures/tex-ph-road-damaged/normal.ktx2",
+    "textures/tex-ph-road-damaged/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2.200000047683716,
+     2.200000047683716
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-rusty-corrugated-iron",
+   "category": "texture",
+   "title": "Rusty Corrugated Iron",
+   "use": "Rusty corrugated metal roofs/walls (Dharavi, sheds, hawker stalls)",
+   "licence": "CC0-1.0",
+   "author": "Charlotte Baglioni (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/rusty_corrugated_iron",
+   "files": [
+    "textures/tex-ph-rusty-corrugated-iron/color.ktx2",
+    "textures/tex-ph-rusty-corrugated-iron/normal.ktx2",
+    "textures/tex-ph-rusty-corrugated-iron/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-rusty-metal-grid",
+   "category": "texture",
+   "title": "Rusty Metal Grid",
+   "use": "Window grilles / balcony cages (Indian source)",
+   "licence": "CC0-1.0",
+   "author": "Amal Kumar (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/rusty_metal_grid",
+   "files": [
+    "textures/tex-ph-rusty-metal-grid/color.ktx2",
+    "textures/tex-ph-rusty-metal-grid/normal.ktx2",
+    "textures/tex-ph-rusty-metal-grid/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     1.8000000715255737,
+     1.8000000715255737
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-rusty-metal-shutter",
+   "category": "texture",
+   "title": "Rusty Metal Shutter",
+   "use": "Rolling shop shutters (closed shops at night)",
+   "licence": "CC0-1.0",
+   "author": "Charlotte Baglioni (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/rusty_metal_shutter",
+   "files": [
+    "textures/tex-ph-rusty-metal-shutter/color.ktx2",
+    "textures/tex-ph-rusty-metal-shutter/normal.ktx2",
+    "textures/tex-ph-rusty-metal-shutter/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     1.8999998569488525,
+     1.8999998569488525
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-sandstone-blocks-08",
+   "category": "texture",
+   "title": "Sandstone Blocks 08",
+   "use": "Buff/yellow Kurla-Malad sandstone ashlar for Gothic Fort buildings",
+   "licence": "CC0-1.0",
+   "author": "Rob Tuytel (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/sandstone_blocks_08",
+   "files": [
+    "textures/tex-ph-sandstone-blocks-08/color.ktx2",
+    "textures/tex-ph-sandstone-blocks-08/normal.ktx2",
+    "textures/tex-ph-sandstone-blocks-08/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     3,
+     3
+    ]
+   }
+  },
+  {
+   "id": "tex-ph-stone-block-wall",
+   "category": "texture",
+   "title": "Stone Block Wall",
+   "use": "Rough stone block wall (Indian source); tint dark for basalt rubble walls",
+   "licence": "CC0-1.0",
+   "author": "Amal Kumar (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/stone_block_wall",
+   "files": [
+    "textures/tex-ph-stone-block-wall/color.ktx2",
+    "textures/tex-ph-stone-block-wall/normal.ktx2",
+    "textures/tex-ph-stone-block-wall/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": false,
+    "hasRoughness": true,
+    "metres": [
+     2.0999999046325684,
+     2.0999999046325684
+    ]
+   }
+  },
+  {
+   "id": "tex-texturecan-plastic-0019",
+   "category": "texture",
+   "title": "Plastic 0019",
+   "use": "Blue tarpaulin (roofs, stalls, monsoon covers)",
+   "licence": "CC0-1.0",
+   "author": "TextureCan",
+   "attribution": "",
+   "source_page": "https://www.texturecan.com/details/446/",
+   "files": [
+    "textures/tex-texturecan-plastic-0019/color.ktx2",
+    "textures/tex-texturecan-plastic-0019/normal.ktx2",
+    "textures/tex-texturecan-plastic-0019/orm.ktx2"
+   ],
+   "meta": {
+    "pixels": [
+     1024,
+     1024
+    ],
+    "hasAO": true,
+    "hasRoughness": true
+   }
+  },
+  {
+   "id": "tree-kenney-nature-kit",
+   "category": "tree",
+   "title": "Nature Kit (Kenney)",
+   "use": "Bushes, potted plants, grass tufts, rocks, simple trees for dividers and gardens",
+   "licence": "CC0-1.0",
+   "author": "Kenney",
+   "attribution": "",
+   "source_page": "https://kenney.nl/assets/nature-kit",
+   "files": [
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bed_floor.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_center_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_center_stoneRound.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_center_wood.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_center_woodRound.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_side_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_side_stoneRound.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_side_wood.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_side_woodRound.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_stoneNarrow.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_stoneRound.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_stoneRoundNarrow.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_wood.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_woodNarrow.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_woodRound.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/bridge_woodRoundNarrow.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cactus_short.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cactus_tall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/campfire_bricks.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/campfire_logs.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/campfire_planks.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/campfire_stones.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/canoe.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/canoe_paddle.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockCave_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockCave_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockDiagonal_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockDiagonal_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockHalf_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockHalf_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockQuarter_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockQuarter_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockSlopeHalfWalls_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockSlopeHalfWalls_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockSlopeWalls_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockSlopeWalls_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockSlope_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_blockSlope_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_block_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_block_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_cave_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_cave_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_cornerInnerLarge_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_cornerInnerLarge_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_cornerInnerTop_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_cornerInnerTop_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_cornerInner_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_cornerInner_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_cornerLarge_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_cornerLarge_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_cornerTop_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_cornerTop_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_corner_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_corner_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_diagonal_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_diagonal_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_halfCornerInner_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_halfCornerInner_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_halfCorner_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_halfCorner_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_half_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_half_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_large_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_large_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_stepsCornerInner_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_stepsCornerInner_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_stepsCorner_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_stepsCorner_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_steps_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_steps_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_topDiagonal_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_topDiagonal_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_top_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_top_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_waterfallTop_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_waterfallTop_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_waterfall_rock.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/cliff_waterfall_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crop_carrot.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crop_melon.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crop_pumpkin.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crop_turnip.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_bambooStageA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_bambooStageB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_cornStageA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_cornStageB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_cornStageC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_cornStageD.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_dirtDoubleRow.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_dirtDoubleRowCorner.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_dirtDoubleRowEnd.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_dirtRow.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_dirtRowCorner.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_dirtRowEnd.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_dirtSingle.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_leafsStageA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_leafsStageB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_wheatStageA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/crops_wheatStageB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/fence_bend.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/fence_bendCenter.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/fence_corner.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/fence_gate.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/fence_planks.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/fence_planksDouble.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/fence_simple.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/fence_simpleCenter.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/fence_simpleDiagonal.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/fence_simpleDiagonalCenter.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/fence_simpleHigh.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/fence_simpleLow.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/flower_purpleA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/flower_purpleB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/flower_purpleC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/flower_redA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/flower_redB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/flower_redC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/flower_yellowA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/flower_yellowB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/flower_yellowC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/grass.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/grass_large.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/grass_leafs.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/grass_leafsLarge.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_grass.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathBend.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathBendBank.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathCorner.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathCornerSmall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathCross.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathEnd.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathEndClosed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathOpen.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathRocks.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathSide.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathSideOpen.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathSplit.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathStraight.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_pathTile.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverBend.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverBendBank.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverCorner.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverCornerSmall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverCross.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverEnd.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverEndClosed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverOpen.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverRocks.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverSide.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverSideOpen.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverSplit.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverStraight.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/ground_riverTile.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/hanging_moss.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/lily_large.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/lily_small.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/log.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/log_large.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/log_stack.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/log_stackLarge.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/mushroom_red.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/mushroom_redGroup.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/mushroom_redTall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/mushroom_tan.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/mushroom_tanGroup.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/mushroom_tanTall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/path_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/path_stoneCircle.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/path_stoneCorner.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/path_stoneEnd.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/path_wood.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/path_woodCorner.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/path_woodEnd.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/plant_bush.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/plant_bushDetailed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/plant_bushLarge.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/plant_bushLargeTriangle.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/plant_bushSmall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/plant_bushTriangle.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/plant_flatShort.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/plant_flatTall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/platform_beach.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/platform_grass.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/platform_stone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/pot_large.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/pot_small.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_largeA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_largeB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_largeC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_largeD.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_largeE.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_largeF.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallD.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallE.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallF.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallFlatA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallFlatB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallFlatC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallG.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallH.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallI.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallTopA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_smallTopB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_tallA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_tallB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_tallC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_tallD.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_tallE.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_tallF.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_tallG.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_tallH.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_tallI.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/rock_tallJ.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/sign.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/statue_block.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/statue_column.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/statue_columnDamaged.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/statue_head.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/statue_obelisk.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/statue_ring.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_largeA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_largeB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_largeC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_largeD.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_largeE.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_largeF.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallD.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallE.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallF.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallFlatA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallFlatB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallFlatC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallG.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallH.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallI.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallTopA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_smallTopB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_tallA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_tallB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_tallC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_tallD.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_tallE.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_tallF.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_tallG.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_tallH.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_tallI.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stone_tallJ.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stump_old.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stump_oldTall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stump_round.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stump_roundDetailed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stump_square.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stump_squareDetailed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/stump_squareDetailedWide.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tent_detailedClosed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tent_detailedOpen.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tent_smallClosed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tent_smallOpen.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_blocks.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_blocks_dark.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_blocks_fall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_cone.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_cone_dark.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_cone_fall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_default.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_default_dark.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_default_fall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_detailed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_detailed_dark.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_detailed_fall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_fat.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_fat_darkh.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_fat_fall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_oak.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_oak_dark.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_oak_fall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_palm.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_palmBend.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_palmDetailedShort.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_palmDetailedTall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_palmShort.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_palmTall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineDefaultA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineDefaultB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineGroundA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineGroundB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineRoundA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineRoundB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineRoundC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineRoundD.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineRoundE.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineRoundF.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineSmallA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineSmallB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineSmallC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineSmallD.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineTallA.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineTallA_detailed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineTallB.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineTallB_detailed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineTallC.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineTallC_detailed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineTallD.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_pineTallD_detailed.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_plateau.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_plateau_dark.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_plateau_fall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_simple.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_simple_dark.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_simple_fall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_small.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_small_dark.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_small_fall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_tall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_tall_dark.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_tall_fall.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_thin.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_thin_dark.glb",
+    "models/tree-kenney-nature-kit/Models/GLTF_format/tree_thin_fall.glb",
+    "models/tree-kenney-nature-kit/_contents.txt"
+   ],
+   "meta": {
+    "models": 329,
+    "packFiles": 3618,
+    "formats": [
+     ".url",
+     ".png",
+     ".txt",
+     ".dae",
+     ".fbx",
+     ".glb",
+     ".mtl",
+     ".obj",
+     ".stl"
+    ]
+   }
+  },
+  {
+   "id": "tree-oga-exotic-palms",
+   "category": "tree",
+   "title": "Exotic Palms - Lowpoly Style",
+   "use": "Coconut palm alternative (slender curved trunks)",
+   "licence": "CC0-1.0",
+   "author": "FabinhoSC",
+   "attribution": "",
+   "source_page": "https://opengameart.org/content/exotic-palms-lowpoly-style",
+   "files": [
+    "models/tree-oga-exotic-palms/converted/ExoticPalmCurve.glb",
+    "models/tree-oga-exotic-palms/converted/ExoticPalmDefalt.glb",
+    "models/tree-oga-exotic-palms/converted/ExoticPalmOld.glb",
+    "models/tree-oga-exotic-palms/converted/ExoticPalmYoung.glb",
+    "models/tree-oga-exotic-palms/_contents.txt"
+   ],
+   "meta": {
+    "models": 4,
+    "packFiles": 7,
+    "formats": [
+     ".fbx",
+     ".blend",
+     ".png"
+    ]
+   }
+  },
+  {
+   "id": "tree-ph-jacaranda",
+   "category": "tree",
+   "title": "Jacaranda Tree",
+   "use": "Flowering tree (purple jacaranda) — recolour flowers red-orange for gulmohar; HEAVY, bake to billboard/impostor",
+   "licence": "CC0-1.0",
+   "author": "Poly Haven",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/jacaranda_tree",
+   "files": [
+    "models/tree-ph-jacaranda/jacaranda_tree_1k.gltf",
+    "models/tree-ph-jacaranda/textures/jacaranda_tree_branches_nor_gl_1k.jpg",
+    "models/tree-ph-jacaranda/textures/jacaranda_tree_branches_diff_1k.jpg",
+    "models/tree-ph-jacaranda/textures/jacaranda_tree_branches_arm_1k.jpg",
+    "models/tree-ph-jacaranda/textures/jacaranda_tree_trunk_nor_gl_1k.jpg",
+    "models/tree-ph-jacaranda/textures/jacaranda_tree_trunk_diff_1k.jpg",
+    "models/tree-ph-jacaranda/textures/jacaranda_tree_trunk_arm_1k.jpg",
+    "models/tree-ph-jacaranda/textures/jacaranda_tree_leaves_nor_gl_1k.jpg",
+    "models/tree-ph-jacaranda/textures/jacaranda_tree_leaves_diff_1k.jpg",
+    "models/tree-ph-jacaranda/textures/jacaranda_tree_leaves_arm_1k.jpg"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "tree-ph-planter-pot-clay",
+   "category": "tree",
+   "title": "Planter Pot Clay",
+   "use": "Clay pot (tulsi pot, balcony plants)",
+   "licence": "CC0-1.0",
+   "author": "Amal Kumar (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/planter_pot_clay",
+   "files": [
+    "models/tree-ph-planter-pot-clay/planter_pot_clay_1k.gltf",
+    "models/tree-ph-planter-pot-clay/textures/planter_pot_clay_diff_1k.jpg",
+    "models/tree-ph-planter-pot-clay/planter_pot_clay.bin",
+    "models/tree-ph-planter-pot-clay/textures/planter_pot_clay_arm_1k.jpg",
+    "models/tree-ph-planter-pot-clay/textures/planter_pot_clay_nor_gl_1k.jpg"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "tree-ph-potted-plant-04",
+   "category": "tree",
+   "title": "Potted Plant 04",
+   "use": "Potted plants on balconies / shop fronts",
+   "licence": "CC0-1.0",
+   "author": "James Ray Cock (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/potted_plant_04",
+   "files": [
+    "models/tree-ph-potted-plant-04/potted_plant_04_1k.gltf",
+    "models/tree-ph-potted-plant-04/potted_plant_04.bin",
+    "models/tree-ph-potted-plant-04/textures/potted_plant_04_nor_gl_1k.jpg",
+    "models/tree-ph-potted-plant-04/textures/potted_plant_04_arm_1k.jpg",
+    "models/tree-ph-potted-plant-04/textures/potted_plant_04_diff_1k.jpg"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "tree-ph-shrub-03",
+   "category": "tree",
+   "title": "Shrub 03",
+   "use": "Bushes for road dividers (decimate)",
+   "licence": "CC0-1.0",
+   "author": "Rico Cilliers (Poly Haven)",
+   "attribution": "",
+   "source_page": "https://polyhaven.com/a/shrub_03",
+   "files": [
+    "models/tree-ph-shrub-03/shrub_03_1k.gltf",
+    "models/tree-ph-shrub-03/shrub_03.bin",
+    "models/tree-ph-shrub-03/textures/shrub_03_arm_1k.jpg",
+    "models/tree-ph-shrub-03/textures/shrub_03_diff_1k.jpg",
+    "models/tree-ph-shrub-03/textures/shrub_03_nor_gl_1k.jpg"
+   ],
+   "meta": {
+    "models": 1
+   }
+  },
+  {
+   "id": "tree-quaternius-textured-trees",
+   "category": "tree",
+   "title": "Textured Stylized Trees (Quaternius)",
+   "use": "Textured stylised broadleaf trees — better stand-in for big rain trees / gulmohar (tint canopy orange-red for gulmohar in May)",
+   "licence": "CC0-1.0",
+   "author": "Quaternius",
+   "attribution": "",
+   "source_page": "https://opengameart.org/content/lowpoly-textured-trees",
+   "files": [
+    "models/tree-quaternius-textured-trees/_contents.txt"
+   ],
+   "meta": {
+    "models": 0,
+    "packFiles": 199,
+    "formats": [
+     ".blend",
+     ".fbx",
+     ".mtl",
+     ".obj",
+     ".jpg",
+     ".png"
+    ]
+   }
+  },
+  {
+   "id": "tree-quaternius-ultimate-nature",
+   "category": "tree",
+   "title": "Ultimate Nature Pack (Quaternius)",
+   "use": "Palm trees (4 variants), common broadleaf trees (stand-in for rain tree/banyan/peepal), bushes, plants",
+   "licence": "CC0-1.0",
+   "author": "Quaternius",
+   "attribution": "",
+   "source_page": "https://opengameart.org/content/low-poly-nature-pack-1",
+   "files": [
+    "models/tree-quaternius-ultimate-nature/converted/BushBerries_1.glb",
+    "models/tree-quaternius-ultimate-nature/converted/Bush_1.glb",
+    "models/tree-quaternius-ultimate-nature/converted/Bush_2.glb",
+    "models/tree-quaternius-ultimate-nature/converted/CommonTree_1.glb",
+    "models/tree-quaternius-ultimate-nature/converted/CommonTree_2.glb",
+    "models/tree-quaternius-ultimate-nature/converted/CommonTree_3.glb",
+    "models/tree-quaternius-ultimate-nature/converted/CommonTree_4.glb",
+    "models/tree-quaternius-ultimate-nature/converted/CommonTree_5.glb",
+    "models/tree-quaternius-ultimate-nature/converted/PalmTree_1.glb",
+    "models/tree-quaternius-ultimate-nature/converted/PalmTree_2.glb",
+    "models/tree-quaternius-ultimate-nature/converted/PalmTree_3.glb",
+    "models/tree-quaternius-ultimate-nature/converted/PalmTree_4.glb",
+    "models/tree-quaternius-ultimate-nature/_contents.txt"
+   ],
+   "meta": {
+    "models": 12,
+    "packFiles": 602,
+    "formats": [
+     ".blend",
+     ".fbx",
+     ".txt",
+     ".mtl",
+     ".obj",
+     ".jpg"
+    ]
+   }
+  },
+  {
+   "id": "vehicle-kenney-car-kit",
+   "category": "vehicle",
+   "title": "Car Kit (Kenney)",
+   "use": "Generic traffic: sedan, hatchback, SUV, taxi, van, delivery truck, police car, ambulance, garbage truck, firetruck — recolour for Indian traffic",
+   "licence": "CC0-1.0",
+   "author": "Kenney",
+   "attribution": "",
+   "source_page": "https://kenney.nl/assets/car-kit",
+   "files": [
+    "models/vehicle-kenney-car-kit/Models/GLB_format/ambulance.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/box.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/cone-flat.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/cone.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-bolt.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-bumper.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-door-window.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-door.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-drivetrain-axle.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-drivetrain.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-nut.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-plate-a.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-plate-b.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-plate-small-a.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-plate-small-b.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-spoiler-a.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-spoiler-b.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/debris-tire.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/delivery-flat.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/delivery.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/firetruck.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/garbage-truck.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/hatchback-sports.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/kart-oobi.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/kart-oodi.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/kart-ooli.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/kart-oopi.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/kart-oozi.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/police.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/race-future.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/race.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/sedan-sports.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/sedan.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/suv-luxury.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/suv.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/taxi.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/tractor-police.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/tractor-shovel.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/tractor.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/truck-flat.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/truck.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/van.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/wheel-dark.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/wheel-default.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/wheel-racing.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/wheel-tractor-back.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/wheel-tractor-dark-back.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/wheel-tractor-dark-front.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/wheel-tractor-front.glb",
+    "models/vehicle-kenney-car-kit/Models/GLB_format/wheel-truck.glb",
+    "models/vehicle-kenney-car-kit/_contents.txt"
+   ],
+   "meta": {
+    "models": 50,
+    "packFiles": 259,
+    "formats": [
+     ".txt",
+     ".fbx",
+     ".png",
+     ".glb",
+     ".mtl",
+     ".obj",
+     ".html",
+     ".url"
+    ]
+   }
+  },
+  {
+   "id": "vehicle-quaternius-cars",
+   "category": "vehicle",
+   "title": "LowPoly Cars (Quaternius)",
+   "use": "Low-poly cars (no-login fallback)",
+   "licence": "CC0-1.0",
+   "author": "Quaternius",
+   "attribution": "",
+   "source_page": "https://opengameart.org/content/lowpoly-cars",
+   "files": [
+    "models/vehicle-quaternius-cars/converted/BasicCar.glb",
+    "models/vehicle-quaternius-cars/converted/CopCar.glb",
+    "models/vehicle-quaternius-cars/converted/SimpleCarHigh.glb",
+    "models/vehicle-quaternius-cars/converted/SimpleCarShort.glb",
+    "models/vehicle-quaternius-cars/converted/Taxi.glb",
+    "models/vehicle-quaternius-cars/_contents.txt"
+   ],
+   "meta": {
+    "models": 5,
+    "packFiles": 28,
+    "formats": [
+     ".blend",
+     ".png",
+     ".fbx",
+     ".mtl",
+     ".obj"
+    ]
+   }
+  },
+  {
+   "id": "vehicle-quaternius-public-transport",
+   "category": "vehicle",
+   "title": "LowPoly Public Transport (Quaternius)",
+   "use": "Low-poly bus, taxi and other public transport (no-login fallback for BEST buses)",
+   "licence": "CC0-1.0",
+   "author": "Quaternius",
+   "attribution": "",
+   "source_page": "https://opengameart.org/content/lowpoly-public-transport",
+   "files": [
+    "models/vehicle-quaternius-public-transport/converted/Ambulance.glb",
+    "models/vehicle-quaternius-public-transport/converted/Bicycle.glb",
+    "models/vehicle-quaternius-public-transport/converted/Bus.glb",
+    "models/vehicle-quaternius-public-transport/converted/TrafficCone.glb",
+    "models/vehicle-quaternius-public-transport/converted/TrafficLight.glb",
+    "models/vehicle-quaternius-public-transport/converted/Train.glb",
+    "models/vehicle-quaternius-public-transport/_contents.txt"
+   ],
+   "meta": {
+    "models": 6,
+    "packFiles": 49,
+    "formats": [
+     ".blend",
+     ".png",
+     ".fbx",
+     ".mtl",
+     ".obj"
+    ]
+   }
+  }
+ ],
+ "skipped": [
+  {
+   "id": "tex-acg-plastic015a",
+   "reason": "fallback entry"
+  },
+  {
+   "id": "tree-sketchfab-banyan-001",
+   "reason": "needs a login"
+  },
+  {
+   "id": "tree-sketchfab-young-palm",
+   "reason": "needs a login"
+  },
+  {
+   "id": "tree-sketchfab-gulmohar",
+   "reason": "needs a login"
+  },
+  {
+   "id": "tree-sketchfab-peepal",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-auto-rickshaw-bhagath",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-auto-rickshaw-lowpoly",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-ambassador",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-indian-taxi-hatch",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-city-bus-rigged",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-double-decker",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-truck-ashok",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-truck-tata-signa",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-mumbai-local-train",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-indian-lhb-coach",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-old-scooter",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-motorcycle",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-old-red-bicycle",
+   "reason": "needs a login"
+  },
+  {
+   "id": "vehicle-hand-cart",
+   "reason": "needs a login"
+  },
+  {
+   "id": "prop-kebab-cart",
+   "reason": "needs a login"
+  },
+  {
+   "id": "prop-bus-stop-low",
+   "reason": "needs a login"
+  }
+ ],
+ "failed": []
+}

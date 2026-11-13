@@ -1,0 +1,7 @@
+6671104	Animation Library[Standard]/Godot/AnimationLibrary_Godot_Standard.glb
+446	Animation Library[Standard]/License.txt
+2424027	Animation Library[Standard]/Preview.png
+20623420	Animation Library[Standard]/Unity/AnimationLibrary_Unity_Standard.fbx
+237945	Animation Library[Standard]/Unity_Setup.png
+24856556	Animation Library[Standard]/Unreal Engine/AL_Standard.fbx
+347727	Animation Library[Standard]/UnrealEngine_Setup.png

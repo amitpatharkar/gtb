@@ -1,0 +1,109 @@
+jobs: 21
+status: 0
+--- stdout ---
+blender 4.2.3 LTS fbx importer: True gltf exporter: True
+INFO Draco mesh compression is available, use library at /home/runner/blender-4.2.3-linux-x64/4.2/python/lib/python3.11/site-packages/libextern_draco.so
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual2_Female.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual2_Female.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual2_Male.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual2_Male.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual3_Female.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual3_Female.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual3_Male.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual3_Male.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual_Bald.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual_Bald.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual_Female.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual_Female.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual_Male.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Casual_Male.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Chef_Female.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Chef_Female.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Chef_Male.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Chef_Male.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Cow.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Cow.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Doctor_Female_Young.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Doctor_Female_Young.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Doctor_Male_Young.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Doctor_Male_Young.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/OldClassy_Female.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/OldClassy_Female.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/OldClassy_Male.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/OldClassy_Male.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Pug.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Pug.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Soldier_Female.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Soldier_Female.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Soldier_Male.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Soldier_Male.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Suit_Female.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Suit_Female.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Suit_Male.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Suit_Male.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Worker_Female.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Worker_Female.glb
+animations ['Defeat', 'Idle', 'PickUp', 'Punch', 'RecieveHit', 'Shoot_OneHanded', 'SitDown', 'StandUp', 'Victory', 'Walk', 'Walk_Carry']
+converted /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Worker_Male.fbx -> /tmp/fbx-Do1Cmw/Ultimate_Animated_Character_Pack_-_Nov_2019/FBX/Worker_Male.glb
+--- stderr (tail) ---
+acting primitive: Cube.004
+13:28:37 | WARNING: The active Vertex Color will not be exported, as it is not used in the node tree of the material
+13:28:37 | INFO: Primitives created: 9
+13:28:37 | WARNING: There are more than 4 joint vertex influences.The 4 with highest weight will be used (and normalized).
+13:28:37 | INFO: Finished glTF 2.0 export in 0.5094108581542969 s
+13:28:38 | INFO: Starting glTF 2.0 export
+13:28:38 | INFO: Extracting primitive: CUNurbsPath.010
+13:28:38 | INFO: Primitives created: 6
+13:28:38 | WARNING: There are more than 4 joint vertex influences.The 4 with highest weight will be used (and normalized).
+13:28:38 | INFO: Finished glTF 2.0 export in 0.5575611591339111 s
+13:28:38 | INFO: Starting glTF 2.0 export
+13:28:38 | INFO: Extracting primitive: CUNurbsPath.010
+13:28:38 | INFO: Primitives created: 6
+13:28:38 | WARNING: There are more than 4 joint vertex influences.The 4 with highest weight will be used (and normalized).
+13:28:39 | INFO: Finished glTF 2.0 export in 0.5788803100585938 s
+13:28:39 | INFO: Starting glTF 2.0 export
+13:28:39 | INFO: Extracting primitive: Cube.004
+13:28:39 | INFO: Primitives created: 8
+13:28:39 | WARNING: There are more than 4 joint vertex influences.The 4 with highest weight will be used (and normalized).
+13:28:40 | INFO: Finished glTF 2.0 export in 0.5761969089508057 s
+13:28:40 | INFO: Starting glTF 2.0 export
+13:28:40 | INFO: Extracting primitive: Cube.004
+13:28:40 | INFO: Primitives created: 8
+13:28:40 | WARNING: There are more than 4 joint vertex influences.The 4 with highest weight will be used (and normalized).
+13:28:41 | INFO: Finished glTF 2.0 export in 0.5176451206207275 s
+13:28:41 | INFO: Starting glTF 2.0 export
+13:28:41 | INFO: Extracting primitive: Cube.004
+13:28:41 | WARNING: The active Vertex Color will not be exported, as it is not used in the node tree of the material
+13:28:41 | INFO: Primitives created: 8
+13:28:41 | WARNING: There are more than 4 joint vertex influences.The 4 with highest weight will be used (and normalized).
+13:28:41 | INFO: Finished glTF 2.0 export in 0.5322067737579346 s
+13:28:42 | INFO: Starting glTF 2.0 export
+13:28:42 | INFO: Extracting primitive: Cube.004
+13:28:42 | INFO: Primitives created: 6
+13:28:42 | WARNING: There are more than 4 joint vertex influences.The 4 with highest weight will be used (and normalized).
+13:28:42 | INFO: Finished glTF 2.0 export in 0.5480899810791016 s
+13:28:42 | INFO: Starting glTF 2.0 export
+13:28:42 | INFO: Extracting primitive: Cube.004
+13:28:42 | INFO: Primitives created: 6
+13:28:42 | WARNING: There are more than 4 joint vertex influences.The 4 with highest weight will be used (and normalized).
+13:28:43 | INFO: Finished glTF 2.0 export in 0.5181469917297363 s
+13:28:43 | INFO: Starting glTF 2.0 export
+13:28:43 | INFO: Extracting primitive: Cube.004
+13:28:43 | INFO: Primitives created: 7
+13:28:43 | WARNING: There are more than 4 joint vertex influences.The 4 with highest weight will be used (and normalized).
+13:28:44 | INFO: Finished glTF 2.0 export in 0.5515642166137695 s
+13:28:44 | INFO: Starting glTF 2.0 export
+13:28:44 | INFO: Extracting primitive: Cube.004
+13:28:44 | INFO: Primitives created: 7
+13:28:44 | WARNING: There are more than 4 joint vertex influences.The 4 with highest weight will be used (and normalized).
+13:28:45 | INFO: Finished glTF 2.0 export in 0.5291752815246582 s
+13:28:45 | INFO: Starting glTF 2.0 export
+13:28:45 | INFO: Extracting primitive: Cube.004
+13:28:45 | INFO: Primitives created: 7
+13:28:45 | WARNING: There are more than 4 joint vertex influences.The 4 with highest weight will be used (and normalized).
+13:28:45 | INFO: Finished glTF 2.0 export in 0.5268702507019043 s
+13:28:46 | INFO: Starting glTF 2.0 export
+13:28:46 | INFO: Extracting primitive: Cube.004
+13:28:46 | INFO: Primitives created: 6
+13:28:46 | WARNING: There are more than 4 joint vertex influences.The 4 with highest weight will be used (and normalized).
+13:28:46 | INFO: Finished glTF 2.0 export in 0.553386926651001 s
