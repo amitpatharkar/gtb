@@ -224,7 +224,7 @@ canvas { display: block; }
 @media (max-width: 700px) { #map-screen .map-hint { display: none; } }
 
 /* Job panel (taxi meter, deliveries) */
-#job { position: fixed; top: 132px; left: 12px; background: #000b; color: #fff; padding: 9px 12px; border-radius: 10px; font: 13px/1.5 system-ui, sans-serif; min-width: 230px; pointer-events: none; border-left: 4px solid #f7c600; }
+#job { position: fixed; top: 160px; left: 12px; background: #000b; color: #fff; padding: 9px 12px; border-radius: 10px; font: 13px/1.5 system-ui, sans-serif; min-width: 230px; pointer-events: none; border-left: 4px solid #f7c600; }
 #job b.hire { color: #f7c600; letter-spacing: 1px; }
 #job .bad { color: #ff7a6b; font-weight: 700; }
 #job .bar { display: inline-block; width: 90px; height: 7px; background: #fff3; border-radius: 4px; vertical-align: middle; overflow: hidden; }
@@ -330,3 +330,13 @@ body.onfoot #touch .pad.combat button { width: 52px; height: 52px; font-size: 20
 #nav small { display: block; opacity: 0.8; font-size: 12px; }
 #radio { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); background: #000b; color: #fff; padding: 6px 14px; border-radius: 16px; font: 13px system-ui, sans-serif; opacity: 0; transition: opacity 0.4s; pointer-events: none; z-index: 4; }
 #radio.show { opacity: 1; }
+#objective { position: fixed; left: 12px; top: 112px; max-width: min(420px, 60vw); background: #000a; color: #fff; padding: 6px 10px; border-radius: 8px; border-left: 4px solid #f7c600; font: 13px/1.4 system-ui, sans-serif; pointer-events: none; z-index: 3; }
+#objective[hidden], #cutscene[hidden] { display: none; }
+#cutscene { position: fixed; inset: 0; pointer-events: none; z-index: 25; }
+#cutscene .bar { position: absolute; left: 0; right: 0; height: 13vh; background: #000; }
+#cutscene .bar.top { top: 0; }
+#cutscene .bar.bottom { bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; text-align: center; padding: 0 8vw; }
+#cutscene p { margin: 0; font: 600 clamp(15px, 1.7vw, 21px)/1.4 system-ui, sans-serif; }
+#cutscene b { color: #f7c600; }
+#cutscene small { opacity: 0.5; font-size: 11px; margin-top: 4px; }
+body.cutscene #hud, body.cutscene #status, body.cutscene #radar, body.cutscene #objective, body.cutscene #job, body.cutscene #nav, body.cutscene #weapon, body.cutscene #btn-phone, body.cutscene #touch, body.cutscene #crosshair { visibility: hidden; }

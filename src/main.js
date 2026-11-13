@@ -25,6 +25,7 @@ import { Landmarks } from './world/landmarks.js';
 import { StreetProps } from './world/streetProps.js';
 import { Radio } from './radio.js';
 import { Characters } from './sim/characters.js';
+import { Story } from './game/story.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
 import { Phone } from './ui/phone.js';
@@ -141,6 +142,7 @@ const pichkari = new Pichkari(scene, { tiles, street, police, traffic, bubbles, 
 let combat = null; // created once the camera control exists (below)
 const jobs = new Jobs({ scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street });
 jobs.taxi = player;
+const story = new Story({ scene, tiles, index, state, cityMap, hud, bubbles, people, jobs, street, clock, audio });
 const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => changeQuality(nextTier(tierKey)), onPhoto: () => takePhoto() });
 const propPhysics = new PropPhysics(scene, tiles, { bubbles, hud, state, audio });
 const world = {
@@ -248,6 +250,13 @@ function placeCamera(dt) {
     const t = i / 8, x = px + (target.x - px) * t, z = pz + (target.z - pz) * t;
     if (tiles.hits(x, z, 0.25)) { const k = Math.max(0.15, (i - 1) / 8); target.x = px + (target.x - px) * k; target.z = pz + (target.z - pz) * k; break; }
   }
+  if (story?.camera) {
+    // Cutscene camera: slow orbit around whoever is talking.
+    camPos.lerp(story.camera.pos, 1 - Math.exp(-dt * 3));
+    camera.position.copy(camPos);
+    camera.lookAt(story.camera.look);
+    return;
+  }
   if (dt === 0) camPos.copy(target);
   else camPos.lerp(target, 1 - Math.exp(-dt * (onFoot ? (aim ? 14 : 8) : 5)));
   camera.position.copy(camPos);
@@ -312,6 +321,7 @@ applySettings(settings);
 addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && !phone.open && !cityMap.open) { pause.toggle(); return; }
   if (pause.open) return;
+  if ((e.code === 'Space' || e.code === 'Enter') && story.lines?.length && story.camera) { story.skip(); return; }
   if (e.code === 'Slash') { helpTimer = helpTimer > 0 ? 0 : 30; $('help').classList.toggle('show', helpTimer > 0); }
   audio.start();
   if (e.repeat) return;
@@ -434,7 +444,7 @@ function choice(title, options) {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const timer = new THREE.Timer();
 // Shadows: redraw the shadow map every frame on High, every other frame below.
 renderer.shadowMap.autoUpdate = false;
@@ -448,6 +458,7 @@ renderer.setAnimationLoop((time) => {
   if (helpTimer > 0) { helpTimer -= dt; if (helpTimer <= 0) $('help').classList.remove('show'); }
   crosshair.hidden = !(onFoot && (view.aim || (combat.weapon === 'pichkari' && view.locked)));
   document.body.classList.toggle('onfoot', onFoot);
+  document.body.classList.toggle('cutscene', !!story.camera);
   if (input.reset) { input.reset = false; teleportHome(); }
   step(dt);
   renderer.shadowMap.needsUpdate = tier.name === 'High' || (frameNo++ & 1) === 0;
@@ -461,7 +472,8 @@ function step(dt) {
   clock.update(dt);
   // The active body: the taxi, or the player on foot.
   const active = onFoot ? walker : player;
-  player.update(dt, onFoot ? NO_INPUT : input, world);
+  const cutscene = !!story.camera;
+  player.update(dt, onFoot || cutscene ? NO_INPUT : input, world);
   // Tyre marks and car sounds.
   skids.track(player, player.slip || 0, player.braking);
   audio.squeal(onFoot ? 0 : player.slip || 0);
@@ -479,7 +491,7 @@ function step(dt) {
   propPhysics.update(dt, onFoot ? null : player);
   if (player.condition > 0.97 && (damage.front || damage.rear)) damage.repair();
   if (onFoot) {
-    walker.update(dt, input, footWorld, state.s.energy, clock.aqi, view);
+    walker.update(dt, cutscene ? NO_INPUT : input, footWorld, state.s.energy, clock.aqi, view);
     // Careless drivers knock you over.
     for (const c of traffic.cars) {
       if (c.speed > 2 && Math.hypot(c.x - walker.pos.x, c.z - walker.pos.z) < 1.5 && walker.down <= 0) {
@@ -500,6 +512,7 @@ function step(dt) {
   street.onFoot = onFoot;
   street.update(dt, active, clock);
   combat.update(dt, { fire: input.fire || input.brake }, onFoot);
+  story.update(dt, { player, onFoot, walker });
   if (onFoot) walker.draw(people, combat.weapon);
   for (const r of traffic.riders) {
     // Motorbike riders sit astride, hands on the handlebar; most wear helmets.
