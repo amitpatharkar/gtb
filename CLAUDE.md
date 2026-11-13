@@ -75,6 +75,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   at night) and the shop-sign atlas (128 boards, Marathi in Devanagari over English, BMC style; fonts from `media/`).
   Per-building attributes MUST stay `flat` varyings (interpolation noise + hashing = speckle). Debug:
   `window.__gtb.facadeDebug.value = 1..4` (albedo, roughness, normal, window grid).
+- `src/world/skyline.js` — far skyline: tall buildings of the whole map as boxes (`tiles/skyline.bin.gz` from
+  `scripts/lib/skyline.mjs`: 11 bytes per box, top 6 per 200 m cell + everything over 45 m), one InstancedMesh
+  refreshed when the player moves 120 m or tiles change; boxes are skipped where a tile is loaded; fog is the
+  same as real buildings up to `tier.loadRadius`, then compressed ×0.3; window glow at night via `facadeNight`.
 - `src/world/hoardings.js` + `mesh/hoardingMesh.js` — rooftop hoardings: `ADS` (30 parody ads; every brand, film
   and star is made up) drawn into one 2048² canvas atlas (4 × 8 cells, last two = steel), redrawn with the sign
   fonts (`signs.redraw` in materials.js); the worker adds a board + posts over the longest street-facing wall of
@@ -216,7 +220,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   F into the nearest vehicle (anyone's); ` cheat console; T +1 hour, M mute, Q graphics, R reset
 - `scripts/build-tiles.mjs` — converter (`npm run tiles`, ~55 s for the shipped box 18.890,72.795 → 19.140,72.920;
   `--bbox S,W,N,E`, fixed world origin `--origin` = Mahim 19.03,72.85 so coordinates never move as the map grows;
-  writes `overview.bin.gz`; ground UVs wrap every 1,872 m (`UV_PERIOD` in tileWorker.js, a common multiple of the
+  writes `overview.bin.gz` and `skyline.bin.gz`; ground UVs wrap every 1,872 m (`UV_PERIOD` in tileWorker.js, a common multiple of the
   ground texture sizes in materials.js); private house names are blanked): v1 steps plus streets via Clipper (`lib/clip.mjs`:
   road surface union, footpaths by class, plots, parks cut out of plots), markings/crossings/trees/lights/stalls/
   garbage/potholes/puddles (`lib/streets.mjs`), building style + colour by district (`lib/districts.mjs`, from the

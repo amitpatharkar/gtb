@@ -57,7 +57,7 @@ Effort: S small, M medium, L large. ✅ done · 🟡 in progress · ⬜ to do.
 | 2.6 | Clutter: rooftop hoardings ✅ — boards on steel posts over the street-facing wall of about one mid-rise building in eight (more on shopping streets), 30 parody ads on one canvas atlas (the game's own apps, fictional films and stars, cement, coaching classes, builders, public-interest boards), floodlit at night; still to do: roadside unipoles, cable bundles, awnings and tarps, blue street-name boards, drain pipes, stains | M | 🟡 |
 | 2.7 | People: realistic CC0 bodies (Quaternius Universal Base Characters + Universal Animation Library; owner uploads the zip to a GitHub Release), Indian clothes (sari, salwar-kurta, lungi, school uniform, Koli nauvari), varied faces and hair; behaviour by district and hour Full-length trousers and shoes on adults instead of the pack's shorts and bare feet ✅. | M–L | 🟡 chibi pack in, proportions fixed |
 | 2.8 | Taxi polish: clear-coat reflections, tail lamps, chrome bumpers, interior through the rear glass | S–M | ⬜ |
-| 2.9 | Far skyline stand-ins beyond the load radius; Queen's Necklace lights at night | M | ⬜ |
+| 2.9 | Far skyline ✅: the converter writes the 17,206 buildings of 15 m and more as oriented boxes (`skyline.bin.gz`, 133 KB); the game draws those within 2.6–4.2 km whose tile is not loaded as one instanced mesh, with haze that matches real tiles at the load radius and thins out beyond, and lit windows at night. Still to do: Queen's Necklace street lights from afar, far ground colour | M | 🟡 |
 
 ## Phase 3 — The city grows
 | # | Item | Effort | Status |

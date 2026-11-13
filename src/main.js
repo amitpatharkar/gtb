@@ -13,6 +13,7 @@ import { Car } from './vehicles/car.js';
 import { GameClock } from './sim/clock.js';
 import { Traffic } from './sim/traffic.js';
 import { FacadeParts } from './world/facadeParts.js';
+import { Skyline } from './world/skyline.js';
 import { Signals } from './sim/signals.js';
 import { Police } from './sim/police.js';
 import { PeopleRenderer, POSE, FLAG, HOLI, outfit } from './sim/people.js';
@@ -115,6 +116,7 @@ const startHour = Number(query.get('hour'));
 const clock = new GameClock(query.has('hour') && Number.isFinite(startHour) ? startHour : 17.25);
 const traffic = new Traffic(scene, tiles, tier);
 const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
+const skyline = new Skyline(scene, tiles, tier); // distant tall buildings beyond the loaded tiles
 const signals = new Signals(scene);
 traffic.signals = signals;
 const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
@@ -549,6 +551,7 @@ function choice(title, options) {
 
 // ------------------------------------------------------------------ loop
 window.__gtb = { THREE, garage, crackers, stars, eggs, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb.skyline = skyline;
 const cheats = new Cheats(window.__gtb, (t, s) => say(t, s));
 window.__gtb.cheat = (code) => cheats.enter(code);
 window.__gtb.cheats = cheats;
@@ -657,6 +660,7 @@ function step(dt) {
   landmarks.update(night);
   streetProps.update(dt, active.pos);
   facadeParts.update(dt, player, tiles, night);
+  skyline.update(active.pos);
   tiles.props.lampMat.emissiveIntensity = night * 9;
   const lamps = damage.headlampFactor(player.condition);
   taxi.lights.headMat.emissiveIntensity = (0.2 + night * 5) * lamps;

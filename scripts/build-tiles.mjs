@@ -23,6 +23,7 @@ import * as G from './lib/geometry.mjs';
 import * as C from './lib/clip.mjs';
 import { FOOTPATH, isVehicle, junctions, markings, streetFurniture, treeKind } from './lib/streets.mjs';
 import { districtAt, pickStyle, STYLE } from './lib/districts.mjs';
+import { buildSkyline } from './lib/skyline.mjs';
 import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, POINT, MAGIC, TILE_VERSION, DM } from '../src/world/tileFormat.js';
 import { OVERVIEW_MAGIC, OVERVIEW_VERSION, OVERVIEW_LAYER } from '../src/world/overviewFormat.js';
 
@@ -704,6 +705,7 @@ for (const L of LANDMARKS) {
 // Simple 3D Buildings rule: if an outline contains building:part pieces, draw the parts instead.
 const partGrid = new Grid(50);
 for (const b of buildingsRaw) if (b.part) { const [x, z] = G.centroid(b.polys[0][0]); partGrid.add([x, z, x, z], [x, z]); }
+const skylineList = []; // tall buildings for the far skyline (lib/skyline.mjs)
 let bCount = 0, bSkipped = 0, bWithHeight = 0;
 for (const b of buildingsRaw) {
   for (const poly of b.polys) {
@@ -749,6 +751,7 @@ for (const b of buildingsRaw) {
     if (b.hidden) f2 |= BUILDING_FLAG.HIDDEN;
     tile.buildings.push({ h, minH, color: look.color, flags: f2, style: look.style, levels: look.levels, rings, front });
     bCount++;
+    if (h >= 15 && !b.hidden && minH < 1) skylineList.push({ ring: outer, area, h, color: look.color });
   }
 }
 log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts)`);
@@ -1032,6 +1035,12 @@ function writeOverview() {
   return { file: 'overview.bin.gz', bytes: gz.length };
 }
 const overview = writeOverview();
+const skyline = (() => {
+  const { gz, count } = buildSkyline(skylineList, BOX);
+  fs.writeFileSync(path.join(CFG.out, 'skyline.bin.gz'), gz);
+  log(`skyline: ${count} tall buildings → ${(gz.length / 1024).toFixed(0)} KB`);
+  return { file: 'skyline.bin.gz', bytes: gz.length, count };
+})();
 
 const meta = {
   format: TILE_VERSION,
@@ -1046,6 +1055,7 @@ const meta = {
   bounds: { minX: BOX[0], minZ: BOX[1], maxX: BOX[2], maxZ: BOX[3] },
   spawn,
   overview,
+  skyline,
   fuel: fuelStations,
   landmarks,
   tiles: index,
