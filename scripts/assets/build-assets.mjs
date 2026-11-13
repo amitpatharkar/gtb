@@ -304,7 +304,7 @@ async function processModel(a) {
     const res = spawnSync('blender', ['-b', '--factory-startup', '-P', path.join(root, 'scripts/assets/fbx2glb.py'), '--', ...jobs.flat()], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
     if (res.status !== 0) log(`  ${a.id}: blender exited ${res.status}: ${(res.stderr || '').slice(-300)}`);
     // Keep Blender's report next to the pack so failures can be read from the assets branch.
-    const report = `jobs: ${jobs.length}\nstatus: ${res.status}\n--- stdout ---\n${(res.stdout || '').split('\n').filter((l) => /converted|FAILED|blender|ADDON|Error|error|Traceback/.test(l)).join('\n')}\n--- stderr (tail) ---\n${(res.stderr || '').slice(-4000)}`;
+    const report = `jobs: ${jobs.length}\nstatus: ${res.status}\n--- stdout ---\n${(res.stdout || '').split('\n').filter((l) => /converted|FAILED|blender|ADDON|animations|Error|error|Traceback/.test(l)).join('\n')}\n--- stderr (tail) ---\n${(res.stderr || '').slice(-4000)}`;
     fs.mkdirSync(path.join(OUT, 'models', a.id), { recursive: true });
     fs.writeFileSync(path.join(OUT, 'models', a.id, '_convert.log'), report);
     log(`  ${a.id}: ${(res.stdout || '').split('\n').filter((l) => l.startsWith('converted')).length}/${jobs.length} FBX converted`);

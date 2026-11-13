@@ -34,7 +34,29 @@ for src, dst in zip(args[0::2], args[1::2]):
                     print('FBX', kind, msg)
 
             import_fbx.load(Op(), bpy.context, filepath=src)
-        bpy.ops.export_scene.gltf(filepath=dst, export_format='GLB', export_animations=True, export_yup=True, export_apply=False)
+        # FBX actions come in unlinked (and with an unset id_root), so the exporter would keep only
+        # the active one. Put every action on its own NLA track and export the tracks.
+        arm = next((o for o in bpy.data.objects if o.type == 'ARMATURE'), None)
+        mode = 'ACTIONS'
+        if arm and bpy.data.actions:
+            arm.animation_data_create()
+            for act in list(bpy.data.actions):
+                try:
+                    act.id_root = 'OBJECT'
+                except Exception:  # noqa: BLE001
+                    pass
+                act.name = act.name.split('|')[-1]
+                act.use_fake_user = True
+                track = arm.animation_data.nla_tracks.new()
+                track.name = act.name
+                track.strips.new(act.name, int(act.frame_range[0]), act)
+            arm.animation_data.action = None
+            mode = 'NLA_TRACKS'
+        try:
+            bpy.ops.export_scene.gltf(filepath=dst, export_format='GLB', export_animations=True, export_animation_mode=mode, export_yup=True, export_apply=False)
+        except TypeError:  # older exporter without animation modes
+            bpy.ops.export_scene.gltf(filepath=dst, export_format='GLB', export_animations=True, export_yup=True, export_apply=False)
+        print('animations', [a.name for a in bpy.data.actions], flush=True)
         print('converted', src, '->', dst, flush=True)
     except Exception as e:  # noqa: BLE001 — keep going with the other files
         print('FAILED', src, repr(e), flush=True)
