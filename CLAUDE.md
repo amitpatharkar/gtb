@@ -83,13 +83,41 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/vehicles/taxi.js` + `car.js` — procedural kaali-peeli taxi (Premier Padmini proportions, clear-coat paint) and car
   handling (bicycle steering, two collision circles, kerb bumps, body roll/pitch, fuel ~40 km per tank, condition)
 - `src/sim/clock.js` — 24-hour clock (1 real s = 1 game min, T = +1 h), real sun path for Mumbai in December,
-  daylight/night/twilight, AQI by hour (CPCB scale), traffic density by hour (rush 8–11, 17–21)
-- `src/sim/traffic.js` — ambient traffic near the player (taxis, hatchbacks, sedans, BEST buses on main roads, tempos),
-  keeps LEFT, follows the road graph across tiles, respects one-ways, slows for cars and the player, honks
-- `src/ui/minimap.js` — rotating radar (land, roads, traffic, petrol pumps); `src/audio.js` — Web Audio ambience
-  (traffic, street, waves near the sea, crows by day), horns; starts on first key/tap
+  daylight/night/twilight, AQI by hour (CPCB scale), traffic density table by hour (≈5 % at 3 am, 100 % 9–11 and
+  18–20) and `jam` (slower cruising at peaks)
+- `src/sim/traffic.js` — ambient traffic near the player (fleet from `src/vehicles/fleet.js`: taxis, hatchbacks,
+  sedans, SUVs, BEST buses on main roads, tempos (more at night), motorbikes with riders), keeps LEFT, follows the
+  road graph (loose ends within 2.5 m joined), respects one-ways, stops at red (jumpers, amber gamblers, zebra creepers),
+  stops for `obstacles` (cows, cricket, jaywalkers), draws `extras` (broken-down taxi), pull-overs, honks
+- `src/vehicles/fleet.js` — procedural traffic vehicles, 4 parts per type (paint tinted per car, glass, trim, lamps)
+- `src/vehicles/skids.js` (tyre marks), `damage.js` (dents, loose bumpers, dying lamps, bonnet smoke; repair at pumps)
+- `src/sim/signals.js` — working signals at OSM signal junctions: poles on the left kerb per approach, lamps and
+  red/green countdowns, two phase groups; `ahead(x, z, fx, fz)` gives the next stop line and its light
+- `src/sim/police.js` — traffic constables (umbrella, 8 am–11 pm) at about half the main junctions catch or miss
+  red-light jumpers; player offences (signal jump, wrong way on one-way, footpath driving, hit-and-run, colouring a
+  policeman) count only when seen → challan stars and fines; stop by the constable to pay, or a fictional
+  "Mumbai City Police" patrol car chases (A* on the road graph, siren, light bar); out of sight → stars fade
+- `src/sim/people.js` — procedural people (one instanced mesh, limbs animated in the shader; poses walk/stand/wave/
+  point/argue/bat/sit/crouch; flags cap/sari/helmet); `src/sim/animals.js` — stray dogs and humped cows
+- `src/sim/street.js` — street life near the player: pedestrians on footpaths (jaywalk, dodge the taxi, puddle splash),
+  scenarios from map points (thela vendors calling + customers, bus-stop commuters, dogs by garbage that chase the taxi,
+  cows on lanes, gully cricket, push-starting a broken-down taxi), red-light hawkers, bump-and-argue drivers
+- `src/game/state.js` — saved player state (localStorage): money, hunger, energy, purchases, messages, rides; home
+  address in Powai (`HOME`); `src/game/jobs.js` — taxi fares (J / Chalo app; meter, time, comfort → tips or cuts,
+  rating), delivery riders, snacks at thelas (E)
+- `src/player/walker.js` — on foot (F out/in; walk, Shift run with stamina, health, knocked over by cars);
+  `src/player/pichkari.js` — Holi pichkari (Space spray, C colour): drops, splats, reactions
+- `src/world/propPhysics.js` — solid trees/lamp posts/bus shelters/thelas, tree shake, bent poles, flying fruit,
+  scattering garbage (simple rigid bits)
+- `src/ui/minimap.js` — rotating radar (land, roads, traffic, petrol pumps, GPS route); `src/ui/cityMap.js` — full map
+  (Tab / tap radar; pan, zoom, tap for a waypoint; GPS A* on all tiles, one-ways respected; game pauses);
+  `src/ui/phone.js` — phone (P): Maps, Chalo Driver, Bhookh (food), JhatPat (quick commerce), Dukaan (shopping to
+  home), PayKaro (UPI), Messages, Camera (photo mode), Ghar (home), Settings — all parody names;
+  `src/ui/bubbles.js` — speech bubbles; `src/audio.js` — ambience, horns, synthesised whistle, siren, bark, engine,
+  tyre squeal, crash, spray, musical horn; starts on first key/tap
 - `src/rickshaw.js` — old auto-rickshaw (unused in South Mumbai; keep for the suburbs, where autos are allowed)
-- `src/input.js` — keyboard and touch; extra keys handled in main.js: H horn, F refuel, T +1 hour, M mute, Q graphics
+- `src/input.js` — keyboard and touch (Shift = run); keys in main.js: H horn, E interact (refuel/snack), F out/in of the
+  taxi, Tab map, P phone, J taxi duty, C pichkari colour, T +1 hour, M mute, Q graphics, R reset
 - `scripts/build-tiles.mjs` — converter (`npm run tiles`, ~7 s): v1 steps plus streets via Clipper (`lib/clip.mjs`:
   road surface union, footpaths by class, plots, parks cut out of plots), markings/crossings/trees/lights/stalls/
   garbage/potholes/puddles (`lib/streets.mjs`), building style + colour by district (`lib/districts.mjs`, from the
@@ -126,20 +154,23 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   garbage, potholes, puddles, petrol pumps, tetrapods; kaali-peeli taxi; 24-hour clock with moving sun and night lights;
   AQI haze; left-hand traffic with rush hours; minimap; fuel and condition; city sound. First load ≈ 34 MB on High,
   ≈ 10 MB on Medium/Low. ~300 draw calls, ~570k triangles at the spawn on High.
-- Next (in order) — the owner's wishlist, grouped into systems:
-  1. **On foot**: playable character (Quaternius rigged characters + animation library are in `assets.json`, need
-     pipeline stage 2), E to enter/exit the taxi, health, tiredness/stamina (AQI lowers it), hunger and food from stalls/
-     cafés (vada pav, chai), clothes (swap outfits), money (₹, taxi fares as income).
-  2. **Pedestrians** (staged near the player, district mixes) and **scenarios** (chai tapri, cricket on maidans, hawkers).
-  3. **Police**: traffic police "challan" stars for traffic offences (red lights, wrong way, footpath driving), Mumbai
-     Police cars (parody livery), line-of-sight escape.
-  4. **Comedy items**: tomatoes to throw, pichkari (Holi water gun) — needs character + simple physics.
-  5. **Flyovers**: converter keeps bridge/layer roads separate, raised decks with ramps and piers (JJ, Kemps Corner).
-  6. **Traffic depth**: signals cycling, junction yielding, autos/2-wheelers in the suburbs, honking AI.
-  7. **Car upkeep**: maintenance at garages, tyre punctures from potholes, CNG vs petrol.
-  8. **Weather**: monsoon rain (wet roads, puddles grow, waterlogging), more sky HDRIs per time of day.
-  9. Pipeline stage 2 (models via glTF Transform, Sketchfab token), far level of detail, landmarks (altered names),
-     bigger map (whole island), heights from Google Open Buildings 2.5D, hills from Copernicus elevation.
+- Done (2026-11-13, systems pass): 3D facade parts near the player; road quality by class (smooth main roads, worn
+  tertiary, rough lanes with bumps and more potholes); working signals, traffic police, challan stars and patrol
+  chases; street life and scenarios; full-screen map with GPS; traffic by hour; phone with parody apps, saved state,
+  hunger/energy, Powai home address; taxi fare side job; delivery riders; on foot with the Holi pichkari; new traffic
+  fleet with bikes; tyre marks, engine/squeal/crash sounds; taxi damage; solid street props with simple physics.
+  ~350 draw calls, ~1M triangles on High; simulation ≈1.3 ms per step.
+- Next (ideas, owner's goal: "GTA V Mumbai edition, maximised for a browser"):
+  1. **More missions**: Bhookh delivery-partner job (pick up at a stall, deliver on time, food condition), dabbawala
+     relay at lunchtime, tourist tours (Gateway → Marine Drive), police chase challenges, races on Marine Drive at night.
+  2. **Characters**: Quaternius rigged characters (assets pipeline: Blender step ran but produced no GLBs — check
+     `scripts/assets/fbx2glb.py` logs) to replace procedural people near the camera; clothes from Dukaan on foot.
+  3. **Enterable places**: Irani café, kirana shop, chawl room, the Powai flat (procedural interiors); tomatoes to throw.
+  4. **Flyovers**: converter keeps bridge/layer roads separate, raised decks with ramps and piers (JJ, Kemps Corner).
+  5. **Traffic depth**: junction yielding, lane changes/overtaking, autos in the suburbs, more two-wheelers.
+  6. **Weather**: monsoon rain (wet roads, puddles grow, waterlogging), more sky HDRIs per time of day.
+  7. **Bigger map** (whole island, then Powai so the home is reachable), far level of detail, landmarks with altered
+     names, heights from Google Open Buildings 2.5D, hills from Copernicus elevation.
 
 ## Testing in the session
 - `npm run build` must pass (it runs the converter first).
@@ -156,6 +187,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   It cannot open the live github.io site; ask the owner's Claude in Chrome for live checks.
 - Headless driving/visual tests: call `window.__gtb.step(0.05)` in a loop (simulation without rendering), set
   `window.__gtb.input.fwd = true` etc., then `window.__gtb.post.render()` before a screenshot. `?hour=` sets the time.
+  `window.__gtb` also exposes signals, police, street, people, animals, cityMap, state, jobs, phone, walker, pichkari,
+  skids, damage, propPhysics and `toggleFoot()`. Load tiles with `await tiles.whenReady(x, z, r)` before `roadAt`.
 - Asset pipeline test without network: point a small list at `file://` URLs
   (`node scripts/assets/build-assets.mjs --list my-list.json --out /tmp/x --cache /tmp/c`).
 
