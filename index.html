@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>GTB — Mumbai</title>
+    <link rel="icon" href="./favicon.svg" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <div id="hud">
+      <div id="title">GTB · Mumbai</div>
+      <div id="speed">0 km/h</div>
+      <div id="help">W A S D / arrow keys to drive · Space to brake</div>
+    </div>
+    <div id="touch">
+      <div class="pad left">
+        <button data-key="left">◀</button>
+        <button data-key="right">▶</button>
+      </div>
+      <div class="pad right">
+        <button data-key="brake">■</button>
+        <button data-key="back">▼</button>
+        <button data-key="fwd">▲</button>
+      </div>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

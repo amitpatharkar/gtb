@@ -1,0 +1,29 @@
+{
+  "name": "gtb",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amitpatharkar/gtb.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/amitpatharkar/gtb/issues"
+  },
+  "homepage": "https://github.com/amitpatharkar/gtb#readme",
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.8"
+  },
+  "private": true,
+  "type": "module"
+}

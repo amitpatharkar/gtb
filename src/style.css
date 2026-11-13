@@ -1,0 +1,47 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #87b8d8;
+  font-family: system-ui, sans-serif;
+  touch-action: none;
+  user-select: none;
+}
+
+canvas { display: block; }
+
+#hud {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  color: #fff;
+  text-shadow: 0 1px 3px #000a;
+  pointer-events: none;
+}
+#title { font-weight: 800; font-size: 20px; letter-spacing: 1px; }
+#speed { font-size: 28px; font-weight: 700; margin-top: 4px; }
+#help { font-size: 12px; opacity: 0.85; margin-top: 4px; }
+
+#touch { display: none; }
+@media (pointer: coarse) {
+  #help { display: none; }
+  #touch {
+    display: flex;
+    justify-content: space-between;
+    position: fixed;
+    bottom: 20px;
+    left: 16px;
+    right: 16px;
+  }
+  .pad { display: flex; gap: 10px; }
+  .pad button {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: none;
+    font-size: 22px;
+    color: #fff;
+    background: #0006;
+  }
+  .pad button.on { background: #f5c400cc; color: #000; }
+}
