@@ -14,6 +14,7 @@ import { GameClock } from './sim/clock.js';
 import { Traffic } from './sim/traffic.js';
 import { FacadeParts } from './world/facadeParts.js';
 import { Skyline } from './world/skyline.js';
+import { Birds } from './sim/birds.js';
 import { Signals } from './sim/signals.js';
 import { Police } from './sim/police.js';
 import { PeopleRenderer, POSE, FLAG, HOLI, outfit } from './sim/people.js';
@@ -143,6 +144,7 @@ player.pay = (amount, what) => state.pay(amount, what);
 const hud = { message: (t) => say(t, 4) };
 const police = new Police({ scene, tiles, traffic, signals, people, audio, bubbles, hud });
 const animals = new Animals(scene);
+const birds = new Birds(scene, tiles, audio); // pigeon flocks at famous spots, kites overhead
 const street = new StreetLife({ scene, tiles, traffic, signals, people, animals, bubbles, audio, police, tier, hud });
 // Clothes from the Ghar app wardrobe (bought on Dukaan).
 function applyOutfit() {
@@ -481,6 +483,7 @@ function honk() {
   if (onFoot) { pichkari.nextColour(); combat.setWeapon('pichkari'); return; }
   if (state.owns('horn')) audio.musicalHorn?.(); else audio.play('horn', 0.9);
   street.onHorn();
+  birds.scare(player.pos.x, player.pos.z, 10);
   jobs.honk();
   const ahead = traffic.honkedBy(player);
   if (ahead && Math.random() < 0.3) bubbles.say(ahead, ['Haan bhai, jaa!', 'Kitna horn!', 'Udd ke jaayega kya?'][Math.floor(Math.random() * 3)], 2, 'driver');
@@ -552,6 +555,8 @@ function choice(title, options) {
 // ------------------------------------------------------------------ loop
 window.__gtb = { THREE, garage, crackers, stars, eggs, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 window.__gtb.skyline = skyline;
+window.__gtb.birds = birds;
+{ const startle = crackers.startle.bind(crackers); crackers.startle = (x, z, r, by) => { birds.scare(x, z, r); return startle(x, z, r, by); }; } // crackers scare the pigeons too
 const cheats = new Cheats(window.__gtb, (t, s) => say(t, s));
 window.__gtb.cheat = (code) => cheats.enter(code);
 window.__gtb.cheats = cheats;
@@ -661,6 +666,7 @@ function step(dt) {
   streetProps.update(dt, active.pos);
   facadeParts.update(dt, player, tiles, night);
   skyline.update(active.pos);
+  birds.update(dt, active, clock.daylight);
   tiles.props.lampMat.emissiveIntensity = night * 9;
   const lamps = damage.headlampFactor(player.condition);
   taxi.lights.headMat.emissiveIntensity = (0.2 + night * 5) * lamps;

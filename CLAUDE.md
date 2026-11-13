@@ -122,6 +122,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   "Mumbai City Police" patrol car chases (A* on the road graph, siren, light bar); out of sight → stars fade
 - `src/sim/people.js` — procedural people (one instanced mesh, limbs animated in the shader; poses walk/stand/wave/
   point/argue/bat/sit/crouch; flags cap/sari/helmet); `src/sim/animals.js` — stray dogs and humped cows
+- `src/sim/birds.js` — pigeon flocks at famous spots (`SPOTS`: Gateway plaza, Dadar kabutarkhana, …) that peck about
+  and take off when the player, a honk (`birds.scare`) or a cracker comes close, plus kites circling overhead;
+  one instanced mesh, wings flap in the vertex shader (`aFlap`: 0 folded, 1 flapping, 2 gliding).
 - `src/sim/street.js` — street life near the player: pedestrians on footpaths (jaywalk, dodge the taxi, puddle splash),
   scenarios from map points (thela vendors calling + customers, bus-stop commuters, dogs by garbage that chase the taxi,
   cows on lanes, gully cricket, push-starting a broken-down taxi), red-light hawkers, bump-and-argue drivers

@@ -80,6 +80,19 @@ export class CityAudio {
     src.start(0, 0, Math.min(1.2, src.buffer.duration));
   }
 
+  /** A flock of pigeons taking off: a burst of fluttering noise. */
+  flutter(volume = 1) {
+    if (!this.ctx || volume < 0.02) return;
+    const t0 = this.ctx.currentTime, len = 1.6;
+    const b = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * len), this.ctx.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) { const t = i / this.ctx.sampleRate; d[i] = (Math.random() * 2 - 1) * (0.5 + 0.5 * Math.sin(t * 95 + Math.sin(t * 13) * 3)) * Math.exp(-t * 1.8); }
+    const src = this.ctx.createBufferSource(), bp = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+    src.buffer = b; bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 0.7;
+    g.gain.value = 0.16 * volume;
+    src.connect(bp).connect(g).connect(this.master);
+    src.start(t0);
+  }
+
   /** Bicycle bell: "tring-tring". */
   bell() {
     if (!this.ctx) return;
