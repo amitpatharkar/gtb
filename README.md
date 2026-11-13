@@ -1,4 +1,6 @@
-# GTB — a fun, toned-down Mumbai open-world browser game
+# Bombay Bawaal — a fun, toned-down Mumbai open-world browser game
+
+(Code name and repository: GTB.)
 
 Built with [Three.js](https://threejs.org) and [Vite](https://vite.dev). Free from start to finish.
 

@@ -1,7 +1,7 @@
 {
   "name": "gtb",
   "version": "1.0.0",
-  "description": "GTB: a fun, toned-down open-world browser game set in the real Mumbai",
+  "description": "Bombay Bawaal (code name GTB): a fun, toned-down open-world browser game set in the real Mumbai",
   "scripts": {
     "tiles": "node scripts/build-tiles.mjs",
     "tiles:preview": "node scripts/preview-tiles.mjs",

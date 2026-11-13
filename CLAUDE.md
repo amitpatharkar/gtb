@@ -1,10 +1,11 @@
-# GTB — Mumbai open-world browser game
+# Bombay Bawaal (code name GTB) — Mumbai open-world browser game
 
 A fun, toned-down, GTA-style open-world game set in the real Mumbai, playable in any web browser.
 Not a hyper-real replica: comedy and chaos over violence (for example, a "wanted level" for breaking traffic rules).
 
-Owner: Amit Patharkar (GitHub: amitpatharkar). Working title "GTB"; name candidates include
-"Gully Theft Auto" and "Bombay Bawaal" (avoid "GTA" in the final public name — Rockstar trademark).
+Owner: Amit Patharkar (GitHub: amitpatharkar). Public name: **Bombay Bawaal** (decided 2026-11-13; "bawaal" = uproar),
+set in one place, `src/brand.js`. "GTB" (the owner reads it as "Grand Theft Bombay") stays as the code name:
+repository, web address `/gtb/`, save keys. Never put "Grand Theft …" or "GTA" in the visible name (Rockstar trademark).
 
 ## Hard rules
 - **Everything must be free, start to finish.** No paid services, paid assets, or APIs with billing.
@@ -158,14 +159,18 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/sim/characters.js` — Quaternius rigged characters (from the pipeline's `converted/` GLBs, only if listed in
   the manifest; Low loads 2+2 models, Medium 4+4, High all) for the player and everyone near the camera (pool
   11/20/30 within 34–46 m); people.js draws in two phases (`beforeEnd` picks heroes). Each character is ONE skinned
-  mesh / draw call: per-material meshes are merged in `prepare()` with `aSlot`/`aBase` vertex attributes and a shader
-  patch colours skin/top/trousers/hair from per-character uniforms ("Face" = eyes, dark). Body: world-space stretch
-  (0.93, 1.1, 0.93) + smaller head — never scale leg bones (shears bent knees, sinks the feet). Height and foot
-  level are measured from the animated idle/walk/sit poses. No Run clip: running = Walk with limb rotations
-  amplified around the idle pose, faster cadence and a spine lean (bones the clip doesn't key must be restored each
-  frame). Clips: Idle, Walk, Punch, Shoot_OneHanded (aim/point, pichkari in the `Fist.R` bone), Victory (wave),
-  SitDown (clamped at the end = seated), knocked down = idle pose laid flat. Police caps/helmets are meshes on the
-  head bone. Still procedural: the far crowd, riders on NPC bikes, cricket poses (BAT/CROUCH).
+  mesh / draw call (merged in `prepare()`, `aSlot`/`aBase` attributes, per-character colour uniforms; "Face" = eyes).
+  **Adult bodies:** the pack has a child's proportions, so `rig()` + `shapeBody()` scale bones along/across their
+  own axes (`ADULT` male/female: legs ×1.45, head ×0.56, shorter torso, wider shoulders, longer arms) and every
+  child bone cancels its parent's scale (`compensate()` overrides `updateMatrix`) so joints never shear. The feet are
+  root-space bones (baked IK), so `bake()` rescales the clips' pelvis height and foot positions by the same leg
+  factor and drops scale keys. `BUILDS` (average, slim, heavy, muscular, stocky, lanky, fit = player, kid) multiply
+  on top; `pickBuild()` chooses by kind; `person.build` sticks. Height (1.73 m men, 1.6 m women) and foot level are
+  measured from the animated poses; walk cadence from the feet's travel (`walkSpeed`). No Run clip: Walk with limb
+  rotations amplified around the idle pose + spine lean (`bend()`, undone each frame for bones the clip doesn't
+  key). Clips: Idle, Walk, Punch (frozen early = guard), RecieveHit (flinch), Shoot_OneHanded (aim; pichkari in
+  `Fist.R`), Victory (wave), SitDown (clamped = seated); knocked down = laid flat. Caps/helmets on the head bone.
+  Still procedural: the far crowd, riders on NPC bikes, cricket poses (BAT/CROUCH).
 - `src/game/story.js` — story missions (chapter 1 "Naya Shehar": Mamaji, Shabbir bhai): markers, letterboxed cutscenes
   (camera on the speaker, Space skips), objectives, goto/pickup/dropoff/waitHour/tasks, time limits, rewards; saved in
   `state.s.story`

@@ -2,6 +2,7 @@
 // loading screens with tips, and the in-game pause menu. Settings are saved in this browser.
 
 import { CHEATS } from '../game/cheats.js';
+import { GAME } from '../brand.js';
 
 const KEY = 'gtb.settings';
 export const DEFAULTS = { tier: 'low', volume: 0.8, sens: 1, invertY: false, hints: true, radio: true, speech: true };
@@ -76,7 +77,7 @@ export function titleScreen({ save }) {
     const s = loadSettings();
     const scene = SCENES[Math.floor(Math.random() * SCENES.length)];
     const root = el(`<div id="title-screen"><div class="art">${scene}</div><div class="halftone"></div>
-      <div class="logo"><b>GTB</b><span>MUMBAI</span><small>Bombay Bawaal</small></div>
+      <div class="logo"><b>${GAME.line1}</b><span>${GAME.line2}</span><small>${GAME.tagline}</small></div>
       <div class="menu">
         ${save ? `<button data-a="continue" class="main">Continue<small>₹${save.money.toLocaleString('en-IN')} · day ${save.day} · ${save.rides} rides</small></button>` : ''}
         <button data-a="new" class="${save ? '' : 'main'}">${save ? 'New game' : 'Start'}</button>
@@ -125,7 +126,7 @@ export function titleScreen({ save }) {
 export function loadingScreen() {
   const order = [...SCENES.keys()].sort(() => Math.random() - 0.5);
   const root = el(`<div id="load-screen">${order.map((k, i) => `<div class="art${i ? '' : ' on'}">${SCENES[k]}</div>`).join('')}<div class="halftone"></div>
-    <div class="logo small"><b>GTB</b><span>MUMBAI</span></div>
+    <div class="logo small"><b>${GAME.line1}</b><span>${GAME.line2}</span></div>
     <div class="bottom"><div class="tip"></div><div class="bar"><i></i></div><div class="status">Loading Mumbai…</div></div></div>`);
   document.body.appendChild(root);
   const arts = root.querySelectorAll('.art');
@@ -146,7 +147,7 @@ export function loadingScreen() {
 
 /** In-game pause menu (Esc). handlers: resume, quality(tier), settings(s), quit. */
 export function pauseMenu(handlers) {
-  const root = el(`<div id="pause-screen" hidden><div class="halftone"></div><div class="logo small"><b>GTB</b><span>PAUSED</span></div>
+  const root = el(`<div id="pause-screen" hidden><div class="halftone"></div><div class="logo small"><b>${GAME.line1}</b><span>${GAME.line2} · PAUSED</span></div>
     <div class="menu"><button data-a="resume" class="main">Resume</button><button data-a="settings">Settings</button><button data-a="guide">Guide</button><button data-a="quit">Save &amp; quit to title</button></div>
     <div class="panel" hidden></div></div>`);
   document.body.appendChild(root);

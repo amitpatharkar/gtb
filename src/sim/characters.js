@@ -12,12 +12,16 @@ import { POSE, HOLI } from './people.js';
 // merged, and a small shader patch colours each part (skin, top, trousers, hair, eyes) from
 // per-character uniforms, so clothes and skin follow the crowd's outfits.
 //
-// The pack is chunky and big-headed. To sit with a realistic city the whole body is
-// stretched a little taller and slimmer (a plain world-space stretch, so bent knees don't
-// shear) and the head is shrunk. Height and foot level are measured from the animated
-// standing pose, so feet stay on the ground. There is no run clip: running is the walk cycle
-// with a longer stride (limb rotations amplified around the standing pose), faster cadence
-// and a forward lean.
+// The pack is drawn with a child's proportions (legs 35 % of the height, a head a quarter of
+// it). `rig()` reshapes every body into an adult: legs lengthened along the bone, a smaller
+// head, a shorter torso, broader shoulders, longer arms, smaller hands and feet. Bones are
+// scaled along and across their own axes, and each child bone cancels its parent's scale
+// (`compensate`), so nothing shears when a knee or elbow bends. In this rig the feet are
+// separate bones animated in root space (baked IK), so the clips are re-baked: pelvis
+// height and foot positions are scaled by the same factor as the legs. On top of the adult
+// base every person has a build (slim, average, heavy, muscular, stocky, lanky).
+// Height and foot level are measured from the animated poses. There is no run clip:
+// running is the walk cycle with a longer stride, faster cadence and a forward lean.
 
 // Ordered by priority: Low loads the first two of each, Medium four, High all.
 const MODELS = {
@@ -28,9 +32,100 @@ const CLIP = {
   idle: /^idle$/i, walk: /^walk$/i, run: /^run$/i, punch: /^punch$/i, hit: /recieve|receive/i,
   wave: /^victory$|wave/i, sit: /^sitdown$/i, aim: /shoot_onehanded/i, defeat: /^defeat$/i,
 };
-const STRETCH = new THREE.Vector3(0.93, 1.1, 0.93);   // slimmer and taller
-const HEAD = new THREE.Vector3(0.76, 0.68, 0.76);     // smaller head (the stretch makes it taller again)
-const HEIGHT = 1.7;
+const LEG = 1.45;   // leg length factor (thigh and shin), also baked into the clips' pelvis and foot tracks
+/**
+ * Adult proportions as bone scales [across, along, depth]. Limb bones run along their local
+ * Y; spine bones have X = width, Y = up, Z = depth. One number = uniform.
+ */
+const ADULT = {
+  male: { upperleg: [1.02, LEG, 1.02], lowerleg: [0.98, LEG, 0.98], foot: 0.92, hips: [0.96, 1, 0.95], abdomen: [0.94, 0.9, 0.88], torso: [1.12, 0.9, 0.95], neck: [0.85, 1.15, 0.85], head: 0.56, shoulder: [1, 1.22, 1], upperarm: [0.9, 1.12, 0.9], lowerarm: [0.86, 1.12, 0.86], fist: 0.78 },
+  female: { upperleg: [0.96, LEG, 0.96], lowerleg: [0.9, LEG, 0.9], foot: 0.84, hips: [1.02, 1, 0.98], abdomen: [0.88, 0.9, 0.85], torso: [0.98, 0.9, 0.92], neck: [0.78, 1.15, 0.78], head: 0.56, shoulder: [1, 1.04, 1], upperarm: [0.8, 1.1, 0.8], lowerarm: [0.78, 1.1, 0.78], fist: 0.72 },
+};
+/** Body builds: multipliers on top of the adult base (same keys), plus `height`. */
+export const BUILDS = {
+  average: {},
+  slim: { hips: [0.92, 1, 0.9], abdomen: [0.88, 1, 0.84], torso: [0.92, 1, 0.9], upperleg: [0.88, 1, 0.88], lowerleg: [0.9, 1, 0.9], upperarm: [0.86, 1, 0.86], lowerarm: [0.88, 1, 0.88], neck: [0.9, 1, 0.9] },
+  heavy: { hips: [1.2, 1, 1.3], abdomen: [1.32, 1, 1.58], torso: [1.14, 1, 1.26], upperleg: [1.24, 1, 1.24], lowerleg: [1.14, 1, 1.14], upperarm: [1.25, 1, 1.25], lowerarm: [1.14, 1, 1.14], neck: [1.3, 0.9, 1.3], head: 1.05 },
+  muscular: { hips: [1.02, 1, 1.02], abdomen: [1.0, 1, 0.98], torso: [1.2, 1, 1.16], shoulder: [1, 1.1, 1], upperleg: [1.16, 1, 1.16], lowerleg: [1.1, 1, 1.1], upperarm: [1.38, 1, 1.38], lowerarm: [1.2, 1, 1.2], neck: [1.28, 1, 1.28] },
+  stocky: { hips: [1.1, 1, 1.12], abdomen: [1.12, 1, 1.22], torso: [1.1, 1, 1.1], upperleg: [1.12, 1, 1.12], lowerleg: [1.08, 1, 1.08], upperarm: [1.12, 1, 1.12], lowerarm: [1.08, 1, 1.08], neck: [1.15, 0.92, 1.15], height: 0.95 },
+  lanky: { hips: [0.92, 1, 0.9], abdomen: [0.9, 1, 0.86], torso: [0.94, 1, 0.9], upperleg: [0.86, 1, 0.86], lowerleg: [0.88, 1, 0.88], upperarm: [0.84, 1, 0.84], lowerarm: [0.86, 1, 0.86], height: 1.06 },
+  fit: { torso: [1.06, 1, 1.03], upperarm: [1.12, 1, 1.12], abdomen: [0.97, 1, 0.95] },                 // the player
+  kid: { head: 1.4, torso: [0.92, 1, 0.95], shoulder: [1, 0.9, 1], neck: [0.9, 0.85, 0.9] },            // children keep a bigger head
+};
+/** A build for a person, by who they are: [name, weight]. */
+function pickBuild(p) {
+  if (p.isPlayer) return 'fit';
+  if (p.kind === 'kid' || (p.scale ?? 1) < 0.85) return 'kid';
+  const female = (p.flags || 0) & 2;
+  const table = p.kind === 'jogger' ? [['slim', 5], ['average', 3], ['muscular', 2]]
+    : p.kind === 'worker' || p.kind === 'driver' ? [['slim', 3], ['average', 4], ['muscular', 2], ['stocky', 2], ['heavy', 1]]
+    : p.kind === 'office' ? [['average', 4], ['heavy', 3], ['slim', 2], ['stocky', 2], ['lanky', 1]]
+    : female ? [['average', 4], ['slim', 3], ['heavy', 2], ['stocky', 2]]
+    : [['average', 4], ['slim', 2.5], ['heavy', 2], ['stocky', 1.2], ['muscular', 1], ['lanky', 1]];
+  let r = Math.random() * table.reduce((a, [, w]) => a + w, 0);
+  for (const [name, w] of table) { r -= w; if (r <= 0) return name; }
+  return 'average';
+}
+const HEIGHT = { male: 1.73, female: 1.6 };
+const BONE_KEY = (name) => (/^(upperleg|lowerleg|foot|hips|abdomen|torso|neck|head|shoulder|upperarm|lowerarm|fist)[^_]*$/i.exec(name)?.[1] || '').toLowerCase();
+const vec = (v) => (typeof v === 'number' ? [v, v, v] : v || [1, 1, 1]);
+
+/**
+ * A child bone cancels its parent's (non-uniform) scale, keeping its own offset in the
+ * parent's stretched space: the parent's part of the mesh stretches, the joint moves with
+ * it, and everything below stays rigid — no shear when the joint bends.
+ */
+function compensate(bone) {
+  bone.updateMatrix = function updateMatrix() {
+    this.matrix.compose(this.position, this.quaternion, this.scale);
+    const s = this.parent.scale;
+    if (s.x !== 1 || s.y !== 1 || s.z !== 1) {
+      const te = this.matrix.elements, ix = 1 / s.x, iy = 1 / s.y, iz = 1 / s.z;
+      te[0] *= ix; te[4] *= ix; te[8] *= ix;
+      te[1] *= iy; te[5] *= iy; te[9] *= iy;
+      te[2] *= iz; te[6] *= iz; te[10] *= iz;
+    }
+    this.matrixWorldNeedsUpdate = true;
+  };
+}
+
+/** Find the shaped bones of a body and make their children compensate. Returns Map(key → bones). */
+function rig(root) {
+  const parts = new Map();
+  root.traverse((o) => {
+    const k = o.isBone ? BONE_KEY(o.name) : '';
+    if (!k) return;
+    (parts.get(k) || parts.set(k, []).get(k)).push(o);
+    for (const c of o.children) compensate(c);
+  });
+  return parts;
+}
+
+/** Set a body's bone scales: adult base × build. */
+function shapeBody(parts, female, build) {
+  const base = ADULT[female ? 'female' : 'male'], b = BUILDS[build] || BUILDS.average;
+  for (const [k, bones] of parts) {
+    const a = vec(base[k]), m = vec(b[k]);
+    for (const bone of bones) bone.scale.set(a[0] * m[0], a[1] * m[1], a[2] * m[2]);
+  }
+}
+
+/**
+ * Re-bake a clip for longer legs: no scale keys (the body shape lives in the bone scales),
+ * pelvis height and foot positions (root space, baked IK) scaled like the legs.
+ */
+function bake(clip, names, k) {
+  const c = clip.clone();
+  c.tracks = c.tracks.filter((t) => !t.name.endsWith('.scale'));
+  const body = c.tracks.find((t) => t.name === `${names.body}.position`);
+  const bodyZ = (time) => { if (!body) return 0; let i = 0; while (i < body.times.length - 1 && body.times[i + 1] <= time) i++; return body.values[i * 3 + 2]; };
+  for (const t of c.tracks) {
+    if (!names.feet.some((n) => t.name === `${n}.position`)) continue;
+    for (let i = 0; i < t.times.length; i++) { const bz = bodyZ(t.times[i]); t.values[i * 3 + 1] *= k; t.values[i * 3 + 2] = bz + (t.values[i * 3 + 2] - bz) * k; }
+  }
+  if (body) for (let i = 0; i < body.times.length; i++) body.values[i * 3 + 1] *= k;
+  return c;
+}
 const GUARD_AT = 0.3; // fraction of the punch clip held as the guard stance
 const SLOT = { other: 0, skin: 1, shirt: 2, pants: 3, hair: 4, face: 5 };
 // Limbs whose swing is amplified when running: [bone name pattern, extra factor at a full run].
@@ -126,14 +221,16 @@ export class Characters {
     mesh.frustumCulled = false;
     t.mesh = mesh;
 
-    // --- bones and clips
-    const bone = (re) => skeleton.bones.find((b) => re.test(b.name));
-    const head = bone(/^head$/i), hips = bone(/^hips$/i);
-    if (head) head.scale.multiply(HEAD);
-    t.headScale = head ? head.scale.clone() : null;
+    // --- adult body shape, re-baked clips
+    t.parts = rig(scene);
+    shapeBody(t.parts, t.female, 'average');
+    const hips = skeleton.bones.find((b) => /^hips$/i.test(b.name));
+    let bodyBone = null; const feet = [];
+    scene.traverse((o) => { if (/^body(_\d+)?$/i.test(o.name) && !o.isMesh && o.children.some((c) => /^hips$/i.test(c.name))) bodyBone = o; if (/^foot[^_]*$/i.test(o.name)) feet.push(o.name); });
+    const names = { body: bodyBone?.name, feet };
     t.clips = {};
-    for (const [k, re] of Object.entries(CLIP)) t.clips[k] = t.gltf.animations.find((a) => re.test(a.name)) || null;
-    t.clips.idle ||= t.gltf.animations[0];
+    for (const [k, re] of Object.entries(CLIP)) { const clip = t.gltf.animations.find((a) => re.test(a.name)); t.clips[k] = clip ? bake(clip, names, LEG) : null; }
+    t.clips.idle ||= bake(t.gltf.animations[0], names, LEG);
 
     // --- measure in the animated poses (the bind pose is an A-pose and the clips move the hips)
     const mixer = new THREE.AnimationMixer(scene);
@@ -141,7 +238,6 @@ export class Characters {
     const pose = (clip, time) => {
       mixer.stopAllAction();
       const a = mixer.clipAction(clip); a.reset().play(); mixer.setTime(time);
-      if (head) head.scale.copy(t.headScale);
       scene.updateMatrixWorld(true);
       mesh.computeBoundingBox();
       box.copy(mesh.boundingBox).applyMatrix4(mesh.matrixWorld);
@@ -153,17 +249,19 @@ export class Characters {
     for (const b of skeleton.bones) if (RUN_BONES.some(([re]) => re.test(b.name))) t.ref.set(b.name, b.quaternion.clone());
     let walkMin = i0;
     if (t.clips.walk) { walkMin = Infinity; for (let k = 0; k < 8; k++) walkMin = Math.min(walkMin, pose(t.clips.walk, (t.clips.walk.duration * k) / 8)[0]); }
-    let sitHip = 0.45 / STRETCH.y, sitMin = i0;
+    let sitHip = 0.5, sitMin = i0;
     if (t.clips.sit && hips) { [sitMin] = pose(t.clips.sit, t.clips.sit.duration - 0.01); sitHip = hips.getWorldPosition(v).y - sitMin; }
     mixer.stopAllAction(); mixer.uncacheRoot(scene);
-    if (head) head.scale.copy(t.headScale);
-    const raw = (i1 - i0) * STRETCH.y || 1;
-    t.scale = HEIGHT / raw;
-    t.liftIdle = -i0 * STRETCH.y * t.scale;
-    t.liftWalk = -walkMin * STRETCH.y * t.scale;
-    t.sitLift = -sitMin * STRETCH.y * t.scale;
-    t.sitHip = sitHip * STRETCH.y * t.scale; // hips above the feet when seated
-    t.debug = { i0, i1, walkMin, sitMin, sitHip };
+    t.scale = HEIGHT[t.female ? 'female' : 'male'] / (i1 - i0 || 1);
+    t.liftIdle = -i0 * t.scale;
+    t.liftWalk = -walkMin * t.scale;
+    t.sitLift = -sitMin * t.scale;
+    t.sitHip = sitHip * t.scale; // hips above the feet when seated
+    // Ground covered by one walk cycle (from the feet's fore-aft travel): the speed the clip suits.
+    t.walkSpeed = 1.3;
+    const ft = t.clips.walk?.tracks.find((tr) => feet.some((n) => tr.name === `${n}.position`));
+    if (ft) { let lo = Infinity, hi = -Infinity; for (let i = 2; i < ft.values.length; i += 3) { lo = Math.min(lo, ft.values[i]); hi = Math.max(hi, ft.values[i]); } t.walkSpeed = Math.max(0.6, (2 * (hi - lo) * t.scale) / t.clips.walk.duration); }
+    t.debug = { i0, i1, walkMin, sitMin, sitHip, walkSpeed: t.walkSpeed, body: names.body || 'none', feet: feet.length };
   }
 
   make(t) {
@@ -184,7 +282,9 @@ export class Characters {
     const find = (re) => { for (const [n, b] of bones) if (re.test(n)) return b; return null; };
     const run = [];
     for (const [n, b] of bones) { const r = RUN_BONES.find(([re]) => re.test(n)); if (r && t.ref.has(n)) run.push([b, t.ref.get(n), r[1]]); }
-    return { t, holder, root, mesh, mixer, actions, u: mesh.material.userData.u, head: find(/^head$/i), spine: find(/^abdomen$/i) || find(/^torso$/i), hand: find(/^fist\.?r$|^hand\.?r$|righthand/i), legR: find(/^upperleg\.?r$/i), run, lift: t.liftIdle, current: null, who: null, cap: null, adds: [] };
+    const parts = rig(root);
+    shapeBody(parts, t.female, 'average');
+    return { t, holder, root, mesh, mixer, actions, parts, build: 'average', u: mesh.material.userData.u, head: find(/^head$/i), spine: find(/^abdomen$/i) || find(/^torso$/i), hand: find(/^fist\.?r$|^hand\.?r$|righthand/i), legR: find(/^upperleg\.?r$/i), run, lift: t.liftIdle, current: null, who: null, cap: null, adds: [] };
   }
 
   play(c, name) {
@@ -201,6 +301,9 @@ export class Characters {
     const n = p.patches?.length || 0;
     if (c.who === p && c.patchN === n && c.shirtHex === p.shirt.getHex()) return;
     c.who = p; c.patchN = n; c.shirtHex = p.shirt.getHex();
+    // Everyone has their own build (slim … heavy … muscular), kept for as long as they exist.
+    p.build ??= pickBuild(p);
+    if (c.build !== p.build) { c.build = p.build; shapeBody(c.parts, c.t.female, p.build); }
     // Holi colour on a real character: the clothes take on the colours thrown at them.
     const tint = (target, base) => { target.copy(base); for (const [, code] of p.patches || []) target.lerp(HOLI[Math.floor(code)], 0.18); };
     c.u.uSkin.value.copy(p.skin);
@@ -294,7 +397,7 @@ export class Characters {
       }
       this.dress(c, p);
       p.hero = true;
-      const t = c.t, s = p.scale || 1, sc = t.scale * s;
+      const t = c.t, s = (p.scale || 1) * (BUILDS[p.build]?.height || 1), sc = t.scale * s;
       const pose = p.pose ?? POSE.STAND;
       const moving = pose === POSE.WALK, sitting = pose === POSE.SIT, fallen = pose === POSE.FALLEN;
       const speed = p.speed ?? 1.3;
@@ -306,7 +409,7 @@ export class Characters {
         : pose === POSE.POINT ? 'aim' : pose === POSE.WAVE ? 'wave' : moving ? (run > 0.5 && c.actions.run ? 'run' : 'walk') : 'idle';
       this.play(c, clip);
       if (c.current) {
-        c.current.timeScale = sitting ? 0 : moving ? THREE.MathUtils.clamp(speed / (1.35 * (1 + run * 0.75)), 0.6, 2.1) : 1;
+        c.current.timeScale = sitting ? 0 : moving ? THREE.MathUtils.clamp(speed / (t.walkSpeed * s * (1 + run * 0.6)), 0.55, 2.2) : 1;
         if (clip === 'punch') {
           const dur = c.current.getClip().duration;
           if (swing) {
@@ -322,7 +425,7 @@ export class Characters {
       const liftWant = sitting ? t.sitLift : moving ? t.liftWalk : t.liftIdle;
       c.lift += (liftWant - c.lift) * Math.min(1, dt * 10);
       c.holder.visible = true;
-      c.root.scale.set(sc * STRETCH.x, sc * STRETCH.y, sc * STRETCH.z);
+      c.root.scale.setScalar(sc);
       c.holder.rotation.set(0, p.heading, 0);
       c.root.rotation.x = fallen ? -Math.PI / 2 : 0; // knocked down: flat on the back
       let y = (p.y || 0) + c.lift * s;
@@ -335,7 +438,6 @@ export class Characters {
       const far = (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2 > 24 * 24 && !p.isPlayer;
       if (!far || (this.frame & 1) === 0) {
         c.mixer.update(far ? dt * 2 : dt);
-        if (c.head) c.head.scale.copy(t.headScale);
         // The clips don't key every bone: undo last frame's extra rotations where the mixer left them.
         for (const a of c.adds) { if (a.on && a.bone.quaternion.equals(a.applied)) a.bone.quaternion.copy(a.clean); a.on = false; }
         if (run > 0) {
