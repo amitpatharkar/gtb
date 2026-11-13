@@ -13,6 +13,10 @@ import { Car } from './vehicles/car.js';
 import { GameClock } from './sim/clock.js';
 import { Traffic } from './sim/traffic.js';
 import { FacadeParts } from './world/facadeParts.js';
+import { Signals } from './sim/signals.js';
+import { Police } from './sim/police.js';
+import { PeopleRenderer } from './sim/people.js';
+import { Bubbles } from './ui/bubbles.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
@@ -51,6 +55,10 @@ const startHour = Number(query.get('hour'));
 const clock = new GameClock(query.has('hour') && Number.isFinite(startHour) ? startHour : 17.25);
 const traffic = new Traffic(scene, tiles, tier);
 const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
+const signals = new Signals(scene);
+traffic.signals = signals;
+const people = new PeopleRenderer(scene, tier.name === 'Low' ? 150 : 400);
+const bubbles = new Bubbles(document.body);
 const audio = new CityAudio(lib);
 const minimap = new Minimap($('minimap'), tiles, index.fuel || []);
 
@@ -58,8 +66,10 @@ const minimap = new Minimap($('minimap'), tiles, index.fuel || []);
 const taxi = createTaxi();
 scene.add(taxi.root);
 const player = new Car(taxi);
+player.money = 2000; // ₹ in the wallet
+const police = new Police({ scene, tiles, traffic, signals, people, audio, bubbles, hud: { message: (t) => say(t, 4) } });
 const world = {
-  hits: (x, z, r) => tiles.hits(x, z, r) || traffic.hits(x, z, r),
+  hits: (x, z, r) => tiles.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r),
   groundHeight: (x, z) => tiles.groundHeight(x, z),
 };
 const spawn = index.spawn;
@@ -141,13 +151,14 @@ function refuel() {
   if (!p || p.d > 16) { say('No petrol pump here — find ⛽ on the map'); return; }
   if (Math.abs(player.speed) > 1) { say('Stop at the pump to fill up'); return; }
   const litres = Math.round((1 - player.fuel) * 35);
+  player.money -= litres * 103;
   player.fuel = 1;
   player.condition = Math.min(1, player.condition + 0.2);
   say(litres ? `Filled ${litres} litres · ₹${litres * 103} · tyres and water checked` : 'Tank already full');
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles };
 const timer = new THREE.Timer();
 let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 renderer.setAnimationLoop((time) => {
@@ -164,7 +175,12 @@ function step(dt) {
   player.update(dt, input, world);
   tiles.update(player.pos.x, player.pos.z);
   traffic.update(dt, player, clock);
+  signals.update(dt, tiles, traffic, player.pos, clock.night);
+  people.begin();
+  police.update(dt, player, clock);
+  people.end();
   placeCamera(dt);
+  bubbles.update(dt, camera);
   env.update(dt, player.pos, clock);
 
   // Night: lit windows and signs, glowing lamps, real lights on the nearest lamp posts.
@@ -234,9 +250,17 @@ function updateHud() {
   $('fuel-bar').style.width = `${Math.round(player.fuel * 100)}%`;
   $('fuel-bar').style.background = player.fuel < 0.15 ? '#e74c3c' : '#f7c600';
   $('cond-bar').style.width = `${Math.round(player.condition * 100)}%`;
+  $('money').textContent = `₹${player.money.toLocaleString('en-IN')}`;
+  $('money').classList.toggle('debt', player.money < 0);
+  const w = $('wanted');
+  w.textContent = police.stars ? '★'.repeat(police.stars) + '☆'.repeat(5 - police.stars) : '';
+  w.title = police.fines ? `Unpaid challans: ₹${police.fines.toLocaleString('en-IN')}` : '';
+  w.classList.toggle('blink', police.stars > 0 && police.unseen > 0.6);
   if (messageTimer <= 0) {
+    if (police.flagger) message = 'Traffic police is waving you down: stop next to him to pay the challan';
+    else if (police.stars >= 2 && police.patrols.length) message = 'Police chasing! Stop to pay up, or get out of sight';
     const p = nearestPump();
-    message = player.fuel <= 0 ? 'Out of fuel! Press R to get towed back' :
+    if (!police.flagger && !(police.stars >= 2 && police.patrols.length)) message = player.fuel <= 0 ? 'Out of fuel! Press R to get towed back' :
       p && p.d < 16 ? 'Petrol pump: stop and press F to fill up' :
       player.fuel < 0.12 ? 'Low fuel — find ⛽ on the map' :
       player.condition < 0.35 ? 'Car is battered: get it checked at a ⛽' : '';

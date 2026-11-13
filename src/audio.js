@@ -68,6 +68,49 @@ export class CityAudio {
     src.start(0, 0, Math.min(1.2, src.buffer.duration));
   }
 
+  /** Traffic police whistle (synthesised): two sharp trilled blasts. */
+  whistle(volume = 1) {
+    if (!this.ctx || volume < 0.02) return;
+    const t0 = this.ctx.currentTime;
+    for (const [start, len] of [[0, 0.22], [0.3, 0.5]]) {
+      const osc = this.ctx.createOscillator(), trill = this.ctx.createOscillator(), depth = this.ctx.createGain(), g = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 2900;
+      trill.frequency.value = 38;
+      depth.gain.value = 140;
+      trill.connect(depth).connect(osc.frequency);
+      g.gain.setValueAtTime(0, t0 + start);
+      g.gain.linearRampToValueAtTime(0.22 * volume, t0 + start + 0.02);
+      g.gain.setValueAtTime(0.22 * volume, t0 + start + len - 0.04);
+      g.gain.linearRampToValueAtTime(0, t0 + start + len);
+      osc.connect(g).connect(this.master);
+      osc.start(t0 + start); trill.start(t0 + start);
+      osc.stop(t0 + start + len + 0.05); trill.stop(t0 + start + len + 0.05);
+    }
+  }
+
+  /** Two-tone police siren; volume 0 stops it. */
+  siren(volume) {
+    if (!this.ctx) return;
+    if (!this.sirenNode) {
+      if (volume < 0.01) return;
+      const osc = this.ctx.createOscillator(), lfo = this.ctx.createOscillator(), depth = this.ctx.createGain(), g = this.ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = 760;
+      lfo.type = 'square';
+      lfo.frequency.value = 1.6;
+      depth.gain.value = 170;
+      lfo.connect(depth).connect(osc.frequency);
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 1800;
+      g.gain.value = 0;
+      osc.connect(lp).connect(g).connect(this.master);
+      osc.start(); lfo.start();
+      this.sirenNode = { osc, lfo, g };
+    }
+    this.sirenNode.g.gain.setTargetAtTime(Math.min(0.12, volume * 0.12), this.ctx.currentTime, 0.2);
+  }
+
   toggleMute() {
     if (!this.ctx) return;
     this.muted = !this.muted;

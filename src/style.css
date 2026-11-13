@@ -189,3 +189,19 @@ canvas { display: block; }
 @media (pointer: coarse) {
   #credits-panel { top: 30px; bottom: auto; }
 }
+
+/* Wallet, challan stars and speech bubbles */
+#money { font-size: 15px; font-weight: 700; margin-top: 2px; color: #b8f5a0; }
+#money.debt { color: #ff8a80; }
+#wanted { font-size: 22px; letter-spacing: 2px; color: #ffd54a; text-shadow: 0 0 6px rgba(0, 0, 0, 0.8); min-height: 0; }
+#wanted.blink { animation: blink 0.6s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0.25; } }
+#bubbles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 4; }
+.bubble {
+  position: absolute; left: 0; top: 0; transform-origin: 50% 100%; white-space: nowrap;
+  background: #fff; color: #111; font: 700 14px/1.2 system-ui, sans-serif; padding: 5px 9px; border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); border-top-color: #fff;
+}
+.bubble::after { content: ''; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: inherit; }
+.bubble.cop { background: #fff6d6; border-top-color: #fff6d6; color: #1d3f8f; }
+.bubble.driver { background: #ffffff; border-top-color: #fff; }

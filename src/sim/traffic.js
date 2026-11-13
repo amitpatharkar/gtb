@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { LIGHT } from './signals.js';
 
 // Ambient traffic, Rockstar style: a few dozen vehicles live only near the player,
 // driving on the LEFT along the real road network, slowing behind each other and for
@@ -85,6 +86,9 @@ export class Traffic {
     this.matrix = new THREE.Matrix4();
     this.q = new THREE.Quaternion();
     this.honks = [];
+    this.events = [];      // { type: 'jump', car, ap } for the police
+    this.signals = null;   // set by main.js
+    this.night = 0;
   }
 
   /** Junction graph: segment ends that meet (0.5 m grid) across all loaded tiles. */
@@ -103,6 +107,32 @@ export class Traffic {
           const k = `${Math.round(s[end * 2] * 2)},${Math.round(s[end * 2 + 1] * 2)}`;
           (this.ends.get(k) || this.ends.set(k, []).get(k)).push({ seg, end });
         }
+      }
+    }
+    // Join loose ends that almost touch (tile seams, slightly offset OSM nodes) so cars and
+    // police don't hit invisible dead ends: both keys then share one list of segment ends.
+    const grid = new Map();
+    for (const [k, list] of this.ends) {
+      const [x, z] = k.split(',').map(Number);
+      const g = `${Math.floor(x / 10)},${Math.floor(z / 10)}`; // 5 m cells (keys are in half metres)
+      (grid.get(g) || grid.set(g, []).get(g)).push([k, x, z, list]);
+    }
+    for (const [k, list] of this.ends) {
+      if (list.length !== 1) continue;
+      const [x, z] = k.split(',').map(Number);
+      let best = null, bd = 25; // within 2.5 m (5 half-metres)
+      for (let gx = Math.floor(x / 10) - 1; gx <= Math.floor(x / 10) + 1; gx++) for (let gz = Math.floor(z / 10) - 1; gz <= Math.floor(z / 10) + 1; gz++) {
+        for (const [k2, x2, z2, l2] of grid.get(`${gx},${gz}`) || []) {
+          if (k2 === k || l2 === list || l2.some((e) => e.seg === list[0].seg)) continue;
+          const d = (x2 - x) ** 2 + (z2 - z) ** 2;
+          if (d < bd) { bd = d; best = k2; }
+        }
+      }
+      if (best) {
+        const other = this.ends.get(best);
+        other.push(...list);
+        this.ends.set(k, other);
+        for (const cell of grid.values()) for (const e of cell) if (e[3] === list) e[3] = other;
       }
     }
     this.graphVersion = this.tiles.version;
@@ -127,7 +157,12 @@ export class Traffic {
       const oneway = s[5] & 2;
       const dir = oneway || Math.random() < 0.5 ? 1 : -1;
       const tints = this.types[type].tints;
-      const car = { type, seg, dir, t: Math.random(), speed: 0, tint: new THREE.Color(tints[Math.floor(Math.random() * tints.length)]), wait: 0, x: mx, z: mz, heading: 0 };
+      const car = {
+        type, seg, dir, t: Math.random(), speed: 0, tint: new THREE.Color(tints[Math.floor(Math.random() * tints.length)]), wait: 0, x: mx, z: mz, heading: 0,
+        // Some drivers jump red lights (more at night, never buses); many stop on the zebra.
+        jumper: type !== 'bus' && Math.random() < 0.1 + this.night * 0.12, creep: Math.random() < 0.35 ? 2.5 : 0,
+        pulled: null, boost: 0, lane: oneway ? 0 : Math.min(s[4] * 0.5, 1.9), lastSig: null, lastDist: 0,
+      };
       if (this.cars.some((c) => Math.hypot(c.x - mx, c.z - mz) < 12)) continue;
       this.cars.push(car);
       return;
@@ -154,6 +189,7 @@ export class Traffic {
   }
 
   update(dt, player, clock) {
+    this.night = clock.night;
     if (this.graphVersion !== this.tiles.version) {
       this.rebuildGraph();
       // Drop cars whose road tile was unloaded.
@@ -162,7 +198,7 @@ export class Traffic {
     const target = Math.round(this.max * clock.traffic);
     this.cars = this.cars.filter((c) => Math.hypot(c.x - player.pos.x, c.z - player.pos.z) < 320);
     if (this.cars.length < target && this.segList.length) this.spawn(player);
-    if (this.cars.length > target + 4) this.cars.pop();
+    if (this.cars.length > target + 4) { const i = this.cars.findLastIndex((c) => !c.pulled); if (i >= 0) this.cars.splice(i, 1); }
 
     const night = clock.night;
     for (const car of this.cars) {
@@ -178,10 +214,35 @@ export class Traffic {
       };
       for (const o of this.cars) if (o !== car) check(o.x, o.z, this.types[o.type].len);
       check(player.pos.x, player.pos.z, 3.7);
-      const cruise = (s[5] & 4 ? type.speed : type.speed * 0.6) * (night > 0.5 ? 1.15 : 1);
-      const want = gap < 2 ? 0 : Math.min(cruise, (gap - 2) * 0.8);
-      car.speed += THREE.MathUtils.clamp(want - car.speed, -7 * dt, 2.5 * dt);
-      car.wait = car.speed < 0.5 && gap < 6 ? car.wait + dt : 0;
+      // Signals: stop at red (and at amber if there is room); jumpers just go.
+      let atRed = false;
+      if (this.signals && !car.pulled) {
+        const sig = this.signals.ahead(car.x, car.z, fx, fz, 40);
+        if (sig && sig.light !== LIGHT.GREEN) {
+          const stopGap = sig.dist + car.creep - type.len / 2 - 0.3;
+          // At amber some drivers gamble and go for it (and cross on red).
+          if (sig.light === LIGHT.AMBER && car.decideAp !== sig.ap) { car.decideAp = sig.ap; car.gamble = sig.dist < 30 && Math.random() < 0.45; }
+          const going = (car.jumper && sig.light === LIGHT.RED) || (car.gamble && car.decideAp === sig.ap);
+          if (going) {
+            if (sig.light === LIGHT.RED && car.lastSig === sig.ap && car.lastDist > 0 && sig.dist <= 0) { this.events.push({ type: 'jump', car, ap: sig.ap }); car.boost = Math.max(car.boost, 2); }
+          } else if (stopGap > -0.5 && (sig.light === LIGHT.RED || stopGap > car.speed * 1.2)) { gap = Math.min(gap, Math.max(0, stopGap) + 2); atRed = true; }
+        }
+        car.lastSig = sig ? sig.ap : null;
+        car.lastDist = sig ? sig.dist : 0;
+      }
+      const cruise = (s[5] & 4 ? type.speed : type.speed * 0.6) * (night > 0.5 ? 1.15 : 1) * (car.boost > 0 ? 1.45 : 1);
+      car.boost = Math.max(0, car.boost - dt);
+      let want = gap < 2 ? 0 : Math.min(cruise, (gap - 2) * 0.8);
+      let decel = 7;
+      if (car.pulled) {
+        // Pulled over by the traffic police: ease to the kerb and wait for the challan.
+        car.pulled.t += dt;
+        want = car.pulled.t < car.pulled.dur ? 0 : want;
+        decel = 2.6;
+        if (car.pulled.t >= car.pulled.dur) { car.pulled = null; car.jumper = Math.random() < 0.3; }
+      }
+      car.speed += THREE.MathUtils.clamp(want - car.speed, -decel * dt, 2.5 * dt);
+      car.wait = car.speed < 0.5 && gap < 6 && !atRed && !car.pulled ? car.wait + dt : 0;
       if (car.wait > 2.5) { this.honks.push([car.x, car.z]); car.wait = -4; }
       car.t += (car.speed * dt) / car.seg.len;
       while (car.t >= 1) { car.t -= 1; this.advance(car); }
@@ -190,7 +251,9 @@ export class Traffic {
       const gx = ((s2[2] - s2[0]) / car.seg.len) * car.dir, gz = ((s2[3] - s2[1]) / car.seg.len) * car.dir;
       const [lx, lz] = LEFT(gx, gz);
       const two = !(s2[5] & 2);
-      const lane = two ? Math.min(s2[4] * 0.5, 1.9) : 0;
+      const laneWant = car.pulled ? Math.max(0, s2[4] - type.wid / 2 - 0.25) : two ? Math.min(s2[4] * 0.5, 1.9) : 0;
+      car.lane += (laneWant - car.lane) * Math.min(1, dt * 1.5);
+      const lane = car.lane;
       const px = s2[0] + (s2[2] - s2[0]) * t + lx * lane, pz = s2[1] + (s2[3] - s2[1]) * t + lz * lane;
       // Smooth position and heading through corners.
       const k = Math.min(1, dt * 8);

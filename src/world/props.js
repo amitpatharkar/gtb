@@ -168,15 +168,6 @@ export function createProps() {
     box(0.35, 0.12, 0.7, 0, 8.85, 1.9, 0x5c6266),
   ]);
   const lampG = new THREE.BoxGeometry(0.3, 0.04, 0.6).translate(0, 8.78, 1.9);
-  const signalG = merge([
-    cyl(0.07, 0.09, 3.6, 0, 1.8, 0, 0x2b2b2b), box(0.32, 0.95, 0.28, 0, 3.9, 0, 0x1c1c1c),
-    box(0.5, 0.35, 0.05, 0, 3.0, 0.1, 0x222222), // countdown timer box
-  ]);
-  const signalLights = merge([
-    paint(new THREE.SphereGeometry(0.1, 8, 6).translate(0, 4.2, 0.15), 0xff2a1a),
-    paint(new THREE.SphereGeometry(0.1, 8, 6).translate(0, 3.9, 0.15), 0x553300),
-    paint(new THREE.SphereGeometry(0.1, 8, 6).translate(0, 3.6, 0.15), 0x003311),
-  ]);
   const stopG = merge([
     cyl(0.06, 0.06, 2.6, -1.8, 1.3, 0, 0x6b7075), cyl(0.06, 0.06, 2.6, 1.8, 1.3, 0, 0x6b7075),
     box(4.4, 0.1, 1.9, 0, 2.65, 0.2, 0xc0392b), box(4.2, 1.2, 0.05, 0, 1.6, -0.6, 0x1e4fa3),
@@ -228,7 +219,6 @@ export function createProps() {
   const decal = (size) => new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2);
 
   const lampMat = new THREE.MeshStandardMaterial({ color: 0xfff1d0, emissive: 0xffd9a0, emissiveIntensity: 0, roughness: 0.4 });
-  const signalLampMat = new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xffffff, emissiveIntensity: 0.6, roughness: 0.3 });
 
   // kind → list of [geometry, material, castShadow, y]
   const KINDS = {
@@ -237,7 +227,7 @@ export function createProps() {
     [POINT.PEEPAL]: [[peepal.trunk, bark, true], [peepal.leaves, leafPeepal, true]],
     [POINT.PALM]: [[palm.trunk, bark, true], [palm.leaves, frondMat, true]],
     [POINT.LIGHT]: [[lightG, metal, true], [lampG, lampMat, false]],
-    [POINT.SIGNAL]: [[signalG, vc, true], [signalLights, signalLampMat, false]],
+    // Signals are drawn by src/sim/signals.js (poles on the kerb at each approach, working lights).
     [POINT.BUS_STOP]: [[stopG, vc, true]],
     [POINT.POTHOLE]: [[decal(1), new THREE.MeshStandardMaterial({ map: holeTex, transparent: true, depthWrite: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 }), false, Y.ROAD + 0.004]],
     [POINT.PUDDLE]: [[decal(1.6), new THREE.MeshStandardMaterial({ color: 0x1c1d1e, alphaMap: puddleTex, transparent: true, depthWrite: false, roughness: 0.02, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 }), false, Y.ROAD + 0.006]],
@@ -246,7 +236,7 @@ export function createProps() {
     [POINT.FUEL]: [[fuelG, vc, true]],
     [POINT.TETRAPOD]: [[tetraG, concrete, true]],
   };
-  return { KINDS, lampMat, signalLampMat };
+  return { KINDS, lampMat };
 }
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);

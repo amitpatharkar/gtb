@@ -39,11 +39,11 @@ function bodyProfile() {
   return pts;
 }
 
-function plateTexture(text) {
+function plateTexture(text, bg = '#f7d000') {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 64;
   const g = c.getContext('2d');
-  g.fillStyle = '#f7d000'; g.fillRect(0, 0, 256, 64);
+  g.fillStyle = bg; g.fillRect(0, 0, 256, 64);
   g.strokeStyle = '#111'; g.lineWidth = 4; g.strokeRect(3, 3, 250, 58);
   g.fillStyle = '#111'; g.font = 'bold 38px "Arial Narrow", Arial, sans-serif';
   g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -53,13 +53,29 @@ function plateTexture(text) {
   return t;
 }
 
-export function createTaxi() {
+/** Side livery for the (fictional) city police car. */
+function liveryTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#1d3f8f'; g.fillRect(0, 0, 512, 64);
+  g.fillStyle = '#c62828'; g.fillRect(0, 52, 512, 12);
+  g.fillStyle = '#fff'; g.font = 'bold 34px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('MUMBAI CITY POLICE', 256, 27);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Kaali-peeli taxi; { police: true } gives a white patrol car with livery and a light bar. */
+export function createTaxi(opts = {}) {
+  const police = !!opts.police;
   const root = new THREE.Group();
   const body = new THREE.Group(); // rolls and pitches on the suspension
   root.add(body);
 
-  const black = new THREE.MeshPhysicalMaterial({ color: 0x060606, roughness: 0.42, clearcoat: 0.55, clearcoatRoughness: 0.12, envMapIntensity: 0.35 });
-  const yellow = new THREE.MeshPhysicalMaterial({ color: 0xf7c600, roughness: 0.42, clearcoat: 0.6, clearcoatRoughness: 0.12, envMapIntensity: 0.6 });
+  const black = new THREE.MeshPhysicalMaterial({ color: police ? 0xe9e9e4 : 0x060606, roughness: 0.42, clearcoat: 0.55, clearcoatRoughness: 0.12, envMapIntensity: 0.35 });
+  const yellow = new THREE.MeshPhysicalMaterial({ color: police ? 0xe9e9e4 : 0xf7c600, roughness: 0.42, clearcoat: 0.6, clearcoatRoughness: 0.12, envMapIntensity: 0.6 });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xd8d8d8, metalness: 1, roughness: 0.16 });
   const glass = new THREE.MeshPhysicalMaterial({ color: 0x0d1114, roughness: 0.04, metalness: 0.1, clearcoat: 1 });
   const rubber = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.9 });
@@ -103,13 +119,27 @@ export function createTaxi() {
     // Wing mirrors.
     add(new THREE.BoxGeometry(0.04, 0.09, 0.12).translate(s * (W / 2 + 0.08), 0.98, 0.75), black);
   }
-  const plate = new THREE.MeshStandardMaterial({ map: plateTexture('MH 01 T 4721'), roughness: 0.5 });
+  const plate = new THREE.MeshStandardMaterial({ map: police ? plateTexture('MH 01 PC 100', '#f4f4f0') : plateTexture('MH 01 T 4721'), roughness: 0.5 });
   add(new THREE.PlaneGeometry(0.5, 0.12).translate(0, 0.46, L / 2 + 0.09), plate);
   add(new THREE.PlaneGeometry(0.5, 0.12).rotateY(Math.PI).translate(0, 0.52, -L / 2 - 0.06), plate);
-  // Roof carrier rack.
-  for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.03, 0.03, 1.2).translate(s * 0.5, 1.5, -0.25), chrome);
-  for (const z of [-0.8, -0.25, 0.3]) add(new THREE.BoxGeometry(1.03, 0.025, 0.03).translate(0, 1.5, z), chrome);
-  for (const [x, z] of [[-0.5, -0.8], [0.5, -0.8], [-0.5, 0.3], [0.5, 0.3]]) add(new THREE.BoxGeometry(0.03, 0.07, 0.03).translate(x, 1.46, z), chrome);
+  let bar = null;
+  if (police) {
+    // Livery band on both sides and a red/blue light bar on the roof.
+    const livery = new THREE.MeshStandardMaterial({ map: liveryTexture(), roughness: 0.5 });
+    add(new THREE.PlaneGeometry(2.6, 0.2).rotateY(Math.PI / 2).translate(W / 2 + 0.012, 0.6, 0), livery);
+    add(new THREE.PlaneGeometry(2.6, 0.2).rotateY(-Math.PI / 2).translate(-W / 2 - 0.012, 0.6, 0), livery);
+    const red = new THREE.MeshStandardMaterial({ color: 0x8a1010, emissive: 0xff1a1a, emissiveIntensity: 0 });
+    const blue = new THREE.MeshStandardMaterial({ color: 0x10208a, emissive: 0x2050ff, emissiveIntensity: 0 });
+    add(new THREE.BoxGeometry(0.98, 0.06, 0.26).translate(0, 1.47, -0.25), dark);
+    add(new THREE.BoxGeometry(0.46, 0.12, 0.24).translate(-0.25, 1.55, -0.25), red);
+    add(new THREE.BoxGeometry(0.46, 0.12, 0.24).translate(0.25, 1.55, -0.25), blue);
+    bar = { red, blue };
+  } else {
+    // Roof carrier rack.
+    for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.03, 0.03, 1.2).translate(s * 0.5, 1.5, -0.25), chrome);
+    for (const z of [-0.8, -0.25, 0.3]) add(new THREE.BoxGeometry(1.03, 0.025, 0.03).translate(0, 1.5, z), chrome);
+    for (const [x, z] of [[-0.5, -0.8], [0.5, -0.8], [-0.5, 0.3], [0.5, 0.3]]) add(new THREE.BoxGeometry(0.03, 0.07, 0.03).translate(x, 1.46, z), chrome);
+  }
   // Dark interior and seats seen through the glass.
   add(new THREE.BoxGeometry(1.2, 0.45, 1.9).translate(0, 0.95, -0.2), dark);
 
@@ -128,5 +158,5 @@ export function createTaxi() {
     wheels.push(spin);
     if (z > 0) steerers.push(pivot);
   }
-  return { root, body, wheels, steerers, lights: { headMat, tailMat }, wheelRadius: WHEEL_R, wheelBase: WB };
+  return { root, body, wheels, steerers, lights: { headMat, tailMat, bar }, wheelRadius: WHEEL_R, wheelBase: WB };
 }

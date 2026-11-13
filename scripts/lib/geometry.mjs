@@ -46,11 +46,16 @@ export function openRing(ring) {
 }
 
 /** Douglas–Peucker simplification of an open polyline. */
-export function simplifyLine(pts, tol) {
+export function simplifyLine(pts, tol, mustKeep = null) {
   if (pts.length <= 2) return pts;
   const keep = new Uint8Array(pts.length);
   keep[0] = keep[pts.length - 1] = 1;
-  const stack = [[0, pts.length - 1]];
+  // Points that must survive (junctions shared with other roads) split the line into runs.
+  const anchors = [0];
+  if (mustKeep) for (let i = 1; i < pts.length - 1; i++) if (mustKeep(pts[i])) { keep[i] = 1; anchors.push(i); }
+  anchors.push(pts.length - 1);
+  const stack = [];
+  for (let i = 0; i < anchors.length - 1; i++) if (anchors[i + 1] - anchors[i] > 1) stack.push([anchors[i], anchors[i + 1]]);
   const tol2 = tol * tol;
   while (stack.length) {
     const [a, b] = stack.pop();

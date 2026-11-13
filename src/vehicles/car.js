@@ -39,7 +39,8 @@ export class Car {
     this.speed = THREE.MathUtils.clamp(this.speed, -5, top);
 
     // Steering: full lock at walking pace, much less at speed; wheels return to centre.
-    const want = ((input.left ? 1 : 0) - (input.right ? 1 : 0)) * THREE.MathUtils.lerp(0.62, 0.12, Math.min(1, Math.abs(this.speed) / 20));
+    const steerIn = input.steer ?? ((input.left ? 1 : 0) - (input.right ? 1 : 0)); // AI drivers pass an analogue steer
+    const want = steerIn * THREE.MathUtils.lerp(0.62, 0.12, Math.min(1, Math.abs(this.speed) / 20));
     this.steer += (want - this.steer) * Math.min(1, dt * 6);
     const yawRate = (this.speed * Math.tan(this.steer)) / this.model.wheelBase;
     this.heading += yawRate * dt;

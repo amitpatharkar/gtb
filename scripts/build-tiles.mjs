@@ -636,14 +636,21 @@ for (const b of buildingsRaw) {
 }
 log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts)`);
 
-// Roads and rails: polylines clipped to each tile.
-function addLines(list, put, tolerance = 0.2) {
+// Roads and rails: polylines clipped to each tile. Junction points shared by two or more
+// roads are never simplified away, so the road graph stays connected.
+const nodeUse = new Map();
+for (const r of roadsRaw) for (let i = 0; i < r.pts.length; i++) {
+  const k = `${r.pts[i][0]},${r.pts[i][1]}`;
+  nodeUse.set(k, (nodeUse.get(k) || 0) + (i === 0 || i === r.pts.length - 1 ? 2 : 1));
+}
+const isJunction = (p) => (nodeUse.get(`${p[0]},${p[1]}`) || 0) >= 2;
+function addLines(list, put, tolerance = 0.2, mustKeep = null) {
   let n = 0;
   for (const item of list) {
     const bb = G.bboxOf(item.pts);
     for (const tile of tilesOverlapping(bb)) {
       for (const part of clipPolyline(item.pts, tile.clip)) {
-        const q = quantize(tolerance ? G.simplifyLine(part, tolerance) : part, tile.cx, tile.cz, false);
+        const q = quantize(tolerance ? G.simplifyLine(part, tolerance, mustKeep) : part, tile.cx, tile.cz, false);
         if (q.length >= 2) { put(tile, item, q); n++; }
       }
     }
@@ -659,7 +666,7 @@ const nRoads = addLines(roadsRaw, (tile, r, line) => {
     idx = tile.names.get(name);
   }
   tile.roads.push({ ...r.info, name: idx, layer: r.id % 5, line });
-});
+}, 0.2, isJunction);
 const nRails = addLines(railsRaw, (tile, r, line) => tile.rails.push({ ...r.info, line }));
 const nPaint = addLines(paint, (tile, m, line) => (tile.markings ||= []).push({ width: m.width, line }), 0);
 log(`roads: ${nRoads} pieces, rails: ${nRails} pieces, paint: ${nPaint} pieces`);
