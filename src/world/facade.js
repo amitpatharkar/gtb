@@ -1,34 +1,97 @@
 import * as THREE from 'three';
 import { Y } from './levels.js';
+import { WINDOW_RECT, CELL_HASH_GLSL, FEATURES_GLSL, K, SHOP_STOREY } from './facadeRules.js';
 
-// Facade shader: real wall textures (plaster, stone, concrete…) plus procedural Mumbai
-// facade details computed per pixel — windows with reflective glass, curtains, grilles,
-// balconies with clothes drying, AC units, sunshades (chajjas), monsoon stains, floor
-// bands, plinths, roof parapets, and ground-floor shops with shutters and signboards.
+// Facade shader: real wall textures (plaster, stone, concrete…) plus Mumbai facade details
+// computed per pixel. Windows and open shops use "interior mapping": a ray traced into a
+// fake room behind the glass (walls, floor, ceiling, tube light, shelves of goods), so the
+// inside has real depth and parallax from any angle. Near the player, 3D parts (sunshades,
+// sills, frames, grilles, AC units, balconies, signboards) are added by facadeParts.js using
+// the same per-window rules (facadeRules.js).
 //
 // Per-vertex inputs (see src/world/mesh/buildings.js):
-//   uv              x = metres along the wall, y = height in metres (also drives the textures)
-//   facadeBay       running bay (window column) coordinate along each wall
-//   facadeA         style + 0.5, seed, storey height, roof height
-//   facadeShop      1 = ground-floor shops on this wall, 2 = blank wall (no windows)
+//   uv            x = metres along the wall, y = height in metres (also drives the textures)
+//   facadeBay     running bay (window column) coordinate along each wall
+//   facadeA       style + 0.5, building seed (integer), storey height, roof height
+//   facadeB       shop flag (1 = shops on this wall, 2 = blank wall), bay width in metres
 
-const STYLE_GLSL = `
-  // style: 0 plaster, 1 weathered, 2 deco, 3 stone, 4 basalt, 5 concrete, 6 glass, 7 shed, 8 brick
-  vec4 windowRect(float st) {        // x0, x1, y0, y1 inside one bay × storey cell
-    if (st < 0.5) return vec4(0.24, 0.76, 0.30, 0.80);
-    if (st < 1.5) return vec4(0.27, 0.73, 0.32, 0.79);
-    if (st < 2.5) return vec4(0.10, 0.90, 0.34, 0.74);
-    if (st < 4.5) return vec4(0.30, 0.70, 0.18, 0.84);
-    if (st < 5.5) return vec4(0.14, 0.86, 0.30, 0.80);
-    if (st < 6.5) return vec4(0.03, 0.97, 0.10, 0.94);
-    return vec4(0.30, 0.70, 0.35, 0.75);
+const RECTS = WINDOW_RECT.map((r, i) => `if (st == ${i}) return vec4(${r.map((v) => v.toFixed(2)).join(', ')});`).join('\n    ');
+
+const GLSL = `
+  ${CELL_HASH_GLSL}
+  ${FEATURES_GLSL}
+  vec4 windowRect(int st) {
+    ${RECTS}
+    return vec4(0.3, 0.7, 0.35, 0.75);
   }
-`;
-
-const HELPERS = `
-  float fHash(vec2 p) { p = fract(p * vec2(234.34, 435.345)); p += dot(p, p + 34.23); return fract(p.x * p.y); }
   float fBox(vec2 p, vec4 r) { return step(r.x, p.x) * step(p.x, r.y) * step(r.z, p.y) * step(p.y, r.w); }
   float fBand(float v, float a, float b) { return step(a, v) * step(v, b); }
+
+  // Trace a ray into a box room behind the wall. p: entry point (x along wall, y up) in metres
+  // from the room's lower-left corner; size: room width and height; d: ray (x along, y up, z in).
+  // Returns the hit point and which surface: 0 back wall, 1 side wall, 2 floor, 3 ceiling.
+  vec4 roomHit(vec2 p, vec2 size, float depth, vec3 d) {
+    float tx = d.x > 0.0 ? (size.x - p.x) / max(d.x, 1e-4) : p.x / max(-d.x, 1e-4);
+    float ty = d.y > 0.0 ? (size.y - p.y) / max(d.y, 1e-4) : p.y / max(-d.y, 1e-4);
+    float tz = depth / max(d.z, 1e-4);
+    float t = min(min(tx, ty), tz);
+    vec3 h = vec3(p, 0.0) + d * t;
+    float face = t == tz ? 0.0 : t == tx ? 1.0 : d.y < 0.0 ? 2.0 : 3.0;
+    return vec4(h, face);
+  }
+
+  vec3 homeInterior(vec2 p, vec2 size, vec3 d, int col, int row, int seed) {
+    float depth = 3.2 + 2.5 * cellHash(col, row, seed, ${K.DEPTH});
+    vec4 hit = roomHit(p, size, depth, d);
+    vec3 h = hit.xyz;
+    float r = cellHash(col, row, seed, ${K.ROOM});
+    vec3 wall = mix(vec3(0.82, 0.78, 0.66), r < 0.33 ? vec3(0.62, 0.78, 0.74) : r < 0.66 ? vec3(0.86, 0.74, 0.62) : vec3(0.75, 0.75, 0.82), 0.6);
+    vec3 c;
+    if (hit.w < 0.5) {
+      c = wall;
+      if (h.x > size.x * 0.58 && h.x < size.x * 0.82 && h.y < 2.1) c = vec3(0.35, 0.22, 0.14);               // door
+      if (h.x > size.x * 0.12 && h.x < size.x * 0.42 && h.y > 1.1 && h.y < 1.8) c = vec3(0.4, 0.45, 0.42); // picture / cupboard
+    } else if (hit.w < 1.5) {
+      c = wall * 0.82;
+      if (h.y < 1.9 && h.z > depth * 0.45 && d.x < 0.0) c = vec3(0.42, 0.28, 0.16);                         // wardrobe
+    } else if (hit.w < 2.5) {
+      float tile = mod(floor(h.x / 0.6) + floor(h.z / 0.6), 2.0);
+      c = mix(vec3(0.55, 0.5, 0.44), vec3(0.42, 0.38, 0.34), tile);                                        // floor tiles
+    } else {
+      c = vec3(0.9, 0.88, 0.84);
+      if (abs(h.x - size.x * 0.5) < 0.6 && abs(h.z - depth * 0.45) < 0.06) c = vec3(3.0, 2.9, 2.6);          // tube light
+    }
+    return c * (1.0 - 0.5 * h.z / depth);
+  }
+
+  vec3 shopInterior(vec2 p, vec2 size, vec3 d, int unit, int seed) {
+    float depth = 5.0 + 4.0 * cellHash(unit, -1, seed, ${K.DEPTH});
+    // Counter across the shop, 1.4 m in, 0.95 m high.
+    if (d.z > 0.0) {
+      float tc = 1.4 / d.z;
+      vec2 hc = p + d.xy * tc;
+      if (hc.y < 0.95 && hc.y > 0.0 && hc.x > 0.0 && hc.x < size.x) return vec3(0.42, 0.3, 0.2) * (0.8 + 0.2 * step(0.85, hc.y));
+    }
+    vec4 hit = roomHit(p, size, depth, d);
+    vec3 h = hit.xyz;
+    vec3 c;
+    if (hit.w < 1.5) {
+      // Shelves of goods on the back and side walls.
+      float along = hit.w < 0.5 ? h.x : h.z;
+      float shelf = fract(h.y / 0.48);
+      vec3 goods = vec3(cellHash(int(floor(along / 0.22)), int(floor(h.y / 0.48)), seed + unit, 11),
+                        cellHash(int(floor(along / 0.22)), int(floor(h.y / 0.48)), seed + unit, 12),
+                        cellHash(int(floor(along / 0.22)), int(floor(h.y / 0.48)), seed + unit, 13));
+      c = shelf < 0.1 ? vec3(0.5, 0.42, 0.32) : mix(goods * 0.9 + 0.1, vec3(0.75), 0.25) * step(0.18, fract(along / 0.22) + 0.2);
+      if (h.y > 2.3) c = vec3(0.85, 0.83, 0.78);
+    } else if (hit.w < 2.5) {
+      c = mix(vec3(0.6, 0.58, 0.55), vec3(0.5, 0.48, 0.45), mod(floor(h.x / 0.5) + floor(h.z / 0.5), 2.0));
+    } else {
+      c = vec3(0.9);
+      if (abs(h.z - depth * 0.5) < 0.05 || abs(h.z - depth * 0.2) < 0.05) c = vec3(4.0, 3.9, 3.6);
+    }
+    return c * (1.0 - 0.35 * h.z / depth);
+  }
 `;
 
 export function makeFacadeMaterial(signAtlas) {
@@ -40,56 +103,60 @@ export function makeFacadeMaterial(signAtlas) {
     shader.uniforms.uFacadeDebug = facadeDebug;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
-        attribute float facadeBay; attribute vec4 facadeA; attribute float facadeShop;
-        varying vec2 vFacadeP; varying float vBay; flat varying vec4 vFacadeA; flat varying float vShop;`)
+        attribute float facadeBay; attribute vec4 facadeA; attribute vec2 facadeB;
+        varying vec2 vFacadeP; varying float vBay; flat varying vec4 vFacadeA; flat varying vec2 vFacadeB;`)
       .replace('#include <uv_vertex>', `#include <uv_vertex>
-        vFacadeP = uv; vBay = facadeBay; vFacadeA = facadeA; vShop = facadeShop;`);
+        vFacadeP = uv; vBay = facadeBay; vFacadeA = facadeA; vFacadeB = facadeB;`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
-        varying vec2 vFacadeP; varying float vBay; flat varying vec4 vFacadeA; flat varying float vShop;
+        varying vec2 vFacadeP; varying float vBay; flat varying vec4 vFacadeA; flat varying vec2 vFacadeB;
         uniform sampler2D tSigns; uniform float uNight; uniform float uFacadeDebug;
         vec3 dbgColor = vec3(0.0);
-        ${HELPERS}
-        ${STYLE_GLSL}`)
+        ${GLSL}`)
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
         float flatNormal = 0.0;
         vec3 facadeEmissive = vec3(0.0);
         {
-          float st = vFacadeA.x - 0.5;
-          float seed = floor(vFacadeA.y * 997.0) / 997.0;  // per-building constant (flat), quantised for stable hashing
+          int st = int(vFacadeA.x);
+          int seed = int(vFacadeA.y + 0.5);
           float storey = vFacadeA.z;
           float roofY = vFacadeA.w;
-          float shop = vShop;
+          float shop = vFacadeB.x;
+          float bw = vFacadeB.y;
           float y = vFacadeP.y - ${Y.KERB.toFixed(2)};
           // Painted walls take the building's paint colour; the photo texture keeps its grain.
-          if (st < 2.5 || st > 4.5 && st < 5.5) {
+          if (st <= 2 || st == 5) {
             vec3 texel = diffuseColor.rgb / max(vColor.rgb, vec3(0.02));
             float L = dot(texel, vec3(0.3, 0.59, 0.11));
-            diffuseColor.rgb = mix(diffuseColor.rgb, L * 1.45 * vColor.rgb, st > 0.5 && st < 1.5 ? 0.55 : 0.85);
+            diffuseColor.rgb = mix(diffuseColor.rgb, L * 1.45 * vColor.rgb, st == 1 ? 0.55 : 0.85);
           }
           vec3 wallC = diffuseColor.rgb;
+
+          // View ray in wall space (x along the wall's u direction, y up, z into the wall).
+          vec3 Nv = normalize(vNormal) * (gl_FrontFacing ? 1.0 : -1.0);
+          vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+          vec3 Tu = normalize(cross(Nv, upV));
+          vec3 Vv = normalize(-vViewPosition);
+          vec3 ray = normalize(vec3(dot(Vv, Tu), dot(Vv, upV), dot(Vv, -Nv)));
+          float lightsOn = 0.12 + uNight * 0.9;
 
           // Rising damp and dirt near the ground, darker plinth.
           diffuseColor.rgb *= mix(0.72, 1.0, smoothstep(0.0, 1.6, y));
           if (y < 0.45) diffuseColor.rgb *= 0.78;
-
-          // Parapet coping at the roof edge.
           if (vFacadeP.y > roofY + 0.78 && vFacadeP.y < roofY + 0.9) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.78, 0.76, 0.72), 0.6);
 
-          bool windows = shop < 1.5 && st < 6.5 && vFacadeP.y < roofY - 0.3 && y > 0.0;
-          float gf = shop > 0.5 ? max(storey, 4.3) : 0.0;     // shop storey height
+          bool windows = shop < 1.5 && st < 7 && vFacadeP.y < roofY - 0.3 && y > 0.0;
+          float gf = shop > 0.5 ? max(storey, ${SHOP_STOREY.toFixed(1)}) : 0.0;
 
           if (windows && shop > 0.5 && y < gf) {
             // ---------- ground-floor shop
-            float unit = floor(vBay);
+            int unit = int(floor(vBay));
             float lx = fract(vBay);
-            float su = fHash(vec2(unit, seed * 97.0));
-            float pillar = 1.0 - step(0.06, lx) * step(lx, 0.94);
-            if (pillar < 0.5) {
-              float signTop = gf - 0.2, signBot = gf - 1.15;
+            bool pillar = lx < 0.06 || lx > 0.94;
+            float signTop = gf - 0.2, signBot = gf - 1.15;
+            if (!pillar) {
               if (y > signBot && y < signTop) {
-                // Signboard from the generated atlas (8 × 16 boards).
-                float idx = floor(su * 128.0);
+                float idx = floor(cellHash(unit, -1, seed, ${K.SIGN}) * 128.0);
                 vec2 cell = vec2(mod(idx, 8.0), floor(idx / 8.0));
                 // Walls run right-to-left when seen from outside, so read the sign backwards.
                 vec2 suv = vec2(1.0 - (lx - 0.06) / 0.88, (y - signBot) / (signTop - signBot));
@@ -97,22 +164,21 @@ export function makeFacadeMaterial(signAtlas) {
                 diffuseColor.rgb = sc.rgb * 0.9;
                 roughnessFactor = 0.45;
                 flatNormal = 1.0;
-                facadeEmissive = sc.rgb * uNight * step(0.5, fract(su * 13.0)) * 0.9;
+                facadeEmissive = sc.rgb * uNight * 0.8;
               } else if (y > 0.22 && y < signBot - 0.05) {
-                bool open = fract(su * 7.0) < 0.72;
+                bool open = cellHash(unit, -1, seed, ${K.OPEN}) < 0.75;
                 if (open) {
-                  // Open shop: dark interior with goods and a warm tube light.
-                  float shelf = fBand(fract((y - 0.2) / 0.55), 0.0, 0.12);
-                  vec3 goods = vec3(fHash(vec2(floor(lx * 9.0), unit)), fHash(vec2(unit, floor(lx * 9.0))), fHash(vec2(floor(lx * 9.0) + 3.0, unit + 7.0)));
-                  diffuseColor.rgb = mix(vec3(0.05, 0.045, 0.04), goods * 0.35, 0.55 * step(0.6, y) * (1.0 - shelf));
-                  roughnessFactor = 0.9;
+                  vec2 p = vec2((lx - 0.06) * bw, y - 0.22);
+                  vec2 size = vec2(0.88 * bw, signBot - 0.27);
+                  vec3 c = shopInterior(p, size, ray, unit, seed);
+                  diffuseColor.rgb = vec3(0.0);
+                  roughnessFactor = 1.0;
                   flatNormal = 1.0;
-                  facadeEmissive = vec3(1.0, 0.85, 0.6) * (0.06 + 0.5 * uNight) * smoothstep(signBot - 0.6, signBot - 0.05, y);
+                  facadeEmissive = c * (0.32 + 0.5 * uNight);
                 } else {
-                  // Rolling shutter, painted grey/green/blue, ribbed.
-                  vec3 sh = fract(su * 31.0) < 0.4 ? vec3(0.42, 0.44, 0.45) : fract(su * 31.0) < 0.7 ? vec3(0.22, 0.38, 0.30) : vec3(0.24, 0.32, 0.48);
-                  float rib = 0.82 + 0.18 * sin(y * 70.0);
-                  diffuseColor.rgb = sh * rib * (0.75 + 0.25 * fHash(vec2(floor(y * 3.0), unit)));
+                  float sh = cellHash(unit, -1, seed, ${K.SHUTTER});
+                  vec3 shc = sh < 0.4 ? vec3(0.42, 0.44, 0.45) : sh < 0.7 ? vec3(0.22, 0.38, 0.30) : vec3(0.24, 0.32, 0.48);
+                  diffuseColor.rgb = shc * (0.82 + 0.18 * sin(y * 70.0));
                   roughnessFactor = 0.55;
                   metalnessFactor = 0.35;
                   flatNormal = 1.0;
@@ -124,83 +190,86 @@ export function makeFacadeMaterial(signAtlas) {
           } else if (windows) {
             // ---------- upper storeys: one window per bay × storey cell
             float fy = (y - gf) / storey;
-            float row = floor(fy);
+            int row = int(floor(fy));
             float ly = fract(fy);
-            float col = floor(vBay);
+            int col = int(floor(vBay));
             float lx = fract(vBay);
-            vec2 id = vec2(col, row) + seed * 113.0;
-            float h1 = fHash(id), h2 = fHash(id + 17.3), h3 = fHash(id + 41.7);
             vec4 r = windowRect(st);
             float inWin = fBox(vec2(lx, ly), r);
-            // Gothic stone: pointed arch top.
-            if (st > 2.5 && st < 4.5 && ly > 0.68) inWin *= step(abs(lx - 0.5), 0.2 * sqrt(max(0.0, (r.w - ly) / (r.w - 0.68))));
-            bool balcony = (st < 1.5 || st > 4.5 && st < 5.5) && h3 < 0.22 && row > -0.5;
-            float frameW = 0.035;
-
-            // Floor bands (Art Deco gets bold horizontal bands).
-            float band = st > 1.5 && st < 2.5 ? fBand(ly, 0.0, 0.09) : st > 5.5 && st < 6.5 ? fBand(ly, 0.0, 0.08) : fBand(ly, 0.0, 0.035);
-            diffuseColor.rgb *= 1.0 - band * (st > 1.5 && st < 2.5 ? -0.08 : 0.12);
-            if (st > 5.5 && st < 6.5) {
-              // Glass curtain wall: spandrels at floor lines, mullions between panes.
+            if ((st == 3 || st == 4) && ly > 0.68) inWin *= step(abs(lx - 0.5), 0.2 * sqrt(max(0.0, (r.w - ly) / (r.w - 0.68))));
+            bool balcony = isBalcony(st, col, row, seed);
+            float band = st == 2 ? fBand(ly, 0.0, 0.09) : st == 6 ? fBand(ly, 0.0, 0.08) : fBand(ly, 0.0, 0.035);
+            diffuseColor.rgb *= 1.0 - band * (st == 2 ? -0.08 : 0.12);
+            vec2 roomP = vec2(lx * bw, ly * storey);
+            vec2 roomS = vec2(bw, storey);
+            if (st == 6) {
+              // Glass curtain wall: spandrels at floor lines, mullions between panes, offices behind.
               float mull = 1.0 - fBand(lx, 0.03, 0.97);
               if (band > 0.5 || mull > 0.5) { diffuseColor.rgb = vec3(0.32, 0.33, 0.34); roughnessFactor = 0.4; metalnessFactor = 0.6; flatNormal = 1.0; }
               else {
-                diffuseColor.rgb = wallC * 0.35;
-                roughnessFactor = 0.04 + 0.05 * h2;
-                metalnessFactor = 0.65;
+                vec3 room = homeInterior(roomP, roomS, ray, col, row, seed);
+                diffuseColor.rgb = wallC * 0.3;
+                roughnessFactor = 0.05;
+                metalnessFactor = 0.55;
                 flatNormal = 1.0;
-                facadeEmissive = vec3(1.0, 0.92, 0.75) * uNight * step(0.55, h1) * 0.35;
+                facadeEmissive = room * (0.05 + uNight * step(0.45, cellHash(col, row, seed, ${K.LIT})) * 0.6);
               }
             } else if (balcony) {
-              // Recessed balcony: shadowed interior, railing, clothes drying.
+              // Recessed balcony: a shallow room with a door, railing and clothes painted for distance.
               float inB = fBox(vec2(lx, ly), vec4(0.08, 0.92, 0.06, 0.92));
               if (inB > 0.5) {
-                diffuseColor.rgb = wallC * 0.32;
+                vec4 hit = roomHit(vec2((lx - 0.08) * bw, (ly - 0.06) * storey), vec2(0.84 * bw, 0.86 * storey), 1.3, ray);
+                vec3 c = wallC * (hit.w < 0.5 ? 0.55 : 0.4);
+                if (hit.w < 0.5 && hit.x > 0.84 * bw * 0.35 && hit.x < 0.84 * bw * 0.6 && hit.y < 2.1) c = vec3(0.28, 0.18, 0.11);
+                diffuseColor.rgb = c;
                 float rail = step(ly, 0.42) * (step(0.75, fract(lx * 24.0)) + fBand(ly, 0.38, 0.42));
-                if (rail > 0.5) diffuseColor.rgb = vec3(0.12, 0.12, 0.12);
-                float cloth = fBand(ly, 0.48, 0.74) * step(0.45, h2) * step(0.35, fract(lx * 5.0 + h1));
-                if (cloth > 0.5) diffuseColor.rgb = vec3(fHash(id + floor(lx * 5.0)), fHash(id + 3.0 + floor(lx * 5.0)), fHash(id + 9.0 + floor(lx * 5.0))) * 0.75 + 0.1;
+                if (rail > 0.5) diffuseColor.rgb = vec3(0.12);
+                float cloth = fBand(ly, 0.48, 0.74) * step(0.45, cellHash(col, row, seed, ${K.CURTAIN})) * step(0.35, fract(lx * 5.0));
+                if (cloth > 0.5) diffuseColor.rgb = vec3(cellHash(col, int(lx * 5.0), seed, 21), cellHash(col, int(lx * 5.0), seed, 22), cellHash(col, int(lx * 5.0), seed, 23)) * 0.75 + 0.1;
                 roughnessFactor = 0.9;
                 flatNormal = 1.0;
-                facadeEmissive = vec3(1.0, 0.8, 0.55) * uNight * step(0.6, h1) * 0.25 * step(0.45, ly);
               }
             } else if (inWin > 0.5) {
+              float frameW = 0.035;
               float frame = 1.0 - fBox(vec2(lx, ly), r + vec4(frameW, -frameW, frameW, -frameW));
               float mid = fBand(lx, 0.5 * (r.x + r.y) - 0.012, 0.5 * (r.x + r.y) + 0.012);
-              if (frame > 0.5 || mid > 0.5 && st < 2.5) {
-                diffuseColor.rgb = st > 2.5 && st < 4.5 ? vec3(0.28, 0.22, 0.16) : vec3(0.82, 0.8, 0.76);
+              if (frame > 0.5 || (mid > 0.5 && st <= 2)) {
+                diffuseColor.rgb = (st == 3 || st == 4) ? vec3(0.28, 0.22, 0.16) : vec3(0.82, 0.8, 0.76);
                 roughnessFactor = 0.6;
               } else {
-                // Glass: dark interior, sharp sky reflections; sometimes curtains.
-                vec3 curtain = vec3(0.6 + 0.3 * h2, 0.45 + 0.3 * h3, 0.3 + 0.4 * h1);
-                bool cur = h1 < 0.4;
-                diffuseColor.rgb = cur ? curtain * 0.45 : vec3(0.025, 0.03, 0.035);
-                roughnessFactor = cur ? 0.25 : 0.04;
+                // Glass with a room behind it; some windows have curtains half drawn.
+                vec3 room = homeInterior(roomP, roomS, ray, col, row, seed);
+                float lit = step(0.5, cellHash(col, row, seed, ${K.LIT}));
+                bool curtain = cellHash(col, row, seed, ${K.CURTAIN}) < 0.4;
+                if (curtain) {
+                  float tcu = 0.12 / max(ray.z, 1e-3);
+                  float cx = roomP.x / bw + ray.x * tcu / bw;
+                  bool leftHalf = cellHash(col, row, seed, 31) < 0.5;
+                  if ((leftHalf && cx < 0.5 * (r.x + r.y)) || (!leftHalf && cx > 0.5 * (r.x + r.y))) {
+                    room = vec3(0.55 + 0.35 * cellHash(col, row, seed, 32), 0.4 + 0.3 * cellHash(col, row, seed, 33), 0.3 + 0.4 * cellHash(col, row, seed, 34));
+                  }
+                }
+                diffuseColor.rgb = vec3(0.02, 0.025, 0.03);
+                roughnessFactor = 0.05;
                 flatNormal = 1.0;
-                // Rusty grilles on chawl windows.
-                if ((st > 0.5 && st < 1.5 || h2 < 0.25) && step(0.82, fract(lx * 18.0)) + fBand(fract(ly * 4.0), 0.0, 0.08) > 0.5) {
+                facadeEmissive = room * (0.1 + uNight * lit * 0.75);
+                if (hasGrille(st, col, row, seed) && step(0.82, fract(lx * 18.0)) + fBand(fract(ly * 4.0), 0.0, 0.08) > 0.5) {
                   diffuseColor.rgb = vec3(0.16, 0.1, 0.07);
                   roughnessFactor = 0.8;
+                  facadeEmissive *= 0.2;
                 }
-                facadeEmissive = (cur ? curtain : vec3(1.0, 0.86, 0.62)) * uNight * step(0.5, h3) * 0.45;
               }
             } else {
-              // Wall around the window: sunshade (chajja) above, sill below, AC unit, monsoon streaks.
-              float top = r.w;
-              if (st < 2.5 || st > 4.5) {
-                if (fBand(ly, top + 0.015, top + 0.07) * fBand(lx, r.x - 0.06, r.y + 0.06) > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.7, 0.68, 0.64), 0.6);
+              // Wall around the window: sunshade (chajja), monsoon streaks, AC unit (painted for distance).
+              if (st <= 2 || st >= 5) {
+                if (fBand(ly, r.w + 0.015, r.w + 0.07) * fBand(lx, r.x - 0.06, r.y + 0.06) > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.7, 0.68, 0.64), 0.6);
               }
-              float streak = fBand(lx, r.x, r.y) * step(ly, r.z) * smoothstep(0.0, r.z, ly) * fHash(vec2(floor(lx * 23.0), col + seed));
-              diffuseColor.rgb *= 1.0 - 0.35 * streak * (st < 1.5 ? 1.0 : 0.5);
-              if (st < 2.5 || st > 4.5 && st < 5.5) {
-                float ac = fBox(vec2(lx, ly), vec4(r.y + 0.03, r.y + 0.24, 0.33, 0.52)) * step(h2, 0.38);
-                if (ac > 0.5) {
-                  diffuseColor.rgb = vec3(0.78, 0.78, 0.76) * (0.85 + 0.15 * step(0.5, fract(ly * 40.0)));
-                  roughnessFactor = 0.5;
-                  flatNormal = 1.0;
-                }
-                float acShadow = fBox(vec2(lx, ly), vec4(r.y + 0.03, r.y + 0.24, 0.26, 0.33)) * step(h2, 0.38);
-                diffuseColor.rgb *= 1.0 - 0.35 * acShadow;
+              float streak = fBand(lx, r.x, r.y) * step(ly, r.z) * smoothstep(0.0, r.z, ly) * cellHash(int(floor(lx * 23.0)), col, seed, 40);
+              diffuseColor.rgb *= 1.0 - 0.35 * streak * (st == 1 ? 1.0 : 0.5);
+              if (hasAC(st, col, row, seed)) {
+                float ac = fBox(vec2(lx, ly), vec4(r.y + 0.03, r.y + 0.24, 0.33, 0.52));
+                if (ac > 0.5) { diffuseColor.rgb = vec3(0.78, 0.78, 0.76) * (0.85 + 0.15 * step(0.5, fract(ly * 40.0))); roughnessFactor = 0.5; flatNormal = 1.0; }
+                diffuseColor.rgb *= 1.0 - 0.35 * fBox(vec2(lx, ly), vec4(r.y + 0.03, r.y + 0.24, 0.26, 0.33));
               }
             }
           }
@@ -216,7 +285,7 @@ export function makeFacadeMaterial(signAtlas) {
       .replace('#include <dithering_fragment>', `#include <dithering_fragment>
         if (uFacadeDebug > 0.5) gl_FragColor = vec4(dbgColor, 1.0);`);
   };
-  mat.customProgramCacheKey = () => 'gtb-facade-v1';
+  mat.customProgramCacheKey = () => 'gtb-facade-v2';
   return mat;
 }
 

@@ -8,7 +8,7 @@ import { MeshBuilder, wall, flatPolygon, linear, rand, signedArea, pointInRing, 
 export const STYLES = ['plaster', 'weathered', 'deco', 'stone', 'basalt', 'concrete', 'glass', 'shed', 'brick'];
 const BAY = [3.3, 3.0, 3.4, 3.7, 3.7, 3.4, 1.6, 4.0, 3.2]; // metres per window column
 const PARAPET = 0.9;
-export const FACADE_FLOATS = 6; // bay coordinate, style, seed, storey height, roof height, shop (1) / blank (2)
+export const FACADE_FLOATS = 7; // bay coordinate, style, seed (integer), storey height, roof height, shop (1) / blank (2), bay width
 
 /** Wall quad whose vertices carry a running "bay" coordinate for the window grid. */
 function facadeWall(m, ax, az, bx, bz, y0, y1, nx, nz, u0, u1, b0, b1, cBottom, cTop) {
@@ -60,7 +60,7 @@ export function buildBuildings(t, ox, oz, toWorld) {
     const levels = Math.max(1, bd.levels);
     const storey = Math.min(4.6, Math.max(2.7, (h - 0.6) / levels));
     const m = walls(style);
-    m.cur[1] = style + 0.5; m.cur[2] = seed; m.cur[3] = storey; m.cur[4] = h;
+    m.cur[1] = style + 0.5; m.cur[2] = Math.floor(seed * 997); m.cur[3] = storey; m.cur[4] = h;
 
     bd.rings.forEach((ring, ri) => {
       const n = ring.length / 2;
@@ -73,6 +73,7 @@ export function buildBuildings(t, ox, oz, toWorld) {
         const bays = Math.round(len / BAY[style]);
         const shop = ri === 0 && (bd.flags & BUILDING_FLAG.SHOPS) && bd.front[i] && len > 2.5;
         m.cur[5] = bays < 1 || canopy ? 2 : shop ? 1 : 0;
+        m.cur[6] = len / Math.max(1, bays);
         facadeWall(m, ax, az, bx, bz, y0, top, (bz - az) / len, -(bx - ax) / len, u, u + len, 0, Math.max(1, bays), low, base);
         u += len;
       }

@@ -109,11 +109,11 @@ export class TileManager {
       geo.setAttribute('uv', new THREE.BufferAttribute(data.uv, 2));
       geo.setAttribute('color', new THREE.BufferAttribute(data.color, 3, true));
       if (data.facade) {
-        // Facade data, 6 floats per vertex: bay, style, seed, storey, roof height, shop flag.
-        const ib = new THREE.InterleavedBuffer(data.facade, 6);
+        // Facade data, 7 floats per vertex: bay, style, seed, storey, roof height, shop flag, bay width.
+        const ib = new THREE.InterleavedBuffer(data.facade, 7);
         geo.setAttribute('facadeBay', new THREE.InterleavedBufferAttribute(ib, 1, 0));
         geo.setAttribute('facadeA', new THREE.InterleavedBufferAttribute(ib, 4, 1));
-        geo.setAttribute('facadeShop', new THREE.InterleavedBufferAttribute(ib, 1, 5));
+        geo.setAttribute('facadeB', new THREE.InterleavedBufferAttribute(ib, 2, 5));
       }
       geo.setIndex(new THREE.BufferAttribute(data.index, 1));
       geo.computeBoundingSphere();
