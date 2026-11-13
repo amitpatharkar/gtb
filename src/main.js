@@ -12,6 +12,7 @@ import { createTaxi } from './vehicles/taxi.js';
 import { Car } from './vehicles/car.js';
 import { GameClock } from './sim/clock.js';
 import { Traffic } from './sim/traffic.js';
+import { FacadeParts } from './world/facadeParts.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
@@ -49,6 +50,7 @@ const post = createPost(renderer, scene, camera, tier);
 const startHour = Number(query.get('hour'));
 const clock = new GameClock(query.has('hour') && Number.isFinite(startHour) ? startHour : 17.25);
 const traffic = new Traffic(scene, tiles, tier);
+const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
 const audio = new CityAudio(lib);
 const minimap = new Minimap($('minimap'), tiles, index.fuel || []);
 
@@ -145,7 +147,7 @@ function refuel() {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts };
 const timer = new THREE.Timer();
 let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 renderer.setAnimationLoop((time) => {
@@ -168,6 +170,7 @@ function step(dt) {
   // Night: lit windows and signs, glowing lamps, real lights on the nearest lamp posts.
   const night = clock.night;
   facadeNight.value = night;
+  facadeParts.update(dt, player, tiles, night);
   tiles.props.lampMat.emissiveIntensity = night * 9;
   taxi.lights.headMat.emissiveIntensity = 0.2 + night * 5;
   headlamp.intensity = night * 60;

@@ -3,6 +3,31 @@
 import { BUILDING_FLAG } from '../tileFormat.js';
 import { Y } from '../levels.js';
 import { MeshBuilder, wall, flatPolygon, linear, rand, signedArea, pointInRing, WHITE } from './builder.js';
+import { WINDOW_RECT, SHOP_STOREY, K, cellHash, cellFeatures } from '../facadeRules.js';
+
+// 3D facade parts (instanced near the player): 7 floats each — x, y, z, yaw, width, height, colour/extra.
+export const PART_TYPES = ['frame', 'sill', 'chajja', 'grille', 'ac', 'balcony', 'sign', 'shutterBox'];
+const PARTS_MAX_Y = 27;   // real geometry on the lower ~8 floors; higher up the shader carries the detail
+const CHAJJA_STYLES = new Set([0, 1, 2, 5]);
+const CORNICE_STYLES = new Set([0, 2, 3, 4, 5]);
+
+/** Horizontal strip sticking out of a wall (cornice/band): front, top and bottom faces, blank facade. */
+function strip(m, ax, az, bx, bz, nx, nz, y, height, depth, u0, u1, col) {
+  const fx = nx * depth, fz = nz * depth;
+  const y0 = y - height / 2, y1 = y + height / 2;
+  const q = (p, nrm, uv) => p.map(([x, yy, z], i) => m.v(x, yy, z, nrm[0], nrm[1], nrm[2], uv[i][0], uv[i][1], col));
+  const front = q([[ax + fx, y0, az + fz], [bx + fx, y0, bz + fz], [bx + fx, y1, bz + fz], [ax + fx, y1, az + fz]], [nx, 0, nz], [[u0, y0], [u1, y0], [u1, y1], [u0, y1]]);
+  const top = q([[ax, y1, az], [bx, y1, bz], [bx + fx, y1, bz + fz], [ax + fx, y1, az + fz]], [0, 1, 0], [[u0, 0], [u1, 0], [u1, depth], [u0, depth]]);
+  const bot = q([[ax, y0, az], [bx, y0, bz], [bx + fx, y0, bz + fz], [ax + fx, y0, az + fz]], [0, -1, 0], [[u0, 0], [u1, 0], [u1, depth], [u0, depth]]);
+  for (const [a, b, c, d] of [front, top, bot]) {
+    // Pick the winding that faces along the quad's normal.
+    const p = m.p, nI = m.n;
+    const e1 = [p[b * 3] - p[a * 3], p[b * 3 + 1] - p[a * 3 + 1], p[b * 3 + 2] - p[a * 3 + 2]];
+    const e2 = [p[c * 3] - p[a * 3], p[c * 3 + 1] - p[a * 3 + 1], p[c * 3 + 2] - p[a * 3 + 2]];
+    const cx = e1[1] * e2[2] - e1[2] * e2[1], cy = e1[2] * e2[0] - e1[0] * e2[2], cz = e1[0] * e2[1] - e1[1] * e2[0];
+    if (cx * nI[a * 3] + cy * nI[a * 3 + 1] + cz * nI[a * 3 + 2] >= 0) { m.tri(a, b, c); m.tri(a, c, d); } else { m.tri(a, c, b); m.tri(a, d, c); }
+  }
+}
 
 // Styles (same order as scripts/lib/districts.mjs STYLE).
 export const STYLES = ['plaster', 'weathered', 'deco', 'stone', 'basalt', 'concrete', 'glass', 'shed', 'brick'];
@@ -43,6 +68,7 @@ export function buildBuildings(t, ox, oz, toWorld) {
   const walls = (style) => b.get(`walls${style}`) || b.set(`walls${style}`, new MeshBuilder(FACADE_FLOATS)).get(`walls${style}`);
   const get = (key) => b.get(key) || b.set(key, new MeshBuilder()).get(key);
   const tanks = [], solid = [];
+  const parts = Object.fromEntries(PART_TYPES.map((k) => [k, []]));
 
   t.buildings.forEach((bd, bi) => {
     const style = Math.min(bd.style, STYLES.length - 1);
@@ -74,10 +100,63 @@ export function buildBuildings(t, ox, oz, toWorld) {
         const shop = ri === 0 && (bd.flags & BUILDING_FLAG.SHOPS) && bd.front[i] && len > 2.5;
         m.cur[5] = bays < 1 || canopy ? 2 : shop ? 1 : 0;
         m.cur[6] = len / Math.max(1, bays);
-        facadeWall(m, ax, az, bx, bz, y0, top, (bz - az) / len, -(bx - ax) / len, u, u + len, 0, Math.max(1, bays), low, base);
+        const nx = (bz - az) / len, nz = -(bx - ax) / len;
+        facadeWall(m, ax, az, bx, bz, y0, top, nx, nz, u, u + len, 0, Math.max(1, bays), low, base);
+        if (ri === 0 && !canopy && bays >= 1 && style < 7) addParts(ax, az, bx, bz, nx, nz, len, bays, shop, u, bd.front[i]);
         u += len;
       }
     });
+
+    function addParts(ax, az, bx, bz, nx, nz, len, bays, shop, u0, front) {
+      const dx = (bx - ax) / len, dz = (bz - az) / len, bw = len / bays;
+      const yaw = Math.atan2(nx, nz), Yb = Y.KERB;
+      const seedInt = Math.floor(seed * 997);
+      const gf = shop ? Math.max(storey, SHOP_STOREY) : 0;
+      const at = (along) => [ax + dx * along, az + dz * along];
+      const push = (type, along, y, w, hgt, extra) => { const [x, z] = at(along); parts[type].push(x, y, z, yaw, w, hgt, extra); };
+      const r = WINDOW_RECT[style];
+      const wallCol = hex, frameCol = style === 3 || style === 4 ? 0x4a3524 : 0xe6e2da;
+      m.cur[5] = 2; m.cur[0] = 0; // cornices and pilasters are blank wall
+      if (CORNICE_STYLES.has(style)) {
+        const deco = style === 2, stone = style === 3 || style === 4;
+        for (let y = Yb + gf + (gf ? 0 : storey); y < h - 0.6; y += storey) strip(m, ax, az, bx, bz, nx, nz, y, deco ? 0.22 : 0.14, deco ? 0.16 : 0.08, u0, u0 + len, base);
+        strip(m, ax, az, bx, bz, nx, nz, h - 0.12, stone || deco ? 0.3 : 0.14, stone || deco ? 0.22 : 0.1, u0, u0 + len, base);
+        if (stone) {
+          for (let c = 1; c < bays; c++) {
+            // Pilasters between the bays of Gothic stone buildings.
+            const [px, pz] = at(c * bw);
+            const hw = 0.22;
+            wall(m, px - dx * hw + nx * 0.14, pz - dz * hw + nz * 0.14, px + dx * hw + nx * 0.14, pz + dz * hw + nz * 0.14, y0, h - 0.27, nx, nz, u0 + c * bw - hw, u0 + c * bw + hw, y0, h - 0.27, low, base);
+            wall(m, px - dx * hw, pz - dz * hw, px - dx * hw + nx * 0.14, pz - dz * hw + nz * 0.14, y0, h - 0.27, -dx, -dz, 0, 0.14, y0, h - 0.27, low, base);
+            wall(m, px + dx * hw + nx * 0.14, pz + dz * hw + nz * 0.14, px + dx * hw, pz + dz * hw, y0, h - 0.27, dx, dz, 0, 0.14, y0, h - 0.27, low, base);
+          }
+        }
+      }
+      if (!front || h > 45) return; // 3D window parts on street-facing walls; towers and back walls: shader only
+      for (let c = 0; c < bays; c++) {
+        if (shop) {
+          const signBot = gf - 1.15;
+          push('sign', (c + 0.5) * bw, Yb + gf - 0.675, 0.88 * bw, 0.95, Math.floor(cellHash(c, -1, seedInt, K.SIGN) * 128));
+          push('shutterBox', (c + 0.5) * bw, Yb + signBot - 0.17, 0.88 * bw, 0.28, 0x6b6e70);
+        }
+        for (let row = 0; ; row++) {
+          const yTop = Yb + gf + (row + r[3]) * storey;
+          if (yTop > h - 0.3 || yTop > PARTS_MAX_Y) break;
+          const f = cellFeatures(style, c, row, seedInt);
+          const yBot = Yb + gf + (row + r[2]) * storey;
+          if (f.balcony) {
+            push('balcony', (c + 0.5) * bw, Yb + gf + (row + 0.06) * storey, 0.84 * bw, 1, wallCol);
+            continue;
+          }
+          const wx = (c + (r[0] + r[1]) / 2) * bw, ww = (r[1] - r[0]) * bw, wh = yTop - yBot;
+          push('frame', wx, (yBot + yTop) / 2, ww, wh, frameCol);
+          push('sill', wx, yBot, ww, 1, wallCol);
+          if (CHAJJA_STYLES.has(style)) push('chajja', wx, yTop + 0.13, ww, 1, wallCol);
+          if (f.grille) push('grille', wx, (yBot + yTop) / 2, ww, wh, 0);
+          if (f.ac) push('ac', (c + r[1] + 0.135) * bw, Yb + gf + (row + 0.425) * storey, 1, 1, 0);
+        }
+      }
+    }
 
     // Roof: concrete terrace, sometimes blue tarpaulin or rusty sheets on small buildings.
     const r0 = rand(bi * 31 + t.tx, t.tz + 7);
@@ -143,5 +222,5 @@ export function buildBuildings(t, ox, oz, toWorld) {
       }
     }
   });
-  return { builders: b, tanks, solid };
+  return { builders: b, tanks, solid, parts };
 }

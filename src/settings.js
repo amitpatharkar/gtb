@@ -4,15 +4,15 @@
 export const TIERS = {
   high: {
     name: 'High', pixelRatio: 1.5, msaa: 4, ao: true, bloom: true, normalMaps: true,
-    shadowMapSize: 4096, shadowRange: 120, anisotropy: 8, trees: 1, detailRadius: 350,
+    shadowMapSize: 4096, shadowRange: 120, anisotropy: 8, trees: 1, detailRadius: 350, partsRadius: 150,
   },
   medium: {
     name: 'Medium', pixelRatio: 1.25, msaa: 4, ao: false, bloom: true, normalMaps: false,
-    shadowMapSize: 2048, shadowRange: 90, anisotropy: 4, trees: 0.8, detailRadius: 250,
+    shadowMapSize: 2048, shadowRange: 90, anisotropy: 4, trees: 0.8, detailRadius: 250, partsRadius: 100,
   },
   low: {
     name: 'Low', pixelRatio: 1, msaa: 0, ao: false, bloom: false, normalMaps: false,
-    shadowMapSize: 1024, shadowRange: 60, anisotropy: 2, trees: 0.5, detailRadius: 160,
+    shadowMapSize: 1024, shadowRange: 60, anisotropy: 2, trees: 0.5, detailRadius: 160, partsRadius: 0,
   },
 };
 const ORDER = ['high', 'medium', 'low'];

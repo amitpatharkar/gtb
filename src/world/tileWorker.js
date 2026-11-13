@@ -67,7 +67,9 @@ function buildTile(t) {
   const toWorld = (r) => { const w = new Float32Array(r.length); for (let i = 0; i < r.length; i += 2) { w[i] = r[i] + ox; w[i + 1] = r[i + 1] + oz; } return w; };
 
   const { builders: ground, tetrapods } = buildGround(t, ox, oz);
-  const { builders, tanks, solid } = buildBuildings(t, ox, oz, toWorld);
+  const { builders, tanks, solid, parts } = buildBuildings(t, ox, oz, toWorld);
+  const facadeParts = {};
+  for (const k in parts) if (parts[k].length) { facadeParts[k] = new Float32Array(parts[k]); transfer.push(facadeParts[k].buffer); }
   const meshes = {};
   for (const [key, m] of [...ground, ...builders]) meshes[key] = m.finish(transfer);
 
@@ -103,7 +105,7 @@ function buildTile(t) {
     result: {
       tx: t.tx, tz: t.tz, origin: [ox, oz], names: t.names,
       clip: [t.clip[0] + ox, t.clip[1] + oz, t.clip[2] + ox, t.clip[3] + oz],
-      meshes, points, tanks: tankArr,
+      meshes, points, tanks: tankArr, facadeParts,
       collide: {
         solid: packPolys(solid, transfer),
         walkable: packPolys(walkable, transfer),
