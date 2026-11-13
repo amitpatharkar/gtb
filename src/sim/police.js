@@ -322,7 +322,13 @@ export class Police {
     if (f && f.task?.type === 'flag') {
       const d = Math.hypot(f.x - player.pos.x, f.z - player.pos.z);
       this.stopT = slow && d < 20 ? this.stopT + dt : 0;
-      if (this.stopT > 1.5) { this.pay(false, f, player); return; }
+      if (this.stopT > 1.5 && !this.deciding) {
+        // The hawaldar walks up: pay, argue or run (main.js shows the choice).
+        this.deciding = true;
+        this.bubbles.say(f, pick(['Licence aur kagaz, saheb.', 'Challan banta hai, ' + rupees(this.fines) + '.', 'Kya jaldi thi, haan?']), 3, 'cop');
+        if (this.onFlagStop) this.onFlagStop(f, player); else this.pay(false, f, player);
+        return;
+      }
       if (d > 45) {
         // Drove off from a constable: patrol car incoming.
         this.flagger = null;
@@ -338,7 +344,33 @@ export class Police {
     if (this.stopT > 2) this.pay(true, close, player);
   }
 
+  /** Argue with the hawaldar: sometimes he lets you off with a warning, often it costs more. */
+  argue(f, player) {
+    this.deciding = false;
+    if (Math.random() < 0.35) {
+      this.bubbles.say(f, pick(['Chalo, is baar chhod raha hoon. Agli baar nahi!', 'Theek hai, theek hai. Jao!']), 3, 'cop');
+      this.hud.message('Talked your way out of it!');
+      this.stars = 0; this.fines = 0; this.stopT = 0; this.flagger = null;
+      f.task = { type: 'home' };
+      return;
+    }
+    this.fines += 500;
+    this.bubbles.say(f, pick(['Bahut bolta hai! ₹500 aur!', 'Zubaan mat lada, challan double!']), 3, 'cop');
+    this.pay(false, f, player);
+  }
+
+  /** Drive off from the hawaldar mid-conversation. */
+  flee(f) {
+    this.deciding = false;
+    this.flagger = null;
+    f.task = { type: 'shout', car: { x: f.x, z: f.z }, t: 0, said: 0 };
+    this.stars = Math.min(5, this.stars + 1);
+    this.fines += FINES.evade[1];
+    this.hud.message(`Ran from the traffic police! +${rupees(FINES.evade[1])}`);
+  }
+
   pay(caught, by, player) {
+    this.deciding = false;
     const extra = caught ? 500 * this.stars : 0;
     const total = this.fines + extra;
     if (player.pay) player.pay(total, 'Traffic challan'); else player.money -= total;

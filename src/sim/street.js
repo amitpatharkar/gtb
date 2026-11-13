@@ -226,6 +226,7 @@ export class StreetLife {
       if (!main && r < 0.03 && cows < 2) { add(id, () => this.makeCow(seg)); cows++; }
       else if (!main && r > 0.97 && hour >= 7 && hour < 19 && seg.len > 24 && crickets < 1) { add(id, () => this.makeCricket(seg)); crickets++; }
       else if (main && r > 0.4 && r < 0.42 && breakdowns < 1) { add(id, () => this.makeBreakdown(seg)); breakdowns++; }
+      else if (r > 0.6 && r < 0.63 && (hour >= 19 || hour < 1) && ![...this.fixtures.values()].some((f) => f.type === 'baraat')) add(id, () => this.makeBaraat(seg));
     }
     for (const [id, f] of this.fixtures) {
       const far = Math.hypot(f.x - px, f.z - pz) > 200;
@@ -323,6 +324,25 @@ export class StreetLife {
     return { type: 'breakdown', x, z, car, fx, fz, people: [driver, ...pushers], t: 0, pushes: 0, sayT: 1 };
   }
 
+  /** A wedding procession: dancers, a band and the groom, taking over the road at night. */
+  makeBaraat(seg) {
+    const people = [];
+    const [cx, cz, h, lx, lz] = this.segPoint(seg, 0.5, 1, 1, 0);
+    const fx = Math.sin(h), fz = Math.cos(h);
+    for (let i = 0; i < 16; i++) {
+      const along = (i % 6) * 1.6 - 4, side = (Math.floor(i / 6) - 1) * 1.4 + (Math.random() - 0.5) * 0.6;
+      const kind = i < 3 ? 'worker' : pick(['casual', 'sari', 'office', 'sari']);
+      const p = this.person(kind, cx + fx * along + lx * side, cz + fz * along + lz * side, h + Math.PI + (Math.random() - 0.5), i < 3 ? POSE.POINT : pick([POSE.ARGUE, POSE.WAVE, POSE.ARGUE]));
+      p.dance = Math.random() * 6;
+      if (i < 3) { p.shirt = new THREE.Color(0xb22222); p.pants = new THREE.Color(0xf2f2f2); p.flags = 1; } // band in red with caps
+      people.push(p);
+    }
+    const groom = this.person('office', cx - fx * 7, cz - fz * 7, h + Math.PI, POSE.STAND);
+    groom.shirt = new THREE.Color(0xf3e5c0); groom.pants = new THREE.Color(0xf3e5c0); groom.flags = 4;
+    people.push(groom);
+    return { type: 'baraat', x: cx, z: cz, fx, fz, people, t: 0, sayT: 2 };
+  }
+
   updateFixtures(dt, player, hour) {
     const P = player.pos;
     const obstacles = [];
@@ -354,6 +374,21 @@ export class StreetLife {
           if (stumpN < 30) { this.m.compose(this.v.set(sx + f.fz * o, Y.ROAD, sz - f.fx * o), this.q.identity(), this.one); this.stumps.setMatrixAt(stumpN++, this.m); }
         }
         if (ballN < 4) { this.m.compose(this.v.set(...f.ball), this.q.identity(), this.one); this.ball.setMatrixAt(ballN++, this.m); }
+      } else if (f.type === 'baraat') {
+        // Dancing in the street: bob, spin and shuffle forward; the band keeps the dhol going.
+        f.t += dt;
+        for (const p of f.people) {
+          p.phase += dt * (p.dance !== undefined ? 7 : 2);
+          if (p.dance !== undefined) { p.heading += Math.sin(f.t * 2 + p.dance) * dt * 1.5; p.y = this.tiles.groundHeight(p.x, p.z) + Math.abs(Math.sin(f.t * 6 + p.dance)) * 0.08; }
+          p.x += f.fx * dt * 0.15; p.z += f.fz * dt * 0.15;
+          this.people.add(p);
+        }
+        f.x += f.fx * dt * 0.15; f.z += f.fz * dt * 0.15;
+        obstacles.push([f.x, f.z, 14]);
+        const dist = Math.hypot(f.x - P.x, f.z - P.z);
+        if (dist < 70 && Math.floor(f.t * 3.2) !== f.beat) { f.beat = Math.floor(f.t * 3.2); if (f.beat % 4 !== 3) this.audio.punch?.(0.35 / (1 + dist / 15)); }
+        f.sayT -= dt;
+        if (f.sayT <= 0 && dist < 60) { f.sayT = 5 + Math.random() * 4; this.bubbles.say(pick(f.people), pick(['Aaj mere yaar ki shaadi hai!', 'Nacho! Nacho!', 'Dhol bajao!', 'Baraat aa gayi!', 'Side de do, baraat hai!']), 2.4); }
       } else if (f.type === 'breakdown') {
         this.updateBreakdown(f, dt, player);
         extras.push(f.car);
@@ -462,6 +497,10 @@ export class StreetLife {
         const a = Math.random() * Math.PI * 2;
         f.shot = { dx: Math.sin(a), dz: Math.cos(a), dist: 6 + Math.random() * 14 };
         if (Math.hypot(player.pos.x - f.x, player.pos.z - f.z) < 60 && Math.random() < 0.6) this.bubbles.say(pick(f.kids), pick(CRICKET), 2, 'kid');
+        // Now and then the ball goes through someone's window.
+        if (f.shot.dist > 15 && Math.random() < 0.25 && Math.hypot(player.pos.x - f.x, player.pos.z - f.z) < 60) {
+          f.smash = 1.4;
+        }
       }
       const k = Math.min(1, (t - 2.7) / 1.4);
       bat.phase = Math.min(Math.PI / 2, -Math.PI / 2 + (t - 2.7) * 9);
@@ -471,6 +510,12 @@ export class StreetLife {
         const sx = f.ax + f.shot.dx * f.shot.dist, sz = f.az + f.shot.dz * f.shot.dist;
         f.ball = [sx + (f.bx - sx) * r, 0.5 + Math.sin(r * Math.PI) * 2.5, sz + (f.bz - sz) * r];
       }
+    }
+    if (f.smash !== undefined && (f.smash -= dt) <= 0) {
+      f.smash = undefined;
+      this.audio.glass?.();
+      this.bubbles.say(f.kids[0], 'Kaanch tod diya! Bhaago!', 2.2, 'kid');
+      setTimeout(() => this.bubbles.say({ x: f.ax + f.fz * 8, y: 4, z: f.az - f.fx * 8 }, 'Kaun hai?! Ruko, batata hoon!', 2.6), 900);
     }
     f.lastT = t;
   }
@@ -621,6 +666,21 @@ export class StreetLife {
       if (f.type === 'cow') {
         const c = f.cow, fx = Math.sin(c.heading) * 0.6, fz = Math.cos(c.heading) * 0.6;
         if ((x - c.x - fx) ** 2 + (z - c.z - fz) ** 2 < (r + 0.6) ** 2 || (x - c.x + fx) ** 2 + (z - c.z + fz) ** 2 < (r + 0.6) ** 2) return true;
+      } else if (f.type === 'baraat') {
+        // Dancing in the street: bob, spin and shuffle forward; the band keeps the dhol going.
+        f.t += dt;
+        for (const p of f.people) {
+          p.phase += dt * (p.dance !== undefined ? 7 : 2);
+          if (p.dance !== undefined) { p.heading += Math.sin(f.t * 2 + p.dance) * dt * 1.5; p.y = this.tiles.groundHeight(p.x, p.z) + Math.abs(Math.sin(f.t * 6 + p.dance)) * 0.08; }
+          p.x += f.fx * dt * 0.15; p.z += f.fz * dt * 0.15;
+          this.people.add(p);
+        }
+        f.x += f.fx * dt * 0.15; f.z += f.fz * dt * 0.15;
+        obstacles.push([f.x, f.z, 14]);
+        const dist = Math.hypot(f.x - P.x, f.z - P.z);
+        if (dist < 70 && Math.floor(f.t * 3.2) !== f.beat) { f.beat = Math.floor(f.t * 3.2); if (f.beat % 4 !== 3) this.audio.punch?.(0.35 / (1 + dist / 15)); }
+        f.sayT -= dt;
+        if (f.sayT <= 0 && dist < 60) { f.sayT = 5 + Math.random() * 4; this.bubbles.say(pick(f.people), pick(['Aaj mere yaar ki shaadi hai!', 'Nacho! Nacho!', 'Dhol bajao!', 'Baraat aa gayi!', 'Side de do, baraat hai!']), 2.4); }
       } else if (f.type === 'breakdown') {
         const c = f.car, fx = Math.sin(c.heading) * 1.1, fz = Math.cos(c.heading) * 1.1;
         if ((x - c.x - fx) ** 2 + (z - c.z - fz) ** 2 < (r + 0.75) ** 2 || (x - c.x + fx) ** 2 + (z - c.z + fz) ** 2 < (r + 0.75) ** 2) return true;

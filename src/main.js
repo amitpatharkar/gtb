@@ -24,6 +24,7 @@ import { Navigator } from './ui/navigator.js';
 import { Landmarks } from './world/landmarks.js';
 import { StreetProps } from './world/streetProps.js';
 import { Radio } from './radio.js';
+import { Characters } from './sim/characters.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
 import { Phone } from './ui/phone.js';
@@ -103,6 +104,9 @@ const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
 const signals = new Signals(scene);
 traffic.signals = signals;
 const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
+const characters = new Characters(scene, BASE, tier, lib);
+let frameDt = 0;
+people.beforeEnd = (list) => characters.update(frameDt, camera.position, list, onFoot ? walker.person : null);
 const bubbles = new Bubbles(document.body);
 const audio = new CityAudio(lib);
 const radio = new Radio(audio);
@@ -278,6 +282,15 @@ async function teleportHome() {
 }
 let message = '', messageTimer = 0;
 const say = (text, seconds = 3) => { message = text; messageTimer = seconds; };
+// The hawaldar waves you over and walks up: pay, argue or run.
+police.onFlagStop = (f, who) => {
+  choice(`Hawaldar: "Challan ₹${police.fines.toLocaleString('en-IN')}, saheb."`, [
+    [`Pay ₹${police.fines.toLocaleString('en-IN')}`, () => police.pay(false, f, who)],
+    ['Argue ("Main toh dheere chala raha tha!")', () => police.argue(f, who)],
+    ['Drive off (more stars)', () => police.flee(f)],
+  ]);
+};
+
 // ------------------------------------------------------------------ settings, pause menu, hints
 function applySettings(st) {
   settings = st;
@@ -419,7 +432,7 @@ function choice(title, options) {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const timer = new THREE.Timer();
 // Shadows: redraw the shadow map every frame on High, every other frame below.
 renderer.shadowMap.autoUpdate = false;
@@ -442,6 +455,7 @@ renderer.setAnimationLoop((time) => {
 /** One simulation step (also used by headless tests). */
 const NO_INPUT = {};
 function step(dt) {
+  frameDt = dt;
   clock.update(dt);
   // The active body: the taxi, or the player on foot.
   const active = onFoot ? walker : player;
@@ -487,7 +501,7 @@ function step(dt) {
   if (onFoot) walker.draw(people, combat.weapon);
   for (const r of traffic.riders) {
     // Motorbike riders sit astride, hands on the handlebar; most wear helmets.
-    people.add({ x: r.x - Math.sin(r.heading) * 0.15, y: 0.5, z: r.z - Math.cos(r.heading) * 0.15, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.look.helmet ? FLAG.BERET : 0, scale: 1, ...r.look });
+    people.add({ noHero: true, x: r.x - Math.sin(r.heading) * 0.15, y: 0.5, z: r.z - Math.cos(r.heading) * 0.15, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.look.helmet ? FLAG.BERET : 0, scale: 1, ...r.look });
   }
   if (view.wheel) { pichkari.setPressure(pichkari.pressure - view.wheel); view.wheel = 0; }
   pichkari.update(dt, onFoot ? walker : null, onFoot && combat.weapon === 'pichkari' && (input.fire || input.brake), view);

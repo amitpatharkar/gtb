@@ -190,7 +190,7 @@ export class PeopleRenderer {
     this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.p = new THREE.Vector3(); this.s = new THREE.Vector3();
   }
 
-  begin() { this.n = 0; }
+  begin() { this.n = 0; this.pending = []; }
 
   /** p: { x, y, z, heading, phase, pose, amp, flags, scale, shirt, pants, skin, patches } (colours as THREE.Color). */
   /** Hide people right in front of the lens or between the camera and the player. */
@@ -207,7 +207,10 @@ export class PeopleRenderer {
     return dx * dx + dy * dy + dz * dz < 1.0;
   }
 
-  add(p) {
+  /** Queue a person for this frame (written in end(), after real characters pick theirs). */
+  add(p) { (this.pending ||= []).push(p); }
+
+  write(p) {
     if (this.n >= this.max || this.occludes(p)) return;
     const i = this.n++;
     this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, p.heading);
@@ -226,6 +229,9 @@ export class PeopleRenderer {
   }
 
   end() {
+    const list = this.pending || [];
+    this.beforeEnd?.(list);   // real rigged characters take the nearest people (p.hero)
+    for (const p of list) if (!p.hero) this.write(p);
     this.mesh.count = this.n;
     this.mesh.instanceMatrix.needsUpdate = true;
     for (const a of [this.anim, this.colA, this.colB, this.skin, ...this.splat]) a.needsUpdate = true;

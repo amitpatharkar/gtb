@@ -243,6 +243,22 @@ export class CityAudio {
     src.connect(bp).connect(g).connect(this.master); src.start(t0, 0.1, 0.2);
   }
 
+  /** Breaking glass: a crash of bright noise and a few tinkles. */
+  glass() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource(), hp = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+    src.buffer = this.noiseBuf(); hp.type = 'highpass'; hp.frequency.value = 2500;
+    g.gain.setValueAtTime(0.4, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.4);
+    src.connect(hp).connect(g).connect(this.master); src.start(t0, 0, 0.45);
+    for (let i = 0; i < 6; i++) {
+      const o = this.ctx.createOscillator(), og = this.ctx.createGain(), st = t0 + 0.05 + Math.random() * 0.5;
+      o.frequency.value = 3000 + Math.random() * 3000;
+      og.gain.setValueAtTime(0.05, st); og.gain.exponentialRampToValueAtTime(0.0005, st + 0.15);
+      o.connect(og).connect(this.master); o.start(st); o.stop(st + 0.16);
+    }
+  }
+
   /** The TV-censor beep over a gaali. */
   bleep() {
     if (!this.ctx) return;
