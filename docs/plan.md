@@ -43,6 +43,7 @@ Effort: S small, M medium, L large. ✅ done · 🟡 in progress · ⬜ to do.
 | R6 | Character bugs: feet in the ground (leg-bone scaling removed; height and foot level measured from the animated poses) ✅; running (longer stride, faster cadence, upper-body lean) ✅; old procedural figures (one draw call per character → 11/20/30 real characters within 34–46 m, incl. police with caps, seated and knocked-down people) ✅. Still procedural: far crowd, riders on NPC bikes, cricket poses | M | ✅ |
 | R7 | Adult characters and body builds: the pack's child proportions rebuilt on the skeleton (legs ×1.45 with re-baked foot and pelvis animation, head ×0.56, shorter torso, wider shoulders, longer arms); builds slim, average, fit (player), muscular, heavy, stocky, lanky, kid; men 1.73 m, women 1.6 m | M | ✅ |
 | R8 | Name: the game is "Bombay Bawaal" (`src/brand.js`); GTB stays as the code name, web address and save keys | S | ✅ |
+| R9 | Sun glare: the sky photo's sun disk is capped, so facing the sun no longer whites out the screen with bloom on Medium/High | S | ✅ |
 | R4 | Better rendering: continues in Phase 2 (lighting ✅, window depth ✅, facades, clutter, people) | — | 🟡 |
 
 ## Phase 2 — Look and feel of Mumbai at street level
@@ -80,8 +81,8 @@ Effort: S small, M medium, L large. ✅ done · 🟡 in progress · ⬜ to do.
 ## Phase 5 — Missions, quests, easter eggs
 | # | Item | Effort | Status |
 |---|---|---|---|
-| 5.1 | Mission framework v2: missions as data, saved step state, checkpoints, trigger volumes, mission-owned characters/vehicles, cutscene timelines | M | ⬜ |
-| 5.2 | 20 Bollywood-homage missions (list in `mumbai-guide-2.md` §3: Mere Paas Meter Hai, Galat Dabba, Picture Abhi Baaki Hai, Penguin Ko Pakadna Naamumkin …) | L | ⬜ |
+| 5.1 | Mission framework v2: script in `missions.js`, engine in `story.js`; story (yellow) and side (blue) strands with several missions on offer at once, givers waiting at the markers, markers on the map; steps: cutscene, drive (with vehicle requirements), passenger, fragile cargo, multi-stop errand, checkpoint race, chase on foot, counters (rides, colour, crackers), hooks into other systems; time limits, retry from the marker, re-entry after a reload; markers and targets snap to the nearest road | M | ✅ |
+| 5.2 | Missions: 5 story (Mumbai Meri Jaan, Marine Drive Ki Shaam, Pehli Sawaari, Holi Hai!, Ghar Ka Rasta → Powai) + 9 side: Mere Paas Meter Hai, Galat Dabba, Picture Abhi Baaki Hai, Penguin Ko Pakadna Naamumkin Hai, Hawaldar Khush Hua, Dhoom-Dhaam (bike race), Rangeela Re-Take (bring a Swyft to a film shoot), Romance Ka Badshah (cake to the star's villa), Phatakon Ki Raat. All play through in the headless test. Next: the other 11 ideas in `mumbai-guide-2.md` §3 | L | 🟡 |
 | 5.3 | Side jobs: dabbawala relay, BEST bus driver, tour guide, stunt driver and junior artist at Filmy City, Bhookh delivery (exists) | M | ⬜ |
 | 5.4 | Easter eggs: crocodile in Powai Lake, the film that never leaves Mahaan Mandir, escaped penguin, wax taxi at Mount Mary, Gandhigiri calm-down, Old Woman's Shoe | S each | ⬜ |
 

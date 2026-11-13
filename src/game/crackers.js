@@ -167,6 +167,7 @@ export class Crackers {
     let x = walker.pos.x + fx * 1.3, z = walker.pos.z + fz * 1.3;
     if (this.tiles.hits(x, z, 0.15)) { x = walker.pos.x; z = walker.pos.z; }
     this.light(this.current.id, x, z, 'player', walker.heading);
+    this.onLit?.(this.current.id); // missions count these
     this.tick(0.3);
     // Mumbai's rule: no crackers after 10 pm.
     const late = clock.hour >= 22 || clock.hour < 6;

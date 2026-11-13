@@ -171,9 +171,17 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   key). Clips: Idle, Walk, Punch (frozen early = guard), RecieveHit (flinch), Shoot_OneHanded (aim; pichkari in
   `Fist.R`), Victory (wave), SitDown (clamped = seated); knocked down = laid flat. Caps/helmets on the head bone.
   Still procedural: the far crowd, riders on NPC bikes, cricket poses (BAT/CROUCH).
-- `src/game/story.js` — story missions (chapter 1 "Naya Shehar": Mamaji, Shabbir bhai): markers, letterboxed cutscenes
-  (camera on the speaker, Space skips), objectives, goto/pickup/dropoff/waitHour/tasks, time limits, rewards; saved in
-  `state.s.story`
+- `src/game/story.js` + `missions.js` — the mission engine and its script. Two strands: story (yellow markers,
+  Mamaji) and side missions (blue, open after the first story mission); every startable mission shows a marker in
+  the world and on the map (`story.markers()`), with its giver waiting there; `hours` windows. Steps: `cut`
+  (letterbox, camera on the speaker, Space skips), `goto` (with `on`: vehicle/taxi/two/foot/type, `limit`,
+  `radius`, `minCondition`), `pickup`/`dropoff`, `waitHour`, `cargo` (fragile: hard braking, crashes, bumps and
+  slides cost %), `visit` (several stops), `race` (checkpoints; the clock starts when you ride off), `catch` (a
+  runaway penguin on foot), `task` rides/colour/crackers (`story.event('cracker', kind)`), `call`, `reward`.
+  Fail → retry from the marker. Script coordinates are places: `snap()` moves markers/targets onto the nearest
+  road once tiles are loaded. `story.world` gives missions access to stars, garage, crackers, police.
+  `story.playScene()` runs ad-hoc cutscenes. Saved in `state.s.story` (mission + step; re-entered after a reload).
+  Titles tip their hat to Hindi films with a twist — never real titles, lines, songs or characters.
 - `src/ui/minimap.js` — rotating radar (land, roads, traffic, petrol pumps, GPS route); `src/ui/cityMap.js` — full map
   (Tab / tap radar; pan, zoom, tap for a waypoint; game pauses). Map and GPS use `tiles/overview.bin.gz` (roads +
   simplified land, ~0.5 MB, format in `src/world/overviewFormat.js`), loaded on first use by `src/ui/mapWorker.js`,

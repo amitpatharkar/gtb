@@ -334,7 +334,10 @@ garage.combat = combat;
 const crackers = new Crackers({ scene, tiles, audio, bubbles, street, police, traffic, hud, tier, renderer });
 // Fan meets at two (fictional) film stars' houses, in Bandra and Juhu.
 const stars = new Stars({ scene, tiles, index, people, bubbles, audio, hud, story, state, crackers, traffic });
-cityMap.markers = () => stars.markers();
+cityMap.markers = () => [...stars.markers(), ...story.markers()];
+// Missions can reach into these systems (vehicle requirements, cracker counts, calling a star out, clearing challans).
+Object.assign(story.world, { stars, garage, crackers, police });
+crackers.onLit = (kind) => story.event('cracker', kind);
 // Collisions with other vehicles: riders come off their bikes, drivers shout, hard hits are hit-and-run.
 traffic.onRiderDown = (bike) => { garage.eject(bike, null, 'down'); if (!onFoot) police.offence('hitrun', player); };
 traffic.onShunt = (car, dv) => { if (dv > 1.5) bubbles.say(car, ['Arre! Andha hai kya?!', 'Gaadi thok di!', 'Dekh ke chala!', 'Mera bumper!'][Math.floor(Math.random() * 4)], 2.5, 'driver'); };

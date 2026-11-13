@@ -134,14 +134,21 @@ function analyseSky(hdr) {
   const sun = new THREE.Vector3(Math.cos(phi) * Math.cos(elev), Math.sin(elev), Math.sin(phi) * Math.cos(elev));
 
   // Copy with bright pixels squashed (the directional light provides the sun instead).
+  // The visible sky keeps its sun, but capped: the photo's sun disk is thousands of times
+  // brighter than white, and with bloom it washed out the whole screen whenever the camera
+  // faced it.
   const out = new Float32Array(w * h * 4);
-  const MAX = 6;
+  const MAX = 6, CAP = 18;
+  const set = half ? (i, v) => { data[i] = THREE.DataUtils.toHalfFloat(v); } : (i, v) => { data[i] = v; };
+  let capped = false;
   for (let i = 0; i < w * h; i++) {
     const r = get(i * 4), g = get(i * 4 + 1), b = get(i * 4 + 2);
     const l = (r + g + b) / 3;
     const k = l > MAX ? MAX / l : 1;
     out[i * 4] = r * k; out[i * 4 + 1] = g * k; out[i * 4 + 2] = b * k; out[i * 4 + 3] = 1;
+    if (l > CAP) { const c = CAP / l; set(i * 4, r * c); set(i * 4 + 1, g * c); set(i * 4 + 2, b * c); capped = true; }
   }
+  if (capped) hdr.needsUpdate = true;
   const withoutSun = new THREE.DataTexture(out, w, h, THREE.RGBAFormat, THREE.FloatType);
   withoutSun.mapping = THREE.EquirectangularReflectionMapping;
   withoutSun.colorSpace = THREE.LinearSRGBColorSpace;
