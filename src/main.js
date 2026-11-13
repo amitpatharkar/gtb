@@ -121,7 +121,7 @@ const bubbles = new Bubbles(document.body);
 const audio = new CityAudio(lib);
 const radio = new Radio(audio);
 const minimap = new Minimap($('minimap'), tiles, index.fuel || []);
-const cityMap = new CityMap({ index, baseUrl: `${BASE}tiles/`, fuel: index.fuel || [], hud: { message: (t) => say(t, 4) } });
+const cityMap = new CityMap({ index, tiles, baseUrl: `${BASE}tiles/`, fuel: index.fuel || [], hud: { message: (t) => say(t, 4) } });
 minimap.nav = cityMap;
 const navigator = new Navigator(scene, cityMap, tiles);
 $('minimap').addEventListener('click', () => cityMap.toggle(true, player));

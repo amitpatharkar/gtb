@@ -75,15 +75,8 @@ export class Jobs {
 
   /** A destination far enough away, on the road graph, with a place name. */
   async findDestination(player) {
-    await this.cityMap.load();
-    const nodes = this.cityMap.nodes;
-    for (let tries = 0; tries < 200; tries++) {
-      const n = nodes[Math.floor(Math.random() * nodes.length)];
-      const d = Math.hypot(n.x - player.pos.x, n.z - player.pos.z);
-      if (d < 700 || d > 2600 || n.adj.length < 2) continue;
-      return { x: n.x, z: n.z, name: this.placeName(n.x, n.z) };
-    }
-    return null;
+    const n = await this.cityMap.randomPlace(player.pos.x, player.pos.z, 700, 2600);
+    return n ? { x: n.x, z: n.z, name: this.placeName(n.x, n.z) } : null;
   }
 
   placeName(x, z) {
@@ -95,6 +88,19 @@ export class Jobs {
       ['CST station', 18.9400, 72.8355], ['Crawford Market', 18.9475, 72.8340], ['Kalbadevi', 18.9485, 72.8290], ['Girgaon Chowpatty', 18.9545, 72.8150],
       ['Malabar Hill', 18.9560, 72.8040], ['Dongri', 18.9580, 72.8370], ['Grant Road', 18.9630, 72.8160], ['Mazgaon', 18.9660, 72.8450], ['Charni Road', 18.9520, 72.8190],
       ['Metro Cinema junction', 18.9430, 72.8290], ['Regal Circle', 18.9255, 72.8320], ['Sassoon Dock', 18.9115, 72.8255],
+      // The island city north of Byculla and the suburbs (real places, parody names for famous ones).
+      ['Byculla station', 18.9765, 72.8325], ['Haji Aali Shrine', 18.9805, 72.8105], ['Mahalaxmi station', 18.9825, 72.8240],
+      ['Lower Parel mills', 18.9970, 72.8270], ['Worli Sea Face', 19.0150, 72.8165], ['Worli Koliwada', 19.0237, 72.8168],
+      ['Siddhi-Vinayaka Mandir', 19.0169, 72.8303], ['Parel, Lalbaug', 18.9960, 72.8410], ['Dadar station', 19.0190, 72.8435],
+      ['Shivaji Park', 19.0270, 72.8385], ['Matunga, Five Gardens', 19.0255, 72.8560], ['Mahim', 19.0400, 72.8410],
+      ['Dharavi', 19.0440, 72.8555], ['Sion circle', 19.0415, 72.8635], ['Bandra Bandstand', 19.0505, 72.8215],
+      ['Bandra, Hill Road', 19.0556, 72.8330], ['Bandra station', 19.0545, 72.8405], ['Carter Road', 19.0650, 72.8228],
+      ['BKC', 19.0650, 72.8650], ['Khar, Linking Road', 19.0700, 72.8350], ['Santacruz station', 19.0820, 72.8410],
+      ['Juhu Beach', 19.0980, 72.8265], ['Juhu Tara Road', 19.1040, 72.8275], ['Vile Parle', 19.0995, 72.8440],
+      ['Chhatrapati Udaan Airport', 19.0990, 72.8740], ['Kurla station', 19.0655, 72.8790], ['Andheri station', 19.1197, 72.8464],
+      ['Andheri, Lokhandwala', 19.1420, 72.8270], ['Marol', 19.1180, 72.8790], ['Saki Naka', 19.1035, 72.8880],
+      ['Chembur', 19.0600, 72.8990], ['Ghatkopar station', 19.0860, 72.9080], ['Powai Lake', 19.1241, 72.8977],
+      ['Hiranandani Gardens', 19.1170, 72.9100],
     ]) {
       const px = (lon - idx.origin.lon) * idx.metresPerDegree.lon, pz = -(lat - idx.origin.lat) * idx.metresPerDegree.lat;
       const d = Math.hypot(px - x, pz - z);

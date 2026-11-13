@@ -24,6 +24,7 @@ import * as C from './lib/clip.mjs';
 import { FOOTPATH, isVehicle, junctions, markings, streetFurniture, treeKind } from './lib/streets.mjs';
 import { districtAt, pickStyle, STYLE } from './lib/districts.mjs';
 import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, POINT, MAGIC, TILE_VERSION, DM } from '../src/world/tileFormat.js';
+import { OVERVIEW_MAGIC, OVERVIEW_VERSION, OVERVIEW_LAYER } from '../src/world/overviewFormat.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(
@@ -766,7 +767,9 @@ function addLines(list, put, tolerance = 0.2, mustKeep = null) {
   }
   return n;
 }
-const roadName = (t) => t.name || t['name:en'] || t.ref || ''; // one name per road: the signposted `name` first
+// Names of private homes of film stars (and the like) are never shown, even on a lane.
+const PRIVATE_NAMES = /\b(mannat|jalsa|antilia|prateeksha)\b/i;
+const roadName = (t) => { const n = t.name || t['name:en'] || t.ref || ''; return PRIVATE_NAMES.test(n) ? '' : n; }; // one name per road: the signposted `name` first
 
 // OSM often spells one road several ways along its length ("P J Ramchandani Marg",
 // "Prem J. Ramchandani Road", "Apollo Bandar Road/P J Ramchandani Marg"). Pieces that touch
@@ -936,6 +939,93 @@ for (const t of ordered) {
   total += gz.length;
 }
 
+// ---------------------------------------------------------------- overview (full map + GPS)
+// One small file for the full-screen map and route finding (src/ui/mapWorker.js), so neither
+// needs every tile. Format: src/world/overviewFormat.js.
+const OQ = 2; // grid units per metre
+function writeOverview() {
+  const w = new ByteWriter();
+  OVERVIEW_MAGIC.forEach((m) => w.u8(m));
+  w.uvar(OVERVIEW_VERSION);
+  w.uvar(OQ);
+  let cx = 0, cz = 0;
+  const grid = (pts) => {
+    const q = [];
+    for (const [x, z] of pts) {
+      const a = Math.round(x * OQ), b = Math.round(z * OQ), l = q[q.length - 1];
+      if (!l || l[0] !== a || l[1] !== b) q.push([a, b]);
+    }
+    return q;
+  };
+  const put = (q) => { w.uvar(q.length); for (const [a, b] of q) { w.svar(a - cx); w.svar(b - cz); cx = a; cz = b; } };
+  const cell = (q) => Math.floor(q[0][1] / (T * OQ)) * 100000 + Math.floor(q[0][0] / (T * OQ)); // tile order compresses better
+
+  // Vehicle roads: whole ways clipped to the box, junction points kept so the graph connects.
+  const roads = [], names = new Map();
+  for (const r of roadsRaw) {
+    if (!isVehicle(r.info.cls)) continue;
+    const name = r.canon || roadName(r.tags);
+    for (const part of clipPolyline(r.pts, BOX)) {
+      const q = grid(G.simplifyLine(part, 1, isJunction));
+      if (q.length < 2) continue;
+      if (name && !names.has(name)) names.set(name, names.size);
+      roads.push({ cls: r.info.cls, flags: r.info.flags & ROAD_FLAG.ONEWAY ? 1 : 0, name: name ? names.get(name) : -1, q });
+    }
+  }
+  roads.sort((a, b) => cell(a.q) - cell(b.q));
+  w.uvar(names.size);
+  for (const n of names.keys()) w.string(n);
+  w.uvar(roads.length);
+  for (const r of roads) { w.u8(r.cls); w.u8(r.flags); w.uvar(r.name + 1); put(r.q); }
+
+  const rails = [];
+  for (const r of railsRaw) {
+    if (r.info.cls !== RAIL.MAIN) continue;
+    for (const part of clipPolyline(r.pts, BOX)) { const q = grid(G.simplifyLine(part, 3)); if (q.length >= 2) rails.push(q); }
+  }
+  rails.sort((a, b) => cell(a) - cell(b));
+  w.uvar(rails.length);
+  rails.forEach(put);
+
+  // Areas: outer rings positive, holes negative; small ones left out.
+  const polysOf = (list, tol, minArea) => {
+    const out = [];
+    for (const poly of list) {
+      const rings = [];
+      for (let i = 0; i < poly.length; i++) {
+        const ring = G.openRing(poly[i]);
+        if (Math.abs(G.signedArea(ring)) < (i ? minArea / 2 : minArea)) { if (!i) break; continue; }
+        let q = grid(G.simplifyRing(ring, tol));
+        if (q.length > 1 && q[0][0] === q[q.length - 1][0] && q[0][1] === q[q.length - 1][1]) q.pop();
+        if (q.length < 3) { if (!i) break; continue; }
+        if ((G.signedArea(q) > 0) !== (i === 0)) q = q.reverse();
+        rings.push(q);
+      }
+      if (rings.length) out.push(rings);
+    }
+    return out.sort((a, b) => cell(a[0]) - cell(b[0]));
+  };
+  const of = (pred) => areasRaw.filter(pred).flatMap((a) => a.polys);
+  const layers = [
+    [OVERVIEW_LAYER.LAND, polysOf(landRings.map((r) => [r]), 3, 50)],
+    [OVERVIEW_LAYER.WATER, polysOf(water, 3, 300)],
+    [OVERVIEW_LAYER.GREEN, polysOf(of((a) => a.kind === AREA.GRASS || a.kind === AREA.WOOD || a.kind === AREA.PITCH), 2, 150)],
+    [OVERVIEW_LAYER.SAND, polysOf(of((a) => a.kind === AREA.SAND), 2, 150)],
+    [OVERVIEW_LAYER.PAVED, polysOf(of((a) => a.aero && a.kind === AREA.PAVED), 2, 150)],
+  ];
+  w.uvar(layers.length);
+  for (const [kind, polys] of layers) {
+    w.u8(kind);
+    w.uvar(polys.length);
+    for (const rings of polys) { w.uvar(rings.length); rings.forEach(put); }
+  }
+  const gz = zlib.gzipSync(w.result(), { level: 9 });
+  fs.writeFileSync(path.join(CFG.out, 'overview.bin.gz'), gz);
+  log(`overview: ${roads.length} roads, ${names.size} names, ${rails.length} rails, ${layers.map(([, p]) => p.length).join('/')} land/water/green/sand/paved polygons → ${(gz.length / 1024).toFixed(0)} KB`);
+  return { file: 'overview.bin.gz', bytes: gz.length };
+}
+const overview = writeOverview();
+
 const meta = {
   format: TILE_VERSION,
   name: CFG.name,
@@ -948,6 +1038,7 @@ const meta = {
   tileSize: T,
   bounds: { minX: BOX[0], minZ: BOX[1], maxX: BOX[2], maxZ: BOX[3] },
   spawn,
+  overview,
   fuel: fuelStations,
   landmarks,
   tiles: index,
