@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { addMacroVariation } from './textures.js';
 import { makeFacadeMaterial, makeSignAtlas } from './facade.js';
+import { makeHoardingAtlas, makeHoardingMaterial } from './hoardings.js';
 
 // Materials for tile meshes, keyed like the worker's mesh keys. Each starts with a flat
 // colour and switches to a real photo-scanned texture set when it has loaded.
@@ -112,6 +113,11 @@ export function createMaterials(renderer, lib, tier) {
       return w;
     }),
   };
+  // Rooftop hoardings share the sign fonts: redrawing the shop signs redraws the ads too.
+  const ads = makeHoardingAtlas();
+  m.hoarding = makeHoardingMaterial(ads.texture);
+  const redrawSigns = signs.redraw;
+  signs.redraw = (families) => { redrawSigns(families); ads.redraw(families); };
   m.signs = signs;
   return m;
 }

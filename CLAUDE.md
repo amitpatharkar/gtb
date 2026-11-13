@@ -75,6 +75,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   at night) and the shop-sign atlas (128 boards, Marathi in Devanagari over English, BMC style; fonts from `media/`).
   Per-building attributes MUST stay `flat` varyings (interpolation noise + hashing = speckle). Debug:
   `window.__gtb.facadeDebug.value = 1..4` (albedo, roughness, normal, window grid).
+- `src/world/hoardings.js` + `mesh/hoardingMesh.js` — rooftop hoardings: `ADS` (30 parody ads; every brand, film
+  and star is made up) drawn into one 2048² canvas atlas (4 × 8 cells, last two = steel), redrawn with the sign
+  fonts (`signs.redraw` in materials.js); the worker adds a board + posts over the longest street-facing wall of
+  some buildings (mesh key `hoarding`, max 8 per tile); material is lit at night through `facadeNight`.
 - `src/world/props.js` — procedural instanced props by point kind: rain tree, gulmohar (in bloom), peepal, coconut palm
   (alpha-tested leaf cards), street light, traffic signal, BEST bus shelter, pothole and puddle decals, garbage pile,
   thela with umbrella, petrol pump canopy, sea-wall tetrapods

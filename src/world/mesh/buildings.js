@@ -4,6 +4,7 @@ import { BUILDING_FLAG } from '../tileFormat.js';
 import { Y } from '../levels.js';
 import { MeshBuilder, wall, flatPolygon, linear, rand, signedArea, pointInRing, WHITE } from './builder.js';
 import { WINDOW_RECT, SHOP_STOREY, K, cellHash, cellFeatures } from '../facadeRules.js';
+import { addHoarding, HOARDING } from './hoardingMesh.js';
 
 // 3D facade parts (instanced near the player): 7 floats each — x, y, z, yaw, width, height, colour/extra.
 export const PART_TYPES = ['frame', 'sill', 'chajja', 'grille', 'ac', 'balcony', 'sign', 'shutterBox'];
@@ -69,6 +70,7 @@ export function buildBuildings(t, ox, oz, toWorld) {
   const walls = (style) => b.get(`walls${style}`) || b.set(`walls${style}`, new MeshBuilder(FACADE_FLOATS)).get(`walls${style}`);
   const get = (key) => b.get(key) || b.set(key, new MeshBuilder()).get(key);
   const tanks = [], solid = [];
+  let hoardings = 0; // per tile
   const parts = Object.fromEntries(PART_TYPES.map((k) => [k, []]));
 
   t.buildings.forEach((bd, bi) => {
@@ -212,6 +214,23 @@ export function buildBuildings(t, ox, oz, toWorld) {
         const ring = new Float32Array(pts.flat());
         flatPolygon(get('roof'), [ring], h + hh, roofTint, ox, oz);
         m.cur[4] = h;
+      }
+    }
+
+    // A rooftop hoarding over the longest street-facing wall of some mid-rise buildings
+    // (more on shopping streets; not on heritage stone, sheds, glass towers or huts).
+    if (!canopy && hoardings < 8 && levels >= 2 && h >= 7 && h <= 60 && ![3, 4, 6, 7].includes(style) && rand(bi, 91) < (bd.flags & BUILDING_FLAG.SHOPS ? 0.2 : 0.1)) {
+      let best = -1, bl = 9;
+      const n = outer.length / 2;
+      for (let i = 0; i < n; i++) {
+        if (!bd.front[i]) continue;
+        const j = (i + 1) % n, len = Math.hypot(outer[j * 2] - outer[i * 2], outer[j * 2 + 1] - outer[i * 2 + 1]);
+        if (len > bl) { bl = len; best = i; }
+      }
+      if (best >= 0) {
+        const j = (best + 1) % n, ax = outer[best * 2], az = outer[best * 2 + 1], bx = outer[j * 2], bz = outer[j * 2 + 1];
+        addHoarding(get('hoarding'), ax, az, bx, bz, (bz - az) / bl, -(bx - ax) / bl, top, Math.floor(rand(bi, 92) * HOARDING.ADS));
+        hoardings++;
       }
     }
 
