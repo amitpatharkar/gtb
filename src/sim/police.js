@@ -255,6 +255,7 @@ export class Police {
   // ------------------------------------------------------------------ player offences
   offence(kind, player) {
     const [name, amount] = FINES[kind];
+    this.offences = (this.offences || 0) + 1;
     const w = this.witness(player.pos.x, player.pos.z);
     if (!w) {
       if (kind === 'red' && Math.random() < 0.6) this.hud.message(`${name}. Nobody saw… this time.`);
@@ -331,7 +332,7 @@ export class Police {
   pay(caught, by, player) {
     const extra = caught ? 500 * this.stars : 0;
     const total = this.fines + extra;
-    player.money -= total;
+    if (player.pay) player.pay(total, 'Traffic challan'); else player.money -= total;
     this.hud.message(caught ? `Pakde gaye! Paid ${rupees(total)} in challans` : `Paid ${rupees(total)} challan`);
     const anchor = by.site ? by : by.car.pos;
     this.bubbles.say(anchor, pick(COP_SAYS.paid), 2.8, 'cop');

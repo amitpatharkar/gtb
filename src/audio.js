@@ -135,6 +135,20 @@ export class CityAudio {
     this.sirenNode.g.gain.setTargetAtTime(Math.min(0.12, volume * 0.12), this.ctx.currentTime, 0.2);
   }
 
+  /** Musical horn (Dukaan upgrade): a cheeky little tune. */
+  musicalHorn() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    const notes = [523, 523, 523, 698, 880, 523, 523, 523, 698, 880];
+    notes.forEach((f, i) => {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = 'sawtooth'; o.frequency.value = f;
+      const st = t0 + i * 0.13;
+      g.gain.setValueAtTime(0, st); g.gain.linearRampToValueAtTime(0.09, st + 0.01); g.gain.setValueAtTime(0.09, st + 0.1); g.gain.linearRampToValueAtTime(0, st + 0.12);
+      o.connect(g).connect(this.master); o.start(st); o.stop(st + 0.13);
+    });
+  }
+
   toggleMute() {
     if (!this.ctx) return;
     this.muted = !this.muted;

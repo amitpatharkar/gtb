@@ -51,8 +51,8 @@ canvas { display: block; }
   box-shadow: 0 2px 10px #0007;
   display: block;
 }
-.meter { display: flex; align-items: center; gap: 6px; margin-top: 5px; color: #fff; font-size: 11px; font-weight: 700; text-shadow: 0 1px 2px #000; }
-.meter span { width: 28px; }
+.meter { display: flex; align-items: center; gap: 6px; margin-top: 3px; color: #fff; font-size: 11px; font-weight: 700; text-shadow: 0 1px 2px #000; }
+.meter span { width: 42px; }
 .meter .bar { flex: 1; height: 7px; background: #0008; border-radius: 4px; overflow: hidden; }
 .meter .bar div { height: 100%; width: 60%; background: #f7c600; transition: width 0.3s; }
 #cond-bar { background: #4caf50 !important; }
@@ -222,3 +222,40 @@ canvas { display: block; }
 #map-screen .map-credit { position: absolute; right: 14px; bottom: 8px; color: #fff; font: 11px system-ui; opacity: 0.85; }
 #minimap { cursor: pointer; pointer-events: auto; }
 @media (max-width: 700px) { #map-screen .map-hint { display: none; } }
+
+/* Job panel (taxi meter, deliveries) */
+#job { position: fixed; top: 132px; left: 12px; background: #000b; color: #fff; padding: 9px 12px; border-radius: 10px; font: 13px/1.5 system-ui, sans-serif; min-width: 230px; pointer-events: none; border-left: 4px solid #f7c600; }
+#job b.hire { color: #f7c600; letter-spacing: 1px; }
+#job .bad { color: #ff7a6b; font-weight: 700; }
+#job .bar { display: inline-block; width: 90px; height: 7px; background: #fff3; border-radius: 4px; vertical-align: middle; overflow: hidden; }
+#job .bar i { display: block; height: 100%; }
+
+/* Phone */
+#btn-phone { position: fixed; right: 14px; bottom: 34px; z-index: 6; width: 46px; height: 46px; border-radius: 12px; border: 0; background: #111c; font-size: 24px; cursor: pointer; }
+#btn-phone[data-unread]:not([data-unread=""])::after { content: attr(data-unread); position: absolute; top: -4px; right: -4px; background: #e53935; color: #fff; font: 700 11px system-ui; border-radius: 9px; padding: 1px 5px; }
+#phone { box-sizing: border-box; position: fixed; right: 18px; bottom: 90px; width: 300px; height: 590px; max-height: calc(100vh - 110px); z-index: 15; background: #0d0d0f; border-radius: 34px; padding: 12px 10px 46px; box-shadow: 0 10px 40px #000a, inset 0 0 0 2px #333; display: flex; flex-direction: column; }
+#phone .bar { display: flex; justify-content: space-between; color: #fff; font: 600 11px system-ui; padding: 2px 14px 6px; }
+#phone .screen { flex: 1; overflow-y: auto; border-radius: 22px; background: linear-gradient(160deg, #ffb347, #ff5e62 45%, #6a3093); color: #111; font: 13px/1.4 system-ui, sans-serif; position: relative; }
+#phone .homebtn { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); width: 110px; height: 6px; border-radius: 3px; border: 0; background: #ddd; cursor: pointer; }
+#phone .widget { margin: 14px; padding: 12px; border-radius: 16px; background: #fff5; backdrop-filter: blur(6px); color: #fff; text-shadow: 0 1px 2px #0006; }
+#phone .w-time { font: 800 30px system-ui; }
+#phone .meters { display: flex; gap: 12px; margin-top: 4px; }
+#phone .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px 4px; padding: 6px 10px; }
+#phone .grid button { background: none; border: 0; color: #fff; font: 600 10px system-ui; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; text-shadow: 0 1px 2px #0008; }
+#phone .grid i { font-style: normal; font-size: 24px; width: 50px; height: 50px; border-radius: 14px; display: grid; place-items: center; box-shadow: 0 2px 6px #0004; }
+#phone .apphead { position: sticky; top: 0; color: #fff; font: 700 16px system-ui; padding: 12px 10px; display: flex; align-items: center; gap: 8px; z-index: 1; }
+#phone .apphead button { background: #fff3; border: 0; color: #fff; font: 700 20px system-ui; border-radius: 8px; width: 30px; height: 30px; cursor: pointer; }
+#phone .pad { background: #fff; min-height: 100%; padding: 12px; }
+#phone .row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #eee; }
+#phone .row span { flex: 1; }
+#phone .row small { color: #777; }
+#phone .row button, #phone .pad > button { border: 1px solid #ccc; background: #f6f6f6; border-radius: 8px; padding: 5px 9px; font: 600 12px system-ui; cursor: pointer; }
+#phone button.primary { background: #111; color: #fff; border-color: #111; padding: 9px 14px; }
+#phone .big { font: 800 22px system-ui; margin: 6px 0 10px; }
+#phone .small { color: #666; font-size: 12px; }
+#phone .cart { background: #f4f4f4; border-radius: 8px; padding: 8px; margin: 10px 0; font-size: 12px; }
+#phone .msg { background: #eef7ee; border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+#phone .good { color: #1e8e3e; } #phone .bad { color: #d93025; }
+#phone .toast { position: absolute; left: 12px; right: 12px; bottom: 12px; background: #111; color: #fff; padding: 10px; border-radius: 10px; text-align: center; z-index: 2; }
+body.photo #hud, body.photo #status, body.photo #radar, body.photo #message, body.photo #job, body.photo #btn-phone, body.photo #touch, body.photo #bubbles { visibility: hidden; }
+@media (max-width: 700px) { #phone { right: 8px; left: 8px; width: auto; bottom: 80px; } #job { top: 112px; font-size: 12px; } }

@@ -20,6 +20,9 @@ import { Bubbles } from './ui/bubbles.js';
 import { StreetLife } from './sim/street.js';
 import { Animals } from './sim/animals.js';
 import { CityMap } from './ui/cityMap.js';
+import { GameState } from './game/state.js';
+import { Jobs } from './game/jobs.js';
+import { Phone } from './ui/phone.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
@@ -72,11 +75,15 @@ $('minimap').addEventListener('click', () => cityMap.toggle(true, player));
 const taxi = createTaxi();
 scene.add(taxi.root);
 const player = new Car(taxi);
-player.money = 2000; // ₹ in the wallet
+const state = new GameState();
+Object.defineProperty(player, 'money', { get: () => state.money, set: (v) => { state.money = v; } }); // ₹ in the wallet
+player.pay = (amount, what) => state.pay(amount, what);
 const hud = { message: (t) => say(t, 4) };
 const police = new Police({ scene, tiles, traffic, signals, people, audio, bubbles, hud });
 const animals = new Animals(scene);
 const street = new StreetLife({ scene, tiles, traffic, signals, people, animals, bubbles, audio, police, tier, hud });
+const jobs = new Jobs({ scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street });
+const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => cycleTier(tierKey), onPhoto: () => takePhoto() });
 const world = {
   hits: (x, z, r) => tiles.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r),
   groundHeight: (x, z) => tiles.wheelHeight(x, z),
@@ -140,14 +147,41 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && cityMap.open) { cityMap.toggle(false); return; }
   if (cityMap.open) return;
   if (e.code === 'KeyQ') cycleTier(tierKey);
-  if (e.code === 'KeyH') { audio.play('horn', 0.9); street.onHorn(); }
+  if (e.code === 'KeyH') honk();
+  if (e.code === 'KeyP') phone.toggle();
+  if (e.code === 'Escape' && phone.open) phone.toggle(false);
+  if (e.code === 'KeyJ') jobs.toggleDuty(player);
+  if (e.code === 'KeyE' && !jobs.buySnack(player)) say('Stop next to a thela (food cart) and press E to buy a snack', 2.5);
   if (e.code === 'KeyT') { clock.hour = (clock.hour + 1) % 24; say(`Time: ${clock.label}`, 1.5); }
   if (e.code === 'KeyM') audio.toggleMute();
   if (e.code === 'KeyF') refuel();
 });
 addEventListener('pointerdown', () => audio.start());
 for (const id of ['btn-horn', 'btn-fuel']) {
-  $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); if (id === 'btn-horn') { audio.play('horn', 0.9); street.onHorn(); } else refuel(); });
+  $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); if (id === 'btn-horn') honk(); else refuel(); });
+}
+
+function honk() {
+  if (state.owns('horn')) audio.musicalHorn?.(); else audio.play('horn', 0.9);
+  street.onHorn();
+  jobs.honk();
+}
+$('btn-phone').addEventListener('click', (e) => { e.preventDefault(); audio.start(); phone.toggle(); });
+
+/** Camera app: hide the HUD for one frame and save a screenshot. */
+function takePhoto() {
+  document.body.classList.add('photo');
+  post.render();
+  renderer.domElement.toBlob((blob) => {
+    document.body.classList.remove('photo');
+    if (!blob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `gtb-mumbai-${Date.now()}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    say('Photo saved', 2);
+  });
 }
 
 function nearestPump() {
@@ -163,14 +197,14 @@ function refuel() {
   if (!p || p.d > 16) { say('No petrol pump here — find ⛽ on the map'); return; }
   if (Math.abs(player.speed) > 1) { say('Stop at the pump to fill up'); return; }
   const litres = Math.round((1 - player.fuel) * 35);
-  player.money -= litres * 103;
+  if (litres) state.pay(litres * 103, `Petrol ${litres} L`);
   player.fuel = 1;
   player.condition = Math.min(1, player.condition + 0.2);
   say(litres ? `Filled ${litres} litres · ₹${litres * 103} · tyres and water checked` : 'Tank already full');
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone };
 const timer = new THREE.Timer();
 let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 renderer.setAnimationLoop((time) => {
@@ -216,6 +250,9 @@ function step(dt) {
   }
   audio.update(seaFactor, clock.traffic, clock.daylight);
   cityMap.update(dt, player);
+  state.update(dt, clock);
+  jobs.update(dt, player);
+  phone.update(dt);
   minimap.update(dt, player, traffic);
   hudTimer -= dt;
   messageTimer -= dt;
@@ -265,6 +302,10 @@ function updateHud() {
   $('fuel-bar').style.width = `${Math.round(player.fuel * 100)}%`;
   $('fuel-bar').style.background = player.fuel < 0.15 ? '#e74c3c' : '#f7c600';
   $('cond-bar').style.width = `${Math.round(player.condition * 100)}%`;
+  $('food-bar').style.width = `${Math.round(state.s.hunger * 100)}%`;
+  $('food-bar').style.background = state.s.hunger < 0.2 ? '#e74c3c' : '#f39c12';
+  $('energy-bar').style.width = `${Math.round(state.s.energy * 100)}%`;
+  $('btn-phone').dataset.unread = state.unread || '';
   $('money').textContent = `₹${player.money.toLocaleString('en-IN')}`;
   $('money').classList.toggle('debt', player.money < 0);
   const w = $('wanted');
@@ -278,7 +319,9 @@ function updateHud() {
     if (!police.flagger && !(police.stars >= 2 && police.patrols.length)) message = player.fuel <= 0 ? 'Out of fuel! Press R to get towed back' :
       p && p.d < 16 ? 'Petrol pump: stop and press F to fill up' :
       player.fuel < 0.12 ? 'Low fuel — find ⛽ on the map' :
-      player.condition < 0.35 ? 'Car is battered: get it checked at a ⛽' : '';
+      player.condition < 0.35 ? 'Car is battered: get it checked at a ⛽' :
+      state.s.hunger < 0.15 ? 'Pet mein chuhe daud rahe hain! Eat at a thela (E) or order on Bhookh (P)' :
+      state.s.energy < 0.12 ? 'So tired… have a cutting chai (E at a thela)' : '';
   }
   $('message').textContent = message;
   $('message').style.opacity = message ? 1 : 0;
