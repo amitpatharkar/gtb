@@ -264,6 +264,7 @@ function taxiHits(x, z, r) {
  * F: get out of the vehicle (driver's side, right-hand drive). On foot, F gets into the
  * nearest vehicle: the one you left, your taxi, or anybody else's (that is a theft).
  */
+let footHints = 0;
 function toggleFoot() {
   if (interiors?.inside) { say('Step outside first', 1.5); return; } // no vehicles indoors
   if (!onFoot) {
@@ -275,7 +276,8 @@ function toggleFoot() {
     walker.heading = h; walker.speed = 0;
     onFoot = true;
     if (jobs.ride?.stage === 'ride') say('Your passenger is waiting in the taxi!', 3);
-    say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · X light a cracker (Z changes it) · F gets into the nearest vehicle', 6);
+    // The long reminder only the first couple of times: it hides door prompts while it is up.
+    if ((footHints = (footHints || 0) + 1) <= 2) say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · X light a cracker (Z changes it) · E at a glowing door goes in · F gets into the nearest vehicle', 6);
   } else {
     // Nearest of: what you were driving, your parked taxi, anything else on the street.
     const wx = walker.pos.x, wz = walker.pos.z;
