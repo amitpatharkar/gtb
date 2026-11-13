@@ -1,6 +1,7 @@
 # Blender (headless) script: convert FBX files to binary glTF (.glb), keeping animations.
 #   blender -b --factory-startup -P scripts/assets/fbx2glb.py -- in1.fbx out1.glb [in2.fbx out2.glb ...]
 # Prints one line per file ("converted …" or "FAILED …") so the pipeline can log the result.
+import os
 import sys
 import traceback
 import addon_utils
@@ -23,9 +24,11 @@ for src, dst in zip(args[0::2], args[1::2]):
         for coll in (bpy.data.meshes, bpy.data.armatures, bpy.data.actions, bpy.data.materials, bpy.data.images):
             for item in list(coll):
                 coll.remove(item)
+        # Blender 4.2+ importers take a directory plus a list of files (5.0 fails without them).
+        kw = dict(filepath=src, directory=os.path.dirname(src) + os.sep, files=[{'name': os.path.basename(src)}])
         try:
-            bpy.ops.import_scene.fbx(filepath=src, automatic_bone_orientation=True)
-        except TypeError:  # option renamed or removed in newer Blender versions
+            bpy.ops.import_scene.fbx(**kw)
+        except TypeError:  # older Blender: no directory/files options
             bpy.ops.import_scene.fbx(filepath=src)
         bpy.ops.export_scene.gltf(filepath=dst, export_format='GLB', export_animations=True, export_yup=True, export_apply=False)
         print('converted', src, '->', dst, flush=True)
