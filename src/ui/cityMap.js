@@ -89,7 +89,7 @@ export class CityMap {
 
   /** A random spot on the road network min..max metres from (x, z) (taxi fares): { x, z } or null. */
   async randomPlace(x, z, min, max) {
-    await this.load();
+    try { await this.load(); } catch { return null; }
     return this.call('random', { x, z, min, max });
   }
 
@@ -129,7 +129,7 @@ export class CityMap {
 
   /** Route to a place from outside the map (phone apps, missions). */
   async routeTo(x, z, label) {
-    await this.load();
+    try { await this.load(); } catch { this.hud.message('GPS unavailable right now'); return; }
     this.setWaypoint({ x, z, label });
   }
 
