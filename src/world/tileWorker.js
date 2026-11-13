@@ -6,7 +6,10 @@ import { buildGround } from './mesh/ground.js';
 import { buildBuildings } from './mesh/buildings.js';
 
 const GRID_CELL = 16; // metres, collision grid
-const UV_PERIOD = 8;  // tiles (4 km): ground UVs stay under ~4 km, well inside float32 precision
+// Ground UVs wrap every UV_PERIOD metres: a common multiple of the ground texture sizes in
+// materials.js (1.5, 1.6, 1.8, 2, 2.4, 2.6, 3, 3.2, 3.6 and 6 m), so the wrap does not show
+// (only the 2.2 m pitch and dirt textures shift at those lines). Keep it in step with materials.js.
+const UV_PERIOD = 1872;
 
 /** Uniform grid over item bounding boxes, stored as compressed rows (CSR). */
 function buildGrid(boxes, count, transfer) {
@@ -66,11 +69,9 @@ function buildTile(t) {
   const transfer = [];
   const ox = (t.tx + 0.5) * t.size, oz = (t.tz + 0.5) * t.size; // tile centre in world metres
   const toWorld = (r) => { const w = new Float32Array(r.length); for (let i = 0; i < r.length; i += 2) { w[i] = r[i] + ox; w[i + 1] = r[i + 1] + oz; } return w; };
-  // Ground texture coordinates are metres from a UV origin that repeats every UV_PERIOD tiles,
+  // Ground texture coordinates are metres from a nearby UV origin (a multiple of UV_PERIOD),
   // not from the world origin: float32 UVs 15–25 km out step by 1–2 texels and look blocky.
-  // Textures still line up across tile seams, except on the lines every UV_PERIOD × 500 m.
-  const P = t.size * UV_PERIOD;
-  const uvX = ox - P * Math.floor(ox / P), uvZ = oz - P * Math.floor(oz / P);
+  const uvX = ox - UV_PERIOD * Math.floor(ox / UV_PERIOD), uvZ = oz - UV_PERIOD * Math.floor(oz / UV_PERIOD);
 
   const { builders: ground, tetrapods } = buildGround(t, uvX, uvZ);
   const { builders, tanks, solid, parts } = buildBuildings(t, uvX, uvZ, toWorld);
