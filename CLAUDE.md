@@ -128,7 +128,12 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/models.js` — glTF/GLB → instanced meshes (metres, base on ground); `src/world/streetProps.js` — Poly Haven
   chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
 - `src/sim/characters.js` — Quaternius rigged characters (from the pipeline's `converted/` GLBs, only if listed in
-  the manifest) for the player and the nearest people; people.js draws in two phases (`beforeEnd` picks heroes)
+  the manifest; Low loads 2+2 models, Medium 4+4, High all) for the player and the nearest people (pool 3/7/12);
+  people.js draws in two phases (`beforeEnd` picks heroes). Fixes for the converted files: materials forced opaque
+  (alpha 0 + MASK after FBX import), "Face" = eyes/brows (set dark), height from the skinned bounding box (IK pole
+  bones mislead), head bone ×0.66 and legs ×1.14 so they match the realistic crowd. Clips: Idle, Walk (sped up for
+  running, no Run clip), Punch, Shoot_OneHanded (pointing / aiming the pichkari, held in the `Fist.R` bone),
+  Victory (wave), Defeat (knocked down). Police caps, helmets and half the saris stay procedural.
 - `src/game/story.js` — story missions (chapter 1 "Naya Shehar": Mamaji, Shabbir bhai): markers, letterboxed cutscenes
   (camera on the speaker, Space skips), objectives, goto/pickup/dropoff/waitHour/tasks, time limits, rewards; saved in
   `state.s.story`

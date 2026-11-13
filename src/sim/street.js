@@ -666,21 +666,6 @@ export class StreetLife {
       if (f.type === 'cow') {
         const c = f.cow, fx = Math.sin(c.heading) * 0.6, fz = Math.cos(c.heading) * 0.6;
         if ((x - c.x - fx) ** 2 + (z - c.z - fz) ** 2 < (r + 0.6) ** 2 || (x - c.x + fx) ** 2 + (z - c.z + fz) ** 2 < (r + 0.6) ** 2) return true;
-      } else if (f.type === 'baraat') {
-        // Dancing in the street: bob, spin and shuffle forward; the band keeps the dhol going.
-        f.t += dt;
-        for (const p of f.people) {
-          p.phase += dt * (p.dance !== undefined ? 7 : 2);
-          if (p.dance !== undefined) { p.heading += Math.sin(f.t * 2 + p.dance) * dt * 1.5; p.y = this.tiles.groundHeight(p.x, p.z) + Math.abs(Math.sin(f.t * 6 + p.dance)) * 0.08; }
-          p.x += f.fx * dt * 0.15; p.z += f.fz * dt * 0.15;
-          this.people.add(p);
-        }
-        f.x += f.fx * dt * 0.15; f.z += f.fz * dt * 0.15;
-        obstacles.push([f.x, f.z, 14]);
-        const dist = Math.hypot(f.x - P.x, f.z - P.z);
-        if (dist < 70 && Math.floor(f.t * 3.2) !== f.beat) { f.beat = Math.floor(f.t * 3.2); if (f.beat % 4 !== 3) this.audio.punch?.(0.35 / (1 + dist / 15)); }
-        f.sayT -= dt;
-        if (f.sayT <= 0 && dist < 60) { f.sayT = 5 + Math.random() * 4; this.bubbles.say(pick(f.people), pick(['Aaj mere yaar ki shaadi hai!', 'Nacho! Nacho!', 'Dhol bajao!', 'Baraat aa gayi!', 'Side de do, baraat hai!']), 2.4); }
       } else if (f.type === 'breakdown') {
         const c = f.car, fx = Math.sin(c.heading) * 1.1, fz = Math.cos(c.heading) * 1.1;
         if ((x - c.x - fx) ** 2 + (z - c.z - fz) ** 2 < (r + 0.75) ** 2 || (x - c.x + fx) ** 2 + (z - c.z + fz) ** 2 < (r + 0.75) ** 2) return true;

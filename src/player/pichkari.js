@@ -142,6 +142,9 @@ export class Pichkari {
       const side = -0.235; // the arm used by the POINT pose sits on the character's right
       const lx = -side, ly = raised ? 1.32 : 0.92, lz = raised ? 0.5 : 0.12;
       this.gun.position.set(walker.pos.x + lx * Math.cos(h) + lz * fx, walker.pos.y + ly, walker.pos.z - lx * Math.sin(h) + lz * fz);
+      // A real character's right hand holds it (the grip sits a little behind the barrel).
+      const hp = walker.person?.hero && walker.person.handPos;
+      if (hp && hp.distanceToSquared(walker.pos) < 2.5) this.gun.position.set(hp.x + fx * 0.04, hp.y - 0.02, hp.z + fz * 0.04);
       const pitch = raised && view ? -view.pitch * 0.9 : 1.1;
       this.gun.rotation.set(0, 0, 0);
       this.gun.quaternion.setFromEuler(this.e.set(raised ? -pitch : 1.1, h, 0, 'YXZ'));
