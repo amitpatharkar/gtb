@@ -206,7 +206,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   destinations (`cityMap.randomPlace`) and cuts the drawing data into 1 km chunks;
   `src/ui/phone.js` — phone (P): Maps, Chalo Driver, Bhookh (food), JhatPat (quick commerce), Dukaan (shopping to
   home), PayKaro (UPI), Messages, Camera (photo mode), Ghar (home), Settings — all parody names;
-  `src/ui/bubbles.js` — speech bubbles; `src/audio.js` — ambience, horns, synthesised whistle, siren, bark, engine,
+  `src/ui/bubbles.js` — speech bubbles; `src/audio.js` — ambience, horns, synthesised whistle, siren, bark, engine
+  (`engineKind` car/auto/bike/big/cycle and `hornKind` peep/bell, set by `garage.shape()`),
   tyre squeal, crash, spray, musical horn; starts on first key/tap
 - `src/rickshaw.js` — old auto-rickshaw (unused in South Mumbai; keep for the suburbs, where autos are allowed)
 - `src/input.js` — keyboard and touch (Shift = run, fire/aim touch buttons); keys in main.js: H horn, E interact

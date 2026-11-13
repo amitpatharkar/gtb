@@ -6,6 +6,15 @@ const IDS = {
   crows: 'sound-fs-289657', horn: 'sound-fs-170243', truckHorn: 'sound-fs-406888',
 };
 
+/** Engine voices: base pitch and range (Hz), gears and their speed span (m/s), filter, level, putt-putt depth. */
+const ENGINES = {
+  car: { base: 34, range: 70, gears: 4, span: 6.5, lp: 300, gain: 1, putt: 0 },
+  auto: { base: 52, range: 85, gears: 4, span: 4.4, lp: 520, gain: 0.9, putt: 0.45 },
+  bike: { base: 58, range: 120, gears: 5, span: 5.6, lp: 620, gain: 0.8, putt: 0.12 },
+  big: { base: 22, range: 44, gears: 5, span: 3.8, lp: 220, gain: 1.35, putt: 0 },
+  cycle: { base: 34, range: 0, gears: 1, span: 9, lp: 200, gain: 0, putt: 0 },
+};
+
 export class CityAudio {
   constructor(lib) {
     this.lib = lib;
@@ -59,13 +68,33 @@ export class CityAudio {
   }
 
   play(name, volume = 1) {
+    // The horn depends on what is being driven: a bicycle rings, an auto and bikes peep.
+    if (name === 'horn' && this.hornKind === 'bell') { this.bell(); return; }
     if (!this.ctx || !this.buffers[name]) return;
     const src = this.ctx.createBufferSource();
     src.buffer = this.buffers[name];
+    if (name === 'horn' && this.hornKind === 'peep') src.playbackRate.value = 1.55;
     const g = this.ctx.createGain();
     g.gain.value = volume;
     src.connect(g).connect(this.master);
     src.start(0, 0, Math.min(1.2, src.buffer.duration));
+  }
+
+  /** Bicycle bell: "tring-tring". */
+  bell() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime;
+    for (const start of [0, 0.16, 0.42, 0.58]) {
+      for (const [f, v] of [[2350, 0.09], [3520, 0.05], [5230, 0.025]]) {
+        const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0, t0 + start);
+        g.gain.linearRampToValueAtTime(v, t0 + start + 0.004);
+        g.gain.exponentialRampToValueAtTime(0.0008, t0 + start + 0.3);
+        o.connect(g).connect(this.master);
+        o.start(t0 + start); o.stop(t0 + start + 0.32);
+      }
+    }
   }
 
   /** Traffic police whistle (synthesised): two sharp trilled blasts. */
@@ -154,25 +183,36 @@ export class CityAudio {
     this.sprayNode.gain.setTargetAtTime(level * 0.08, this.ctx.currentTime, 0.05);
   }
 
-  /** Old taxi engine: rough sawtooth hum with fake gears; 0 volume when on foot. */
+  /**
+   * Engine: rough sawtooth hum with fake gears; 0 volume when on foot. `engineKind` (set by
+   * the garage) changes its voice: 'car' (the old taxi), 'auto' (a two-stroke putt-putt),
+   * 'bike', 'big' (bus, truck) or 'cycle' (silent).
+   */
   engine(speed, throttle, on = true) {
     if (!this.ctx) return;
     if (!this.engineNode) {
       const a = this.ctx.createOscillator(), b = this.ctx.createOscillator(), lp = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+      const putt = this.ctx.createOscillator(), depth = this.ctx.createGain(), trem = this.ctx.createGain();
       a.type = 'sawtooth'; b.type = 'square'; b.detune.value = -1200;
       lp.type = 'lowpass'; lp.frequency.value = 420; lp.Q.value = 2;
       g.gain.value = 0;
-      a.connect(lp); b.connect(lp); lp.connect(g).connect(this.master);
-      a.start(); b.start();
-      this.engineNode = { a, b, lp, g };
+      // Tremolo for the auto's putt-putt: an LFO on a gain stage after the filter.
+      putt.type = 'square'; putt.frequency.value = 11; depth.gain.value = 0; trem.gain.value = 1;
+      putt.connect(depth).connect(trem.gain);
+      a.connect(lp); b.connect(lp); lp.connect(trem).connect(g).connect(this.master);
+      a.start(); b.start(); putt.start();
+      this.engineNode = { a, b, lp, g, putt, depth };
     }
-    const v = Math.abs(speed), gear = Math.min(3, Math.floor(v / 6.5));
-    const rpm = 0.22 + Math.min(1, (v - gear * 6.5) / 6.5) * 0.7 + throttle * 0.08;
-    const f = 34 + rpm * 70, t = this.ctx.currentTime;
+    const K = ENGINES[this.engineKind] || ENGINES.car;
+    const v = Math.abs(speed), gear = Math.min(K.gears - 1, Math.floor(v / K.span));
+    const rpm = 0.22 + Math.min(1, (v - gear * K.span) / K.span) * 0.7 + throttle * 0.08;
+    const f = K.base + rpm * K.range, t = this.ctx.currentTime;
     const n = this.engineNode;
     n.a.frequency.setTargetAtTime(f, t, 0.08); n.b.frequency.setTargetAtTime(f, t, 0.08);
-    n.lp.frequency.setTargetAtTime(300 + rpm * 500 + throttle * 200, t, 0.1);
-    n.g.gain.setTargetAtTime(on ? 0.035 + throttle * 0.03 + rpm * 0.02 : 0, t, 0.15);
+    n.lp.frequency.setTargetAtTime(K.lp + rpm * 500 + throttle * 200, t, 0.1);
+    n.putt.frequency.setTargetAtTime(8 + rpm * 16, t, 0.1);
+    n.depth.gain.setTargetAtTime(K.putt, t, 0.2);
+    n.g.gain.setTargetAtTime(on ? (0.035 + throttle * 0.03 + rpm * 0.02) * K.gain : 0, t, 0.15);
   }
 
   /** Tyre squeal, level 0..1. */

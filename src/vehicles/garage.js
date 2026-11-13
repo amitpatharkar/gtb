@@ -64,9 +64,13 @@ export class Garage {
     return { root, body, wheels: [], steerers: [], lights: { tailMat: {} }, wheelRadius: 0.3, wheelBase: Math.max(1.2, T.len * 0.62) };
   }
 
-  /** Give the player Car the size and handling of a fleet type. */
+  /** Give the player Car the size and handling of a fleet type (and the engine and horn that go with it). */
   shape(type) {
-    const p = this.player;
+    const p = this.player, S = type === 'taxi' ? null : this.traffic.types[type];
+    if (this.audio) {
+      this.audio.engineKind = !S ? 'car' : S.pedal ? 'cycle' : S.rider ? 'bike' : S.open ? 'auto' : S.big ? 'big' : 'car';
+      this.audio.hornKind = !S ? null : S.pedal ? 'bell' : S.rider || S.open ? 'peep' : null;
+    }
     if (type === 'taxi') { Object.assign(p, this.taxiShape); p.mass = MASS.padmini; return; }
     const T = this.traffic.types[type], [top, accel] = DRIVE[type] || [28, 6];
     p.radius = Math.max(0.35, T.wid / 2);
