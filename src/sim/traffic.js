@@ -150,7 +150,7 @@ export class Traffic {
   /** Vehicle mix by hour: goods tempos run at night, BEST buses and private cars by day. */
   pickType(z = 0) {
     const night = this.hour >= 22 || this.hour < 6, suburb = this.inSuburbs(z);
-    const w = (n) => { const T = this.types[n]; return T.weight * (night ? T.night ?? 1 : 1) * (suburb ? T.suburb ?? 1 : T.city ?? 1); };
+    const w = (n) => { const T = this.types[n]; return T.weight * (night ? T.night ?? 1 : 1) * (suburb ? T.suburb ?? 1 : T.city ?? 1) * (T.hours ? T.hours(this.hour) : 1); };
     let r = Math.random() * this.typeNames.reduce((s, n) => s + w(n), 0);
     for (const n of this.typeNames) { r -= w(n); if (r <= 0) return n; }
     return 'wagonr';

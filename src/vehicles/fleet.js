@@ -424,7 +424,8 @@ const PRIVATE = [0xf4f4f2, 0xf4f4f2, 0xf4f4f2, 0xf4f4f2, 0xc5c8cc, 0xc5c8cc, 0x8
  * type → { parts, far, name, len, wid, speed, weight, night, tints, rider, big, mainRoad, … }.
  * weight: share in daytime traffic; night: multiplier after 10 pm; city / suburb: multipliers
  * south / north of the Bandra–Sion line (autos have city 0); open + seat + seatZ: the driver is
- * drawn (auto); pax: a passenger seat; slow: others overtake (bicycles).
+ * drawn (auto); pax: a passenger seat; slow: others overtake (bicycles); hours(h): multiplier
+ * by time of day (school buses, dabbawalas, garbage trucks).
  */
 export function buildFleet() {
   const T = {};
@@ -462,6 +463,14 @@ export function buildFleet() {
   T.auto = { parts: auto(), far: auto(true), name: 'Bajaaj auto-rickshaw', len: 2.64, wid: 1.3, speed: 10, weight: 8, night: 1.2, city: 0, tints: [0x0c0c0c], open: true, seat: 0.75, seatZ: 0.2, pax: { z: -0.56, seat: 0.69 } };
   T.cycle = { parts: cycle(), far: cycle(false, true), name: 'Bicycle (Hiro Jet)', len: 1.8, wid: 0.6, speed: 4.4, weight: 0.5, night: 0.15, tints: [0x101010, 0x101010, 0x1d3f2a, 0x5a1a14], rider: true, seat: 0.95, seatZ: -0.2, slow: true, pedal: true };
   T.dabba = { parts: cycle(true), far: cycle(true, true), name: "Dabbawala's bicycle", len: 1.8, wid: 0.66, speed: 5, weight: 0.3, night: 0, suburb: 0.4, tints: [0x101010], rider: true, seat: 0.95, seatZ: -0.2, slow: true, pedal: true, dabbawala: true };
+  // Who is on the road when: school buses at school times, dabbawalas before lunch (and going
+  // home with the empties), garbage trucks at dawn, milk and newspaper cycles early, tankers by day.
+  const within = (h, a, b) => h >= a && h < b;
+  T.school.hours = (h) => (within(h, 6.5, 9) || within(h, 12.5, 15.5) ? 4 : 0);
+  T.dabba.hours = (h) => (within(h, 10.5, 13.5) ? 5 : within(h, 14.5, 16.5) ? 2 : 0.05);
+  T.compactor.hours = (h) => (within(h, 5.5, 10.5) ? 4 : 0.4);
+  T.cycle.hours = (h) => (within(h, 5, 9) ? 3 : 1);
+  T.tanker.hours = (h) => (within(h, 7, 19) ? 1.3 : 0.3);
   // Kaali-peelis thin out in the suburbs, where autos do their job.
   T.taxi.suburb = 0.3; T.taxiI10.suburb = 0.3; T.padmini.suburb = 0.2; T.coolcab.suburb = 0.4;
   return T;
