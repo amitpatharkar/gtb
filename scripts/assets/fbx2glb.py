@@ -24,12 +24,16 @@ for src, dst in zip(args[0::2], args[1::2]):
         for coll in (bpy.data.meshes, bpy.data.armatures, bpy.data.actions, bpy.data.materials, bpy.data.images):
             for item in list(coll):
                 coll.remove(item)
-        # Blender 4.2+ importers take a directory plus a list of files (5.0 fails without them).
-        kw = dict(filepath=src, directory=os.path.dirname(src) + os.sep, files=[{'name': os.path.basename(src)}])
         try:
-            bpy.ops.import_scene.fbx(**kw)
-        except TypeError:  # older Blender: no directory/files options
             bpy.ops.import_scene.fbx(filepath=src)
+        except Exception:  # noqa: BLE001 — some packaged builds break the operator; call the importer directly
+            from io_scene_fbx import import_fbx
+
+            class Op:  # the importer only needs report()
+                def report(self, kind, msg):
+                    print('FBX', kind, msg)
+
+            import_fbx.load(Op(), bpy.context, filepath=src)
         bpy.ops.export_scene.gltf(filepath=dst, export_format='GLB', export_animations=True, export_yup=True, export_apply=False)
         print('converted', src, '->', dst, flush=True)
     except Exception as e:  # noqa: BLE001 — keep going with the other files

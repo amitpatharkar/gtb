@@ -31,8 +31,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Install Blender (FBX → glTF conversion of model packs)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq blender python3-numpy > /dev/null && blender --version | head -1
+      # Official Blender 4.2 LTS (bundled Python and numpy; Ubuntu's packaged Blender has a broken FBX importer).
+      - name: Install Blender 4.2 LTS (FBX → glTF conversion of model packs)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libxi6 libxkbcommon0 libxxf86vm1 libxfixes3 libxrender1 libgl1 libsm6 libegl1 > /dev/null
+          curl -sSL https://download.blender.org/release/Blender4.2/blender-4.2.3-linux-x64.tar.xz | tar -xJ -C "$HOME"
+          echo "$HOME/blender-4.2.3-linux-x64" >> "$GITHUB_PATH"
+          "$HOME/blender-4.2.3-linux-x64/blender" --version | head -1
       # Raw downloads are cached between runs so unchanged assets are not fetched again.
       - uses: actions/cache@v4
         with:
