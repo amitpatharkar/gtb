@@ -129,6 +129,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
 - `src/sim/characters.js` — Quaternius rigged characters (from the pipeline's `converted/` GLBs, only if listed in
   the manifest) for the player and the nearest people; people.js draws in two phases (`beforeEnd` picks heroes)
+- `src/game/story.js` — story missions (chapter 1 "Naya Shehar": Mamaji, Shabbir bhai): markers, letterboxed cutscenes
+  (camera on the speaker, Space skips), objectives, goto/pickup/dropoff/waitHour/tasks, time limits, rewards; saved in
+  `state.s.story`
 - `src/ui/minimap.js` — rotating radar (land, roads, traffic, petrol pumps, GPS route); `src/ui/cityMap.js` — full map
   (Tab / tap radar; pan, zoom, tap for a waypoint; GPS A* on all tiles, one-ways respected; game pauses);
   `src/ui/phone.js` — phone (P): Maps, Chalo Driver, Bhookh (food), JhatPat (quick commerce), Dukaan (shopping to
