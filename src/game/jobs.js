@@ -23,6 +23,9 @@ const PASSENGERS = [
   { kind: 'casual', who: 'Tourist', hurry: 0.6, care: 1.1, tip: 1.6, lines: { hail: 'Taxi! Gateway of India… far?', late: 'Long way around, no?', rough: 'Whoa! Easy!', good: 'Amazing city! Thank you!' } },
 ];
 
+// Bhookh delivery partner: pick the order up at a thela, deliver it hot. "Comfort" is the food.
+const DELIVERY = { kind: 'worker', who: 'Bhookh order', hurry: 1.5, care: 1.2, tip: 0.6, delivery: true, lines: { hail: 'Order ready! Bhookh wala?', late: '(Customer is calling… food is getting cold)', rough: '(Chutney spilled…)', good: 'Garam garam! 5 star, bhai!' } };
+
 export class Jobs {
   constructor({ scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street }) {
     Object.assign(this, { scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street });
@@ -34,7 +37,9 @@ export class Jobs {
   }
 
   // ------------------------------------------------------------------ taxi duty
-  toggleDuty(player) {
+  toggleDuty(player, mode = 'taxi') {
+    if (this.onDuty && this.mode !== mode) { this.onDuty = false; this.ride = null; this.cityMap.setWaypoint(null); }
+    this.mode = mode;
     if (this.onDuty) {
       if (this.ride?.stage === 'ride') this.endRide(player, 'abandon');
       this.ride = null;
@@ -44,7 +49,7 @@ export class Jobs {
     } else {
       this.onDuty = true;
       this.cooldown = 2;
-      this.hud.message('On duty: FOR HIRE. A fare will hail you soon.');
+      this.hud.message(mode === 'delivery' ? 'Bhookh partner: online. Orders will come in soon.' : 'On duty: FOR HIRE. A fare will hail you soon.');
     }
     this.renderPanel(player);
   }
@@ -98,15 +103,39 @@ export class Jobs {
     return best || 'the address';
   }
 
+  /** A thela 120-450 m away to pick a Bhookh order up from. */
+  findStall(player) {
+    const out = [];
+    for (const t of this.tiles.tiles.values()) {
+      const arr = t.points[POINT.STALL];
+      if (!arr) continue;
+      for (let i = 0; i < arr.length; i += 5) {
+        const x = arr[i] + t.origin[0], z = arr[i + 2] + t.origin[1], d = Math.hypot(x - player.pos.x, z - player.pos.z);
+        if (d > 120 && d < 450) out.push([x, z]);
+      }
+    }
+    if (!out.length) return null;
+    const [x, z] = pick(out);
+    const r = this.tiles.roadAt(x, z, 12, true);
+    if (!r) return null;
+    const sg = this.tiles.segment(r.tile, r.index);
+    const ax = sg[2] - sg[0], az = sg[3] - sg[1], l = Math.hypot(ax, az) || 1;
+    const t = Math.max(0, Math.min(1, ((x - sg[0]) * ax + (z - sg[1]) * az) / (l * l)));
+    const rx = sg[0] + ax * t, rz = sg[1] + az * t;
+    return { x: x + (rx - x) * 0.3, z: z + (rz - z) * 0.3, roadX: rx, roadZ: rz, heading: Math.atan2(rx - x, rz - z) };
+  }
+
   spawnFare(player) {
-    const spot = this.findSpot(player, 80, 260);
+    const delivery = this.mode === 'delivery';
+    const spot = delivery ? this.findStall(player) : this.findSpot(player, 80, 260);
     if (!spot) return;
-    const type = pick(PASSENGERS);
+    const type = delivery ? DELIVERY : pick(PASSENGERS);
     const person = { ...outfit(type.kind), x: spot.x, z: spot.z, y: this.tiles.groundHeight(spot.x, spot.z), heading: spot.heading, phase: 0, pose: POSE.WAVE, amp: 1, flags: type.kind === 'sari' ? 2 : 0, scale: 1, h: 2.2 };
     this.ride = { stage: 'pickup', type, person, spot, t: 0, wait: 0 };
     this.cityMap.routeTo(spot.roadX, spot.roadZ, 'Passenger');
-    this.hud.message(`Fare request: ${type.who}. Follow the GPS to pick them up.`);
-    this.state.message('Chalo Partner', `New ride request: ${type.who}, ${Math.round(Math.hypot(spot.x - player.pos.x, spot.z - player.pos.z))} m away.`);
+    const dist = Math.round(Math.hypot(spot.x - player.pos.x, spot.z - player.pos.z));
+    this.hud.message(delivery ? 'New Bhookh order! Pick it up at the thela (GPS).' : `Fare request: ${type.who}. Follow the GPS to pick them up.`);
+    this.state.message(delivery ? 'Bhookh Partner' : 'Chalo Partner', delivery ? `New order to pick up, ${dist} m away.` : `New ride request: ${type.who}, ${dist} m away.`);
   }
 
   async startRide(player) {
@@ -123,8 +152,8 @@ export class Jobs {
     r.eta = (straight * 1.35) / 7.5 + 25; // seconds at a normal city pace
     r.last = { speed: player.speed, heading: player.heading, x: player.pos.x, z: player.pos.z };
     await this.cityMap.routeTo(dest.x, dest.z, dest.name);
-    this.bubbles.say(player.pos, `${dest.name} chalo!`, 2.6, 'driver');
-    this.hud.message(`Take them to ${dest.name}. Meter down!`);
+    if (r.type.delivery) { this.bubbles.say(r.person, 'Yeh lo, garam hai! Jaldi pahunchana!', 2.6, 'vendor'); this.hud.message(`Order picked up. Deliver to ${dest.name} — drive smoothly, it's hot food.`); }
+    else { this.bubbles.say(player.pos, `${dest.name} chalo!`, 2.6, 'driver'); this.hud.message(`Take them to ${dest.name}. Meter down!`); }
   }
 
   annoy(amount, line, player, reason = null) {
@@ -194,7 +223,7 @@ export class Jobs {
       return;
     }
     const km = r.dist / 1000;
-    const meter = FARE_BASE + Math.max(0, km - 1.5) * FARE_KM;
+    const meter = r.type.delivery ? 45 + km * 12 : FARE_BASE + Math.max(0, km - 1.5) * FARE_KM;
     const late = Math.max(0, r.t - r.eta) / r.eta;
     let stars = 5 - (100 - r.comfort) / 22 - late * 2 * r.type.hurry;
     stars = Math.max(1, Math.min(5, stars));
@@ -202,15 +231,15 @@ export class Jobs {
     if (stars >= 4.3) tip = Math.round(meter * 0.15 * r.type.tip + 10 * r.type.tip);
     if (r.comfort < 45) cut = Math.round(meter * 0.25);
     if (late > 0.5) cut += Math.round(meter * 0.1);
-    const bonus = 40; // Chalo pays drivers a per-ride incentive on top of the meter
+    const bonus = r.type.delivery ? 0 : 40; // Chalo pays drivers a per-ride incentive on top of the meter
     const total = Math.max(0, Math.round(meter + tip - cut + bonus));
-    this.state.earn(total, `Taxi fare to ${r.dest.name}`);
+    this.state.earn(total, r.type.delivery ? `Bhookh delivery to ${r.dest.name}` : `Taxi fare to ${r.dest.name}`);
     this.state.s.rides++;
     this.state.s.ratingSum += stars;
     this.state.s.earned += total;
     const line = stars >= 4 ? r.type.lines.good : stars >= 2.5 ? 'Theek hai.' : 'Kabhi nahi baithunga tumhari taxi mein!';
     this.bubbles.say(player.pos, line, 3, 'driver');
-    this.hud.message(`Fare ${rupees(meter)} + Chalo bonus ${rupees(bonus)}${tip ? ` + tip ${rupees(tip)}` : ''}${cut ? ` − ${rupees(cut)} (unhappy)` : ''} = ${rupees(total)} · ${'★'.repeat(Math.round(stars))}${'☆'.repeat(5 - Math.round(stars))}`);
+    this.hud.message(`${r.type.delivery ? `Delivery pay ${rupees(meter)}` : `Fare ${rupees(meter)} + Chalo bonus ${rupees(bonus)}`}${tip ? ` + tip ${rupees(tip)}` : ''}${cut ? ` − ${rupees(cut)} (${r.type.delivery ? 'cold or spilled food' : 'unhappy'})` : ''} = ${rupees(total)} · ${'★'.repeat(Math.round(stars))}${'☆'.repeat(5 - Math.round(stars))}`);
     this.state.message('PayKaro', `Credited ${rupees(total)} for a ride to ${r.dest.name}. Rating ${stars.toFixed(1)}★.`);
   }
 
@@ -301,17 +330,17 @@ export class Jobs {
     if (!this.onDuty && !this.riders.length) { el.hidden = true; return; }
     el.hidden = false;
     const rows = [];
-    if (this.onDuty && !r) rows.push('<b class="hire">FOR HIRE</b> waiting for a fare…');
+    if (this.onDuty && !r) rows.push(this.mode === 'delivery' ? '<b class="hire">BHOOKH PARTNER</b> waiting for an order…' : '<b class="hire">FOR HIRE</b> waiting for a fare…');
     if (r?.stage === 'pickup') rows.push(`<b>Pick up:</b> ${r.type.who} · ${Math.round(Math.hypot(r.person.x - player.pos.x, r.person.z - player.pos.z))} m`);
     if (r?.stage === 'ride' && r.dest) {
-      const km = r.dist / 1000, meter = FARE_BASE + Math.max(0, km - 1.5) * FARE_KM;
+      const km = r.dist / 1000, meter = r.type.delivery ? 45 + km * 12 : FARE_BASE + Math.max(0, km - 1.5) * FARE_KM;
       const left = Math.round(Math.hypot(r.dest.x - player.pos.x, r.dest.z - player.pos.z));
       const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
       const late = r.t > r.eta;
       const c = Math.round(r.comfort);
       rows.push(`<b>To:</b> ${r.dest.name} · ${left} m`);
-      rows.push(`<b>Meter</b> ${rupees(meter)} · <b>Time</b> <span class="${late ? 'bad' : ''}">${fmt(r.t)}</span> / ${fmt(r.eta)} · ${Math.round(Math.abs(player.speed) * 3.6)} km/h`);
-      rows.push(`<b>Comfort</b> <span class="bar"><i style="width:${c}%;background:${c > 70 ? '#4caf50' : c > 40 ? '#f4d03f' : '#e74c3c'}"></i></span> ${c}%${r.reasonT > 0 ? ` <span class="bad">▼ ${r.reason}</span>` : ''}`);
+      rows.push(`<b>${r.type.delivery ? 'Pay' : 'Meter'}</b> ${rupees(meter)} · <b>Time</b> <span class="${late ? 'bad' : ''}">${fmt(r.t)}</span> / ${fmt(r.eta)} · ${Math.round(Math.abs(player.speed) * 3.6)} km/h`);
+      rows.push(`<b>${r.type.delivery ? 'Food' : 'Comfort'}</b> <span class="bar"><i style="width:${c}%;background:${c > 70 ? '#4caf50' : c > 40 ? '#f4d03f' : '#e74c3c'}"></i></span> ${c}%${r.reasonT > 0 ? ` <span class="bad">▼ ${r.reason}</span>` : ''}`);
     }
     for (const d of this.riders) if (d.state === 'coming') rows.push(`${d.app === 'jhatpat' ? '🟢 JhatPat' : '🟠 Bhookh'} order: ${Math.max(0, Math.ceil(d.eta - d.t))} s`);
     else if (d.state === 'walking') rows.push(`${d.app === 'jhatpat' ? '🟢' : '🟠'} Delivery partner is here — stop to collect`);

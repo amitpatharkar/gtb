@@ -29,9 +29,9 @@ const SHOP = [
   { id: 'seatcovers', name: 'Velvet seat covers', price: 1499, desc: 'Comfier rides, better tips.' },
   { id: 'horn', name: 'Musical horn', price: 899, desc: 'Ta-ra-ra-ra! Pedestrians are not impressed.' },
   { id: 'dashcam', name: 'Dashcam', price: 2499, desc: 'Proof for every argument.' },
-  { id: 'shades', name: 'Aviator sunglasses', price: 699, desc: 'For walking around (coming soon).' },
-  { id: 'jersey', name: 'Mumbai Tigers cricket jersey', price: 999, desc: 'Clothes for on foot (coming soon).' },
-  { id: 'kurta', name: 'Festive kurta', price: 1299, desc: 'Clothes for on foot (coming soon).' },
+  { id: 'shades', name: 'Aviator sunglasses', price: 699, desc: 'Wear them on foot (Ghar → Wardrobe).' },
+  { id: 'jersey', name: 'Mumbai Tigers cricket jersey', price: 999, desc: 'Blue and gold. Wear it from Ghar → Wardrobe.' },
+  { id: 'kurta', name: 'Festive kurta', price: 1299, desc: 'Cream kurta for festivals. Wear it from Ghar → Wardrobe.' },
 ];
 
 const APPS = [
@@ -81,7 +81,9 @@ export class Phone {
     const s = this.state;
     if (act === 'app') this.go(arg);
     if (act === 'back') this.go(null);
-    if (act === 'duty') { this.jobs.toggleDuty(this.player); this.render(); }
+    if (act === 'duty') { this.jobs.toggleDuty(this.player, 'taxi'); this.render(); }
+    if (act === 'partner') { this.jobs.toggleDuty(this.player, 'delivery'); this.render(); }
+    if (act === 'wear') { s.s.outfit = arg; s.changed(); this.toast(arg === 'default' ? 'Back in your usual clothes.' : 'Looking sharp!'); }
     if (act === 'add') { const list = this.app === 'bhookh' ? FOOD : QUICK; this.cart.push(list.find((i) => i.id === arg)); this.render(); }
     if (act === 'clear') { this.cart = []; this.render(); }
     if (act === 'order') {
@@ -169,7 +171,8 @@ export class Phone {
         const list = this.app === 'bhookh' ? FOOD : QUICK;
         const total = this.cart.reduce((a, i) => a + i.price, 0);
         html = `${head(this.app === 'bhookh' ? 'Bhookh · food delivery' : 'JhatPat · 10-minute delivery', this.app === 'bhookh' ? '#f26722' : '#2e9e44')}
-          <div class="pad"><p class="small">Delivering to: your current location (taxi)</p>
+          <div class="pad">${this.app === 'bhookh' ? `<button class="primary" data-act="partner">${this.jobs.onDuty && this.jobs.mode === 'delivery' ? 'Go offline as delivery partner' : 'Earn: deliver for Bhookh'}</button><p class="small">Partners pick orders up at thelas and deliver them hot: ₹45 + ₹12/km, tips for fast, smooth deliveries.</p><hr>` : ''}
+          <p class="small">Delivering to: your current location (taxi)</p>
           ${list.map((i) => `<div class="row"><span>${i.name}</span><b>${rupees(i.price)}</b><button data-act="add:${i.id}">Add</button></div>`).join('')}
           <div class="cart">Cart: ${this.cart.length ? this.cart.map((i) => i.name).join(', ') : 'empty'}<br>Total ${rupees(total)} + ${this.app === 'bhookh' ? '₹35 delivery' : '₹15 handling'}</div>
           <button class="primary" data-act="order">Place order</button> <button data-act="clear">Clear</button></div>`;
@@ -190,6 +193,8 @@ export class Phone {
       case 'home':
         html = `${head('Ghar · home', '#b5651d')}<div class="pad"><div class="big">🏠 ${HOME.line1}</div><p>${HOME.line2}<br>${HOME.city}</p><p class="small">${HOME.note}</p>
           <h4>At home</h4><p>${d.owned.length ? d.owned.map((id) => SHOP.find((i) => i.id === id)?.name || id).join(', ') : 'Nothing yet — shop on Dukaan.'}</p>
+          <h4>Wardrobe</h4><div class="row"><span>Usual shirt and jeans</span><button data-act="wear:default">Wear</button></div>
+          ${['jersey', 'kurta', 'shades'].filter((id) => s.owns(id)).map((id) => `<div class="row"><span>${SHOP.find((i) => i.id === id).name}</span><button data-act="wear:${id}">${d.outfit === id ? 'Wearing' : 'Wear'}</button></div>`).join('')}
           ${d.pending.length ? `<h4>On the way</h4><p>${d.pending.map((p) => p.name).join(', ')}</p>` : ''}</div>`;
         break;
       case 'settings':

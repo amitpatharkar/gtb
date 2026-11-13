@@ -328,3 +328,5 @@ body.onfoot #touch .pad.combat button { width: 52px; height: 52px; font-size: 20
 #nav b { font-size: 17px; }
 #nav u { text-decoration: none; font-weight: 700; color: #f0b6ff; }
 #nav small { display: block; opacity: 0.8; font-size: 12px; }
+#radio { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); background: #000b; color: #fff; padding: 6px 14px; border-radius: 16px; font: 13px system-ui, sans-serif; opacity: 0; transition: opacity 0.4s; pointer-events: none; z-index: 4; }
+#radio.show { opacity: 1; }

@@ -23,6 +23,7 @@ import { CityMap } from './ui/cityMap.js';
 import { Navigator } from './ui/navigator.js';
 import { Landmarks } from './world/landmarks.js';
 import { StreetProps } from './world/streetProps.js';
+import { Radio } from './radio.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
 import { Phone } from './ui/phone.js';
@@ -104,6 +105,7 @@ traffic.signals = signals;
 const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
 const bubbles = new Bubbles(document.body);
 const audio = new CityAudio(lib);
+const radio = new Radio(audio);
 const minimap = new Minimap($('minimap'), tiles, index.fuel || []);
 const cityMap = new CityMap({ index, baseUrl: `${BASE}tiles/`, fuel: index.fuel || [], hud: { message: (t) => say(t, 4) } });
 minimap.nav = cityMap;
@@ -122,6 +124,15 @@ const hud = { message: (t) => say(t, 4) };
 const police = new Police({ scene, tiles, traffic, signals, people, audio, bubbles, hud });
 const animals = new Animals(scene);
 const street = new StreetLife({ scene, tiles, traffic, signals, people, animals, bubbles, audio, police, tier, hud });
+// Clothes from the Ghar app wardrobe (bought on Dukaan).
+function applyOutfit() {
+  const o = state.s.outfit || 'default';
+  const L = walker.look;
+  if (o === 'jersey') { L.shirt.setHex(0x1d4fa0); L.pants.setHex(0xf0f0f0); }
+  else if (o === 'kurta') { L.shirt.setHex(0xefe3c6); L.pants.setHex(0xf4f1ea); }
+  else if (o === 'shades') { L.shirt.setHex(0x111111); L.pants.setHex(0x2b3a55); }
+  else { L.shirt.setHex(0x1f8a8a); L.pants.setHex(0x24324a); }
+}
 const pichkari = new Pichkari(scene, { tiles, street, police, traffic, bubbles, audio, hud });
 let combat = null; // created once the camera control exists (below)
 const jobs = new Jobs({ scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street });
@@ -178,6 +189,8 @@ taxi.root.add(headlamp, headlamp.target);
 
 // ------------------------------------------------------------------ on foot
 const walker = new Walker(tiles);
+state.listeners.add(applyOutfit);
+applyOutfit();
 const skids = new SkidMarks(scene);
 const damage = new TaxiDamage(scene, taxi);
 let onFoot = false;
@@ -298,6 +311,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && phone.open) phone.toggle(false);
   if (e.code === 'KeyJ') jobs.toggleDuty(player);
   if (e.code === 'KeyF') toggleFoot();
+  if (e.code === 'KeyN' && !onFoot) radio.next();
   if (e.code === 'KeyC' && onFoot) { pichkari.nextColour(e.shiftKey ? -1 : 1); if (combat.weapon !== 'pichkari') combat.setWeapon('pichkari'); }
   if (onFoot && e.code === 'Digit1') combat.setWeapon('fists');
   if (onFoot && e.code === 'Digit2') combat.setWeapon('pichkari');
@@ -405,7 +419,7 @@ function choice(title, options) {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const timer = new THREE.Timer();
 // Shadows: redraw the shadow map every frame on High, every other frame below.
 renderer.shadowMap.autoUpdate = false;
@@ -504,6 +518,7 @@ function step(dt) {
     if (d < 80 && Math.random() < 0.6) audio.play(Math.random() < 0.25 ? 'truckHorn' : 'horn', 0.5 / (1 + d / 15));
   }
   audio.update(seaFactor, clock.traffic, clock.daylight);
+  radio.update(dt, !onFoot, settings.radio !== false, { clock, police, state, road: tiles.roadNameAt(player.pos.x, player.pos.z) });
   cityMap.update(dt, onFoot ? walker : player);
   navigator.speech = settings.speech !== false;
   navigator.update(dt, onFoot ? walker : player, !onFoot);
