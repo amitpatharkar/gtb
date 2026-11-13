@@ -110,6 +110,11 @@ export class Phone {
       s.message('Landlord (Powai)', 'Rent received. Thank you! 🙏');
       this.toast('Rent paid.');
     }
+    if (act === 'gohome') {
+      const idx = this.cityMap.index, [lat, lon] = HOME.at;
+      this.cityMap.routeTo((lon - idx.origin.lon) * idx.metresPerDegree.lon, -(lat - idx.origin.lat) * idx.metresPerDegree.lat, 'Home, Powai');
+      this.toggle(false);
+    }
     if (act === 'tier') this.onTier();
     if (act === 'mute') { this.audio.toggleMute(); this.render(); }
     if (act === 'reset' && confirm('Start over? Money, purchases and ratings will be reset.')) { s.reset(); this.render(); }
@@ -192,6 +197,7 @@ export class Phone {
         break;
       case 'home':
         html = `${head('Ghar · home', '#b5651d')}<div class="pad"><div class="big">🏠 ${HOME.line1}</div><p>${HOME.line2}<br>${HOME.city}</p><p class="small">${HOME.note}</p>
+          <button data-act="gohome">🧭 GPS route home</button>
           <h4>At home</h4><p>${d.owned.length ? d.owned.map((id) => SHOP.find((i) => i.id === id)?.name || id).join(', ') : 'Nothing yet — shop on Dukaan.'}</p>
           <h4>Wardrobe</h4><div class="row"><span>Usual shirt and jeans</span><button data-act="wear:default">Wear</button></div>
           ${['jersey', 'kurta', 'shades'].filter((id) => s.owns(id)).map((id) => `<div class="row"><span>${SHOP.find((i) => i.id === id).name}</span><button data-act="wear:${id}">${d.outfit === id ? 'Wearing' : 'Wear'}</button></div>`).join('')}

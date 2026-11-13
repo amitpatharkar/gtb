@@ -297,7 +297,14 @@ export class CityMap {
       if (scale > 0.15) { g.font = '700 12px system-ui, sans-serif'; g.lineWidth = 3; g.strokeStyle = '#fff'; g.strokeText(L.name, sx, sy + 16); g.fillStyle = '#5a3c00'; g.fillText(L.name, sx, sy + 16); }
     }
     g.font = '16px sans-serif';
-    for (const [fx, fz] of this.fuel) { const [sx, sy] = S(fx, fz); g.fillStyle = '#0e8a4a'; g.beginPath(); g.arc(sx, sy, 11, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillText('⛽', sx, sy + 1); }
+    // Petrol pumps: icons when zoomed in, small dots across the whole city.
+    const big = scale >= 0.1;
+    for (const [fx, fz] of this.fuel) {
+      const [sx, sy] = S(fx, fz);
+      if (sx < -12 || sx > W + 12 || sy < -12 || sy > H + 12) continue;
+      g.fillStyle = '#0e8a4a'; g.beginPath(); g.arc(sx, sy, big ? 11 : 4, 0, 7); g.fill();
+      if (big) { g.fillStyle = '#fff'; g.fillText('⛽', sx, sy + 1); }
+    }
     for (const m of this.markers?.() || []) {
       const [sx, sy] = S(m.x, m.z);
       g.fillStyle = m.color; g.beginPath(); g.arc(sx, sy, m.r || 8, 0, 7); g.fill();

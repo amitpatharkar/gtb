@@ -3,7 +3,7 @@
  * Map converter: OpenStreetMap extract (.osm.pbf) → compressed game tiles.
  *
  *   npm run tiles
- *   npm run tiles -- --bbox 18.890,72.795,18.975,72.860 --name "South Mumbai"
+ *   npm run tiles -- --bbox 18.890,72.795,18.975,72.860 --name "South Mumbai"   (quick local build)
  *
  * Reads data/raw/mumbai-region.osm.pbf, keeps the bounding box (south,west,north,east),
  * projects to local metres (x = east, z = south) around a fixed world origin (--origin,
@@ -36,8 +36,10 @@ const args = Object.fromEntries(
 const CFG = {
   input: path.resolve(root, args.input || 'data/raw/mumbai-region.osm.pbf'),
   out: path.resolve(root, args.out || 'public/tiles'),
-  name: args.name || 'South Mumbai',
-  bbox: (args.bbox || '18.890,72.795,18.975,72.860').split(',').map(Number), // south, west, north, east
+  name: args.name || 'Mumbai',
+  // The island city from Colaba to Mahim plus Bandra, Juhu, Andheri, Kurla and Powai.
+  // (South Mumbai alone, for quick local runs: --bbox 18.890,72.795,18.975,72.860)
+  bbox: (args.bbox || '18.890,72.795,19.140,72.920').split(',').map(Number), // south, west, north, east
   // Fixed world origin (Mahim, near the middle of the island city and the suburbs): every
   // box shares one coordinate system, and nothing is more than ~16 km from it.
   origin: (args.origin || '19.03,72.85').split(',').map(Number),

@@ -8,7 +8,8 @@ export const HOME = {
   line1: 'Flat 1204, Lake Breeze Tower B',
   line2: 'Lakeside Road, near Powai Lake',
   city: 'Powai, Mumbai 400076',
-  note: 'Powai is north of the current map; it joins when the city grows. Parcels from Dukaan are delivered there.',
+  note: 'Parcels from Dukaan are delivered here.',
+  at: [19.1195, 72.9030], // lat, lon: Powai, by the lake
 };
 
 const fresh = () => ({
