@@ -74,7 +74,7 @@ export function createTaxi(opts = {}) {
   const body = new THREE.Group(); // rolls and pitches on the suspension
   root.add(body);
 
-  const black = new THREE.MeshPhysicalMaterial({ color: police ? 0xe9e9e4 : 0x060606, roughness: 0.42, clearcoat: 0.55, clearcoatRoughness: 0.12, envMapIntensity: 0.35 });
+  const black = new THREE.MeshPhysicalMaterial({ color: police ? 0xe9e9e4 : 0x030303, roughness: 0.4, clearcoat: 0.45, clearcoatRoughness: 0.14, envMapIntensity: police ? 0.35 : 0.22 });
   const yellow = new THREE.MeshPhysicalMaterial({ color: police ? 0xe9e9e4 : 0xf7c600, roughness: 0.42, clearcoat: 0.6, clearcoatRoughness: 0.12, envMapIntensity: 0.6 });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xd8d8d8, metalness: 1, roughness: 0.16 });
   const glass = new THREE.MeshPhysicalMaterial({ color: 0x0d1114, roughness: 0.04, metalness: 0.1, clearcoat: 1 });

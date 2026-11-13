@@ -15,7 +15,7 @@ import { Traffic } from './sim/traffic.js';
 import { FacadeParts } from './world/facadeParts.js';
 import { Signals } from './sim/signals.js';
 import { Police } from './sim/police.js';
-import { PeopleRenderer } from './sim/people.js';
+import { PeopleRenderer, POSE, FLAG } from './sim/people.js';
 import { Bubbles } from './ui/bubbles.js';
 import { StreetLife } from './sim/street.js';
 import { Animals } from './sim/animals.js';
@@ -25,6 +25,7 @@ import { Jobs } from './game/jobs.js';
 import { Phone } from './ui/phone.js';
 import { Walker } from './player/walker.js';
 import { Pichkari } from './player/pichkari.js';
+import { SkidMarks } from './vehicles/skids.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
@@ -114,6 +115,7 @@ taxi.root.add(headlamp, headlamp.target);
 
 // ------------------------------------------------------------------ on foot
 const walker = new Walker(tiles);
+const skids = new SkidMarks(scene);
 let onFoot = false;
 const footWorld = { hits: (x, z, r) => tiles.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || taxiHits(x, z, r) };
 function taxiHits(x, z, r) {
@@ -266,7 +268,7 @@ function refuel() {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, toggleFoot, get onFoot() { return onFoot; } };
 const timer = new THREE.Timer();
 let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 renderer.setAnimationLoop((time) => {
@@ -285,6 +287,14 @@ function step(dt) {
   // The active body: the taxi, or the player on foot.
   const active = onFoot ? walker : player;
   player.update(dt, onFoot ? NO_INPUT : input, world);
+  // Tyre marks and car sounds.
+  skids.track(player, player.slip || 0, player.braking);
+  audio.squeal(onFoot ? 0 : player.slip || 0);
+  audio.engine(player.speed, onFoot ? 0 : player.throttle || 0, !onFoot);
+  if (player.impact) {
+    if (player.impact > 2.5) audio.crash(Math.min(1, player.impact / 14));
+    player.impact = 0;
+  }
   if (onFoot) {
     walker.update(dt, input, footWorld, state.s.energy, clock.aqi);
     // Careless drivers knock you over.
@@ -305,6 +315,10 @@ function step(dt) {
   street.onFoot = onFoot;
   street.update(dt, active, clock);
   if (onFoot) walker.draw(people);
+  for (const r of traffic.riders) {
+    // Motorbike riders sit astride, hands on the handlebar; most wear helmets.
+    people.add({ x: r.x - Math.sin(r.heading) * 0.15, y: 0.5, z: r.z - Math.cos(r.heading) * 0.15, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.look.helmet ? FLAG.BERET : 0, scale: 1, ...r.look });
+  }
   pichkari.update(dt, onFoot ? walker : null, onFoot && input.brake);
   people.end();
   placeCamera(dt);

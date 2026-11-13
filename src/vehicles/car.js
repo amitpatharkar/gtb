@@ -56,6 +56,7 @@ export class Car {
     if (stuck || !blocked(this.pos.x, this.pos.z + dz)) this.pos.z += dz; else hit = true;
     if (hit) {
       const impact = Math.abs(this.speed);
+      this.impact = Math.max(this.impact || 0, impact);
       if (impact > 4) this.condition = Math.max(0, this.condition - impact * 0.004);
       this.speed *= -0.25;
     }
@@ -83,6 +84,12 @@ export class Car {
     this.lastBump = Math.max(0, this.lastBump - dt);
     const targetPitch = THREE.MathUtils.clamp(-accelNow * 0.006, -0.05, 0.05) + Math.atan2(gR - gF, 2.34) + Math.sin(this.lastBump * 40) * this.lastBump * 0.08;
     const targetRoll = THREE.MathUtils.clamp(-yawRate * this.speed * 0.012, -0.07, 0.07);
+    // Tyre slip (for marks and squeal): locking up under hard braking, sliding in fast corners.
+    const lateral = Math.abs(yawRate * this.speed);
+    const braking = (input.brake && Math.abs(this.speed) > 4) || (input.back && this.speed > 4);
+    this.braking = braking;
+    this.slip = Math.max(braking ? Math.min(1, Math.abs(this.speed) / 12) : 0, THREE.MathUtils.clamp((lateral - 5.5) / 4, 0, 1));
+    this.throttle = input.fwd ? 1 : 0;
     this.pitch += (targetPitch - this.pitch) * Math.min(1, dt * 8);
     this.roll += (targetRoll - this.roll) * Math.min(1, dt * 6);
 

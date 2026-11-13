@@ -154,6 +154,63 @@ export class CityAudio {
     this.sprayNode.gain.setTargetAtTime(level * 0.08, this.ctx.currentTime, 0.05);
   }
 
+  /** Old taxi engine: rough sawtooth hum with fake gears; 0 volume when on foot. */
+  engine(speed, throttle, on = true) {
+    if (!this.ctx) return;
+    if (!this.engineNode) {
+      const a = this.ctx.createOscillator(), b = this.ctx.createOscillator(), lp = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+      a.type = 'sawtooth'; b.type = 'square'; b.detune.value = -1200;
+      lp.type = 'lowpass'; lp.frequency.value = 420; lp.Q.value = 2;
+      g.gain.value = 0;
+      a.connect(lp); b.connect(lp); lp.connect(g).connect(this.master);
+      a.start(); b.start();
+      this.engineNode = { a, b, lp, g };
+    }
+    const v = Math.abs(speed), gear = Math.min(3, Math.floor(v / 6.5));
+    const rpm = 0.22 + Math.min(1, (v - gear * 6.5) / 6.5) * 0.7 + throttle * 0.08;
+    const f = 34 + rpm * 70, t = this.ctx.currentTime;
+    const n = this.engineNode;
+    n.a.frequency.setTargetAtTime(f, t, 0.08); n.b.frequency.setTargetAtTime(f, t, 0.08);
+    n.lp.frequency.setTargetAtTime(300 + rpm * 500 + throttle * 200, t, 0.1);
+    n.g.gain.setTargetAtTime(on ? 0.035 + throttle * 0.03 + rpm * 0.02 : 0, t, 0.15);
+  }
+
+  /** Tyre squeal, level 0..1. */
+  squeal(level) {
+    if (!this.ctx) return;
+    if (!this.squealNode) {
+      if (level < 0.01) return;
+      const a = this.ctx.createOscillator(), b = this.ctx.createOscillator(), lfo = this.ctx.createOscillator(), depth = this.ctx.createGain(), bp = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+      a.type = 'sawtooth'; b.type = 'sawtooth'; a.frequency.value = 1150; b.frequency.value = 1190;
+      lfo.frequency.value = 9; depth.gain.value = 45;
+      lfo.connect(depth); depth.connect(a.frequency); depth.connect(b.frequency);
+      bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 4;
+      g.gain.value = 0;
+      a.connect(bp); b.connect(bp); bp.connect(g).connect(this.master);
+      a.start(); b.start(); lfo.start();
+      this.squealNode = g;
+    }
+    this.squealNode.gain.setTargetAtTime(Math.min(1, level) * 0.06, this.ctx.currentTime, 0.04);
+  }
+
+  /** Crash: a thump and a metallic clank. */
+  crash(intensity) {
+    if (!this.ctx || intensity < 0.05) return;
+    const t0 = this.ctx.currentTime;
+    const len = Math.floor(this.ctx.sampleRate * 0.4);
+    const b = this.ctx.createBuffer(1, len, this.ctx.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * 0.18));
+    const src = this.ctx.createBufferSource(), lp = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+    src.buffer = b; lp.type = 'lowpass'; lp.frequency.value = 700 + intensity * 1200;
+    g.gain.value = 0.5 * intensity;
+    src.connect(lp).connect(g).connect(this.master);
+    src.start(t0);
+    const o = this.ctx.createOscillator(), og = this.ctx.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(220, t0); o.frequency.exponentialRampToValueAtTime(90, t0 + 0.25);
+    og.gain.setValueAtTime(0.15 * intensity, t0); og.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
+    o.connect(og).connect(this.master); o.start(t0); o.stop(t0 + 0.32);
+  }
+
   /** Musical horn (Dukaan upgrade): a cheeky little tune. */
   musicalHorn() {
     if (!this.ctx) return;

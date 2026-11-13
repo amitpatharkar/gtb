@@ -316,7 +316,7 @@ export class StreetLife {
     const hw = seg.s[4];
     const [x, z, h, lx, lz] = this.segPoint(seg, 0.45, 1, 1, Math.max(0, hw - 1.0));
     const fx = Math.sin(h), fz = Math.cos(h);
-    const car = { type: 'taxi', x, z, heading: h, tint: new THREE.Color(1, 1, 1) };
+    const car = { type: 'taxi', x, z, heading: h, tint: new THREE.Color(0x060606) };
     const driver = { ...this.person('casual', x + fx * 2.8 - lx * 0.3, z + fz * 2.8 - lz * 0.3, h + Math.PI, POSE.ARGUE), role: 'driver' };
     const pushers = [0.5, -0.5].map((s) => ({ ...this.person(pick(['worker', 'casual']), x - fx * 2.4 + lx * s * 0.5, z - fz * 2.4 + lz * s * 0.5, h, POSE.CROUCH), role: 'push' }));
     return { type: 'breakdown', x, z, car, fx, fz, people: [driver, ...pushers], t: 0, pushes: 0, sayT: 1 };
