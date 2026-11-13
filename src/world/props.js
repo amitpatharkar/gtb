@@ -268,6 +268,7 @@ export function buildProps(props, data, treeShare = 1) {
       mesh.receiveShadow = !tree;
       mesh.computeBoundingSphere();
       mesh.userData.kind = Number(kind);
+      mesh.userData.index = keep; // instance k is point keep[k] (for shaking trees, bending poles)
       group.add(mesh);
     }
   }

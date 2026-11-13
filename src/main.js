@@ -26,6 +26,8 @@ import { Phone } from './ui/phone.js';
 import { Walker } from './player/walker.js';
 import { Pichkari } from './player/pichkari.js';
 import { SkidMarks } from './vehicles/skids.js';
+import { TaxiDamage } from './vehicles/damage.js';
+import { PropPhysics } from './world/propPhysics.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
@@ -89,8 +91,9 @@ const pichkari = new Pichkari(scene, { tiles, street, police, traffic, bubbles, 
 const jobs = new Jobs({ scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street });
 jobs.taxi = player;
 const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => cycleTier(tierKey), onPhoto: () => takePhoto() });
+const propPhysics = new PropPhysics(scene, tiles, { bubbles, hud, state, audio });
 const world = {
-  hits: (x, z, r) => tiles.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r),
+  hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r),
   groundHeight: (x, z) => tiles.wheelHeight(x, z),
 };
 const spawn = index.spawn;
@@ -116,8 +119,9 @@ taxi.root.add(headlamp, headlamp.target);
 // ------------------------------------------------------------------ on foot
 const walker = new Walker(tiles);
 const skids = new SkidMarks(scene);
+const damage = new TaxiDamage(scene, taxi);
 let onFoot = false;
-const footWorld = { hits: (x, z, r) => tiles.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || taxiHits(x, z, r) };
+const footWorld = { hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || taxiHits(x, z, r) };
 function taxiHits(x, z, r) {
   const fx = Math.sin(player.heading) * 1.1, fz = Math.cos(player.heading) * 1.1;
   return (x - player.pos.x - fx) ** 2 + (z - player.pos.z - fz) ** 2 < (r + 0.8) ** 2 || (x - player.pos.x + fx) ** 2 + (z - player.pos.z - -fz) ** 2 < (r + 0.8) ** 2;
@@ -263,12 +267,15 @@ function refuel() {
   const litres = Math.round((1 - player.fuel) * 35);
   if (litres) state.pay(litres * 103, `Petrol ${litres} L`);
   player.fuel = 1;
-  player.condition = Math.min(1, player.condition + 0.2);
-  say(litres ? `Filled ${litres} litres · ₹${litres * 103} · tyres and water checked` : 'Tank already full');
+  // The pump's mechanic fixes dents, bumpers and lamps too (for a price).
+  const repair = Math.round((1 - player.condition) * 4000 / 50) * 50;
+  if (repair > 0) state.pay(repair, 'Repairs at the pump');
+  player.condition = 1;
+  say(`${litres ? `Filled ${litres} L · ₹${litres * 103}` : 'Tank already full'}${repair > 0 ? ` · repairs ₹${repair}` : ' · tyres and water checked'}`);
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, toggleFoot, get onFoot() { return onFoot; } };
 const timer = new THREE.Timer();
 let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 renderer.setAnimationLoop((time) => {
@@ -292,9 +299,17 @@ function step(dt) {
   audio.squeal(onFoot ? 0 : player.slip || 0);
   audio.engine(player.speed, onFoot ? 0 : player.throttle || 0, !onFoot);
   if (player.impact) {
-    if (player.impact > 2.5) audio.crash(Math.min(1, player.impact / 14));
+    if (player.impact > 2.5) {
+      audio.crash(Math.min(1, player.impact / 14));
+      damage.impact(player.impactLocal[0], player.impactLocal[1], player.impact);
+      propPhysics.impact(player.impact, Math.sin(player.heading), Math.cos(player.heading));
+    }
     player.impact = 0;
   }
+  damage.update(dt, player);
+  if (!onFoot) propPhysics.sweep(player);
+  propPhysics.update(dt, onFoot ? null : player);
+  if (player.condition > 0.97 && (damage.front || damage.rear)) damage.repair();
   if (onFoot) {
     walker.update(dt, input, footWorld, state.s.energy, clock.aqi);
     // Careless drivers knock you over.
@@ -330,8 +345,9 @@ function step(dt) {
   facadeNight.value = night;
   facadeParts.update(dt, player, tiles, night);
   tiles.props.lampMat.emissiveIntensity = night * 9;
-  taxi.lights.headMat.emissiveIntensity = 0.2 + night * 5;
-  headlamp.intensity = night * 60;
+  const lamps = damage.headlampFactor(player.condition);
+  taxi.lights.headMat.emissiveIntensity = (0.2 + night * 5) * lamps;
+  headlamp.intensity = night * 60 * lamps;
   lampTimer -= dt;
   if (lampTimer <= 0) {
     lampTimer = 0.4;

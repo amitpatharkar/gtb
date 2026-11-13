@@ -56,7 +56,8 @@ export class Car {
     if (stuck || !blocked(this.pos.x, this.pos.z + dz)) this.pos.z += dz; else hit = true;
     if (hit) {
       const impact = Math.abs(this.speed);
-      this.impact = Math.max(this.impact || 0, impact);
+      // Which side hit, in the car's own frame: mostly the end it was moving towards.
+      if (impact > (this.impact || 0)) { this.impact = impact; this.impactLocal = [(Math.random() - 0.5) * 0.8, Math.sign(this.speed) || 1]; }
       if (impact > 4) this.condition = Math.max(0, this.condition - impact * 0.004);
       this.speed *= -0.25;
     }

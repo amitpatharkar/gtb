@@ -106,8 +106,8 @@ export function createTaxi(opts = {}) {
     }
   }
   // Bumpers, grille, lamps, plates.
-  add(new THREE.BoxGeometry(W + 0.04, 0.12, 0.12).translate(0, 0.36, L / 2 + 0.02), chrome);
-  add(new THREE.BoxGeometry(W + 0.04, 0.12, 0.12).translate(0, 0.36, -L / 2 - 0.02), chrome);
+  const bumperF = add(new THREE.BoxGeometry(W + 0.04, 0.12, 0.12).translate(0, 0.36, L / 2 + 0.02), chrome);
+  const bumperR = add(new THREE.BoxGeometry(W + 0.04, 0.12, 0.12).translate(0, 0.36, -L / 2 - 0.02), chrome);
   add(new THREE.BoxGeometry(0.62, 0.2, 0.04).translate(0, 0.6, L / 2 - 0.02), dark);
   add(new THREE.BoxGeometry(0.66, 0.24, 0.02).translate(0, 0.6, L / 2 - 0.035), chrome);
   for (const s of [-1, 1]) {
@@ -158,5 +158,7 @@ export function createTaxi(opts = {}) {
     wheels.push(spin);
     if (z > 0) steerers.push(pivot);
   }
-  return { root, body, wheels, steerers, lights: { headMat, tailMat, bar }, wheelRadius: WHEEL_R, wheelBase: WB };
+  // Panels that can dent (painted body, roof and pillars).
+  const dentable = body.children.filter((m) => m.material === black || m.material === yellow);
+  return { root, body, wheels, steerers, lights: { headMat, tailMat, bar }, wheelRadius: WHEEL_R, wheelBase: WB, track: TRACK, length: L, bumpers: { front: bumperF, rear: bumperR }, dentable };
 }
