@@ -89,6 +89,30 @@ export class CityAudio {
     }
   }
 
+  /** Stray dog bark (filtered noise bursts). */
+  bark(volume = 1) {
+    if (!this.ctx || volume < 0.03) return;
+    if (!this.noise) {
+      const b = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.5, this.ctx.sampleRate);
+      const d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      this.noise = b;
+    }
+    const t0 = this.ctx.currentTime;
+    for (const start of [0, 0.22]) {
+      const src = this.ctx.createBufferSource(), bp = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+      src.buffer = this.noise;
+      bp.type = 'bandpass'; bp.Q.value = 3;
+      bp.frequency.setValueAtTime(900, t0 + start);
+      bp.frequency.exponentialRampToValueAtTime(420, t0 + start + 0.12);
+      g.gain.setValueAtTime(0, t0 + start);
+      g.gain.linearRampToValueAtTime(0.5 * volume, t0 + start + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + start + 0.14);
+      src.connect(bp).connect(g).connect(this.master);
+      src.start(t0 + start, Math.random() * 0.3, 0.16);
+    }
+  }
+
   /** Two-tone police siren; volume 0 stops it. */
   siren(volume) {
     if (!this.ctx) return;

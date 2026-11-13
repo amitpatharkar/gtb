@@ -17,6 +17,8 @@ import { Signals } from './sim/signals.js';
 import { Police } from './sim/police.js';
 import { PeopleRenderer } from './sim/people.js';
 import { Bubbles } from './ui/bubbles.js';
+import { StreetLife } from './sim/street.js';
+import { Animals } from './sim/animals.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
@@ -67,9 +69,12 @@ const taxi = createTaxi();
 scene.add(taxi.root);
 const player = new Car(taxi);
 player.money = 2000; // ₹ in the wallet
-const police = new Police({ scene, tiles, traffic, signals, people, audio, bubbles, hud: { message: (t) => say(t, 4) } });
+const hud = { message: (t) => say(t, 4) };
+const police = new Police({ scene, tiles, traffic, signals, people, audio, bubbles, hud });
+const animals = new Animals(scene);
+const street = new StreetLife({ scene, tiles, traffic, signals, people, animals, bubbles, audio, police, tier, hud });
 const world = {
-  hits: (x, z, r) => tiles.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r),
+  hits: (x, z, r) => tiles.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r),
   groundHeight: (x, z) => tiles.groundHeight(x, z),
 };
 const spawn = index.spawn;
@@ -128,14 +133,14 @@ addEventListener('keydown', (e) => {
   audio.start();
   if (e.repeat) return;
   if (e.code === 'KeyQ') cycleTier(tierKey);
-  if (e.code === 'KeyH') audio.play('horn', 0.9);
+  if (e.code === 'KeyH') { audio.play('horn', 0.9); street.onHorn(); }
   if (e.code === 'KeyT') { clock.hour = (clock.hour + 1) % 24; say(`Time: ${clock.label}`, 1.5); }
   if (e.code === 'KeyM') audio.toggleMute();
   if (e.code === 'KeyF') refuel();
 });
 addEventListener('pointerdown', () => audio.start());
 for (const id of ['btn-horn', 'btn-fuel']) {
-  $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); if (id === 'btn-horn') audio.play('horn', 0.9); else refuel(); });
+  $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); if (id === 'btn-horn') { audio.play('horn', 0.9); street.onHorn(); } else refuel(); });
 }
 
 function nearestPump() {
@@ -158,7 +163,7 @@ function refuel() {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals };
 const timer = new THREE.Timer();
 let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 renderer.setAnimationLoop((time) => {
@@ -178,6 +183,7 @@ function step(dt) {
   signals.update(dt, tiles, traffic, player.pos, clock.night);
   people.begin();
   police.update(dt, player, clock);
+  street.update(dt, player, clock);
   people.end();
   placeCamera(dt);
   bubbles.update(dt, camera);

@@ -16,7 +16,7 @@ import { Y } from '../world/levels.js';
 //   you. Stay out of sight long enough and the stars fade.
 
 const FINES = {
-  red: ['Signal jump', 1000], wrong: ['Wrong-way driving', 1000], footpath: ['Driving on the footpath', 500], evade: ['Running from the police', 2000],
+  red: ['Signal jump', 1000], wrong: ['Wrong-way driving', 1000], footpath: ['Driving on the footpath', 500], evade: ['Running from the police', 2000], hitrun: ['Hit and run', 1500],
 };
 const COP_SAYS = {
   whistle: ['Ae! Ruko!', 'Signal laal hai!', 'Side mein lo!', 'Oye! Ruk!'],

@@ -88,6 +88,8 @@ export class Traffic {
     this.honks = [];
     this.events = [];      // { type: 'jump', car, ap } for the police
     this.signals = null;   // set by main.js
+    this.obstacles = [];   // [x, z, length]: cows, cricket pitches, jaywalkers (set by street life)
+    this.extras = [];      // parked/broken-down vehicles drawn with the traffic meshes
     this.night = 0;
   }
 
@@ -214,6 +216,7 @@ export class Traffic {
       };
       for (const o of this.cars) if (o !== car) check(o.x, o.z, this.types[o.type].len);
       check(player.pos.x, player.pos.z, 3.7);
+      for (const o of this.obstacles) check(o[0], o[1], o[2]);
       // Signals: stop at red (and at amber if there is room); jumpers just go.
       let atRed = false;
       if (this.signals && !car.pulled) {
@@ -273,6 +276,15 @@ export class Traffic {
       this.matrix.compose(new THREE.Vector3(car.x, 0.02, car.z), this.q, new THREE.Vector3(1, 1, 1));
       m.setMatrixAt(i, this.matrix);
       m.setColorAt(i, car.tint);
+    }
+    for (const e of this.extras) {
+      const m = this.meshes[e.type];
+      if (!m || counts[e.type] >= this.max) continue;
+      const i = counts[e.type]++;
+      this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, e.heading);
+      this.matrix.compose(new THREE.Vector3(e.x, 0.02, e.z), this.q, new THREE.Vector3(1, 1, 1));
+      m.setMatrixAt(i, this.matrix);
+      m.setColorAt(i, e.tint);
     }
     for (const n of this.typeNames) {
       const m = this.meshes[n];
