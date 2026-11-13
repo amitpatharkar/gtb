@@ -142,7 +142,30 @@ export class Story {
     this.lineT = Math.max(2.5, text.length * 0.06);
   }
 
-  skip() { if (this.lines?.length) this.lineT = 0; }
+  skip() { if (this.lines?.length || this.ext) this.lineT = 0; }
+
+  /** True while a mission cutscene or an ad-hoc scene is playing. */
+  get busy() { return !!this.camera || !!this.ext; }
+
+  /**
+   * An ad-hoc cutscene outside the missions (fan meets, easter eggs): `lines` are
+   * [speaker name, text], `cam()` gives { pos, look } each frame, `done()` runs at the end.
+   * Same letterbox and subtitles as mission cutscenes; Space skips a line.
+   */
+  playScene(lines, cam, done) {
+    if (this.busy) return false;
+    this.ext = { lines: lines.slice(), cam, done };
+    this.camera = cam();
+    this.extLine();
+    return true;
+  }
+
+  extLine() {
+    const [name, text] = this.ext.lines[0];
+    this.cut.innerHTML = `<div class="bar top"></div><div class="bar bottom"><p><b>${name}:</b> ${text}</p><small>Space to continue</small></div>`;
+    this.cut.hidden = false;
+    this.lineT = Math.max(2.6, text.length * 0.065);
+  }
 
   next(ctx) { this.s.step++; this.enterStep(ctx); }
 
@@ -151,6 +174,17 @@ export class Story {
     const me = onFoot ? walker : player;
     // A save taken mid-mission: rebuild the step's state (cutscene lines, task counters, cast).
     if (this.s.active && !this.entered) { this.entered = true; this.enterStep(ctx, true); }
+    if (this.ext) {
+      // An ad-hoc scene has the camera until its lines run out.
+      this.camera = this.ext.cam();
+      this.lineT -= dt;
+      if (this.lineT <= 0) {
+        this.ext.lines.shift();
+        if (this.ext.lines.length) this.extLine();
+        else { const done = this.ext.done; this.ext = null; this.cut.hidden = true; this.camera = null; done?.(); }
+      }
+      return;
+    }
     // Mission marker at the next start.
     const avail = this.available();
     this.marker.visible = this.beam.visible = !!avail;

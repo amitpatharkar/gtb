@@ -15,6 +15,7 @@ export const CHEATS = [
   { code: 'DOPEHER', what: 'time 1:00 pm', run: (g) => { g.clock.hour = 13; return 'Dopeher — dhoop kadak'; } },
   { code: 'RAATHOGAYI', what: 'time 9:00 pm', run: (g) => { g.clock.hour = 21; return 'Raat ho gayi — lights on'; } },
   { code: 'TRAFFICJAM', what: 'rush-hour traffic now', run: (g) => { g.clock.hour = 9.5; return 'Peak hour. Best of luck.'; } },
+  { code: 'DARSHAN', what: 'the film stars step out to wave now', run: (g) => { g.stars.callOut(); return 'Darshan! The stars are coming out (Bandra and Juhu)'; } },
   { code: 'DEBUGKARO', what: 'frame stats overlay (toggle)', toggle: 'stats', run: (g, on) => (on ? 'Stats on' : 'Stats off') },
 ];
 

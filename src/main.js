@@ -28,6 +28,7 @@ import { Characters } from './sim/characters.js';
 import { Cheats } from './game/cheats.js';
 import { Garage } from './vehicles/garage.js';
 import { Crackers } from './game/crackers.js';
+import { Stars } from './game/stars.js';
 import { Story } from './game/story.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
@@ -157,7 +158,7 @@ const story = new Story({ scene, tiles, index, state, cityMap, hud, bubbles, peo
 const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => changeQuality(nextTier(tierKey)), onPhoto: () => takePhoto() });
 const propPhysics = new PropPhysics(scene, tiles, { bubbles, hud, state, audio });
 const world = {
-  hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || garage.taxiHits(x, z, r),
+  hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || garage.taxiHits(x, z, r) || stars.hits(x, z, r),
   bodyAt: (x, z, r) => traffic.bodyAt(x, z, r), // other vehicles are pushed by mass rather than acting as walls
   groundHeight: (x, z) => { const y = tiles.wheelHeight(x, z); if (tiles.inPothole) world.pothole = true; return y; },
 };
@@ -242,7 +243,7 @@ applyOutfit();
 const skids = new SkidMarks(scene);
 const damage = new TaxiDamage(scene, taxi);
 let onFoot = false;
-const footWorld = { hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || taxiHits(x, z, r) };
+const footWorld = { hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || taxiHits(x, z, r) || stars.hits(x, z, r) };
 /** The vehicle the player left (taxi or borrowed) and the parked taxi are solid for people on foot. */
 function taxiHits(x, z, r) {
   const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
@@ -331,6 +332,9 @@ pichkari.ctx.combat = combat;
 garage.combat = combat;
 // Phatake: firecrackers the player can light on foot (X; Z changes type); the city lights its own on evenings.
 const crackers = new Crackers({ scene, tiles, audio, bubbles, street, police, traffic, hud, tier, renderer });
+// Fan meets at two (fictional) film stars' houses, in Bandra and Juhu.
+const stars = new Stars({ scene, tiles, index, people, bubbles, audio, hud, story, state, crackers, traffic });
+cityMap.markers = () => stars.markers();
 // Collisions with other vehicles: riders come off their bikes, drivers shout, hard hits are hit-and-run.
 traffic.onRiderDown = (bike) => { garage.eject(bike, null, 'down'); if (!onFoot) police.offence('hitrun', player); };
 traffic.onShunt = (car, dv) => { if (dv > 1.5) bubbles.say(car, ['Arre! Andha hai kya?!', 'Gaadi thok di!', 'Dekh ke chala!', 'Mera bumper!'][Math.floor(Math.random() * 4)], 2.5, 'driver'); };
@@ -405,7 +409,7 @@ applySettings(settings);
 addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && !phone.open && !cityMap.open) { pause.toggle(); return; }
   if (pause.open) return;
-  if ((e.code === 'Space' || e.code === 'Enter') && story.lines?.length && story.camera) { story.skip(); return; }
+  if ((e.code === 'Space' || e.code === 'Enter') && (story.lines?.length || story.ext) && story.camera) { story.skip(); return; }
   if (e.code === 'Slash') { helpTimer = helpTimer > 0 ? 0 : 30; $('help').classList.toggle('show', helpTimer > 0); }
   audio.start();
   if (e.repeat) return;
@@ -535,7 +539,7 @@ function choice(title, options) {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { THREE, garage, crackers, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { THREE, garage, crackers, stars, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const cheats = new Cheats(window.__gtb, (t, s) => say(t, s));
 window.__gtb.cheat = (code) => cheats.enter(code);
 window.__gtb.cheats = cheats;
@@ -611,6 +615,7 @@ function step(dt) {
   combat.update(dt, { fire: input.fire || input.brake }, onFoot);
   if (!onFoot && !cutscene) combat.carVsPeople(player);
   crackers.update(dt, clock, active.pos, camera.position, onFoot ? walker : null);
+  stars.update(dt, clock, active, clock.night);
   story.update(dt, { player, onFoot, walker });
   if (onFoot) walker.draw(people, combat.weapon);
   else if (garage.rider) {

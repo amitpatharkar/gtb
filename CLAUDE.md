@@ -136,9 +136,14 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   synthesised bangs/crackle/hiss/whistle with distance delay; types anar, chakri, ladi, bomb, rocket (shells: peony,
   ring, willow, glitter); `playerLight()` (X, Z = next type), evening ambience (`shell()` over rooftops, peds
   lighting crackers), `startle()`; `police.offence('noise')` after 10 pm.
+- `src/game/stars.js` — fan meets at two fictional film stars' houses (Bandra seafront villa "Khwaab", Juhu bungalow
+  "Sangam"): `place()` finds open ground beside a nearby road once tiles are loaded and builds the gate, platform and
+  villa front; fans + constables are persistent people objects; the star is out by the clock (`hours`, `sunday`) or
+  via `callOut()` (cheat DARSHAN); `story.playScene(lines, cam, done)` is the generic ad-hoc cutscene (letterbox,
+  subtitles, Space skips; `story.busy`); first meeting gives a gift (`state.s.fanMeets`). Never real names/likeness.
 - `src/game/cheats.js` — developer cheat console (` key or double-tap the clock; `window.__gtb.cheat(code)`):
   PAISAHIPAISA, CHALANMAAF, MAAMUCHUTTI, PETROLBHARO, AMRUT, SHAKTIMAAN, DHOOMMACHALE, JADOO (teleport to waypoint),
-  SUBAHHOGAYI, DOPEHER, RAATHOGAYI, TRAFFICJAM, DEBUGKARO (stats line); listed in the Guide
+  SUBAHHOGAYI, DOPEHER, RAATHOGAYI, TRAFFICJAM, DARSHAN (stars step out), DEBUGKARO (stats line); listed in the Guide
 - `src/ui/menu.js` — title screen (Continue/New/Settings/Guide/Credits), GTA-style loading screens (original SVG art,
   tips), Esc pause menu; settings in localStorage (`gtb.settings`: tier — Low by default —, volume, mouse sensitivity,
   invert Y, hints, spoken GPS, radio). Graphics changes reload via `gtb.resume` (sessionStorage) back into the game.
