@@ -165,7 +165,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   (camera on the speaker, Space skips), objectives, goto/pickup/dropoff/waitHour/tasks, time limits, rewards; saved in
   `state.s.story`
 - `src/ui/minimap.js` — rotating radar (land, roads, traffic, petrol pumps, GPS route); `src/ui/cityMap.js` — full map
-  (Tab / tap radar; pan, zoom, tap for a waypoint; GPS A* on all tiles, one-ways respected; game pauses);
+  (Tab / tap radar; pan, zoom, tap for a waypoint; game pauses). Map and GPS use `tiles/overview.bin.gz` (roads +
+  simplified land, ~0.5 MB, format in `src/world/overviewFormat.js`), loaded on first use by `src/ui/mapWorker.js`,
+  which builds the road graph and runs A* off the main thread (one-ways respected, no step cap), picks random taxi
+  destinations (`cityMap.randomPlace`) and cuts the drawing data into 1 km chunks;
   `src/ui/phone.js` — phone (P): Maps, Chalo Driver, Bhookh (food), JhatPat (quick commerce), Dukaan (shopping to
   home), PayKaro (UPI), Messages, Camera (photo mode), Ghar (home), Settings — all parody names;
   `src/ui/bubbles.js` — speech bubbles; `src/audio.js` — ambience, horns, synthesised whistle, siren, bark, engine,
@@ -175,7 +178,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   (refuel + repair menu / snack), F out/in of the taxi, Tab map, P phone, J taxi duty, N radio, Esc pause, ? key list,
   on foot 1 fists / 2 pichkari, V kick, G insult, C colour, [ ] pressure, X light a cracker, Z cracker type,
   F into the nearest vehicle (anyone's); ` cheat console; T +1 hour, M mute, Q graphics, R reset
-- `scripts/build-tiles.mjs` — converter (`npm run tiles`, ~7 s): v1 steps plus streets via Clipper (`lib/clip.mjs`:
+- `scripts/build-tiles.mjs` — converter (`npm run tiles`, ~55 s for the shipped box 18.890,72.795 → 19.140,72.920;
+  `--bbox S,W,N,E`, fixed world origin `--origin` = Mahim 19.03,72.85 so coordinates never move as the map grows;
+  writes `overview.bin.gz`; ground UVs wrap every 1,872 m (`UV_PERIOD` in tileWorker.js, a common multiple of the
+  ground texture sizes in materials.js); private house names are blanked): v1 steps plus streets via Clipper (`lib/clip.mjs`:
   road surface union, footpaths by class, plots, parks cut out of plots), markings/crossings/trees/lights/stalls/
   garbage/potholes/puddles (`lib/streets.mjs`), building style + colour by district (`lib/districts.mjs`, from the
   research guide), OSM trees/signals/crossings/bus stops/petrol pumps from node tags. Index has `fuel` positions.
@@ -193,7 +199,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 
 ## Status
 - Done: starter scene, auto-deploy workflow, raw Mumbai map data.
-- Done (2026-11-13): **map converter + tile streaming** for South Mumbai (18.890,72.795 → 18.975,72.860).
+- Done (2026-11-13): **map converter + tile streaming**, first for South Mumbai (18.890,72.795 → 18.975,72.860).
   ~8,500 buildings (height → `building:levels` × 3.2 m → guess by type and footprint; courtyards and
   `building:part` supported), roads with widths by class/lanes (tunnels skipped, flyovers flat for now), coastline → land
   with sea walls, inland water as holes, parks/maidans/beaches/pitches, railways (broad gauge) — 163 tiles, 0.35 MB total,
@@ -224,7 +230,14 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   tier load radius and shadow throttling; landmarks; Poly Haven props; radio; Bhookh delivery job; wardrobe; hawaldar
   pay/argue/run; baraat and cricket-window events. Asset pipeline: Blender on Ubuntu needs `python3-numpy`;
   `_convert.log` next to each pack on the `assets` branch shows conversion results.
-- Next (ideas, owner's goal: "GTA V Mumbai edition, maximised for a browser"):
+- Done (2026-11-13, evening — details and status per item in `docs/plan.md`): five reviews + plan; Indian traffic
+  fleet (lofted bodies, BatchedMesh, LOD) and parked vehicles; driving physics (slide along walls, grip, handbrake,
+  momentum exchange by mass, people knocked down); take and drive any vehicle; cheats; faster loading (prefetch, gated
+  textures, deferred extras, compileAsync); full save (taxi, clock, challans, orders) and paid tow; Neutral tone
+  mapping and night lighting; recessed windows; kerb paint only on main roads; real characters for everyone nearby
+  (one draw call each, feet/run fixed); fist-fight combos/block/knockouts; firecrackers; the map from Colaba to
+  Bandra, Juhu, Andheri, Kurla and Powai with an overview file and GPS in a worker. 979 tiles, 9.2 MB; site ~191 MB.
+- Next (ideas, owner's goal: "GTA V Mumbai edition, maximised for a browser"; the live list is `docs/plan.md`):
   1. **More missions**: Bhookh delivery-partner job (pick up at a stall, deliver on time, food condition), dabbawala
      relay at lunchtime, tourist tours (Gateway → Marine Drive), police chase challenges, races on Marine Drive at night.
   2. **Characters**: Quaternius rigged characters (assets pipeline: Blender step ran but produced no GLBs — check

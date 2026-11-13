@@ -59,8 +59,8 @@ Effort: S small, M medium, L large. ✅ done · 🟡 in progress · ⬜ to do.
 ## Phase 3 — The city grows
 | # | Item | Effort | Status |
 |---|---|---|---|
-| 3.1 | Converter: fixed origin (Mahim), per-tile UV wrapping, overview file (0.6 MB) for map and GPS, skip elevated metro, landmark distance limit, racecourse as grass, district guides north of Byculla, airport runways | M | ⬜ |
-| 3.2 | Ship the island city + Bandra, Juhu, Andheri and Powai (`--bbox 18.890,72.795,19.140,72.920`: 1,007 tiles, 9.5 MB, streamed — per-player load unchanged) | S after 3.1 | ⬜ |
+| 3.1 | Converter: fixed origin (Mahim, `--origin`), ground UVs wrapped every 1,872 m, overview file (0.5 MB) for the map and GPS with routing in a Web Worker (no step cap; Gateway → Powai 26.7 km), elevated metro/monorail skipped, landmark distance limit, racecourse as grass, 30 district guides from Haji Ali to Hiranandani, airport runways/aprons, private house names blanked | M | ✅ |
+| 3.2 | Shipped: the island city + Bandra, Juhu, Andheri, Kurla and Powai (`--bbox 18.890,72.795,19.140,72.920`: 979 tiles, 9.2 MB, streamed — load at the spawn unchanged, ~75 KB on Low); new map labels and taxi destinations; "GPS route home" in the Ghar app. Known gaps: bridges/Sea Link at ground level (3.3), tetrapods on lake shores, sparse Dharavi outlines, converter now ~55 s per build | S after 3.1 | ✅ |
 | 3.3 | Flyovers and bridges (~170 km: Sea Link, Coastal Road + tunnels, Eastern Freeway, JJ, Kemps Corner …) | L | ⬜ |
 | 3.4 | Local trains on the OSM route relations (Western/Central/Harbour, 46 stations with platforms), timetable by game clock, ride by fade; Metro 3 underground fast travel | M–L | ⬜ |
 
