@@ -1,0 +1,52 @@
+name: Build assets
+
+# Downloads the free assets listed in docs/research/assets.json, compresses them
+# (textures → KTX2 etc.) and publishes the result to the "assets" branch, which the
+# deploy copies into the site. The branch is replaced each time, so git history stays small.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - docs/research/assets.json
+      - scripts/assets/**
+      - .github/workflows/assets.yml
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: assets
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Raw downloads are cached between runs so unchanged assets are not fetched again.
+      - uses: actions/cache@v4
+        with:
+          path: .asset-cache
+          key: asset-cache-${{ hashFiles('docs/research/assets.json') }}
+          restore-keys: asset-cache-
+      - run: node scripts/assets/build-assets.mjs --out out/assets
+      - name: Publish to the assets branch
+        run: |
+          cd out/assets
+          git init -q -b assets
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Built assets from ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" assets
+      - name: Redeploy the site with the new assets
+        run: gh workflow run deploy.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}

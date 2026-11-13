@@ -24,6 +24,16 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Add built assets (textures, skies, sounds, fonts) from the assets branch
+        run: |
+          if git ls-remote --exit-code --heads origin assets > /dev/null; then
+            git fetch -q --depth 1 origin assets
+            mkdir -p public/media
+            git archive FETCH_HEAD | tar -x -C public/media
+            du -sh public/media
+          else
+            echo "No assets branch yet"
+          fi
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

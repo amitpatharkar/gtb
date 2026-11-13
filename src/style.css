@@ -96,3 +96,40 @@ canvas { display: block; }
   }
   .pad button.on { background: #f5c400cc; color: #000; }
 }
+
+#credits-panel {
+  position: fixed;
+  right: 12px;
+  bottom: 30px;
+  width: min(460px, calc(100vw - 24px));
+  max-height: 70vh;
+  overflow: auto;
+  background: #fffffff2;
+  color: #222;
+  font-size: 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 24px #0006;
+  z-index: 20;
+  user-select: text;
+}
+#credits-panel[hidden] { display: none; }
+#credits-panel .head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #1d2a33;
+  color: #f5c400;
+  font-weight: 700;
+}
+#credits-panel .close { background: none; border: none; color: #fff; font-size: 16px; cursor: pointer; }
+#credits-panel .body { padding: 4px 12px 12px; }
+#credits-panel h3 { font-size: 13px; margin: 12px 0 4px; }
+#credits-panel ul { margin: 0; padding-left: 18px; }
+#credits-panel li { margin: 2px 0; }
+#credits-panel a { color: #1b5fa8; }
+@media (pointer: coarse) {
+  #credits-panel { top: 30px; bottom: auto; }
+}

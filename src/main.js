@@ -4,6 +4,7 @@ import { input } from './input.js';
 import { TileManager } from './world/tiles.js';
 import { createMaterials } from './world/materials.js';
 import { createEnvironment } from './world/environment.js';
+import { setupCredits } from './credits.js';
 
 // Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -23,6 +24,7 @@ const speedEl = document.getElementById('speed');
 const roadEl = document.getElementById('road');
 const fadeEl = document.getElementById('fade');
 
+setupCredits(import.meta.env.BASE_URL);
 const tiles = new TileManager(scene, createMaterials(renderer));
 const index = await tiles.init(`${import.meta.env.BASE_URL}tiles/`).catch((err) => {
   loadingEl.textContent = String(err.message || err);

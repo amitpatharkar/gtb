@@ -4,7 +4,7 @@ Machine-readable version: [`assets.json`](assets.json) (same entries, same ids).
 
 **Rules applied:** only CC0-1.0, CC-BY-4.0 or OFL-1.1. No NC/ND/editorial/store licences. Textures 2K max (1K where the 2K zip is over 25 MB). All non-Sketchfab download links were checked (HTTP 200) on 2026-11-13.
 
-**Summary:** 126 assets — 38 texture, 8 hdri, 9 tree, 17 vehicle, 2 character, 2 animation, 17 prop, 21 sound, 12 font. Login needed: 17 (all Sketchfab models; each has a no-login CC0 fallback from Kenney/Quaternius).
+**Summary:** 130 assets — 39 texture, 8 hdri, 12 tree, 17 vehicle, 2 character, 2 animation, 17 prop, 21 sound, 12 font. Login needed: 20 (all Sketchfab models; each has a no-login CC0 fallback from Kenney/Quaternius, except the heavy gulmohar/peepal tree sources).
 
 **Notes for the build pipeline**
 
@@ -51,7 +51,8 @@ Machine-readable version: [`assets.json`](assets.json) (same entries, same ids).
 | `tex-ph-painted-metal-shutter` | Painted rolling shutters, tint green/blue/grey | [Painted Metal Shutter](https://polyhaven.com/a/painted_metal_shutter) | CC0-1.0 | Dario Barresi, Rico Cilliers, Charlotte Baglioni (Poly Haven) | 2048x2048 (diffuse + normal GL + roughness) (~7.9 MB) | no | [jpg](https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/painted_metal_shutter/painted_metal_shutter_diff_2k.jpg) |
 | `tex-acg-bricks096` | Dark grey old stone blocks — closest CC0 match to the dark basalt rubble of CST / Fort Gothic buildings | [Bricks096](https://ambientcg.com/view?id=Bricks096) | CC0-1.0 | ambientCG (Lennart Demes) | 2048x2048 (Color, NormalGL, Roughness, AO, Displacement) (~14.2 MB) | no | [zip](https://ambientcg.com/get?file=Bricks096_2K-JPG.zip) |
 | `tex-acg-bricks089` | Dark grey random stone wall — alternative basalt | [Bricks089](https://ambientcg.com/view?id=Bricks089) | CC0-1.0 | ambientCG (Lennart Demes) | 2048x2048 (Color, NormalGL, Roughness, AO, Displacement) (~16.4 MB) | no | [zip](https://ambientcg.com/get?file=Bricks089_2K-JPG.zip) |
-| `tex-acg-plastic015a` | Blue plastic — use as blue tarpaulin (add vertex-wave sag + wrinkle normal) | [Plastic015A](https://ambientcg.com/view?id=Plastic015A) | CC0-1.0 | ambientCG (Lennart Demes) | 2048x2048 (Color, NormalGL, Roughness, AO, Displacement) (~17.6 MB) | no | [zip](https://ambientcg.com/get?file=Plastic015A_2K-JPG.zip) |
+| `tex-acg-plastic015a` | FALLBACK only — blue plastic; tex-texturecan-plastic-0019 is the tarpaulin texture | [Plastic015A](https://ambientcg.com/view?id=Plastic015A) | CC0-1.0 | ambientCG (Lennart Demes) | 2048x2048 (Color, NormalGL, Roughness, AO, Displacement) (~17.6 MB) | no | [zip](https://ambientcg.com/get?file=Plastic015A_2K-JPG.zip) |
+| `tex-texturecan-plastic-0019` | Blue tarpaulin (roofs, stalls, monsoon covers) | [Plastic 0019](https://www.texturecan.com/details/446/) | CC0-1.0 | TextureCan | 2048x2048 (colour, normal, roughness, AO, height) | no | [zip](https://www.texturecan.com/downloads/plastic_0019/plastic_0019_2k_whS7Kt.zip) |
 | `tex-acg-asphalt025c` | Wet dark asphalt for monsoon (2K zip is 32 MB, so 1K is listed; switch textures per weather) | [Asphalt025C](https://ambientcg.com/view?id=Asphalt025C) | CC0-1.0 | ambientCG (Lennart Demes) | 1024x1024 (Color, NormalGL, Roughness, AO, Displacement) (~8.4 MB) | no | [zip](https://ambientcg.com/get?file=Asphalt025C_1K-JPG.zip) |
 | `tex-acg-pavingstones152` | Dirty worn interlocking pavers (2K zip is 28 MB) | [PavingStones152](https://ambientcg.com/view?id=PavingStones152) | CC0-1.0 | ambientCG (Lennart Demes) | 1024x1024 (Color, NormalGL, Roughness, AO, Displacement) (~8.3 MB) | no | [zip](https://ambientcg.com/get?file=PavingStones152_1K-JPG.zip) |
 | `tex-acg-grass004` | Dense green grass for gardens / monsoon-season maidans (2K zip is 40 MB) | [Grass004](https://ambientcg.com/view?id=Grass004) | CC0-1.0 | ambientCG (Lennart Demes) | 1024x1024 (Color, NormalGL, Roughness, AO, Displacement) (~11.0 MB) | no | [zip](https://ambientcg.com/get?file=Grass004_1K-JPG.zip) |
@@ -83,6 +84,9 @@ Machine-readable version: [`assets.json`](assets.json) (same entries, same ids).
 | `tree-ph-potted-plant-04` | Potted plants on balconies / shop fronts | [Potted Plant 04](https://polyhaven.com/a/potted_plant_04) | CC0-1.0 | James Ray Cock (Poly Haven) | 6,097 triangles (~2.1 MB) | no | [gltf](https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/potted_plant_04/potted_plant_04_1k.gltf) |
 | `tree-ph-planter-pot-clay` | Clay pot (tulsi pot, balcony plants) | [Planter Pot Clay](https://polyhaven.com/a/planter_pot_clay) | CC0-1.0 | Amal Kumar (Poly Haven) | 3,080 triangles (~1.8 MB) | no | [gltf](https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/planter_pot_clay/planter_pot_clay_1k.gltf) |
 | `tree-ph-shrub-03` | Bushes for road dividers (decimate) | [Shrub 03](https://polyhaven.com/a/shrub_03) | CC0-1.0 | Rico Cilliers (Poly Haven) | 16,955 triangles (~1.6 MB) | no | [gltf](https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/shrub_03/shrub_03_1k.gltf) |
+| `tree-sketchfab-young-palm` | Coconut palm (Marine Drive, Chowpatty) | [Young Palm](https://sketchfab.com/3d-models/young-palm-2517eb623aea48c4b4cc5e96e1e3f971) | CC-BY-4.0 | The_Structure_World | 1,512 triangles | **yes** | [glb](https://sketchfab.com/3d-models/young-palm-2517eb623aea48c4b4cc5e96e1e3f971) |
+| `tree-sketchfab-gulmohar` | Gulmohar (royal poinciana) — source for baked tree cards | [Realistic HD Royal poinciana (15/40)](https://sketchfab.com/3d-models/realistic-hd-royal-poinciana-1540-9d44b435434942e283adb0754e5403dd) | CC-BY-4.0 | PlantCatalog | 394,278 triangles | **yes** | [glb](https://sketchfab.com/3d-models/realistic-hd-royal-poinciana-1540-9d44b435434942e283adb0754e5403dd) |
+| `tree-sketchfab-peepal` | Peepal tree — source for baked tree cards | [Peepal Tree](https://sketchfab.com/3d-models/peepal-tree-a2d43c68161947aabea36dbbd6c5ea74) | CC-BY-4.0 | Lorna Inman | 1,174,842 triangles | **yes** | [glb](https://sketchfab.com/3d-models/peepal-tree-a2d43c68161947aabea36dbbd6c5ea74) |
 
 ## Vehicles
 
@@ -197,6 +201,13 @@ Machine-readable version: [`assets.json`](assets.json) (same entries, same ids).
 - **Vendor calls from Mumbai**: only a Kolkata hawker recording (CC-BY). Record your own or use generic Indian market ambience.
 - **Monsoon-specific rain**: generic heavy-rain CC0 recordings used.
 
+### Asset review (2026-11-13)
+
+- **Added:** `tree-sketchfab-young-palm` (coconut palm), `tex-texturecan-plastic-0019` (blue tarpaulin; replaces `tex-acg-plastic015a`, now marked fallback).
+- **Added but heavy (never load at runtime; bake to tree cards / impostors or decimate below 10,000 triangles):** `tree-sketchfab-gulmohar` (394,278 triangles), `tree-sketchfab-peepal` (1,174,842 triangles).
+- **Kept:** `vehicle-mumbai-local-train` (CC-BY-4.0, 2,808 triangles, 0 likes) — check visually; if poor, build the coach in code.
+- **Rejected:** "Mumbai Kali peeli Taxi" on Sketchfab (no licence, not downloadable, 56k triangles) — plan stays: shortened Hindustan Ambassador repainted black body `#111111` + yellow roof `#F7C600`. CGTrader "curb" (store licence, needs an account) — build kerbs in code: concrete_pavement texture + shader stripes alternating black `#1A1A1A` / yellow `#F2C200`, 0.6 m each.
+
 ## Credits
 
 All CC0 assets need no credit, but crediting is good practice: Poly Haven (polyhaven.com), ambientCG (ambientcg.com), Kenney (kenney.nl), Quaternius (quaternius.com), OpenGameArt contributors, Freesound contributors.
@@ -220,6 +231,9 @@ Required attribution lines (CC-BY-4.0):
 - "Hand Cart" (https://sketchfab.com/3d-models/hand-cart-46f64ce7a6614bf7b59e887d58bcbffa) by eb78 is licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/licenses/by/4.0/).
 - "Kebab Cart LOWPOLY" (https://sketchfab.com/3d-models/kebab-cart-lowpoly-69295a3d8e19479daf45a07497d8da18) by sixonetwo is licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/licenses/by/4.0/).
 - "Bus Stop - low" (https://sketchfab.com/3d-models/bus-stop-low-977fe8fc309548299cbc537f382e1a03) by Milionna is licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/licenses/by/4.0/).
+- "Young Palm" (https://sketchfab.com/3d-models/young-palm-2517eb623aea48c4b4cc5e96e1e3f971) by The_Structure_World is licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/licenses/by/4.0/).
+- "Realistic HD Royal poinciana (15/40)" (https://sketchfab.com/3d-models/realistic-hd-royal-poinciana-1540-9d44b435434942e283adb0754e5403dd) by PlantCatalog is licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/licenses/by/4.0/).
+- "Peepal Tree" (https://sketchfab.com/3d-models/peepal-tree-a2d43c68161947aabea36dbbd6c5ea74) by Lorna Inman is licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/licenses/by/4.0/).
 - "Kurla local train station Mumbai (2)" by sankalp (https://freesound.org/s/180430/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
 - "train local-train_ladies.mp3" by chhavi (https://freesound.org/s/471832/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
 - "Ambience near Kharghar station Mumbai" by sankalp (https://freesound.org/s/181118/) is licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).

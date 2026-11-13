@@ -654,7 +654,7 @@
   {
     "id": "tex-acg-plastic015a",
     "category": "texture",
-    "use": "Blue plastic — use as blue tarpaulin (add vertex-wave sag + wrinkle normal)",
+    "use": "FALLBACK only — blue plastic; tex-texturecan-plastic-0019 is the tarpaulin texture",
     "title": "Plastic015A",
     "source_page": "https://ambientcg.com/view?id=Plastic015A",
     "download_url": "https://ambientcg.com/get?file=Plastic015A_2K-JPG.zip",
@@ -665,7 +665,8 @@
     "attribution": "",
     "login_required": false,
     "approx_size_mb": 17.6,
-    "notes": "Zip contains *_Color.jpg, *_NormalGL.jpg, *_Roughness.jpg (+AO, Displacement, NormalDX — drop those). Direct link from ambientCG API."
+    "notes": "Zip contains *_Color.jpg, *_NormalGL.jpg, *_Roughness.jpg (+AO, Displacement, NormalDX — drop those). Direct link from ambientCG API. Marked fallback in asset review 2026-11-13.",
+    "fallback": true
   },
   {
     "id": "tex-acg-asphalt025c",
@@ -730,6 +731,22 @@
     "login_required": false,
     "approx_size_mb": 7.8,
     "notes": "Zip contains *_Color.jpg, *_NormalGL.jpg, *_Roughness.jpg (+AO, Displacement, NormalDX — drop those). Direct link from ambientCG API."
+  },
+  {
+    "id": "tex-texturecan-plastic-0019",
+    "category": "texture",
+    "use": "Blue tarpaulin (roofs, stalls, monsoon covers)",
+    "title": "Plastic 0019",
+    "source_page": "https://www.texturecan.com/details/446/",
+    "download_url": "https://www.texturecan.com/downloads/plastic_0019/plastic_0019_2k_whS7Kt.zip",
+    "format": "zip",
+    "size_or_triangles": "2048x2048 (colour, normal, roughness, AO, height)",
+    "licence": "CC0-1.0",
+    "author": "TextureCan",
+    "attribution": "",
+    "login_required": false,
+    "approx_size_mb": null,
+    "notes": "Added in asset review 2026-11-13; replaces tex-acg-plastic015a as the tarpaulin texture. Size not checked."
   },
   {
     "id": "hdri-kloofendal-28d-misty-puresky",
@@ -1004,6 +1021,56 @@
     "notes": "glTF + .bin + 1K textures in same folder; full file list: https://api.polyhaven.com/files/shrub_03"
   },
   {
+    "id": "tree-sketchfab-young-palm",
+    "category": "tree",
+    "use": "Coconut palm (Marine Drive, Chowpatty)",
+    "title": "Young Palm",
+    "source_page": "https://sketchfab.com/3d-models/young-palm-2517eb623aea48c4b4cc5e96e1e3f971",
+    "download_url": "https://sketchfab.com/3d-models/young-palm-2517eb623aea48c4b4cc5e96e1e3f971",
+    "format": "glb",
+    "size_or_triangles": "1,512 triangles",
+    "licence": "CC-BY-4.0",
+    "author": "The_Structure_World",
+    "attribution": "\"Young Palm\" (https://sketchfab.com/3d-models/young-palm-2517eb623aea48c4b4cc5e96e1e3f971) by The_Structure_World is licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/licenses/by/4.0/).",
+    "login_required": true,
+    "approx_size_mb": null,
+    "notes": "Added in asset review 2026-11-13. Size not checked."
+  },
+  {
+    "id": "tree-sketchfab-gulmohar",
+    "category": "tree",
+    "use": "Gulmohar (royal poinciana) — source for baked tree cards",
+    "title": "Realistic HD Royal poinciana (15/40)",
+    "source_page": "https://sketchfab.com/3d-models/realistic-hd-royal-poinciana-1540-9d44b435434942e283adb0754e5403dd",
+    "download_url": "https://sketchfab.com/3d-models/realistic-hd-royal-poinciana-1540-9d44b435434942e283adb0754e5403dd",
+    "format": "glb",
+    "size_or_triangles": "394,278 triangles",
+    "licence": "CC-BY-4.0",
+    "author": "PlantCatalog",
+    "attribution": "\"Realistic HD Royal poinciana (15/40)\" (https://sketchfab.com/3d-models/realistic-hd-royal-poinciana-1540-9d44b435434942e283adb0754e5403dd) by PlantCatalog is licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/licenses/by/4.0/).",
+    "login_required": true,
+    "approx_size_mb": null,
+    "heavy": true,
+    "notes": "Added in asset review 2026-11-13. HEAVY — do NOT load at runtime. Use only to bake flat tree cards / impostors, or decimate below 10,000 triangles."
+  },
+  {
+    "id": "tree-sketchfab-peepal",
+    "category": "tree",
+    "use": "Peepal tree — source for baked tree cards",
+    "title": "Peepal Tree",
+    "source_page": "https://sketchfab.com/3d-models/peepal-tree-a2d43c68161947aabea36dbbd6c5ea74",
+    "download_url": "https://sketchfab.com/3d-models/peepal-tree-a2d43c68161947aabea36dbbd6c5ea74",
+    "format": "glb",
+    "size_or_triangles": "1,174,842 triangles",
+    "licence": "CC-BY-4.0",
+    "author": "Lorna Inman",
+    "attribution": "\"Peepal Tree\" (https://sketchfab.com/3d-models/peepal-tree-a2d43c68161947aabea36dbbd6c5ea74) by Lorna Inman is licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/licenses/by/4.0/).",
+    "login_required": true,
+    "approx_size_mb": null,
+    "heavy": true,
+    "notes": "Added in asset review 2026-11-13. HEAVY — do NOT load at runtime. Use only to bake flat tree cards / impostors, or decimate below 10,000 triangles."
+  },
+  {
     "id": "vehicle-auto-rickshaw-bhagath",
     "category": "vehicle",
     "use": "Player/traffic auto-rickshaw (Bajaj RE style)",
@@ -1145,7 +1212,7 @@
     "attribution": "\"mumbai local train\" (https://sketchfab.com/3d-models/mumbai-local-train-9f540a6af4bf4b379f5d30000c63ff44) by rmihir560 is licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/licenses/by/4.0/).",
     "login_required": true,
     "approx_size_mb": 3,
-    "notes": "Sketchfab 'Download 3D model' needs a free account (or Download API with token). Quality unverified (0 likes). Check before use; otherwise build coach procedurally (box + window strip texture)."
+    "notes": "Sketchfab 'Download 3D model' needs a free account (or Download API with token). Quality unverified (0 likes). Check before use; otherwise build coach procedurally (box + window strip texture). Asset review 2026-11-13: keep; check visually (0 likes). If poor, build the coach in code."
   },
   {
     "id": "vehicle-indian-lhb-coach",

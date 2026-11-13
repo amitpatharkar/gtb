@@ -5,6 +5,8 @@
   "scripts": {
     "tiles": "node scripts/build-tiles.mjs",
     "tiles:preview": "node scripts/preview-tiles.mjs",
+    "assets": "node scripts/assets/build-assets.mjs",
+    "assets:pull": "git fetch -q --depth 1 origin assets && rm -rf public/media && mkdir -p public/media && git archive FETCH_HEAD | tar -x -C public/media",
     "predev": "npm run tiles",
     "dev": "vite --host",
     "build": "npm run tiles && vite build",
@@ -26,9 +28,12 @@
     "three": "^0.187.0"
   },
   "devDependencies": {
+    "fflate": "^0.8.2",
+    "ktx2-encoder": "^0.6.0",
     "lineclip": "^2.0.0",
     "pbf": "^5.1.2",
     "polygon-clipping": "^0.15.7",
+    "sharp": "^0.35.5",
     "vite": "^8.3.8"
   },
   "private": true,

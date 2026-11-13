@@ -19,6 +19,11 @@ OpenStreetMap: real streets, buildings, coastline, maidans and railway lines.
 
 Map data © OpenStreetMap contributors, available under the Open Database License.
 
+## Free assets
+`docs/research/assets.json` lists free textures, skies, sounds, fonts and models (CC0, CC-BY or Open Font License only).
+The "Build assets" GitHub Action downloads and compresses them into the `assets` branch; every deploy includes them.
+All credits are in the game (Credits link, bottom right).
+
 ## Free stack
 | Need | Tool |
 |---|---|
@@ -35,4 +40,6 @@ Map data © OpenStreetMap contributors, available under the Open Database Licens
 - `src/rickshaw.js` — placeholder auto-rickshaw and driving physics
 - `src/input.js` — keyboard and touch controls
 - `scripts/build-tiles.mjs` — map converter (OpenStreetMap → tiles)
+- `scripts/assets/` — asset pipeline (download, compress to KTX2, credits)
 - `docs/gta-v-development-analysis.md` — how GTA V was made, and what GTB borrows from it
+- `docs/research/` — Mumbai street guide, live check, free asset list

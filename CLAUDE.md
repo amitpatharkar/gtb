@@ -11,8 +11,13 @@ Owner: Amit Patharkar (GitHub: amitpatharkar). Working title "GTB"; name candida
   Prefer: GitHub (public repository), GitHub Actions, GitHub Pages, GitHub Codespaces free hours,
   Cloudflare R2 free tier (later, for large assets), free asset packs (Quaternius, Kenney, Poly Haven, Mixamo), Blender.
 - **Development happens in the cloud**, not on the owner's laptop. Test by pushing and opening the deployed site.
-- **Graphics goal:** clearly better than GTA Vice City — physically based materials, real-time shadows,
-  tone mapping, good lighting; stylised, not photorealistic.
+- **Graphics goal (updated 2026-11-13):** believable, realistic Mumbai at street level — "like I am actually driving
+  or walking in Mumbai". Real photo-scanned materials (free, physically based), real-time shadows, good lighting;
+  far beyond GTA Vice City. Not a drone-footage scan: realism comes from materials, district styles, street clutter,
+  hand-made landmarks and lighting (detail where the camera looks).
+- **Real scale (decided 2026-11-13):** Mumbai stays 1:1 (1 game metre = 1 real metre); the map grows outward.
+- **Names:** real brands, logos and trademarked buildings (e.g. the Taj Mahal Palace facade) get altered names;
+  ideas in `docs/research/mumbai-guide.md`.
 - **Must stay light to load:** first load under ~50 megabytes; stream map tiles near the player;
   compress textures (KTX2) and models (Draco or meshopt). GitHub Pages site must stay under 1 gigabyte;
   no single file over 100 megabytes in git.
@@ -29,9 +34,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   (vada pav stalls, chai tapris, cricket in maidans); spawns depend on the district.
 - **Humour through systems:** traffic-police "challan" wanted stars, fake brands and billboards, a Bollywood-style radio.
 - **Playable early, iterate forever:** every push deploys; test feel on phone and laptop; nothing is locked.
-- **Open decision — map compression:** the map is real scale (1 metre = 1 metre). South Mumbai is ~64 square kilometres,
-  about half of GTA V's world, and a full north–south drive takes ~9 minutes. Consider compressing later (needs remixing,
-  not a plain scale-down, or buildings and roads stop fitting the vehicles).
+- **Research first (Garbut's "block guides"):** `docs/research/mumbai-guide.md` has district guides (styles, colours,
+  street life), 32 landmarks with altered names, vehicles and signage; use it when building each area.
 
 ## Talking to the owner
 - Keep answers short and to the point.
@@ -62,6 +66,21 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `scripts/lib/` — own OpenStreetMap PBF reader, geometry helpers (ring merging, coastline → land polygons), byte writer
 - `scripts/preview-tiles.mjs` — debug: draws all tiles as one top-down SVG (`npm run tiles:preview`)
 - `public/tiles/` — generated, not committed (in `.gitignore`); `npm run build` regenerates it, so the deploy does too
+- `src/credits.js` — in-game Credits panel (OpenStreetMap, code libraries, every shipped asset from `media/manifest.json`)
+- `docs/research/` — research done in the owner's browser by Claude in Chrome: `mumbai-guide.md`, `live-check.md`,
+  `assets.json` (130 free assets with licence, author, attribution, download URLs; flags `login_required`,
+  `fallback`, `heavy`) and `assets.md` (same, readable, plus Credits). Only CC0, CC-BY and Open Font License.
+- `scripts/assets/build-assets.mjs` — asset pipeline (`npm run assets`): downloads what `assets.json` lists,
+  textures → KTX2 at 1024 px (`color.ktx2` sRGB, `normal.ktx2` OpenGL-style, `orm.ktx2` = red occlusion /
+  green roughness / blue metalness), sky HDRIs → 1K `.hdr`, sounds → `.ogg`, fonts → `.ttf` + licence;
+  writes `manifest.json` (files, licence, attribution, real-world size in metres for Poly Haven textures) and `CREDITS.md`.
+  Encoding uses `ktx2-encoder` (WebAssembly Basis Universal) in worker threads. Skips login-only, fallback and heavy
+  entries; models (trees, vehicles, props, characters) are stage 2.
+- `.github/workflows/assets.yml` — runs the pipeline in GitHub Actions when `assets.json` or the scripts change
+  (or by hand), force-pushes the result to the **`assets` branch** (one commit, replaced each time), then redeploys.
+  The session sandbox cannot reach most asset sites, so downloads happen there.
+- `public/media/` — built assets, not committed; the deploy copies the `assets` branch here;
+  locally run `npm run assets:pull`. (Not `public/assets/`: Vite uses `dist/assets/` for its own code.)
 - `data/raw/mumbai-region.osm.pbf` — OpenStreetMap extract from extract.bbbike.org, 2026-11-13, ~34 megabytes.
   Bounding box 72.598,18.520 → 73.533,19.500 (Vasai-Virar to Alibag, coast to Lonavala).
   Contains ~277k building outlines (~28k with height or building:levels), ~161k road ways, ~4.5k railway ways.
@@ -79,13 +98,24 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   hazy late-afternoon sky with reflections. Known gaps: landmarks are plain blocks (Gateway has windows),
   ~1% of narrow Colaba lanes are blocked by building outlines that overlap the street, flyovers are flat,
   map beyond the box is open sea.
+- Done (2026-11-13): research in `docs/research/`, asset pipeline + `assets` branch, in-game Credits panel.
+  Live check by the owner's browser: 60 fps, no console errors.
 - Next (in order):
-  1. **Far level of detail:** merged low-detail meshes for tiles beyond the detail radius, so the view can reach further.
-  2. **Camera polish:** keep the chase camera out of buildings.
-  3. **Playable character**: free rigged character (Quaternius or Mixamo) with idle/walk/run/jump,
+  1. **Real materials and lighting:** use `media/` textures (KTX2Loader + Basis transcoder) for walls by district style,
+     roads, footpaths, sand, grass; HDRI sky for lighting/reflections; ambient occlusion, bloom, colour grading;
+     less repetitive sea.
+  2. **Realism fixes from the live check:** spawn in a kaali-peeli taxi (autos are banned south of Bandra/Sion);
+     raised footpaths with black-yellow kerbs (block driving onto the promenade); coconut palms on the seafront.
+  3. **Pipeline stage 2 (models):** optimise glTF/FBX models with glTF Transform (meshopt + KTX2); login-only
+     Sketchfab models need a free API token saved as the GitHub secret `SKETCHFAB_API_TOKEN`; bake the heavy
+     gulmohar/peepal trees into tree cards.
+  4. **District architecture kit**, then **landmarks** (altered names), **bigger map** (whole island), heights from
+     Google Open Buildings 2.5D and hills from Copernicus elevation (both reachable from the sandbox).
+  5. **Far level of detail** and **camera** kept out of buildings.
+  6. **Playable character**: free rigged character (Quaternius or Mixamo) with idle/walk/run/jump,
      third-person controls, press E to enter/exit the auto-rickshaw.
-  4. Traffic cars, pedestrians, then the first timed mission (for example a dabba delivery).
-  5. Landmark models (Gateway of India, CST, Sea Link) and Mumbai flavour (kaali-peeli taxis, BEST buses, local trains).
+  7. Traffic cars, pedestrians, then the first timed mission (for example a dabba delivery).
+  8. Mumbai flavour: BEST buses, local trains, hawkers, fake-brand hoardings, radio.
 
 ## Testing in the session
 - `npm run build` must pass (it runs the converter first).
@@ -96,7 +126,12 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `npx vite preview` serves `.bin.gz` with `Content-Encoding: gzip` (browser unzips); GitHub Pages serves it as
   `application/gzip` (the worker unzips with DecompressionStream). Test the second path with
   `python3 -m http.server` serving a folder that contains `dist` as `gtb`.
-- The session sandbox usually cannot reach map servers (Overpass, Geofabrik); do data downloads in a GitHub Action if needed.
+- The session sandbox usually cannot reach map servers (Overpass, Geofabrik) or asset sites (Poly Haven, ambientCG,
+  Kenney, OpenGameArt, Sketchfab, Freesound); do downloads in a GitHub Action. It can reach npm, GitHub,
+  raw.githubusercontent.com (Google Fonts files), Copernicus elevation (S3) and Google Open Buildings (Cloud Storage).
+  It cannot open the live github.io site; ask the owner's Claude in Chrome for live checks.
+- Asset pipeline test without network: point a small list at `file://` URLs
+  (`node scripts/assets/build-assets.mjs --list my-list.json --out /tmp/x --cache /tmp/c`).
 
 ## Git
 - Work on `main` for small changes unless the owner asks for pull requests.
