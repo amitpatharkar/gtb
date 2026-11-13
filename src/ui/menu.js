@@ -27,6 +27,8 @@ const GUIDE = `
 <h3>Vehicles and crackers</h3>
 <p>On foot, <b>F</b> next to any vehicle gets in — yours, or anybody else's (drivers object, and so do the police). Your taxi stays where you left it; <b>R</b> tows you back to it. <b>Space</b> while steering at speed is a handbrake turn.</p>
 <p><b>X</b> lights a firecracker a step ahead, <b>Z</b> changes the type: anar, chakri, ladi, sutli bomb, sky shot. No crackers after 10 pm if a constable is watching.</p>
+<h3>Going indoors</h3>
+<p>On foot, a softly glowing door can be entered with <b>E</b>: Chhatrapati Chai Terminus (platform ticket, chai and vada pav), the Royal Chaj Mahal Palace (high tea in the Sea Lounge), Khyaali &amp; Co. Irani café (bun maska and chai) and your flat in Powai (sleep till 7 am, wardrobe). All four are on the map. <b>E</b> at the door inside takes you back to the street.</p>
 <h3>Developer cheats</h3>
 <p>Press <b>\`</b> (backquote; on a phone double-tap the clock) and type a code: ${CHEATS.map((c) => `<b>${c.code}</b> ${c.what}`).join(' · ')}.</p>`;
 
@@ -38,6 +40,7 @@ const TIPS = [
   'Rush hour is 9 to 11 in the morning and 6 to 8 in the evening. 3 AM is empty.',
   'Holi pichkari: right click to aim, wheel for pressure, C for colour. Not everyone is in the mood.',
   'Order vada pav on Bhookh and a delivery rider brings it to your window.',
+  'Glowing doors can be entered on foot (E): the terminus, the palace hotel, an Irani café, your flat in Powai.',
   'Stray dogs chase fast taxis. Cows do not move for anyone.',
   'Red lights have countdown timers. Some drivers jump them anyway.',
   'Bumped someone? Stay and pay, or drive off and risk a hit-and-run challan.',

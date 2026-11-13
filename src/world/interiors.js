@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HOME } from '../game/state.js';
 import { Kit, Geo, canvasTexture, font } from './interiors/kit.js';
 import { buildTerminus } from './interiors/terminus.js';
@@ -19,6 +20,9 @@ import { buildFlat } from './interiors/flat.js';
 //    way out, and the tiles around the door are still loaded.
 //  - The walker gets `world` (walls, furniture and floor heights of the room) in place of the
 //    street collisions, and the camera is kept inside with `hits(x, z, r, true)` and `ceiling()`.
+//  - Only the room is drawn: its meshes and lights (and the shared people renderers) are also
+//    on camera layer 1, and the camera looks at that layer alone while indoors, so the
+//    street's instanced props, traffic and crowds cost nothing although they keep moving.
 //  - Daylight is switched off indoors: the sun becomes a soft ceiling light that still casts
 //    shadows under furniture and people, the sky is replaced by a warm room reflection, and
 //    each room brings a few lamps of its own. Everything is put back on the way out.
@@ -26,6 +30,7 @@ import { buildFlat } from './interiors/flat.js';
 
 const ll = (index, lat, lon) => [(lon - index.origin.lon) * index.metresPerDegree.lon, -(lat - index.origin.lat) * index.metresPerDegree.lat];
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const INDOORS = 1; // camera layer of everything that is drawn while indoors
 
 const SITES = [
   {
@@ -51,9 +56,9 @@ const SITES = [
 
 export class Interiors {
   /**
-   * @param ctx scene, renderer, tiles, index, lib, tier, env, clock, state, people, bubbles, audio, hud,
-   *   phone, view, walker, story; `snapCamera()` puts the camera straight behind the player;
-   *   `onFoot()` says whether the player is walking.
+   * @param ctx scene, camera, renderer, tiles, index, lib, tier, env, clock, state, people, characters,
+   *   bubbles, audio, hud, phone, view, walker, player (the car), story; `snapCamera()` puts the
+   *   camera straight behind the player; `onFoot()` says whether the player is walking.
    */
   constructor(ctx) {
     Object.assign(this, ctx);
@@ -67,6 +72,9 @@ export class Interiors {
         origin: new THREE.Vector3(b.minX - 4000, 300, b.minZ + 600 * i), // where its room is parked
       };
     }).filter((s) => !s.landmark || s.L);
+    // The indoor camera layer: the sun (it becomes the ceiling light) and the crowd are on it too.
+    ctx.env.sun.layers.enable(INDOORS);
+    ctx.people.mesh.layers.enable(INDOORS);
     this.inside = null;                 // the site the player is in, or null
     this.busy = false;                  // fading in or out
     this.prompt = '';                   // HUD line: what E would do right now
@@ -206,7 +214,7 @@ export class Interiors {
 
   /** Each frame outdoors: find places for doors as the map loads, show the near ones, offer E. */
   streetUpdate(dt, onFoot) {
-    const w = this.walker, me = onFoot ? w.pos : this.anchorOf();
+    const w = this.walker, me = onFoot ? w.pos : this.player.pos;
     const night = this.clock.night;
     this.glowMat.color.setRGB(1, 0.8, 0.5).multiplyScalar((0.75 + 0.2 * Math.sin(this.time * 2.4)) * (1 + night * 1.6));
     for (const s of this.sites) {
@@ -226,8 +234,6 @@ export class Interiors {
       if (onFoot && !this.busy && Math.hypot(w.pos.x - s.stand.x, w.pos.z - s.stand.z) < 3) { this.prompt = s.enter || `E: enter ${s.name}`; this.near = s; }
     }
   }
-
-  anchorOf() { return this.player?.pos || this.walker.pos; }
 
   // ------------------------------------------------------------------ inside: collisions
 
@@ -270,6 +276,20 @@ export class Interiors {
     return R.o.y + (h || R.height);
   }
 
+  /**
+   * Keep the camera in the room: `target` (where the camera wants to be) is pulled back
+   * along the line from the player until it is clear of the walls and tall furniture, and
+   * kept under the ceiling.
+   */
+  keepCamera(from, target) {
+    const dx = target.x - from.x, dz = target.z - from.z;
+    let t = 1;
+    while (t > 0 && this.hits(from.x + dx * t, from.z + dz * t, 0.24, true)) t -= 0.08;
+    t = Math.max(0, t);
+    target.x = from.x + dx * t; target.z = from.z + dz * t;
+    target.y = Math.min(target.y, this.ceiling(target.x, target.z) - 0.3);
+  }
+
   /** Indoors only the room's people are drawn: drop everyone else from this frame's list (in place). */
   cull(list) {
     const R = this.inside?.room;
@@ -300,6 +320,7 @@ export class Interiors {
     rig.add(new THREE.HemisphereLight(sky, ground, amb));
     const maxLamps = this.tier.name === 'Low' ? 2 : this.tier.name === 'Medium' ? 4 : 6;
     for (const [x, y, z, c, i, d] of k.lamps.slice(0, maxLamps)) { const l = new THREE.PointLight(c, i, d, 1.5); l.position.set(x, y, z); rig.add(l); }
+    group.traverse((obj) => obj.layers.enable(INDOORS)); rig.traverse((obj) => obj.layers.enable(INDOORS));
     group.visible = rig.visible = false;
     group.updateMatrixWorld(true);
     this.scene.add(group, rig);
@@ -380,7 +401,8 @@ export class Interiors {
     const w = this.walker, b = this.back;
     w.pos.set(b.x, this.tiles.groundHeight(b.x, b.z), b.z);
     w.heading = b.heading; w.speed = 0; w.vx = w.vz = 0;
-    this.view.yaw = b.heading; this.view.pitch = 0.12;
+    // Look along the pavement rather than straight out: the camera would otherwise sit inside the wall behind.
+    this.view.yaw = b.heading + Math.PI / 2; this.view.pitch = 0.12;
     this.snapCamera();
   }
 
@@ -396,6 +418,7 @@ export class Interiors {
     if (!on) {
       const s = this.saved;
       if (!s) return;
+      this.camera.layers.mask = s.layers;
       scene.environment = s.environment;
       Object.assign(cam, s.shadow);
       cam.updateProjectionMatrix();
@@ -403,7 +426,8 @@ export class Interiors {
       return; // the sky, the sun, the haze and the exposure are set again by the next env.update()
     }
     const room = this.inside.room, info = room.info;
-    this.saved = { environment: scene.environment, shadow: { left: cam.left, right: cam.right, top: cam.top, bottom: cam.bottom, near: cam.near, far: cam.far } };
+    this.saved = { environment: scene.environment, layers: this.camera.layers.mask, shadow: { left: cam.left, right: cam.right, top: cam.top, bottom: cam.bottom, near: cam.near, far: cam.far } };
+    this.camera.layers.set(INDOORS);
     scene.environment = this.roomEnv();
     scene.environmentIntensity = info.env ?? 0.5;
     scene.environmentRotation.set(0, 0, 0);
@@ -484,6 +508,8 @@ export class Interiors {
       p.x = o.x + p.lx; p.y = o.y + p.ly; p.z = o.z + p.lz;
       if (!p.hidden) this.people.add(p);
     }
+    // Rigged characters (and the caps they are given later) join the indoor layer as they appear.
+    for (const c of this.characters?.pool || []) if (c.holder.visible) c.holder.traverse((obj) => obj.layers.enable(INDOORS));
     // Windows follow the daylight outside.
     const day = this.clock.daylight;
     for (const d of room.daylit) d.set(day);
@@ -565,8 +591,11 @@ function doorModel(site, frameMat, glowMat) {
   const frame = new THREE.Mesh(g.merge(), frameMat);
   frame.castShadow = true; frame.receiveShadow = true;
   group.add(frame);
-  // The opening: warm light spilling out (a filled door shape, brighter at night).
-  const glow = new THREE.Mesh(style === 'gothic' ? gothicFill(w, 2.3, h) : new THREE.PlaneGeometry(w, h).translate(0, h / 2, 0), glowMat);
+  // The opening: warm light spilling out (a filled door shape, brighter at night) and a pool of it on the ground.
+  const glow = new THREE.Mesh(mergeGeometries([
+    style === 'gothic' ? gothicFill(w, 2.3, h) : new THREE.PlaneGeometry(w, h).translate(0, h / 2, 0),
+    new THREE.CircleGeometry(w * 0.75, 20, 0, Math.PI).rotateX(Math.PI / 2).translate(0, 0.03, 0.1),
+  ].map((x) => (x.index ? x.toNonIndexed() : x))), glowMat);
   glow.position.z = 0.05;
   group.add(glow);
   // Signboard over the door.
@@ -575,7 +604,7 @@ function doorModel(site, frameMat, glowMat) {
   sign.position.set(0, style === 'gothic' ? top + 0.72 : style === 'cafe' ? top + 0.34 : top + 0.5, style === 'gothic' ? 0.72 : style === 'cafe' ? 0.2 : 0.83);
   group.add(sign);
   site.label = labelSprite(site);
-  site.label.position.set(0, sign.position.y + 1.25, 0.6);
+  site.label.position.set(0, sign.position.y + 1.2, 1.6); // clear of cornices and awnings
   group.add(site.label);
   return group;
 }

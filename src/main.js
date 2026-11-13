@@ -313,13 +313,12 @@ function placeCamera(dt) {
   const px = a.pos.x + rx * shoulder, py = a.pos.y + (onFoot ? 1.55 : veh?.big ? 3.4 : 1.6), pz = a.pos.z + rz * shoulder;
   const target = new THREE.Vector3(px - fx * dist, Math.max(a.pos.y + 0.4, py - fy * dist), pz - fz * dist);
   // Keep the camera out of buildings: pull it in towards the player if a wall is in the way.
-  // Indoors (interiors.js) the walls are the room's own, and the camera stays under its ceiling.
-  const indoors = !!interiors?.inside;
-  for (let i = 1; i <= 8; i++) {
+  // Indoors (interiors.js) the room does this itself: inside its walls and under its ceiling.
+  if (interiors?.inside) interiors.keepCamera(a.pos, target);
+  else for (let i = 1; i <= 8; i++) {
     const t = i / 8, x = px + (target.x - px) * t, z = pz + (target.z - pz) * t;
-    if (indoors ? interiors.hits(x, z, 0.25, true) : tiles.hits(x, z, 0.25)) { const k = Math.max(0.15, (i - 1) / 8); target.x = px + (target.x - px) * k; target.z = pz + (target.z - pz) * k; break; }
+    if (tiles.hits(x, z, 0.25)) { const k = Math.max(0.15, (i - 1) / 8); target.x = px + (target.x - px) * k; target.z = pz + (target.z - pz) * k; break; }
   }
-  if (indoors) target.y = Math.min(target.y, interiors.ceiling(target.x, target.z) - 0.3);
   if (story?.camera) {
     // Cutscene camera: slow orbit around whoever is talking.
     camPos.lerp(story.camera.pos, 1 - Math.exp(-dt * 3));
@@ -344,7 +343,7 @@ const crackers = new Crackers({ scene, tiles, audio, bubbles, street, police, tr
 // Fan meets at two (fictional) film stars' houses, in Bandra and Juhu.
 const stars = new Stars({ scene, tiles, index, people, bubbles, audio, hud, story, state, crackers, traffic });
 // Places to walk into (E at a glowing door): the terminus, the palace hotel, an Irani café, the flat in Powai.
-interiors = new Interiors({ scene, renderer, tiles, index, lib, tier, env, clock, state, people, bubbles, audio, hud, phone, view, walker, player, story, onFoot: () => onFoot, snapCamera: () => placeCamera(0) });
+interiors = new Interiors({ scene, camera, renderer, tiles, index, lib, tier, env, clock, state, people, characters, bubbles, audio, hud, phone, view, walker, player, story, onFoot: () => onFoot, snapCamera: () => placeCamera(0) });
 cityMap.markers = () => [...stars.markers(), ...interiors.markers()];
 // Collisions with other vehicles: riders come off their bikes, drivers shout, hard hits are hit-and-run.
 traffic.onRiderDown = (bike) => { garage.eject(bike, null, 'down'); if (!onFoot) police.offence('hitrun', player); };
