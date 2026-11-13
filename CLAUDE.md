@@ -147,12 +147,16 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/models.js` — glTF/GLB → instanced meshes (metres, base on ground); `src/world/streetProps.js` — Poly Haven
   chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
 - `src/sim/characters.js` — Quaternius rigged characters (from the pipeline's `converted/` GLBs, only if listed in
-  the manifest; Low loads 2+2 models, Medium 4+4, High all) for the player and the nearest people (pool 3/7/12);
-  people.js draws in two phases (`beforeEnd` picks heroes). Fixes for the converted files: materials forced opaque
-  (alpha 0 + MASK after FBX import), "Face" = eyes/brows (set dark), height from the skinned bounding box (IK pole
-  bones mislead), head bone ×0.66 and legs ×1.14 so they match the realistic crowd. Clips: Idle, Walk (sped up for
-  running, no Run clip), Punch, Shoot_OneHanded (pointing / aiming the pichkari, held in the `Fist.R` bone),
-  Victory (wave), Defeat (knocked down). Police caps, helmets and half the saris stay procedural.
+  the manifest; Low loads 2+2 models, Medium 4+4, High all) for the player and everyone near the camera (pool
+  11/20/30 within 34–46 m); people.js draws in two phases (`beforeEnd` picks heroes). Each character is ONE skinned
+  mesh / draw call: per-material meshes are merged in `prepare()` with `aSlot`/`aBase` vertex attributes and a shader
+  patch colours skin/top/trousers/hair from per-character uniforms ("Face" = eyes, dark). Body: world-space stretch
+  (0.93, 1.1, 0.93) + smaller head — never scale leg bones (shears bent knees, sinks the feet). Height and foot
+  level are measured from the animated idle/walk/sit poses. No Run clip: running = Walk with limb rotations
+  amplified around the idle pose, faster cadence and a spine lean (bones the clip doesn't key must be restored each
+  frame). Clips: Idle, Walk, Punch, Shoot_OneHanded (aim/point, pichkari in the `Fist.R` bone), Victory (wave),
+  SitDown (clamped at the end = seated), knocked down = idle pose laid flat. Police caps/helmets are meshes on the
+  head bone. Still procedural: the far crowd, riders on NPC bikes, cricket poses (BAT/CROUCH).
 - `src/game/story.js` — story missions (chapter 1 "Naya Shehar": Mamaji, Shabbir bhai): markers, letterboxed cutscenes
   (camera on the speaker, Space skips), objectives, goto/pickup/dropoff/waitHour/tasks, time limits, rewards; saved in
   `state.s.story`

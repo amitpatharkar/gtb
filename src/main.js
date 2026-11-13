@@ -117,7 +117,7 @@ traffic.signals = signals;
 const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
 const characters = new Characters(scene, BASE, tier, lib, started);
 let frameDt = 0;
-people.beforeEnd = (list) => characters.update(frameDt, camera.position, list, onFoot ? walker.person : null);
+people.beforeEnd = (list) => characters.update(frameDt, camera.position, list, onFoot || garage.rider ? walker.person : null);
 const bubbles = new Bubbles(document.body);
 const audio = new CityAudio(lib);
 const radio = new Radio(audio);
@@ -269,10 +269,11 @@ function toggleFoot() {
     const mine = Math.hypot(wx - player.pos.x, wz - player.pos.z) - player.radius - player.halfLength * 0.6;
     const home = garage.home ? Math.hypot(wx - garage.home.x, wz - garage.home.z) - 1.4 : Infinity;
     const other = garage.nearest(wx, wz);
-    const best = Math.min(mine, home, other ? other.d : Infinity);
-    if (best > 2.6) { say('Walk up to a vehicle to get in', 1.5); return; }
-    if (best === home) garage.toTaxi();
-    else if (other && best === other.d) {
+    // Your own vehicles come first when you are standing next to them.
+    const own = Math.min(mine, home);
+    if (own > 2.6 && !other) { say('Walk up to a vehicle to get in', 1.5); return; }
+    if (own <= 2.6) { if (home < mine) garage.toTaxi(); }
+    else {
       if (jobs.onDuty && !jobs.ride) jobs.toggleDuty(player);
       garage.take(other, walker);
     }
@@ -609,7 +610,9 @@ function step(dt) {
   else if (garage.rider) {
     // Riding a two-wheeler: the player sits astride it.
     const seat = garage.spec.seat ?? 0.9, L = walker.look;
-    people.add({ noHero: true, x: player.pos.x - Math.sin(player.heading) * 0.28, y: player.pos.y + seat - 0.42, z: player.pos.z - Math.cos(player.heading) * 0.28, heading: player.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: 0, scale: 1, shirt: L.shirt, pants: L.pants, skin: L.skin });
+    const P = (walker.person ||= { isPlayer: true, flags: 0, scale: 1, model: 0 });
+    Object.assign(P, { x: player.pos.x - Math.sin(player.heading) * 0.28, y: player.pos.y + seat - 0.42, z: player.pos.z - Math.cos(player.heading) * 0.28, heading: player.heading, phase: 0, pose: POSE.SIT, amp: 1, speed: 0, shirt: L.shirt, pants: L.pants, skin: L.skin, patches: walker.patches });
+    people.add(P);
   }
   for (const r of traffic.riders) {
     // Motorbike riders sit astride, hands on the handlebar; most wear helmets.

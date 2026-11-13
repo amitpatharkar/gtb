@@ -1,47 +1,74 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { POSE, HOLI } from './people.js';
 
 // Real rigged, animated characters (Quaternius "Ultimate Animated Character Pack", CC0,
-// converted from FBX in the asset pipeline) for the player and the people nearest the
-// camera. Everyone further away stays on the light procedural crowd (people.js), so a
-// busy street costs a few skinned meshes, not hundreds. Clothes are recoloured per person
-// (shirt, trousers, skin) to match the crowd's outfits.
+// converted from FBX in the asset pipeline) for the player and everyone near the camera;
+// only people far away stay on the light procedural crowd (people.js).
+//
+// Each character is ONE skinned mesh and one draw call: the pack's per-material meshes are
+// merged, and a small shader patch colours each part (skin, top, trousers, hair, eyes) from
+// per-character uniforms, so clothes and skin follow the crowd's outfits.
+//
+// The pack is chunky and big-headed. To sit with a realistic city the whole body is
+// stretched a little taller and slimmer (a plain world-space stretch, so bent knees don't
+// shear) and the head is shrunk. Height and foot level are measured from the animated
+// standing pose, so feet stay on the ground. There is no run clip: running is the walk cycle
+// with a longer stride (limb rotations amplified around the standing pose), faster cadence
+// and a forward lean.
 
 // Ordered by priority: Low loads the first two of each, Medium four, High all.
 const MODELS = {
   male: ['Casual_Male', 'Casual2_Male', 'Worker_Male', 'Casual3_Male', 'Casual_Bald', 'OldClassy_Male', 'Suit_Male', 'Chef_Male', 'Doctor_Male_Young'],
   female: ['Casual_Female', 'Casual2_Female', 'Casual3_Female', 'Worker_Female', 'OldClassy_Female', 'Suit_Female', 'Doctor_Female_Young'],
 };
-// The pack's clips: Idle, Walk, Punch, RecieveHit, Shoot_OneHanded, SitDown, Victory, Defeat ...
-// The pack is chunky and big-headed; shrink the head (and lengthen the legs a little) so the
-// bodies sit with the city's more realistic crowd.
-const HEAD = 0.66, LEG = 1.14;
-function shape(root) {
-  const out = new Map();
-  root.traverse((o) => {
-    if (!o.isBone) return;
-    const k = /^head$/i.test(o.name) ? [HEAD, HEAD, HEAD] : /^(upperleg|lowerleg)[^_]*$/i.test(o.name) ? [1, LEG, 1] : /^foot[^_]*$/i.test(o.name) ? [1, 1 / LEG, 1] : null;
-    if (!k) return;
-    o.scale.multiply(new THREE.Vector3(...k));
-    out.set(o.name, o.scale.toArray());
-  });
-  return out;
-}
 const CLIP = {
   idle: /^idle$/i, walk: /^walk$/i, run: /^run$/i, punch: /^punch$/i, hit: /recieve|receive/i,
-  death: /^death$/i, wave: /^victory$|wave/i, sit: /^sitdown$/i, aim: /shoot_onehanded/i, defeat: /^defeat$/i,
+  wave: /^victory$|wave/i, sit: /^sitdown$/i, aim: /shoot_onehanded/i, defeat: /^defeat$/i,
 };
+const STRETCH = new THREE.Vector3(0.93, 1.1, 0.93);   // slimmer and taller
+const HEAD = new THREE.Vector3(0.76, 0.68, 0.76);     // smaller head (the stretch makes it taller again)
+const HEIGHT = 1.7;
+const SLOT = { other: 0, skin: 1, shirt: 2, pants: 3, hair: 4, face: 5 };
+// Limbs whose swing is amplified when running: [bone name pattern, extra factor at a full run].
+const RUN_BONES = [[/^upperleg/i, 0.55], [/^lowerleg/i, 0.35], [/^upperarm/i, 0.7], [/^lowerarm/i, 0.5]];
+
+const slotOf = (name) => {
+  const n = (name || '').toLowerCase();
+  return /^skin/.test(n) ? SLOT.skin : /^(shirt|clothes|main|top|vest)/.test(n) ? SLOT.shirt : /^(pants|trousers|skirt)/.test(n) ? SLOT.pants : /^hair/.test(n) ? SLOT.hair : /^face/.test(n) ? SLOT.face : SLOT.other;
+};
+
+/** One material per character: the same program, different part colours. */
+function characterMaterial() {
+  const m = new THREE.MeshStandardMaterial({ roughness: 0.82, metalness: 0 });
+  const u = { uSkin: { value: new THREE.Color() }, uShirt: { value: new THREE.Color() }, uPants: { value: new THREE.Color() }, uHair: { value: new THREE.Color() } };
+  m.userData.u = u;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aSlot; attribute vec3 aBase; varying float vSlot; varying vec3 vBase;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSlot = aSlot; vBase = aBase;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vSlot; varying vec3 vBase; uniform vec3 uSkin; uniform vec3 uShirt; uniform vec3 uPants; uniform vec3 uHair;')
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = vSlot < 0.5 ? vBase : vSlot < 1.5 ? uSkin : vSlot < 2.5 ? uShirt : vSlot < 3.5 ? uPants : vSlot < 4.5 ? uHair : vec3(0.05, 0.04, 0.03);');
+  };
+  m.customProgramCacheKey = () => 'gtb-character';
+  return m;
+}
 
 export class Characters {
   constructor(scene, base, tier, lib = null, started = Promise.resolve()) {
     this.scene = scene;
-    this.poolSize = tier.name === 'High' ? 12 : tier.name === 'Medium' ? 7 : 3;
+    this.poolSize = tier.name === 'High' ? 30 : tier.name === 'Medium' ? 20 : 11;
+    this.radius = tier.name === 'Low' ? 34 : 46;
     this.templates = [];
     this.pool = [];
     this.ready = false;
     this.timer = 0;
+    this.frame = 0;
+    this.q = new THREE.Quaternion(); this.qp = new THREE.Quaternion(); this.qLean = new THREE.Quaternion(); this.axis = new THREE.Vector3();
     const loader = new GLTFLoader();
     const dir = `${base}media/models/character-quaternius-animated-pack/converted/`;
     // Only ask for models the asset manifest says were built (no 404s while they're missing).
@@ -51,100 +78,164 @@ export class Characters {
     if (!names.length) return;
     started.then(() => Promise.allSettled(names.map((n) => loader.loadAsync(`${dir}${n}.glb`).then((g) => ({ name: n, gltf: g, female: MODELS.female.includes(n) }))))
       .then((res) => {
-        this.templates = res.filter((r) => r.status === 'fulfilled').map((r) => r.value);
-        if (!this.templates.length) return;
-        for (const t of this.templates) this.prepare(t);
-        this.ready = true;
+        const ok = [];
+        for (const r of res) {
+          if (r.status !== 'fulfilled') continue;
+          try { this.prepare(r.value); ok.push(r.value); } catch (e) { console.warn(`Character ${r.value.name} skipped:`, e.message); }
+        }
+        this.templates = ok;
+        this.ready = ok.length > 0;
       }));
   }
 
-  /** Measure the model (scale to 1.72 m) and sort its materials into clothes slots. */
+  /** Merge the model into one mesh, find its bones, and measure it in the animated poses. */
   prepare(t) {
-    // Measure the skinned mesh in its bind pose (bones alone mislead: the IK pole targets
-    // sit well away from the body).
-    t.shaped = shape(t.gltf.scene);
-    t.gltf.scene.updateMatrixWorld(true);
-    const box = new THREE.Box3(), tmp = new THREE.Box3();
-    t.gltf.scene.traverse((o) => {
-      if (o.isSkinnedMesh) { o.computeBoundingBox(); box.union(tmp.copy(o.boundingBox).applyMatrix4(o.matrixWorld)); }
-      else if (o.isMesh) box.union(tmp.setFromObject(o));
-    });
-    const h = box.max.y - box.min.y || 1;
-    t.scale = 1.7 / h;
-    t.lift = -box.min.y * t.scale;
+    const scene = t.gltf.scene;
+    scene.updateMatrixWorld(true);
+    // --- one skinned mesh: merge the per-material meshes (they share a skeleton)
+    const meshes = [];
+    scene.traverse((o) => { if (o.isSkinnedMesh) meshes.push(o); });
+    if (!meshes.length) throw new Error('no skinned mesh');
+    const skeleton = meshes[0].skeleton;
+    const geos = [];
+    for (const m of meshes) {
+      if (m.skeleton !== skeleton) throw new Error('several skeletons');
+      const mats = [m.material].flat();
+      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'skinIndex', 'skinWeight'].includes(k)) g.deleteAttribute(k);
+      if (!g.attributes.normal) g.computeVertexNormals();
+      const n = g.attributes.position.count, slot = new Float32Array(n), base = new Float32Array(n * 3);
+      // The mesh's material → per-vertex slot and base colour.
+      const mat = mats[0], s = slotOf(mat.name), c = mat.color || new THREE.Color(0.5, 0.5, 0.5);
+      for (let i = 0; i < n; i++) { slot[i] = s; base[i * 3] = c.r; base[i * 3 + 1] = c.g; base[i * 3 + 2] = c.b; }
+      g.setAttribute('aSlot', new THREE.BufferAttribute(slot, 1));
+      g.setAttribute('aBase', new THREE.BufferAttribute(base, 3));
+      g.morphAttributes = {};
+      geos.push(g);
+    }
+    const merged = geos.length > 1 ? mergeGeometries(geos) : geos[0];
+    if (!merged) throw new Error('merge failed');
+    const mesh = new THREE.SkinnedMesh(merged, new THREE.MeshStandardMaterial());
+    mesh.name = 'body';
+    meshes[0].parent.add(mesh);
+    mesh.position.copy(meshes[0].position); mesh.quaternion.copy(meshes[0].quaternion); mesh.scale.copy(meshes[0].scale);
+    mesh.updateMatrixWorld(true);
+    mesh.bind(skeleton, meshes[0].bindMatrix);
+    for (const m of meshes) m.parent.remove(m);
+    mesh.frustumCulled = false;
+    t.mesh = mesh;
+
+    // --- bones and clips
+    const bone = (re) => skeleton.bones.find((b) => re.test(b.name));
+    const head = bone(/^head$/i), hips = bone(/^hips$/i);
+    if (head) head.scale.multiply(HEAD);
+    t.headScale = head ? head.scale.clone() : null;
     t.clips = {};
     for (const [k, re] of Object.entries(CLIP)) t.clips[k] = t.gltf.animations.find((a) => re.test(a.name)) || null;
     t.clips.idle ||= t.gltf.animations[0];
+
+    // --- measure in the animated poses (the bind pose is an A-pose and the clips move the hips)
+    const mixer = new THREE.AnimationMixer(scene);
+    const box = new THREE.Box3(), v = new THREE.Vector3();
+    const pose = (clip, time) => {
+      mixer.stopAllAction();
+      const a = mixer.clipAction(clip); a.reset().play(); mixer.setTime(time);
+      if (head) head.scale.copy(t.headScale);
+      scene.updateMatrixWorld(true);
+      mesh.computeBoundingBox();
+      box.copy(mesh.boundingBox).applyMatrix4(mesh.matrixWorld);
+      return [box.min.y, box.max.y];
+    };
+    const [i0, i1] = pose(t.clips.idle, 0.01);
+    // Standing-pose rotations of the limbs: the reference the run stride is amplified around.
+    t.ref = new Map();
+    for (const b of skeleton.bones) if (RUN_BONES.some(([re]) => re.test(b.name))) t.ref.set(b.name, b.quaternion.clone());
+    let walkMin = i0;
+    if (t.clips.walk) { walkMin = Infinity; for (let k = 0; k < 8; k++) walkMin = Math.min(walkMin, pose(t.clips.walk, (t.clips.walk.duration * k) / 8)[0]); }
+    let sitHip = 0.45 / STRETCH.y, sitMin = i0;
+    if (t.clips.sit && hips) { [sitMin] = pose(t.clips.sit, t.clips.sit.duration - 0.01); sitHip = hips.getWorldPosition(v).y - sitMin; }
+    mixer.stopAllAction(); mixer.uncacheRoot(scene);
+    if (head) head.scale.copy(t.headScale);
+    const raw = (i1 - i0) * STRETCH.y || 1;
+    t.scale = HEIGHT / raw;
+    t.liftIdle = -i0 * STRETCH.y * t.scale;
+    t.liftWalk = -walkMin * STRETCH.y * t.scale;
+    t.sitLift = -sitMin * STRETCH.y * t.scale;
+    t.sitHip = sitHip * STRETCH.y * t.scale; // hips above the feet when seated
+    t.debug = { i0, i1, walkMin, sitMin, sitHip };
   }
 
   make(t) {
     const root = cloneSkinned(t.gltf.scene);
-    root.scale.setScalar(t.scale);
-    const slots = { skin: [], shirt: [], pants: [], hair: [], other: [] };
-    root.traverse((o) => {
-      if (!o.isMesh) return;
-      o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
-      o.material = Array.isArray(o.material) ? o.material.map((m) => m.clone()) : o.material.clone();
-      for (const m of [o.material].flat()) {
-        // The FBX → glTF step leaves alpha at 0 on these materials; they are plain opaque cloth/skin.
-        m.opacity = 1; m.transparent = false; m.alphaTest = 0; m.side = THREE.FrontSide;
-        m.metalness = 0; m.roughness = Math.max(m.roughness ?? 1, 0.75);
-        const n = (m.name || '').toLowerCase();
-        // Recolour skin, the main top and the trousers; faces (eyes), hair, belts keep theirs.
-        if (/^face/.test(n)) m.color.setHex(0x17110d); // eyes and brows (converted white)
-        if (/^skin/.test(n)) slots.skin.push(m);
-        else if (/^(shirt|clothes|main|top|vest)/.test(n)) slots.shirt.push(m);
-        else if (/^(pants|trousers|skirt)/.test(n)) slots.pants.push(m);
-        else if (/^hair/.test(n)) slots.hair.push(m);
-        else slots.other.push(m);
-      }
-    });
+    let mesh = null;
+    const bones = new Map();
+    root.traverse((o) => { if (o.isSkinnedMesh) mesh = o; if (o.isBone) bones.set(o.name, o); });
+    mesh.material = characterMaterial();
+    mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
     const holder = new THREE.Group();
     holder.add(root);
     holder.visible = false;
     this.scene.add(holder);
     const mixer = new THREE.AnimationMixer(root);
     const actions = {};
-    for (const [k, clip] of Object.entries(t.clips)) if (clip) { actions[k] = mixer.clipAction(clip); }
-    for (const k of ['death', 'sit', 'defeat']) if (actions[k]) { actions[k].setLoop(THREE.LoopOnce, 1); actions[k].clampWhenFinished = true; }
-    let hand = null;
-    root.traverse((o) => { if (o.isBone && /^fist\.?r$|^hand\.?r$|righthand/i.test(o.name)) hand = o; });
-    // Shaped bones get their scale put back after the mixer runs (clips carry scale keys).
-    const scaled = [];
-    root.traverse((o) => { if (o.isBone && t.shaped.has(o.name)) scaled.push([o, ...t.shaped.get(o.name)]); });
-    return { t, holder, root, mixer, actions, slots, hand, scaled, current: null, who: null };
+    for (const [k, clip] of Object.entries(t.clips)) if (clip) actions[k] = mixer.clipAction(clip);
+    for (const k of ['sit', 'defeat']) if (actions[k]) { actions[k].setLoop(THREE.LoopOnce, 1); actions[k].clampWhenFinished = true; }
+    const find = (re) => { for (const [n, b] of bones) if (re.test(n)) return b; return null; };
+    const run = [];
+    for (const [n, b] of bones) { const r = RUN_BONES.find(([re]) => re.test(n)); if (r && t.ref.has(n)) run.push([b, t.ref.get(n), r[1]]); }
+    return { t, holder, root, mesh, mixer, actions, u: mesh.material.userData.u, head: find(/^head$/i), spine: find(/^abdomen$/i) || find(/^torso$/i), hand: find(/^fist\.?r$|^hand\.?r$|righthand/i), run, lift: t.liftIdle, current: null, who: null, cap: null, spineClean: new THREE.Quaternion(), spineLeaned: new THREE.Quaternion(), leaned: false };
   }
 
   play(c, name) {
     const a = c.actions[name] || c.actions.idle;
     if (!a || c.current === a) return;
-    // A freshly assigned body starts at full weight (a fade-in from zero shows the T-pose).
-    if (c.current) { a.reset().fadeIn(0.2).play(); c.current.fadeOut(0.2); } else a.reset().setEffectiveWeight(1).play();
+    // A freshly assigned body starts at full weight (a fade-in from zero shows the bind pose).
+    if (c.current) { a.reset().fadeIn(0.18).play(); c.current.fadeOut(0.18); } else a.reset().setEffectiveWeight(1).play();
+    if (name === 'sit') a.time = Math.max(0, a.getClip().duration - 0.02); // already seated
     c.current = a;
   }
 
+  /** Colours for this person; a police cap or helmet on the head where their flags say so. */
   dress(c, p) {
     const n = p.patches?.length || 0;
     if (c.who === p && c.patchN === n && c.shirtHex === p.shirt.getHex()) return;
     c.who = p; c.patchN = n; c.shirtHex = p.shirt.getHex();
     // Holi colour on a real character: the clothes take on the colours thrown at them.
-    const tint = (base) => { const col = base.clone(); for (const [, code] of p.patches || []) col.lerp(HOLI[Math.floor(code)], 0.18); return col; };
-    for (const m of c.slots.skin) m.color?.copy(p.skin);
-    for (const m of c.slots.shirt) m.color?.copy(tint(p.shirt));
-    for (const m of c.slots.pants) m.color?.copy(tint(p.pants));
+    const tint = (target, base) => { target.copy(base); for (const [, code] of p.patches || []) target.lerp(HOLI[Math.floor(code)], 0.18); };
+    c.u.uSkin.value.copy(p.skin);
+    tint(c.u.uShirt.value, p.shirt);
+    tint(c.u.uPants.value, p.pants);
     // Black to dark-brown hair, a little grey on some.
     p.hair ??= new THREE.Color().setHSL(0.07, 0.35, Math.random() < 0.1 ? 0.2 : 0.03 + Math.random() * 0.04);
-    for (const m of c.slots.hair) m.color?.copy(p.hair);
+    c.u.uHair.value.copy(p.hair);
+    const hat = (p.flags || 0) & 1 ? 'cap' : (p.flags || 0) & 4 ? 'helmet' : null;
+    if (c.cap) c.cap.visible = false;
+    c.cap = null;
+    if (hat && c.head) {
+      c.hats ||= {};
+      if (!c.hats[hat]) { c.hats[hat] = this.makeHat(c, hat); c.head.add(c.hats[hat]); }
+      c.cap = c.hats[hat];
+      c.cap.visible = true;
+      c.cap.material.color.copy(hat === 'cap' ? p.pants : p.hatColor || (p.hatColor = new THREE.Color().setHSL(Math.random(), 0.5, 0.25)));
+    }
   }
 
-  /**
-   * Uniforms stay on the procedural crowd (police caps, helmets), and so do about half the
-   * women in saris (the pack has no sari; the rest wear its casual clothes).
-   */
-  canHero(p) {
-    if ((p.flags || 0) & 5) return false;
-    if ((p.flags || 0) & 2) return (p.sariHero ??= Math.random() < 0.5);
-    return true;
+  /** A peaked cap (police, drivers) or a helmet, sized in the head bone's own space. */
+  makeHat(c, kind) {
+    const end = c.head.children.find((b) => b.isBone);
+    const top = end ? end.position.length() : 1;
+    const r = top * 0.62;
+    let geo;
+    if (kind === 'cap') {
+      const crown = new THREE.CylinderGeometry(r * 0.98, r * 1.02, top * 0.22, 14).translate(0, top * 0.93, 0);
+      const peak = new THREE.CylinderGeometry(r * 0.75, r * 0.75, top * 0.03, 12, 1, false, -0.9, 1.8).translate(0, top * 0.83, r * 0.62);
+      geo = mergeGeometries([crown, peak]);
+    } else geo = new THREE.SphereGeometry(r * 1.12, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62).translate(0, top * 0.52, 0);
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ roughness: kind === 'cap' ? 0.9 : 0.35 }));
+    m.castShadow = true;
+    // The bone's long axis is +Y in the pack (Blender bones); follow the head-end bone if not.
+    if (end && Math.abs(end.position.y) < Math.max(Math.abs(end.position.x), Math.abs(end.position.z))) m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), end.position.clone().normalize());
+    return m;
   }
 
   /** Pick a body for a person: female models for saris, a stable choice per person. */
@@ -157,20 +248,21 @@ export class Characters {
   }
 
   /**
-   * Each frame: the player (if on foot) and the nearest people get a real character; the
-   * procedural crowd skips them (person.hero = true).
+   * Each frame: the player (if on foot) and the people nearest the camera get a real
+   * character; the procedural crowd skips them (person.hero = true).
    */
   update(dt, cam, people, player) {
     if (!this.ready) return;
-    this.timer -= dt;
+    this.timer -= dt; this.frame++;
     const want = [];
     if (player) want.push(player);
     if (this.timer <= 0) {
-      this.timer = 0.4;
-      const near = people.filter((p) => !p.isPlayer && !p.noHero && this.canHero(p) && p.pose !== undefined && p.pose !== POSE.SIT && p.pose !== POSE.BAT && p.pose !== POSE.CROUCH).map((p) => [p, (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2]).filter(([, d]) => d < 28 * 28).sort((a, b) => a[1] - b[1]).slice(0, this.poolSize).map(([p]) => p);
-      this.chosen = near;
+      this.timer = 0.35;
+      const R2 = this.radius * this.radius;
+      this.chosen = people.filter((p) => !p.isPlayer && !p.noHero && p.pose !== undefined && p.pose !== POSE.BAT && p.pose !== POSE.CROUCH)
+        .map((p) => [p, (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2]).filter(([, d]) => d < R2).sort((a, b) => a[1] - b[1]).slice(0, this.poolSize).map(([p]) => p);
     }
-    want.push(...(this.chosen || []));
+    for (const p of this.chosen || []) if (people.includes(p)) want.push(p);
     for (const p of people) p.hero = false;
     // Reuse bodies already showing the same person; hand out the rest.
     const free = this.pool.filter((c) => !want.includes(c.who));
@@ -182,33 +274,56 @@ export class Characters {
         if (c) free.splice(free.indexOf(c), 1);
         else if (this.pool.length < this.poolSize + 1) { c = this.make(t); this.pool.push(c); }
         else continue;
-        c.who = null;
-        this.dress(c, p);
+        c.who = null; c.mixer.stopAllAction(); c.current = null;
       }
       this.dress(c, p);
       p.hero = true;
-      c.holder.visible = true;
-      const s = (p.scale || 1);
-      c.holder.position.set(p.x, (p.y || 0) + c.t.lift * s, p.z);
-      c.holder.rotation.y = p.heading;
-      c.root.scale.setScalar(c.t.scale * s);
+      const t = c.t, s = p.scale || 1, sc = t.scale * s;
       const pose = p.pose ?? POSE.STAND;
-      const moving = pose === POSE.WALK;
+      const moving = pose === POSE.WALK, sitting = pose === POSE.SIT, fallen = pose === POSE.FALLEN;
       const speed = p.speed ?? 1.3;
-      const run = moving && speed > 3;
-      const clip = pose === POSE.FALLEN ? (c.actions.death ? 'death' : 'defeat')
-        : pose === POSE.PUNCH || pose === POSE.PUSH || pose === POSE.KICK || pose === POSE.FIGHT || pose === POSE.THROW ? 'punch'
-        : pose === POSE.POINT ? 'aim' : pose === POSE.WAVE ? 'wave'
-        : moving ? (run && c.actions.run ? 'run' : 'walk') : 'idle';
+      const run = moving ? THREE.MathUtils.clamp((speed - 2.2) / 2.6, 0, 1) : 0; // 0 walk … 1 full run
+      const clip = fallen ? 'idle' : sitting ? 'sit' : pose === POSE.PUNCH || pose === POSE.PUSH || pose === POSE.KICK || pose === POSE.FIGHT || pose === POSE.THROW ? 'punch'
+        : pose === POSE.POINT ? 'aim' : pose === POSE.WAVE ? 'wave' : moving ? (run > 0.5 && c.actions.run ? 'run' : 'walk') : 'idle';
       this.play(c, clip);
-      // No run clip in the pack: a fast walk cycle stands in for it.
-      if (c.current && moving) c.current.timeScale = run && !c.actions.run ? Math.min(2.3, speed / 2.2) : Math.max(0.6, Math.min(1.6, speed / (run ? 4.5 : 1.4)));
-      else if (c.current) c.current.timeScale = 1;
-      c.mixer.update(dt);
-      if (c.scaled) for (const [b, x, y, z] of c.scaled) b.scale.set(x, y, z);
+      if (c.current) c.current.timeScale = sitting ? 0 : moving ? THREE.MathUtils.clamp(speed / (1.35 * (1 + run * 0.75)), 0.6, 2.1) : 1;
+      // Feet on the ground: the standing and walking poses sit at slightly different heights.
+      const liftWant = sitting ? t.sitLift : moving ? t.liftWalk : t.liftIdle;
+      c.lift += (liftWant - c.lift) * Math.min(1, dt * 10);
+      c.holder.visible = true;
+      c.root.scale.set(sc * STRETCH.x, sc * STRETCH.y, sc * STRETCH.z);
+      c.holder.rotation.set(0, p.heading, 0);
+      c.root.rotation.x = fallen ? -Math.PI / 2 : 0; // knocked down: flat on the back
+      let y = (p.y || 0) + c.lift * s;
+      if (sitting) y = (p.y || 0) + 0.42 + (t.sitLift - t.sitHip) * s; // callers give the seat height minus 0.42 (the procedural pelvis)
+      if (fallen) y = (p.y || 0) + 0.16;
+      y += 0.025 * run;
+      if (run > 0 && c.current) y += Math.abs(Math.sin((c.current.time * Math.PI * 2) / c.current.getClip().duration)) * 0.045 * run;
+      c.holder.position.set(p.x, y, p.z);
+      // Far characters animate at half rate.
+      const far = (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2 > 24 * 24 && !p.isPlayer;
+      if (!far || (this.frame & 1) === 0) {
+        c.mixer.update(far ? dt * 2 : dt);
+        if (c.head) c.head.scale.copy(t.headScale);
+        // The clips don't key every bone: undo last frame's lean if the mixer left the spine alone.
+        if (c.spine && c.leaned && c.spine.quaternion.equals(c.spineLeaned)) c.spine.quaternion.copy(c.spineClean);
+        c.leaned = false;
+        if (run > 0) {
+          for (const [b, ref, k] of c.run) b.quaternion.copy(this.q.copy(ref).slerp(b.quaternion, 1 + k * run));
+          if (c.spine) {
+            c.spineClean.copy(c.spine.quaternion);
+            // Lean the upper body into the run (about the character's right axis, in world space),
+            // leaving the legs and feet where the walk cycle puts them.
+            c.spine.parent.getWorldQuaternion(this.qp);
+            this.qLean.setFromAxisAngle(this.axis.set(Math.cos(p.heading), 0, -Math.sin(p.heading)), 0.34 * run);
+            c.spine.quaternion.premultiply(this.q.copy(this.qp).invert().multiply(this.qLean).multiply(this.qp));
+            c.spineLeaned.copy(c.spine.quaternion); c.leaned = true;
+          }
+        }
+      }
       // Where the right hand is (the player's pichkari is held there).
       if (p.isPlayer && c.hand) { c.holder.updateMatrixWorld(true); (p.handPos ||= new THREE.Vector3()); c.hand.getWorldPosition(p.handPos); }
     }
-    for (const c of free) { c.holder.visible = false; c.who = null; c.mixer.stopAllAction(); c.current = null; }
+    for (const c of free) { if (c.holder.visible) { c.holder.visible = false; c.who = null; c.mixer.stopAllAction(); c.current = null; } }
   }
 }
