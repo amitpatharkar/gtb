@@ -79,7 +79,10 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, tier.pixelRatio));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
+// Khronos Neutral tone mapping: keeps paint and sky colours true (ACES turned Mumbai's cream
+// and white buildings orange and muddied the shade). ?tone=aces|agx for comparisons.
+renderer.toneMapping = { agx: THREE.AgXToneMapping, neutral: THREE.NeutralToneMapping, aces: THREE.ACESFilmicToneMapping }[query.get('tone')] ?? THREE.NeutralToneMapping;
+renderer.exposureScale = Number(query.get('exposure')) || (renderer.toneMapping === THREE.NeutralToneMapping ? 1.05 : 1);
 renderer.toneMappingExposure = 0.62;
 document.body.appendChild(renderer.domElement);
 
@@ -498,7 +501,7 @@ function choice(title, options) {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { THREE, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const cheats = new Cheats(window.__gtb, (t, s) => say(t, s));
 window.__gtb.cheat = (code) => cheats.enter(code);
 window.__gtb.cheats = cheats;
@@ -642,7 +645,7 @@ function placeLampLights(night) {
     const n = near[i];
     if (!n) { l.intensity = 0; return; }
     l.position.set(n[1], 8.6, n[2]);
-    l.intensity = night * 90;
+    l.intensity = night * 30; // street lamps light a pool, not the whole facade
   });
 }
 

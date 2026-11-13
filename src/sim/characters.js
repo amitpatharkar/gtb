@@ -118,8 +118,8 @@ export class Characters {
   play(c, name) {
     const a = c.actions[name] || c.actions.idle;
     if (!a || c.current === a) return;
-    a.reset().fadeIn(0.2).play();
-    if (c.current) c.current.fadeOut(0.2);
+    // A freshly assigned body starts at full weight (a fade-in from zero shows the T-pose).
+    if (c.current) { a.reset().fadeIn(0.2).play(); c.current.fadeOut(0.2); } else a.reset().setEffectiveWeight(1).play();
     c.current = a;
   }
 
@@ -209,6 +209,6 @@ export class Characters {
       // Where the right hand is (the player's pichkari is held there).
       if (p.isPlayer && c.hand) { c.holder.updateMatrixWorld(true); (p.handPos ||= new THREE.Vector3()); c.hand.getWorldPosition(p.handPos); }
     }
-    for (const c of free) { c.holder.visible = false; c.who = null; }
+    for (const c of free) { c.holder.visible = false; c.who = null; c.mixer.stopAllAction(); c.current = null; }
   }
 }

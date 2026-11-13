@@ -45,7 +45,7 @@ export async function createEnvironment(renderer, scene, bounds, tier, lib) {
   // Warm, slightly brown Mumbai haze; dense enough to hide the streaming edge (~700 m).
   scene.fog = new THREE.FogExp2(haze, 0.0013);
 
-  const hemi = new THREE.HemisphereLight(0xcfe0f0, 0x6b5d4a, lib.available ? 0.15 : 0.6);
+  const hemi = new THREE.HemisphereLight(0xcfe0f0, 0x8a8c8e, lib.available ? 0.15 : 0.6); // grey concrete bounce, not brown
   scene.add(hemi);
   // Moonlight: a dim blue fill at night (no shadows).
   const moon = new THREE.DirectionalLight(0x8fa6d8, 0);
@@ -100,13 +100,13 @@ export async function createEnvironment(renderer, scene, bounds, tier, lib) {
         scene.environmentIntensity = 0.05 + 0.95 * d;
         sun.intensity = 3.2 * THREE.MathUtils.smoothstep(elevDeg, -1, 7) * (1 - 0.45 * smog);
         sun.color.copy(warm).lerp(white, THREE.MathUtils.smoothstep(elevDeg, 2, 30));
-        hemi.intensity = 0.15 + 0.45 * n;   // city glow: Mumbai nights are never pitch dark
-        moon.intensity = 0.6 * n;
+        hemi.intensity = 0.22 + 0.16 * n;   // shade fill by day; a little city glow at night — walls away from lamps go dark
+        moon.intensity = 0.35 * n;
         // Haze: browner and thicker with worse air; dark at night with a dusk glow.
         tmp.copy(dayHaze).lerp(smogTint, smog * 0.35).lerp(duskTint.clone().multiplyScalar(dayHaze.r), tw * 0.35);
         scene.fog.color.copy(nightHaze).lerp(tmp, d);
         scene.fog.density = 0.0007 + clock.aqi * 0.0000072 + n * 0.00012;
-        renderer.toneMappingExposure = THREE.MathUtils.lerp(1.45, 0.62, d);
+        renderer.toneMappingExposure = THREE.MathUtils.lerp(1.15, 0.62, d) * (renderer.exposureScale || 1);
         seaMat.color.setRGB(0.17, 0.31, 0.34).multiplyScalar(0.25 + 0.75 * d);
       }
       // Shadow box follows the player; snap to whole texels so shadows don't shimmer.

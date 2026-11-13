@@ -59,7 +59,7 @@ const GLSL = `
       c = mix(vec3(0.55, 0.5, 0.44), vec3(0.42, 0.38, 0.34), tile);                                        // floor tiles
     } else {
       c = vec3(0.9, 0.88, 0.84);
-      if (abs(h.x - size.x * 0.5) < 0.6 && abs(h.z - depth * 0.45) < 0.06) c = vec3(3.0, 2.9, 2.6);          // tube light
+      if (abs(h.x - size.x * 0.5) < 0.6 && abs(h.z - depth * 0.45) < 0.06) c = vec3(1.7, 1.65, 1.5);         // tube light
     }
     return c * (1.0 - 0.5 * h.z / depth);
   }
@@ -88,7 +88,7 @@ const GLSL = `
       c = mix(vec3(0.6, 0.58, 0.55), vec3(0.5, 0.48, 0.45), mod(floor(h.x / 0.5) + floor(h.z / 0.5), 2.0));
     } else {
       c = vec3(0.9);
-      if (abs(h.z - depth * 0.5) < 0.05 || abs(h.z - depth * 0.2) < 0.05) c = vec3(4.0, 3.9, 3.6);
+      if (abs(h.z - depth * 0.5) < 0.05 || abs(h.z - depth * 0.2) < 0.05) c = vec3(1.9, 1.85, 1.7);
     }
     return c * (1.0 - 0.35 * h.z / depth);
   }

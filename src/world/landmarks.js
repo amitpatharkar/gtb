@@ -110,13 +110,28 @@ function jaliTexture() {
   return t;
 }
 
+/**
+ * Floodlit at night: the glow comes from lamps at the foot of the walls, so it is strongest
+ * low down and fades upwards, and it takes the wall's own colour and texture (carvings and
+ * arches stay readable instead of a flat orange fill).
+ */
+function floodlit(m) {
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vFloodY;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvFloodY = (modelMatrix * vec4(transformed, 1.0)).y;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vFloodY;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= diffuseColor.rgb * 1.2 * mix(1.0, 0.12, smoothstep(0.5, 20.0, vFloodY));');
+  };
+  return m;
+}
+
 export class Landmarks {
   constructor(scene, list, lib) {
     this.group = new THREE.Group();
     this.lit = [];
     scene.add(this.group);
     const stoneMat = (hex, id = 'tex-ph-sandstone-blocks-08', size = 3) => {
-      const m = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85, emissive: 0xffb466, emissiveIntensity: 0 });
+      const m = floodlit(new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85, emissive: 0xffb466, emissiveIntensity: 0 }));
       lib?.apply(m, id, { size, onLoad: (x) => x.color.set(hex) });
       this.lit.push(m);
       return m;
@@ -137,7 +152,7 @@ export class Landmarks {
     const arcade = (wall, trim) => {
       const tex = arcadeTexture(wall, trim);
       tex.repeat.set(1 / 4.2, 1 / 4.2);
-      const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, emissive: 0xffc27a, emissiveIntensity: 0 });
+      const m = floodlit(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, emissive: 0xffc27a, emissiveIntensity: 0 }));
       this.lit.push(m);
       return m;
     };
@@ -287,7 +302,7 @@ export class Landmarks {
 
   /** Floodlights at night: warm glow on the stone, lit clock faces. */
   update(night) {
-    for (const m of this.lit) m.emissiveIntensity = night * 0.35;
+    for (const m of this.lit) m.emissiveIntensity = night * 0.32;
     this.mats.clock.emissiveIntensity = night * 1.2;
   }
 }
