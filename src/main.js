@@ -23,6 +23,8 @@ import { CityMap } from './ui/cityMap.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
 import { Phone } from './ui/phone.js';
+import { Walker } from './player/walker.js';
+import { Pichkari } from './player/pichkari.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
@@ -82,7 +84,9 @@ const hud = { message: (t) => say(t, 4) };
 const police = new Police({ scene, tiles, traffic, signals, people, audio, bubbles, hud });
 const animals = new Animals(scene);
 const street = new StreetLife({ scene, tiles, traffic, signals, people, animals, bubbles, audio, police, tier, hud });
+const pichkari = new Pichkari(scene, { tiles, street, police, traffic, bubbles, audio, hud });
 const jobs = new Jobs({ scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street });
+jobs.taxi = player;
 const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => cycleTier(tierKey), onPhoto: () => takePhoto() });
 const world = {
   hits: (x, z, r) => tiles.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r),
@@ -108,16 +112,52 @@ headlamp.position.set(0, 0.7, 1.9);
 headlamp.target.position.set(0, 0, 22);
 taxi.root.add(headlamp, headlamp.target);
 
+// ------------------------------------------------------------------ on foot
+const walker = new Walker(tiles);
+let onFoot = false;
+const footWorld = { hits: (x, z, r) => tiles.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || taxiHits(x, z, r) };
+function taxiHits(x, z, r) {
+  const fx = Math.sin(player.heading) * 1.1, fz = Math.cos(player.heading) * 1.1;
+  return (x - player.pos.x - fx) ** 2 + (z - player.pos.z - fz) ** 2 < (r + 0.8) ** 2 || (x - player.pos.x + fx) ** 2 + (z - player.pos.z - -fz) ** 2 < (r + 0.8) ** 2;
+}
+/** F: get out of the taxi (driver's side, it's right-hand drive) or back in. */
+function toggleFoot() {
+  if (!onFoot) {
+    if (Math.abs(player.speed) > 2) { say('Slow down to get out', 1.5); return; }
+    const h = player.heading, rx = -Math.cos(h), rz = Math.sin(h);
+    let x = player.pos.x + rx * 1.6, z = player.pos.z + rz * 1.6;
+    if (tiles.hits(x, z, 0.3)) { x = player.pos.x - rx * 1.6; z = player.pos.z - rz * 1.6; }
+    walker.pos.set(x, tiles.groundHeight(x, z), z);
+    walker.heading = h; walker.speed = 0;
+    onFoot = true;
+    if (jobs.ride?.stage === 'ride') say('Your passenger is waiting in the taxi!', 3);
+    say('On foot: W/S walk, A/D turn, Shift run, Space pichkari, C colour, F back into the taxi', 5);
+  } else {
+    if (walker.pos.distanceTo(player.pos) > 4) { say('Walk to your taxi to get in', 1.5); return; }
+    onFoot = false;
+    walker.spraying = false;
+  }
+}
+
 // ------------------------------------------------------------------ camera
 const camPos = new THREE.Vector3();
 const lookAt = new THREE.Vector3();
 function placeCamera(dt) {
-  const back = 6.4 + Math.abs(player.speed) * 0.12;
-  const target = new THREE.Vector3(player.pos.x - Math.sin(player.heading) * back, player.pos.y + 2.5, player.pos.z - Math.cos(player.heading) * back);
+  // In the taxi: chase camera. On foot: closer, over the shoulder.
+  const a = onFoot ? walker : player;
+  const back = onFoot ? 3.8 : 6.4 + Math.abs(player.speed) * 0.12;
+  const up = onFoot ? 1.9 : 2.5;
+  const target = new THREE.Vector3(a.pos.x - Math.sin(a.heading) * back + (onFoot ? Math.cos(a.heading) * 0.5 : 0), a.pos.y + up, a.pos.z - Math.cos(a.heading) * back - (onFoot ? Math.sin(a.heading) * 0.5 : 0));
+  // Keep the camera out of buildings: pull it in towards the player if a wall is in the way.
+  const hx = a.pos.x, hz = a.pos.z;
+  for (let i = 1; i <= 8; i++) {
+    const t = i / 8, x = hx + (target.x - hx) * t, z = hz + (target.z - hz) * t;
+    if (tiles.hits(x, z, 0.25)) { const k = Math.max(0.15, (i - 1) / 8); target.x = hx + (target.x - hx) * k; target.z = hz + (target.z - hz) * k; break; }
+  }
   if (dt === 0) camPos.copy(target);
-  else camPos.lerp(target, 1 - Math.exp(-dt * 4.5));
+  else camPos.lerp(target, 1 - Math.exp(-dt * (onFoot ? 6 : 4.5)));
   camera.position.copy(camPos);
-  lookAt.set(player.pos.x + Math.sin(player.heading) * 2, player.pos.y + 1.2, player.pos.z + Math.cos(player.heading) * 2);
+  lookAt.set(a.pos.x + Math.sin(a.heading) * 2, a.pos.y + (onFoot ? 1.45 : 1.2), a.pos.z + Math.cos(a.heading) * 2);
   camera.lookAt(lookAt);
 }
 placeCamera(0);
@@ -151,17 +191,39 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyP') phone.toggle();
   if (e.code === 'Escape' && phone.open) phone.toggle(false);
   if (e.code === 'KeyJ') jobs.toggleDuty(player);
-  if (e.code === 'KeyE' && !jobs.buySnack(player)) say('Stop next to a thela (food cart) and press E to buy a snack', 2.5);
+  if (e.code === 'KeyF') toggleFoot();
+  if (e.code === 'KeyC' && onFoot) pichkari.nextColour();
+  if (e.code === 'KeyE') interact();
   if (e.code === 'KeyT') { clock.hour = (clock.hour + 1) % 24; say(`Time: ${clock.label}`, 1.5); }
   if (e.code === 'KeyM') audio.toggleMute();
-  if (e.code === 'KeyF') refuel();
 });
 addEventListener('pointerdown', () => audio.start());
+$('btn-door')?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); toggleFoot(); });
 for (const id of ['btn-horn', 'btn-fuel']) {
-  $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); if (id === 'btn-horn') honk(); else refuel(); });
+  $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); if (id === 'btn-horn') honk(); else interact(); });
+}
+
+/** E: refuel at a pump (in the taxi), or buy a snack at a thela. */
+function interact() {
+  if (!onFoot) {
+    const p = nearestPump();
+    if (p && p.d < 16) { refuel(); return; }
+  }
+  if (!jobs.buySnack(onFoot ? walker : player)) say(onFoot ? 'Walk up to a thela (food cart) and press E to buy a snack' : 'Stop at a petrol pump or next to a thela and press E', 2.5);
+}
+
+/** Knocked out on foot: wake up at the spawn, minus the hospital bill. */
+function hospital() {
+  state.pay(1500, 'Hospital bill');
+  walker.health = 1;
+  onFoot = false;
+  respawn();
+  placeCamera(0);
+  say('You woke up in hospital. Bill: ₹1,500. Look both ways next time!', 5);
 }
 
 function honk() {
+  if (onFoot) { pichkari.nextColour(); return; }
   if (state.owns('horn')) audio.musicalHorn?.(); else audio.play('horn', 0.9);
   street.onHorn();
   jobs.honk();
@@ -204,7 +266,7 @@ function refuel() {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, toggleFoot, get onFoot() { return onFoot; } };
 const timer = new THREE.Timer();
 let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 renderer.setAnimationLoop((time) => {
@@ -217,19 +279,37 @@ renderer.setAnimationLoop((time) => {
 });
 
 /** One simulation step (also used by headless tests). */
+const NO_INPUT = {};
 function step(dt) {
   clock.update(dt);
-  player.update(dt, input, world);
-  tiles.update(player.pos.x, player.pos.z);
-  traffic.update(dt, player, clock);
-  signals.update(dt, tiles, traffic, player.pos, clock.night);
+  // The active body: the taxi, or the player on foot.
+  const active = onFoot ? walker : player;
+  player.update(dt, onFoot ? NO_INPUT : input, world);
+  if (onFoot) {
+    walker.update(dt, input, footWorld, state.s.energy, clock.aqi);
+    // Careless drivers knock you over.
+    for (const c of traffic.cars) {
+      if (c.speed > 2 && Math.hypot(c.x - walker.pos.x, c.z - walker.pos.z) < 1.5 && walker.down <= 0) {
+        walker.knock(0.08 + c.speed * 0.02);
+        bubbles.say(c, 'Arre! Dekh ke chal!', 2, 'driver');
+      }
+    }
+    if (walker.health <= 0) hospital();
+  } else walker.health = Math.min(1, walker.health + dt * 0.002);
+  tiles.update(active.pos.x, active.pos.z);
+  traffic.update(dt, active, clock);
+  signals.update(dt, tiles, traffic, active.pos, clock.night);
   people.begin();
-  police.update(dt, player, clock);
-  street.update(dt, player, clock);
+  police.onFoot = onFoot;
+  police.update(dt, active, clock);
+  street.onFoot = onFoot;
+  street.update(dt, active, clock);
+  if (onFoot) walker.draw(people);
+  pichkari.update(dt, onFoot ? walker : null, onFoot && input.brake);
   people.end();
   placeCamera(dt);
   bubbles.update(dt, camera);
-  env.update(dt, player.pos, clock);
+  env.update(dt, active.pos, clock);
 
   // Night: lit windows and signs, glowing lamps, real lights on the nearest lamp posts.
   const night = clock.night;
@@ -249,11 +329,12 @@ function step(dt) {
     if (d < 80 && Math.random() < 0.6) audio.play(Math.random() < 0.25 ? 'truckHorn' : 'horn', 0.5 / (1 + d / 15));
   }
   audio.update(seaFactor, clock.traffic, clock.daylight);
-  cityMap.update(dt, player);
+  cityMap.update(dt, onFoot ? walker : player);
   state.update(dt, clock);
+  jobs.focus = onFoot ? walker : player;
   jobs.update(dt, player);
   phone.update(dt);
-  minimap.update(dt, player, traffic);
+  minimap.update(dt, onFoot ? walker : player, traffic);
   hudTimer -= dt;
   messageTimer -= dt;
   if (hudTimer <= 0) { hudTimer = 0.2; updateHud(); }
@@ -294,14 +375,16 @@ function nearSea() {
 }
 
 function updateHud() {
-  $('speed').textContent = `${Math.round(Math.abs(player.speed) * 3.6)} km/h`;
+  $('speed').textContent = `${Math.round(Math.abs((onFoot ? walker : player).speed) * 3.6)} km/h`;
+  $('fuel-label').textContent = onFoot ? 'Stamina' : 'Fuel';
+  $('cond-label').textContent = onFoot ? 'Health' : 'Car';
   $('road').textContent = tiles.roadNameAt(player.pos.x, player.pos.z);
   $('clock').textContent = clock.label;
   const [label, colour] = clock.aqiLabel;
   $('aqi').innerHTML = `AQI <b style="color:${colour}">${clock.aqi}</b> ${label}`;
-  $('fuel-bar').style.width = `${Math.round(player.fuel * 100)}%`;
+  $('fuel-bar').style.width = `${Math.round((onFoot ? walker.stamina : player.fuel) * 100)}%`;
   $('fuel-bar').style.background = player.fuel < 0.15 ? '#e74c3c' : '#f7c600';
-  $('cond-bar').style.width = `${Math.round(player.condition * 100)}%`;
+  $('cond-bar').style.width = `${Math.round((onFoot ? walker.health : player.condition) * 100)}%`;
   $('food-bar').style.width = `${Math.round(state.s.hunger * 100)}%`;
   $('food-bar').style.background = state.s.hunger < 0.2 ? '#e74c3c' : '#f39c12';
   $('energy-bar').style.width = `${Math.round(state.s.energy * 100)}%`;

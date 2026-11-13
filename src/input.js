@@ -1,5 +1,5 @@
 // Keyboard + touch input, exposed as simple booleans.
-export const input = { fwd: false, back: false, left: false, right: false, brake: false, reset: false };
+export const input = { fwd: false, back: false, left: false, right: false, brake: false, run: false, reset: false };
 
 const keyMap = {
   KeyW: 'fwd', ArrowUp: 'fwd',
@@ -7,6 +7,7 @@ const keyMap = {
   KeyA: 'left', ArrowLeft: 'left',
   KeyD: 'right', ArrowRight: 'right',
   Space: 'brake',
+  ShiftLeft: 'run', ShiftRight: 'run',
   KeyR: 'reset',
 };
 

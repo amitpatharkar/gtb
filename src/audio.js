@@ -135,6 +135,25 @@ export class CityAudio {
     this.sirenNode.g.gain.setTargetAtTime(Math.min(0.12, volume * 0.12), this.ctx.currentTime, 0.2);
   }
 
+  /** Pichkari spray hiss (looping filtered noise), level 0..1. */
+  spray(level) {
+    if (!this.ctx) return;
+    if (!this.sprayNode) {
+      if (level < 0.01) return;
+      const len = this.ctx.sampleRate;
+      const b = this.ctx.createBuffer(1, len, this.ctx.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = this.ctx.createBufferSource(), bp = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+      src.buffer = b; src.loop = true;
+      bp.type = 'bandpass'; bp.frequency.value = 2600; bp.Q.value = 0.8;
+      g.gain.value = 0;
+      src.connect(bp).connect(g).connect(this.master);
+      src.start();
+      this.sprayNode = g;
+    }
+    this.sprayNode.gain.setTargetAtTime(level * 0.08, this.ctx.currentTime, 0.05);
+  }
+
   /** Musical horn (Dukaan upgrade): a cheeky little tune. */
   musicalHorn() {
     if (!this.ctx) return;

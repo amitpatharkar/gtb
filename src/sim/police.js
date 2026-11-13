@@ -16,7 +16,7 @@ import { Y } from '../world/levels.js';
 //   you. Stay out of sight long enough and the stars fade.
 
 const FINES = {
-  red: ['Signal jump', 1000], wrong: ['Wrong-way driving', 1000], footpath: ['Driving on the footpath', 500], evade: ['Running from the police', 2000], hitrun: ['Hit and run', 1500],
+  red: ['Signal jump', 1000], wrong: ['Wrong-way driving', 1000], footpath: ['Driving on the footpath', 500], evade: ['Running from the police', 2000], hitrun: ['Hit and run', 1500], holiCop: ['Colouring a policeman', 500],
 };
 const COP_SAYS = {
   whistle: ['Ae! Ruko!', 'Signal laal hai!', 'Side mein lo!', 'Oye! Ruk!'],
@@ -280,6 +280,12 @@ export class Police {
 
   checkPlayer(dt, player) {
     for (const k in this.cooldown) this.cooldown[k] = Math.max(0, this.cooldown[k] - dt);
+    if (this.onFoot) { this.pSig = null; this.wrongT = 0; this.footT = 0; }
+    else this.checkDriving(dt, player);
+    this.checkPay(dt, player);
+  }
+
+  checkDriving(dt, player) {
     const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
     const speed = player.speed;
     // Red light: crossing a stop line while red.
@@ -305,7 +311,10 @@ export class Police {
     }
     if (this.wrongT > 2 && !this.cooldown.wrong) { this.cooldown.wrong = 20; this.offence('wrong', player); }
     if (this.footT > 1.2 && !this.cooldown.footpath) { this.cooldown.footpath = 15; this.offence('footpath', player); }
+  }
 
+  checkPay(dt, player) {
+    const speed = player.speed;
     if (!this.stars) return;
     // Pay up: stop next to the constable who flagged you, or get stopped by a patrol car.
     const slow = Math.abs(speed) < 1.2;

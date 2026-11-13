@@ -182,7 +182,7 @@ export class StreetLife {
       // Jump out of the taxi's way.
       if (p.state === 'walk' || p.state === 'cross') {
         const dx = p.x - player.pos.x, dz = p.z - player.pos.z, d = Math.hypot(dx, dz);
-        if (d < 5 && Math.abs(player.speed) > 2.5 && (dx * pfx + dz * pfz) * Math.sign(player.speed) > 0) {
+        if (!this.onFoot && d < 5 && Math.abs(player.speed) > 2.5 && (dx * pfx + dz * pfz) * Math.sign(player.speed) > 0) {
           const side = (dx * pfz - dz * pfx) > 0 ? 1 : -1;
           p.vx = pfz * side * 4.5; p.vz = -pfx * side * 4.5;
           p.state = 'dodge'; p.timer = 0.55;
@@ -510,7 +510,7 @@ export class StreetLife {
   checkBump(dt, player) {
     const drop = this.prevSpeed - Math.abs(player.speed);
     this.prevSpeed = Math.abs(player.speed);
-    if (this.argument || drop < 2.2) return;
+    if (this.argument || drop < 2.2 || this.onFoot) return;
     let car = null, bd = 5;
     for (const c of this.traffic.cars) { const d = Math.hypot(c.x - player.pos.x, c.z - player.pos.z); if (d < bd) { bd = d; car = c; } }
     if (!car) return;
@@ -563,7 +563,7 @@ export class StreetLife {
   updateHawker(dt, player) {
     const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
     const sig = this.signals.ahead(player.pos.x, player.pos.z, fx, fz, 20);
-    const waiting = sig && sig.light !== LIGHT.GREEN && sig.dist > -2 && Math.abs(player.speed) < 0.5;
+    const waiting = !this.onFoot && sig && sig.light !== LIGHT.GREEN && sig.dist > -2 && Math.abs(player.speed) < 0.5;
     this.redWait = waiting ? this.redWait + dt : 0;
     if (!this.hawker && this.redWait > 1.5 && Math.random() < dt * 0.8 && this.time > 3) {
       const hw = sig.ap.hw;

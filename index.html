@@ -12,7 +12,7 @@
       <div id="title">GTB · Mumbai</div>
       <div id="speed">0 km/h</div>
       <div id="road"></div>
-      <div id="help">W A S D drive · Space brake · H horn · Tab map · P phone · J taxi duty · E snack · F refuel at ⛽ · T +1 hour · M mute · R reset · Q graphics</div>
+      <div id="help">W A S D drive · Space brake · H horn · Tab map · P phone · J taxi duty · F get out/in · E refuel ⛽ / snack · Space (on foot) pichkari · C colour · T +1 hour · M mute · R reset · Q graphics</div>
     </div>
     <div id="status">
       <div id="clock">5:15 PM</div>
@@ -22,8 +22,8 @@
     </div>
     <div id="radar">
       <canvas id="minimap" width="220" height="220"></canvas>
-      <div class="meter"><span>Fuel</span><div class="bar"><div id="fuel-bar"></div></div></div>
-      <div class="meter"><span>Car</span><div class="bar"><div id="cond-bar"></div></div></div>
+      <div class="meter"><span id="fuel-label">Fuel</span><div class="bar"><div id="fuel-bar"></div></div></div>
+      <div class="meter"><span id="cond-label">Car</span><div class="bar"><div id="cond-bar"></div></div></div>
       <div class="meter"><span>Food</span><div class="bar"><div id="food-bar"></div></div></div>
       <div class="meter"><span>Energy</span><div class="bar"><div id="energy-bar"></div></div></div>
     </div>
@@ -48,7 +48,8 @@
       </div>
       <div class="pad mid">
         <button id="btn-horn">📯</button>
-        <button id="btn-fuel">⛽</button>
+        <button id="btn-fuel">E</button>
+        <button id="btn-door">🚪</button>
       </div>
       <div class="pad right">
         <button data-key="brake">■</button>

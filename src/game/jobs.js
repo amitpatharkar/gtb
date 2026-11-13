@@ -253,8 +253,9 @@ export class Jobs {
     for (const it of r.items) {
       if (it.hunger) this.state.eat(it.hunger);
       if (it.energy) this.state.rest(it.energy);
-      if (it.fuel) player.fuel = Math.min(1, player.fuel + it.fuel);
-      if (it.repair) player.condition = Math.min(1, player.condition + it.repair);
+      const taxi = this.taxi || player;
+      if (it.fuel) taxi.fuel = Math.min(1, taxi.fuel + it.fuel);
+      if (it.repair) taxi.condition = Math.min(1, taxi.condition + it.repair);
       notes.push(it.name);
     }
     this.hud.message(`Delivered: ${notes.join(', ')}`);
@@ -285,7 +286,7 @@ export class Jobs {
       if (this.cooldown <= 0) { this.cooldown = 5; this.spawnFare(player); }
     }
     if (this.ride) this.updateRide(dt, player);
-    this.updateRiders(dt, player);
+    this.updateRiders(dt, this.focus || player);
     this.renderPanel(player);
   }
 

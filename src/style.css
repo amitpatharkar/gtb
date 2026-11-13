@@ -259,3 +259,4 @@ canvas { display: block; }
 #phone .toast { position: absolute; left: 12px; right: 12px; bottom: 12px; background: #111; color: #fff; padding: 10px; border-radius: 10px; text-align: center; z-index: 2; }
 body.photo #hud, body.photo #status, body.photo #radar, body.photo #message, body.photo #job, body.photo #btn-phone, body.photo #touch, body.photo #bubbles { visibility: hidden; }
 @media (max-width: 700px) { #phone { right: 8px; left: 8px; width: auto; bottom: 80px; } #job { top: 112px; font-size: 12px; } }
+#phone[hidden], #map-screen[hidden], #job[hidden] { display: none !important; }
