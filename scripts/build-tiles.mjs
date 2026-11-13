@@ -530,7 +530,12 @@ const onLand = (x, z) => {
 };
 
 const streetMs = Date.now();
-const areaPaths = areasRaw.filter((a) => a.kind !== 'water').map((a) => ({ kind: a.kind, bb: G.bboxOf(a.polys.flatMap((p) => p[0])), paths: C.mpToPaths(a.polys) }));
+const areaPaths = areasRaw.filter((a) => a.kind !== 'water').map((a) => ({ kind: a.kind, aero: a.aero, bb: G.bboxOf(a.polys.flatMap((p) => p[0])), paths: C.mpToPaths(a.polys) }));
+// Airfield grass gets holes where the runways, taxiways and aprons are: two big surfaces 2 mm
+// apart would flicker (z-fighting) when seen from a distance.
+for (const grass of areaPaths.filter((a) => a.aero && a.kind === AREA.GRASS)) {
+  for (const p of areaPaths) if (p.aero && p.kind === AREA.PAVED && G.bboxOverlap(p.bb, grass.bb)) grass.paths = C.difference(grass.paths, p.paths);
+}
 let areaCount = 0;
 for (const tile of tiles.values()) {
   const R = [tile.clip[0] - 40, tile.clip[1] - 40, tile.clip[2] + 40, tile.clip[3] + 40];
