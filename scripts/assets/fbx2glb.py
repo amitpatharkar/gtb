@@ -23,7 +23,10 @@ for src, dst in zip(args[0::2], args[1::2]):
         for coll in (bpy.data.meshes, bpy.data.armatures, bpy.data.actions, bpy.data.materials, bpy.data.images):
             for item in list(coll):
                 coll.remove(item)
-        bpy.ops.import_scene.fbx(filepath=src, automatic_bone_orientation=True)
+        try:
+            bpy.ops.import_scene.fbx(filepath=src, automatic_bone_orientation=True)
+        except TypeError:  # option renamed or removed in newer Blender versions
+            bpy.ops.import_scene.fbx(filepath=src)
         bpy.ops.export_scene.gltf(filepath=dst, export_format='GLB', export_animations=True, export_yup=True, export_apply=False)
         print('converted', src, '->', dst, flush=True)
     except Exception as e:  # noqa: BLE001 — keep going with the other files
