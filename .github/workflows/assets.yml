@@ -31,6 +31,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Install Blender (FBX → glTF conversion of model packs)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq blender > /dev/null && blender --version | head -1
       # Raw downloads are cached between runs so unchanged assets are not fetched again.
       - uses: actions/cache@v4
         with:

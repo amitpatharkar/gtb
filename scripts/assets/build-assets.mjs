@@ -17,6 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
+import { spawnSync } from 'node:child_process';
 import sharp from 'sharp';
 import { unzipSync } from 'fflate';
 
@@ -31,6 +32,15 @@ const ONLY = args.only ? new Set(args.only.split(',')) : null;
 const STAGE1 = new Set(['texture', 'hdri', 'sound', 'font']);
 const MODELS = new Set(['tree', 'vehicle', 'prop', 'character', 'animation']);
 const MODEL_BUDGET = 24 * 1024 * 1024; // per asset, so one big pack can't bloat the site
+// FBX files to convert to .glb with Blender (CI installs it), by asset id → file name pattern.
+const CONVERT = {
+  'character-quaternius-animated-pack': /\/FBX\/(Casual(2|3)?_(Male|Female)|Casual_Bald|Suit_(Male|Female)|Worker_(Male|Female)|Chef_(Male|Female)|Doctor_(Male|Female)_Young|OldClassy_(Male|Female)|Soldier_(Male|Female)|Cow|Pug)\.fbx$/i,
+  'vehicle-quaternius-cars': /\/(CopCar|Taxi|BasicCar|SimpleCarHigh|SimpleCarShort)\.fbx$/i,
+  'vehicle-quaternius-public-transport': /\/(Bus|Ambulance|Train|TrafficLight|TrafficCone|Bicycle)\.fbx$/i,
+  'tree-oga-exotic-palms': /\/ExoticPalm(Curve|Defalt|Old|Young)\.fbx$/i,
+  'tree-quaternius-ultimate-nature': /\/FBX\/(CommonTree_[1-5]|Bush_[12]|BushBerries_1|PalmTree_[1-4])\.fbx$/i,
+};
+const blender = (() => { try { return spawnSync('blender', ['--version'], { encoding: 'utf8' }).status === 0; } catch { return false; } })();
 const UA = 'Mozilla/5.0 (compatible; asset-fetcher/1.0)'; // generic: no project details sent out
 const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0).padStart(4)}s]`, ...a);
@@ -279,9 +289,30 @@ async function processModel(a) {
   const listing = names.map((n) => `${entries[n].length}\t${n}`);
   const glbs = names.filter((n) => /\.glb$/i.test(n));
   const gltfs = names.filter((n) => /\.gltf$/i.test(n));
+  const convert = CONVERT[a.id];
+  if (convert && blender) {
+    // Convert the chosen FBX files (with their textures next to them) to .glb.
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fbx-'));
+    const jobs = [];
+    for (const n of names) {
+      const full = path.join(tmp, safeName(n));
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.writeFileSync(full, Buffer.from(entries[n]));
+      if (convert.test('/' + n)) jobs.push([full, full.replace(/\.fbx$/i, '.glb')]);
+    }
+    const res = spawnSync('blender', ['-b', '-P', path.join(root, 'scripts/assets/fbx2glb.py'), '--', ...jobs.flat()], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    if (res.status !== 0) log(`  ${a.id}: blender exited ${res.status}: ${(res.stderr || '').slice(-300)}`);
+    budget = MODEL_BUDGET * 2;
+    for (const [, out] of jobs) {
+      if (fs.existsSync(out) && put('converted/' + path.basename(out), fs.readFileSync(out))) count++;
+    }
+    fs.rmSync(tmp, { recursive: true, force: true });
+  } else if (convert) {
+    log(`  ${a.id}: Blender not installed, FBX conversion skipped`);
+  }
   if (glbs.length) {
     for (const n of glbs.sort()) if (put(n, Buffer.from(entries[n]))) count++;
-  } else {
+  } else if (!convert) {
     for (const n of gltfs.sort()) {
       const dir = path.dirname(n);
       const sib = names.filter((m) => path.dirname(m) === dir && /\.(bin|png|jpe?g|webp)$/i.test(m));
