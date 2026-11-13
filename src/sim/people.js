@@ -196,7 +196,7 @@ export class PeopleRenderer {
   /** p: { x, y, z, heading, phase, pose, amp, flags, scale, shirt, pants, skin, patches } (colours as THREE.Color). */
   /** Hide people right in front of the lens or between the camera and the player. */
   occludes(p) {
-    if (!this.cam || p.isPlayer) return false;
+    if (!this.cam || p.isPlayer || p.keep) return false; // keep: someone riding with the player
     const c = this.cam, f = this.focus;
     const px = p.x - c.x, py = (p.y || 0) + 1.2 - c.y, pz = p.z - c.z;
     if (px * px + py * py + pz * pz < 4) return true;
@@ -249,6 +249,7 @@ export const OUTFIT = {
   worker: { shirt: [0x7f8c8d, 0x95a5a6, 0xa04000, 0x566573], pants: [0x4d4d4d, 0x3e3a33, 0x5b5045] },
   trafficCop: { shirt: [0xf4f4f0], pants: [0x1f2a44] },
   police: { shirt: [0xb59a62], pants: [0xa88d58] },
+  khaki: { shirt: [0xb39a68], pants: [0x9a8457] }, // auto-rickshaw drivers
   kid: { shirt: [0xffffff, 0xe74c3c, 0x3498db, 0x2ecc71], pants: [0x2c3e50, 0x7f8c8d, 0x1e3799] },
 };
 export function outfit(kind, rnd = Math.random) {

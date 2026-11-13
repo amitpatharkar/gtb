@@ -272,10 +272,11 @@ function toggleFoot() {
     const mine = Math.hypot(wx - player.pos.x, wz - player.pos.z) - player.radius - player.halfLength * 0.6;
     const home = garage.home ? Math.hypot(wx - garage.home.x, wz - garage.home.z) - 1.4 : Infinity;
     const other = garage.nearest(wx, wz);
-    // Your own vehicles come first when you are standing next to them.
+    // Your own vehicles come first when you are standing next to them — unless something else
+    // is clearly closer, or it is a vehicle lent to you for a mission.
     const own = Math.min(mine, home);
     if (own > 2.6 && !other) { say('Walk up to a vehicle to get in', 1.5); return; }
-    if (own <= 2.6) { if (home < mine) garage.toTaxi(); }
+    if (own <= 2.6 && !(other && (other.v.lent || other.d < own - 0.6))) { if (home < mine) garage.toTaxi(); }
     else {
       if (jobs.onDuty && !jobs.ride) jobs.toggleDuty(player);
       garage.take(other, walker);

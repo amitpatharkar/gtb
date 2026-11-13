@@ -12,7 +12,7 @@ import { HOME } from './state.js';
 // (mission and step); a save taken mid-step re-enters that step.
 
 const MARK = { story: 0xf7c600, side: 0x35b6ff, target: 0x9cf0ff };
-const ON_TEXT = { foot: 'on foot', vehicle: 'in a vehicle', taxi: 'in your taxi', two: 'on a two-wheeler', swift: 'in a Maroti Swyft' };
+const ON_TEXT = { foot: 'on foot', vehicle: 'in a vehicle', taxi: 'in your taxi', two: 'on a two-wheeler', swift: 'in a Maroti Swyft', auto: 'in the auto-rickshaw', tanker: 'in the water tanker', ambulance: 'in the ambulance', school: 'in the school bus', cycle: 'on the bicycle' };
 const inHours = (h, [a, b]) => (a <= b ? h >= a && h < b : h >= a || h < b);
 const clockText = (h) => `${((Math.floor(h) + 11) % 12) + 1}${h % 1 ? ':30' : ''} ${h >= 12 && h < 24 ? 'pm' : 'am'}`;
 
@@ -71,7 +71,7 @@ export class Story {
     const def = m?.cast?.[id] || (id === 'mamaji' ? { name: 'Mamaji', kind: 'office', cap: true, white: true } : id === 'shabbir' ? { name: 'Shabbir bhai', kind: 'casual' } : { name: id, kind: 'casual' });
     const look = outfit(def.kind || 'casual');
     if (def.white) { look.shirt = new THREE.Color(0xf2efe6); look.pants = new THREE.Color(0xf2efe6); }
-    return { ...look, kind: def.kind === 'sari' ? 'sari' : def.kind, x: 0, y: 0.2, z: 0, heading: 0, phase: 0, pose: POSE.STAND, amp: 1, flags: (def.cap ? FLAG.CAP : 0) | (def.kind === 'sari' ? FLAG.SARI : 0), scale: 1, h: 2.2, name: def.name, placed: false };
+    return { ...look, kind: def.kind === 'sari' ? 'sari' : def.kind, x: 0, y: 0.2, z: 0, heading: 0, phase: 0, pose: POSE.STAND, amp: 1, flags: (def.cap ? FLAG.CAP : 0) | (def.kind === 'sari' ? FLAG.SARI : 0), scale: def.kind === 'kid' ? 0.72 : 1, h: def.kind === 'kid' ? 1.7 : 2.2, name: def.name, placed: false };
   }
 
   person(id) { return (this.cast[id] ||= this.makePerson(id, this.active)); }
@@ -121,6 +121,7 @@ export class Story {
   }
 
   clearStep() {
+    this.lent = null;
     this.cargo = null; this.todo = null; this.cp = 0; this.lit = null; this.armed = false; this.target = null;
     if (this.runner) { this.scene.remove(this.runner.mesh); this.runner = null; }
   }
@@ -131,6 +132,42 @@ export class Story {
     this.cityMap.setWaypoint(null);
     this.cast = {};
     this.clearStep();
+  }
+
+  /**
+   * A vehicle for the mission, parked at the kerb near `at` (or near the player) — lent, so
+   * taking it is no challan. Only one loan stands around at a time.
+   */
+  lend(type, at, ctx) {
+    const g = this.world.garage, tr = g?.traffic, T = tr?.types[type];
+    this.lent = type;
+    if (!T || g.type === type) return;
+    const me = ctx.onFoot ? ctx.walker : ctx.player;
+    const [ax, az] = at || [me.pos.x, me.pos.z];
+    tr.left = tr.left.filter((v) => !v.lent);
+    const r = this.tiles.roadAt(ax, az, 45, true);
+    let x = ax + 4, z = az + 4, heading = 0;
+    if (r) {
+      // The nearest point of that road, moved out to its left kerb.
+      const sg = this.tiles.segment(r.tile, r.index), len = Math.hypot(sg[2] - sg[0], sg[3] - sg[1]) || 1, fx = (sg[2] - sg[0]) / len, fz = (sg[3] - sg[1]) / len;
+      const d0 = (ax - sg[0]) * fx + (az - sg[1]) * fz, o = Math.max(0, sg[4] - T.wid / 2 - 0.3), half = T.len / 2 + 1;
+      // A little way along the road, clear of whatever the player arrived in.
+      let d = THREE.MathUtils.clamp(d0, half, Math.max(half, len - half));
+      for (const off of [11, -11, 17, -17, 7, -7, 24, -24]) {
+        const k = d0 + off;
+        if (k < half || k > len - half) continue;
+        const px = sg[0] + fx * k + fz * o, pz = sg[1] + fz * k - fx * o;
+        if (Math.hypot(px - ctx.player.pos.x, pz - ctx.player.pos.z) > T.len / 2 + 5) { d = k; break; }
+      }
+      x = sg[0] + fx * d + fz * o; z = sg[1] + fz * d - fx * o; heading = Math.atan2(fx, fz);
+    }
+    tr.left.push({ type, x, z, heading, tint: new THREE.Color(T.tints[0]), taken: true, lent: true, fuel: 0.9, condition: 1 });
+  }
+
+  /** The vehicle lent by the last `lend` step before step i (missions resumed from a save). */
+  lendBefore(m, i) {
+    for (let k = i - 1; k >= 0; k--) if (m.steps[k].lend) return m.steps[k].lend;
+    return null;
   }
 
   /** The cargo set by the last cargo step before step i (missions resumed from a save). */
@@ -144,7 +181,8 @@ export class Story {
     if (!m) { this.s.active = null; this.s.step = 0; return; }
     const st = m.steps[this.s.step];
     this.stepT = 0; this.armed = false; this.target = null; this.todo = null; this.lit = null;
-    if (resume) this.cargo = this.cargoBefore(m, this.s.step);
+    if (resume) { this.cargo = this.cargoBefore(m, this.s.step); const type = this.lendBefore(m, this.s.step); if (type) this.lend(type, null, ctx); }
+    if (st?.lend) this.lend(st.lend, typeof st.at === 'function' ? st.at(this.world) : st.at, ctx);
     if (!st) { this.s.done.push(m.id); this.s.active = null; this.cast = {}; this.clearStep(); this.cityMap.setWaypoint(null); this.hud.message(`Mission complete: ${m.title}`); this.state.save(); return; }
     if (st.goto) { this.target = [...(typeof st.goto === 'function' ? st.goto(this.world) : st.goto)]; this.cityMap.routeTo(this.target[0], this.target[1], st.label); }
     if (st.cut) { this.lines = st.cut.slice(); this.lineT = 0; this.showLine(ctx); }
@@ -231,7 +269,7 @@ export class Story {
     if (on === 'vehicle') return true;
     if (on === 'taxi') return !g || g.inTaxi;
     if (on === 'two') return !!g?.rider;
-    return g?.type === on;
+    return Array.isArray(on) ? on.includes(g?.type) : g?.type === on || (on === 'cycle' && g?.type === 'dabba');
   }
 
   // ------------------------------------------------------------------ markers
@@ -316,6 +354,12 @@ export class Story {
     const timed = st.limit && (!st.race || this.armed);
     if (!st.race || this.armed) this.stepT += dt;
     for (const p of Object.values(this.cast)) if (p.placed && !p.inTaxi && !p.gone) { p.phase += dt * 2; this.people.add(p); }
+    // A passenger in an open vehicle (an auto) can be seen on the bench.
+    const pax = !onFoot && this.world.garage && !this.world.garage.inTaxi ? this.world.garage.spec?.pax : null;
+    if (pax) for (const p of Object.values(this.cast)) if (p.inTaxi && !p.gone) {
+      const h = player.heading, sh = Math.sin(h), ch = Math.cos(h);
+      this.people.add({ ...p, noHero: true, keep: true, x: player.pos.x + sh * pax.z - ch * 0.22, y: player.pos.y + pax.seat - 0.42, z: player.pos.z + ch * pax.z + sh * 0.22, heading: h, phase: 0, pose: POSE.SIT });
+    }
     let objective = st.label || '';
     if (st.cut) {
       // Camera on whoever is speaking, from the side away from the vehicle; subtitles advance by time or Space.
@@ -349,6 +393,11 @@ export class Story {
       if (loss > 0) { c.v = Math.max(0, c.v - loss); if (loss > 0.03 && (this.cargoSay || 0) < this.markerT) { this.cargoSay = this.markerT + 2.5; this.bubbles.say(player.pos, ['Arre! Sambhal ke!', 'Dheere, dheere!', 'Oho! Jhatka!'][Math.floor(Math.random() * 3)], 1.8, 'driver'); } }
       if (c.v < c.min) { this.fail(`${c.name}: ruined on the way`); return; }
     }
+    if (this.lent && this.world.garage && this.world.garage.type !== this.lent) {
+      const tr = this.world.garage.traffic, v = tr.left.find((q) => q.lent || q.type === this.lent);
+      if (v) this.mark(7, v.x, v.z, MARK.side, 0.8);
+      else if (onFoot || this.world.garage.inTaxi) this.lend(this.lent, null, ctx);
+    }
     const cargoText = this.cargo ? ` · ${this.cargo.icon || '📦'} ${this.cargo.name} ${Math.round(this.cargo.v * 100)}%` : '';
 
     if (st.goto) {
@@ -363,8 +412,8 @@ export class Story {
       }
     } else if (st.pickup) {
       const p = this.person(st.pickup);
-      objective = `Pick up ${p.name} (stop next to them in your taxi)`;
-      if (!onFoot && this.onOk({ on: 'taxi' }, ctx) && Math.hypot(player.pos.x - p.x, player.pos.z - p.z) < 8 && Math.abs(player.speed) < 1) {
+      objective = `Pick up ${p.name} (stop next to them ${ON_TEXT[st.on || 'taxi'] || `in the ${st.on}`})`;
+      if (!onFoot && this.onOk({ on: st.on || 'taxi' }, ctx) && Math.hypot(player.pos.x - p.x, player.pos.z - p.z) < 8 && Math.abs(player.speed) < 1) {
         p.inTaxi = true;
         this.bubbles.say(player.pos, st.line, 3, 'driver');
         this.next(ctx);
@@ -379,7 +428,7 @@ export class Story {
       objective = `${st.label} · now ${this.clock.label}`;
       if (h >= st.waitHour[0] && h <= st.waitHour[1]) this.next(ctx);
       else if (h > st.waitHour[1] && h < 23) objective = 'Missed the sunset — wait for tomorrow evening (T skips hours)';
-    } else if ('cargo' in st || st.call) {
+    } else if ('cargo' in st || st.call || st.lend) {
       st.call?.(this.world);
       this.next(ctx);
     } else if (st.visit) {

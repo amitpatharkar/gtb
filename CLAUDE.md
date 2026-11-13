@@ -184,7 +184,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   the world and on the map (`story.markers()`), with its giver waiting there; `hours` windows. Steps: `cut`
   (letterbox, camera on the speaker, Space skips), `goto` (with `on`: vehicle/taxi/two/foot/type, `limit`,
   `radius`, `minCondition`), `pickup`/`dropoff`, `waitHour`, `cargo` (fragile: hard braking, crashes, bumps and
-  slides cost %), `visit` (several stops), `race` (checkpoints; the clock starts when you ride off), `catch` (a
+  slides cost %), `lend` (a vehicle of a given type parked at the kerb for the mission: `traffic.left` entry with
+  `lent` + `taken`, re-lent after a reload or if towed; F prefers it over the taxi), `pickup` with `on` (passenger in any
+  vehicle; shown on the bench of an auto), `visit` (several stops), `race` (checkpoints; the clock starts when you ride off), `catch` (a
   runaway penguin on foot), `task` rides/colour/crackers (`story.event('cracker', kind)`), `call`, `reward`.
   Fail → retry from the marker. Script coordinates are places: `snap()` moves markers/targets onto the nearest
   road once tiles are loaded. `story.world` gives missions access to stars, garage, crackers, police.
