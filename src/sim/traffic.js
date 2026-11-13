@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import { LIGHT } from './signals.js';
 import { buildFleet } from '../vehicles/fleet.js';
+import { MASS } from '../vehicles/garage.js';
 
 // Ambient traffic, Rockstar style: a few dozen vehicles live only near the player,
 // driving on the LEFT along the real road network, slowing behind each other and for
 // the player. Density follows the clock (rush hours). One instanced mesh per type.
 
 const LEFT = (fx, fz) => [fz, -fx]; // left-hand perpendicular of a heading (x east, z south)
+
+const FORWARD = new THREE.Vector3(0, 0, 1);
 
 function riderLook() {
   const shirts = [0xc0392b, 0x2e86c1, 0xf2f2f2, 0x34495e, 0x27ae60, 0x7f8c8d, 0xe67e22];
@@ -54,6 +57,7 @@ export class Traffic {
     this.matrix = new THREE.Matrix4();
     this.q = new THREE.Quaternion();
     this.pos = new THREE.Vector3();
+    this.q2 = new THREE.Quaternion();
     this.unit = new THREE.Vector3(1, 1, 1);
     this.honks = [];
     this.events = [];      // { type: 'jump', car, ap } for the police
@@ -61,6 +65,8 @@ export class Traffic {
     this.obstacles = [];   // [x, z, length]: cows, cricket pitches, jaywalkers (set by street life)
     this.extras = [];      // broken-down vehicles drawn with the traffic meshes
     this.parked = [];      // parked cars and two-wheelers along wide streets near the player
+    this.left = [];        // vehicles the player took and left somewhere, or shoved out of their parking spot
+    this.movedKeys = new Set(); // parking spots whose vehicle was taken or shoved (not re-created)
     this.parkAt = { x: 1e9, z: 1e9, v: -1 };
     this.night = 0;
   }
@@ -183,9 +189,18 @@ export class Traffic {
     if (this.cars.length > target + 4) { const i = this.cars.findLastIndex((c) => !c.pulled); if (i >= 0) this.cars.splice(i, 1); }
 
     const night = clock.night;
+    for (const v of this.parked) if (v.pvx || v.pvz) this.slide(v, dt);
+    for (const v of this.left) if (v.pvx || v.pvz || v.spin) this.slide(v, dt);
     for (const car of this.cars) {
       const s = car.seg.s;
       const type = this.types[car.type];
+      if (car.knock > 0) {
+        // Shunted: slides and spins with the blow; the driver brakes, then steers back into lane.
+        car.knock -= dt; car.speed = 0;
+        this.slide(car, dt);
+        continue;
+      }
+      if (car.recover > 0) car.recover -= dt;
       const fx = ((s[2] - s[0]) / car.seg.len) * car.dir, fz = ((s[3] - s[1]) / car.seg.len) * car.dir;
       // Look ahead for other vehicles and the player in our lane.
       let gap = 40;
@@ -250,12 +265,12 @@ export class Traffic {
       const lane = car.lane;
       const px = s2[0] + (s2[2] - s2[0]) * t + lx * lane, pz = s2[1] + (s2[3] - s2[1]) * t + lz * lane;
       // Smooth position and heading through corners.
-      const k = Math.min(1, dt * 8);
+      const k = Math.min(1, dt * (car.recover > 0 ? 1.6 : 8));
       car.x += (px - car.x) * k; car.z += (pz - car.z) * k;
       const h = Math.atan2(gx, gz);
       let dh = h - car.heading;
       dh = Math.atan2(Math.sin(dh), Math.cos(dh));
-      car.heading += dh * Math.min(1, dt * 6);
+      car.heading += dh * Math.min(1, dt * (car.recover > 0 ? 2 : 6));
     }
 
     // Write instances: near geometry within ~90 m of the player, the coarse version beyond.
@@ -266,7 +281,8 @@ export class Traffic {
       if (i >= this.cap || !this.types[v.type]) return;
       const lod = (v.x - px) ** 2 + (v.z - pz) ** 2 > 90 * 90 ? 1 : 0;
       this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, v.heading);
-      this.matrix.compose(this.pos.set(v.x, 0.02, v.z), this.q, this.unit);
+      if (v.roll) this.q.multiply(this.q2.setFromAxisAngle(FORWARD, v.roll)); // a two-wheeler lying on its side
+      this.matrix.compose(this.pos.set(v.x, v.roll ? 0.2 : 0.02, v.z), this.q, this.unit);
       for (const part in B) {
         B[part].setGeometryIdAt(i, this.geo[part][v.type][lod]);
         B[part].setMatrixAt(i, this.matrix);
@@ -279,6 +295,7 @@ export class Traffic {
     for (const car of this.cars) put(car);
     for (const e of this.extras) put(e);
     for (const p of this.parked) put(p);
+    for (const p of this.left) put(p);
     for (let k = i; k < this.shown; k++) for (const part in B) B[part].setVisibleAt(k, false);
     this.shown = i;
     this.mats.lamps.color.setScalar(0.7 + this.night * 3.5);
@@ -316,6 +333,7 @@ export class Traffic {
       if (Math.hypot(mx - player.pos.x, mz - player.pos.z) > R + seg.len / 2) continue;
       const fx = (s[2] - s[0]) / seg.len, fz = (s[3] - s[1]) / seg.len;
       let seed = (Math.abs(Math.round(s[0] * 7 + s[1] * 13 + s[2] * 3)) % 9973) + 1;
+      const segKey = `${Math.round(s[0])},${Math.round(s[1])},${Math.round(s[2])},${Math.round(s[3])}`;
       const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
       for (const side of [1, -1]) {
         if (side < 0 && !(s[5] & 2) && hw < 6) continue; // two-way streets under 12 m: one side only
@@ -333,24 +351,93 @@ export class Traffic {
             // A row of two-wheelers, angled to the kerb.
             const n = 2 + Math.floor(rnd() * 5);
             for (let k = 0; k < n && out.length < this.parkMax; k++) {
-              const type = twoTypes[Math.floor(rnd() * twoTypes.length)], o = hw - 0.9;
-              out.push({ type, x: x0 + fx * k * 0.85 + lx * o, z: z0 + fz * k * 0.85 + lz * o, heading: Math.atan2(lx, lz) + Math.PI + 0.5, tint: tint(type, rnd()), parked: true });
+              const type = twoTypes[Math.floor(rnd() * twoTypes.length)], o = hw - 0.9, th = rnd();
+              const key = `${segKey}:${side}:${Math.round(d * 10)}:${k}`;
+              if (this.movedKeys.has(key)) continue;
+              out.push({ type, x: x0 + fx * k * 0.85 + lx * o, z: z0 + fz * k * 0.85 + lz * o, heading: Math.atan2(lx, lz) + Math.PI + 0.5, tint: tint(type, th), parked: true, key });
             }
             d += n * 0.85 + 1.5;
           } else {
-            const type = carTypes[Math.floor(rnd() * carTypes.length)], T = this.types[type], o = hw - T.wid / 2 - 0.25;
-            out.push({ type, x: x0 + fx * T.len / 2 + lx * o, z: z0 + fz * T.len / 2 + lz * o, heading, tint: tint(type, rnd()), parked: true });
+            const type = carTypes[Math.floor(rnd() * carTypes.length)], T = this.types[type], o = hw - T.wid / 2 - 0.25, th = rnd();
+            const key = `${segKey}:${side}:${Math.round(d * 10)}`;
+            if (!this.movedKeys.has(key)) out.push({ type, x: x0 + fx * T.len / 2 + lx * o, z: z0 + fz * T.len / 2 + lz * o, heading, tint: tint(type, th), parked: true, key });
             d += T.len + 0.6 + rnd() * 1.2;
           }
         }
       }
     }
     this.parked = out;
+    // Vehicles left far behind are towed away (their parking spots stay empty).
+    this.left = this.left.filter((v) => Math.hypot(v.x - player.pos.x, v.z - player.pos.z) < 350);
+  }
+
+  /** A pushed vehicle slides and spins to a stop (friction), and stops dead against buildings. */
+  slide(v, dt) {
+    const nx = v.x + (v.pvx || 0) * dt, nz = v.z + (v.pvz || 0) * dt;
+    if (this.tiles.hits(nx, nz, this.types[v.type].wid / 2)) { v.pvx = v.pvz = 0; } else { v.x = nx; v.z = nz; }
+    v.heading += (v.spin || 0) * dt;
+    const f = Math.exp(-2.6 * dt);
+    v.pvx = (v.pvx || 0) * f; v.pvz = (v.pvz || 0) * f; v.spin = (v.spin || 0) * f;
+    if (Math.hypot(v.pvx, v.pvz) < 0.15 && Math.abs(v.spin) < 0.05) { v.pvx = v.pvz = v.spin = 0; }
+  }
+
+  /**
+   * The vehicle a circle touches, as a physics body for the player's car: its mass and
+   * velocity, and push(dvx, dvz, cx, cz) to apply a change of velocity at a contact point.
+   */
+  bodyAt(x, z, r) {
+    const hit = (list) => {
+      for (const car of list) {
+        if (Math.abs(x - car.x) > 8 || Math.abs(z - car.z) > 8) continue;
+        const type = this.types[car.type];
+        const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
+        const along = THREE.MathUtils.clamp((x - car.x) * fx + (z - car.z) * fz, -type.len / 2 + type.wid / 2, type.len / 2 - type.wid / 2);
+        if ((x - car.x - fx * along) ** 2 + (z - car.z - fz * along) ** 2 < (r + type.wid / 2) ** 2) return car;
+      }
+      return null;
+    };
+    let kind = 'traffic', v = hit(this.cars);
+    if (!v) { kind = 'parked'; v = hit(this.parked); }
+    if (!v) { kind = 'left'; v = hit(this.left); }
+    if (!v) return null;
+    const moving = kind === 'traffic' && !(v.knock > 0);
+    return {
+      v, kind, mass: MASS[v.type] || 1000,
+      vx: moving ? Math.sin(v.heading) * v.speed : v.pvx || 0, vz: moving ? Math.cos(v.heading) * v.speed : v.pvz || 0,
+      push: (dvx, dvz, cx, cz) => this.shove(v, kind, dvx, dvz, cx, cz),
+    };
+  }
+
+  shove(v, kind, dvx, dvz, cx, cz) {
+    const type = this.types[v.type], dv = Math.hypot(dvx, dvz);
+    v.pvx = (v.pvx || 0) + dvx; v.pvz = (v.pvz || 0) + dvz;
+    // Off-centre blows spin the vehicle.
+    const rx = cx - v.x, rz = cz - v.z;
+    v.spin = THREE.MathUtils.clamp((v.spin || 0) + ((rz * dvx - rx * dvz) * 2.2) / (type.len * type.len), -3, 3);
+    if (type.rider && dv > 2.2 && !v.roll) {
+      // Two-wheelers go over; a rider comes off (and gets up again, swearing).
+      v.roll = (rx * Math.cos(v.heading) - rz * Math.sin(v.heading)) > 0 ? -1.45 : 1.45;
+      if (kind === 'traffic') {
+        this.cars.splice(this.cars.indexOf(v), 1);
+        this.left.push(v);
+        this.onRiderDown?.(v);
+        return;
+      }
+    }
+    if (kind === 'traffic') {
+      v.knock = Math.min(2.2, 0.5 + dv * 0.25); v.recover = 3; v.wait = 0;
+      if (dv > 0.8) { this.honks.push([v.x, v.z]); this.onShunt?.(v, dv); }
+    } else if (kind === 'parked') {
+      // Pushed out of its spot: it stays where it ends up.
+      this.parked.splice(this.parked.indexOf(v), 1);
+      if (v.key) this.movedKeys.add(v.key);
+      this.left.push(v);
+    }
   }
 
   hits(x, z, r) {
-    for (const car of this.parked) {
-      if (Math.abs(x - car.x) > 4 || Math.abs(z - car.z) > 4) continue;
+    for (const car of this.parked.concat(this.left)) {
+      if (Math.abs(x - car.x) > 8 || Math.abs(z - car.z) > 8) continue;
       const type = this.types[car.type];
       const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
       const dx = x - car.x, dz = z - car.z;

@@ -31,7 +31,7 @@ export class Car {
     const top = this.maxSpeed * (0.8 + 0.2 * this.condition);
     // World velocity (the car can slip sideways); re-synced if someone set `speed` directly
     // (teleports, respawn, cheats, AI resets).
-    if (this.vx === undefined || this.speed !== this.lastSpeed) { this.vx = Math.sin(this.heading) * this.speed; this.vz = Math.cos(this.heading) * this.speed; this.yaw = 0; }
+    if (this.vx === undefined || (this.speed !== this.lastSpeed && !Number.isNaN(this.lastSpeed))) { this.vx = Math.sin(this.heading) * this.speed; this.vz = Math.cos(this.heading) * this.speed; this.yaw = 0; }
     const oldHeading = this.heading;
 
     // Steering: full lock at walking pace, much less at speed; wheels return to centre.
@@ -67,12 +67,15 @@ export class Car {
     // Move in small steps; on contact, cancel the velocity going into the obstacle and slide
     // along it (the contact normal is found by probing free space, so any world.hits works).
     const HL = this.halfLength, R = this.radius;
+    // Collision circles along the car: both ends, plus some in between on long vehicles.
+    // Returns ±1 for the end that touches (0 = clear).
+    const circles = this.circles || (this.circles = [HL, -HL]);
     const blockedAt = (x, z, h) => {
-      const sx = Math.sin(h) * HL, sz = Math.cos(h) * HL;
-      if (world.hits(x + sx, z + sz, R)) return 1;
-      if (world.hits(x - sx, z - sz, R)) return -1;
+      const sh = Math.sin(h), ch = Math.cos(h);
+      for (const o of circles) if (world.hits(x + sh * o, z + ch * o, R)) { hitOffset = o; return o < 0 ? -1 : 1; }
       return 0;
     };
+    let hitOffset = 0;
     // Turning into a wall: keep the old heading.
     if (blockedAt(this.pos.x, this.pos.z, this.heading) && !blockedAt(this.pos.x, this.pos.z, oldHeading)) {
       this.heading = oldHeading; this.yaw = 0; fx = Math.sin(this.heading); fz = Math.cos(this.heading);
@@ -84,8 +87,25 @@ export class Car {
       let sx = (this.vx * dt) / n, sz = (this.vz * dt) / n;
       const end = blockedAt(this.pos.x + sx, this.pos.z + sz, this.heading);
       if (!end) { this.pos.x += sx; this.pos.z += sz; continue; }
-      const cx = this.pos.x + sx + fx * HL * end, cz = this.pos.z + sz + fz * HL * end;
+      const cx = this.pos.x + sx + fx * hitOffset, cz = this.pos.z + sz + fz * hitOffset;
       const [nx, nz] = freeDirection(world, cx, cz, R, -this.vx, -this.vz);
+      // Another vehicle: exchange momentum by mass (a scooter flies, a bus barely notices).
+      const body = world.bodyAt?.(cx, cz, R);
+      if (body) {
+        const m = this.mass || 900, M = body.mass;
+        const rel = (this.vx - body.vx) * nx + (this.vz - body.vz) * nz;
+        if (rel < 0) {
+          const j = (-1.25 * rel) / (1 / m + 1 / M);
+          this.vx += (nx * j) / m; this.vz += (nz * j) / m;
+          body.push((-nx * j) / M, (-nz * j) / M, cx, cz);
+          const sev = (-rel * M) / (m + M) * 1.3;
+          if (sev > impact) { impact = sev; hitEnd = end; hitN = [nx, nz]; }
+          this.hitBody = body;
+        }
+        sx = (this.vx * dt) / n; sz = (this.vz * dt) / n;
+        if (!blockedAt(this.pos.x + sx, this.pos.z + sz, this.heading)) { this.pos.x += sx; this.pos.z += sz; }
+        continue;
+      }
       const vn = this.vx * nx + this.vz * nz;
       if (vn < 0) {
         if (-vn > impact) { impact = -vn; hitEnd = end; hitN = [nx, nz]; }
@@ -106,7 +126,7 @@ export class Car {
     // Already overlapping something (spawned or pushed into it): ease out towards free space.
     const ov = blockedAt(this.pos.x, this.pos.z, this.heading);
     if (ov) {
-      const [nx, nz] = freeDirection(world, this.pos.x + fx * HL * ov, this.pos.z + fz * HL * ov, R, -fx * ov, -fz * ov);
+      const [nx, nz] = freeDirection(world, this.pos.x + fx * hitOffset, this.pos.z + fz * hitOffset, R, -fx * ov, -fz * ov);
       this.pos.x += nx * Math.min(0.25, 3 * dt); this.pos.z += nz * Math.min(0.25, 3 * dt);
     }
     if (impact > 0.5) {

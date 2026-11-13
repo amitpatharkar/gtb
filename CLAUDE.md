@@ -82,7 +82,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/tileWorker.js` + `src/world/mesh/` — worker: `ground.js` (ground layers, kerbs with paint strip, sea walls,
   parapet, tetrapods, markings, footways, rails), `buildings.js` (per-style walls with facade data, parapets, stair
   rooms, roof types, water tanks), `builder.js` (mesh helpers). Road segments: 6 floats `x0 z0 x1 z1 halfWidth flags`
-  (flags 1 vehicle, 2 one-way, 4 main road).
+  (flags 1 vehicle, 2 one-way, 4 main road). Kerbs are painted black-yellow only near main roads (`kerbPlain` elsewhere).
 - `src/world/tileFormat.js` — binary tile format v2 (buildings with style/levels/street-facing walls, areas incl.
   PLOT/ROAD/FOOTPATH, roads, rails, markings, points); `src/world/levels.js` — ground heights
 - `src/vehicles/taxi.js` + `car.js` — procedural kaali-peeli taxi (Premier Padmini proportions, clear-coat paint) and car
@@ -126,6 +126,12 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   knocked down then limp away); ~4.5 % of passers-by start it; kids and animals never targets; police: brawl/assault
 - `src/world/propPhysics.js` — solid trees/lamp posts/bus shelters/thelas, tree shake, bent poles, flying fruit,
   scattering garbage (simple rigid bits)
+- `src/vehicles/garage.js` — take and drive any vehicle (F on foot next to a traffic, parked or left vehicle):
+  swaps the player Car's model, size (collision `circles`), handling (`DRIVE`) and weight (`MASS`); the taxi stays
+  parked (`garage.home`, `homeBody`), borrowed vehicles left behind go to `traffic.left`; ejected drivers become
+  peds driven by combat.js; `police.offence('theft')`. Collisions: car.js asks `world.bodyAt()` (traffic.js) and
+  exchanges momentum by mass; `traffic.shove()` slides/spins vehicles (`knock`/`recover` for driven cars, parked →
+  `left` with `movedKeys`, two-wheelers `roll` over, `onRiderDown`); `combat.carVsPeople()` knocks people down.
 - `src/game/cheats.js` — developer cheat console (` key or double-tap the clock; `window.__gtb.cheat(code)`):
   PAISAHIPAISA, CHALANMAAF, MAAMUCHUTTI, PETROLBHARO, AMRUT, SHAKTIMAAN, DHOOMMACHALE, JADOO (teleport to waypoint),
   SUBAHHOGAYI, DOPEHER, RAATHOGAYI, TRAFFICJAM, DEBUGKARO (stats line); listed in the Guide

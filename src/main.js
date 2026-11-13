@@ -26,6 +26,7 @@ import { StreetProps } from './world/streetProps.js';
 import { Radio } from './radio.js';
 import { Characters } from './sim/characters.js';
 import { Cheats } from './game/cheats.js';
+import { Garage } from './vehicles/garage.js';
 import { Story } from './game/story.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
@@ -155,7 +156,8 @@ const story = new Story({ scene, tiles, index, state, cityMap, hud, bubbles, peo
 const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => changeQuality(nextTier(tierKey)), onPhoto: () => takePhoto() });
 const propPhysics = new PropPhysics(scene, tiles, { bubbles, hud, state, audio });
 const world = {
-  hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r),
+  hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || garage.taxiHits(x, z, r),
+  bodyAt: (x, z, r) => traffic.bodyAt(x, z, r), // other vehicles are pushed by mass rather than acting as walls
   groundHeight: (x, z) => { const y = tiles.wheelHeight(x, z); if (tiles.inPothole) world.pothole = true; return y; },
 };
 const spawn = index.spawn;
@@ -170,7 +172,7 @@ respawn();
 state.beforeSave = () => {
   if (teleporting) return;
   state.s.world = {
-    x: player.pos.x, z: player.pos.z, heading: player.heading, fuel: player.fuel, condition: player.condition,
+    ...(garage.home || { x: player.pos.x, z: player.pos.z, heading: player.heading, fuel: player.fuel, condition: player.condition }),
     hour: clock.hour, stars: police.stars, fines: police.fines, origin: JSON.stringify(index.origin),
     orders: jobs.riders.filter((r) => r.state === 'coming').map((r) => ({ app: r.app, items: r.items, eta: Math.max(20, r.eta - r.t) })),
   };
@@ -228,6 +230,9 @@ taxi.root.add(lowBeam, lowBeam.target);
 headlamp.position.set(0, 0.7, 1.9);
 headlamp.target.position.set(0, 0, 22);
 taxi.root.add(headlamp, headlamp.target);
+lowBeam.userData.reach = 7; headlamp.userData.reach = 20;
+// Any vehicle on the street can be taken and driven (F next to it, on foot).
+const garage = new Garage({ scene, player, taxi, traffic, street, police, bubbles, audio, hud, outfit, lamps: [lowBeam, headlamp] });
 
 // ------------------------------------------------------------------ on foot
 const walker = new Walker(tiles);
@@ -237,24 +242,40 @@ const skids = new SkidMarks(scene);
 const damage = new TaxiDamage(scene, taxi);
 let onFoot = false;
 const footWorld = { hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || taxiHits(x, z, r) };
+/** The vehicle the player left (taxi or borrowed) and the parked taxi are solid for people on foot. */
 function taxiHits(x, z, r) {
-  const fx = Math.sin(player.heading) * 1.1, fz = Math.cos(player.heading) * 1.1;
-  return (x - player.pos.x - fx) ** 2 + (z - player.pos.z - fz) ** 2 < (r + 0.8) ** 2 || (x - player.pos.x + fx) ** 2 + (z - player.pos.z - -fz) ** 2 < (r + 0.8) ** 2;
+  const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
+  for (const o of player.circles || [player.halfLength, -player.halfLength]) if ((x - player.pos.x - fx * o) ** 2 + (z - player.pos.z - fz * o) ** 2 < (r + player.radius) ** 2) return true;
+  return garage.taxiHits(x, z, r);
 }
-/** F: get out of the taxi (driver's side, it's right-hand drive) or back in. */
+/**
+ * F: get out of the vehicle (driver's side, right-hand drive). On foot, F gets into the
+ * nearest vehicle: the one you left, your taxi, or anybody else's (that is a theft).
+ */
 function toggleFoot() {
   if (!onFoot) {
     if (Math.abs(player.speed) > 2) { say('Slow down to get out', 1.5); return; }
-    const h = player.heading, rx = -Math.cos(h), rz = Math.sin(h);
-    let x = player.pos.x + rx * 1.6, z = player.pos.z + rz * 1.6;
-    if (tiles.hits(x, z, 0.3)) { x = player.pos.x - rx * 1.6; z = player.pos.z - rz * 1.6; }
+    const h = player.heading, rx = -Math.cos(h), rz = Math.sin(h), side = player.radius + 0.8;
+    let x = player.pos.x + rx * side, z = player.pos.z + rz * side;
+    if (tiles.hits(x, z, 0.3)) { x = player.pos.x - rx * side; z = player.pos.z - rz * side; }
     walker.pos.set(x, tiles.groundHeight(x, z), z);
     walker.heading = h; walker.speed = 0;
     onFoot = true;
     if (jobs.ride?.stage === 'ride') say('Your passenger is waiting in the taxi!', 3);
-    say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · F back in', 6);
+    say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · F gets into the nearest vehicle', 6);
   } else {
-    if (walker.pos.distanceTo(player.pos) > 4) { say('Walk to your taxi to get in', 1.5); return; }
+    // Nearest of: what you were driving, your parked taxi, anything else on the street.
+    const wx = walker.pos.x, wz = walker.pos.z;
+    const mine = Math.hypot(wx - player.pos.x, wz - player.pos.z) - player.radius - player.halfLength * 0.6;
+    const home = garage.home ? Math.hypot(wx - garage.home.x, wz - garage.home.z) - 1.4 : Infinity;
+    const other = garage.nearest(wx, wz);
+    const best = Math.min(mine, home, other ? other.d : Infinity);
+    if (best > 2.6) { say('Walk up to a vehicle to get in', 1.5); return; }
+    if (best === home) garage.toTaxi();
+    else if (other && best === other.d) {
+      if (jobs.onDuty && !jobs.ride) jobs.toggleDuty(player);
+      garage.take(other, walker);
+    }
     onFoot = false;
     walker.spraying = false;
   }
@@ -275,11 +296,12 @@ function placeCamera(dt) {
     view.yaw += d * Math.min(1, dt * 1.5);
   }
   const aim = onFoot && view.aim;
-  const dist = onFoot ? (aim ? 1.9 : 3.6) : 6.4 + Math.abs(player.speed) * 0.12;
+  const veh = garage.inTaxi ? null : garage.spec; // buses need the camera further back and higher
+  const dist = onFoot ? (aim ? 1.9 : 3.6) : (veh ? veh.len * 1.15 + 2.4 : 6.4) + Math.abs(player.speed) * 0.12;
   const shoulder = onFoot ? (aim ? 0.6 : 0.4) : 0;
   const [fx, fy, fz] = view.forward();
   const rx = -Math.cos(view.yaw), rz = Math.sin(view.yaw);
-  const px = a.pos.x + rx * shoulder, py = a.pos.y + (onFoot ? 1.55 : 1.6), pz = a.pos.z + rz * shoulder;
+  const px = a.pos.x + rx * shoulder, py = a.pos.y + (onFoot ? 1.55 : veh?.big ? 3.4 : 1.6), pz = a.pos.z + rz * shoulder;
   const target = new THREE.Vector3(px - fx * dist, Math.max(a.pos.y + 0.4, py - fy * dist), pz - fz * dist);
   // Keep the camera out of buildings: pull it in towards the player if a wall is in the way.
   for (let i = 1; i <= 8; i++) {
@@ -304,6 +326,10 @@ function placeCamera(dt) {
 placeCamera(0);
 combat = new Combat({ scene, street, police, bubbles, audio, hud, tiles, walker, pichkari, view });
 pichkari.ctx.combat = combat;
+garage.combat = combat;
+// Collisions with other vehicles: riders come off their bikes, drivers shout, hard hits are hit-and-run.
+traffic.onRiderDown = (bike) => { garage.eject(bike, null, 'down'); if (!onFoot) police.offence('hitrun', player); };
+traffic.onShunt = (car, dv) => { if (dv > 1.5) bubbles.say(car, ['Arre! Andha hai kya?!', 'Gaadi thok di!', 'Dekh ke chala!', 'Mera bumper!'][Math.floor(Math.random() * 4)], 2.5, 'driver'); };
 
 await tiles.whenReady(player.pos.x, player.pos.z, 350, (done, total) => {
   $('loading').textContent = `Loading ${index.name}… ${done}/${total}`;
@@ -330,6 +356,7 @@ async function teleportHome() {
   teleporting = true;
   if (far) { state.pay(300, 'Tow to the Gateway'); say(state.money < 0 ? 'Tow truck: ₹300 on credit. Back at the Gateway.' : 'Tow truck: ₹300. Back at the Gateway.', 3); }
   if (onFoot) { onFoot = false; walker.spraying = false; }
+  if (!garage.inTaxi) garage.toTaxi(); // a borrowed vehicle stays where it is
   $('fade').classList.add('on');
   await new Promise((r) => setTimeout(r, 250));
   respawn();
@@ -344,7 +371,7 @@ const say = (text, seconds = 3) => { message = text; messageTimer = seconds; };
 police.onFlagGone = () => closeChoice?.(-1);
 // Fines and settlements always come out of the wallet, on foot or in the taxi.
 police.payFn = street.payFn = (amount, what) => state.pay(amount, what);
-traffic.taxi = police.taxi = player; // NPC cars and patrols also avoid the parked taxi
+
 police.onFlagStop = (f, who) => {
   choice(`Hawaldar: "Challan ₹${police.fines.toLocaleString('en-IN')}, saheb."`, [
     [`Pay ₹${police.fines.toLocaleString('en-IN')}`, () => police.pay(false, f, who)],
@@ -385,7 +412,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyH') honk();
   if (e.code === 'KeyP') { view.release(); phone.toggle(); }
   if (e.code === 'Escape' && phone.open) phone.toggle(false);
-  if (e.code === 'KeyJ') jobs.toggleDuty(player);
+  if (e.code === 'KeyJ') { if (garage.inTaxi || jobs.onDuty) jobs.toggleDuty(player); else say('Taxi duty needs your kaali-peeli', 2); }
   if (e.code === 'KeyF') toggleFoot();
   if (e.code === 'KeyN' && !onFoot) radio.next();
   if (e.code === 'KeyC' && onFoot) { pichkari.nextColour(e.shiftKey ? -1 : 1); if (combat.weapon !== 'pichkari') combat.setWeapon('pichkari'); }
@@ -502,7 +529,7 @@ function choice(title, options) {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { THREE, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { THREE, garage, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const cheats = new Cheats(window.__gtb, (t, s) => say(t, s));
 window.__gtb.cheat = (code) => cheats.enter(code);
 window.__gtb.cheats = cheats;
@@ -543,15 +570,17 @@ function step(dt) {
   if (player.impact) {
     if (player.impact > 2.5) {
       audio.crash(Math.min(1, player.impact / 14));
-      damage.impact(player.impactLocal[0], player.impactLocal[1], player.impact);
+      if (garage.inTaxi) damage.impact(player.impactLocal[0], player.impactLocal[1], player.impact);
       propPhysics.impact(player.impact, Math.sin(player.heading), Math.cos(player.heading));
     }
     player.impact = 0;
   }
-  damage.update(dt, player, camera);
+  damage.update(dt, garage.inTaxi ? player : garage.homeBody, camera);
+  garage.update();
+  traffic.taxi = police.taxi = garage.inTaxi ? player : garage.homeBody; // NPC cars and patrols avoid the parked taxi
   if (!onFoot) propPhysics.sweep(player);
   propPhysics.update(dt, onFoot ? null : player);
-  if (player.condition > 0.97 && (damage.front || damage.rear)) damage.repair();
+  if (garage.inTaxi && player.condition > 0.97 && (damage.front || damage.rear)) damage.repair();
   if (onFoot) {
     walker.update(dt, cutscene ? NO_INPUT : input, footWorld, state.s.energy, clock.aqi, view);
     // Careless drivers knock you over.
@@ -574,8 +603,14 @@ function step(dt) {
   street.onFoot = onFoot;
   street.update(dt, active, clock);
   combat.update(dt, { fire: input.fire || input.brake }, onFoot);
+  if (!onFoot && !cutscene) combat.carVsPeople(player);
   story.update(dt, { player, onFoot, walker });
   if (onFoot) walker.draw(people, combat.weapon);
+  else if (garage.rider) {
+    // Riding a two-wheeler: the player sits astride it.
+    const seat = garage.spec.seat ?? 0.9, L = walker.look;
+    people.add({ noHero: true, x: player.pos.x - Math.sin(player.heading) * 0.28, y: player.pos.y + seat - 0.42, z: player.pos.z - Math.cos(player.heading) * 0.28, heading: player.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: 0, scale: 1, shirt: L.shirt, pants: L.pants, skin: L.skin });
+  }
   for (const r of traffic.riders) {
     // Motorbike riders sit astride, hands on the handlebar; most wear helmets.
     const seat = traffic.types[r.type]?.seat ?? 0.92;

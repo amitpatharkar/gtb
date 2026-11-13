@@ -277,6 +277,50 @@ export class Combat {
     this.tomatoMesh.instanceMatrix.needsUpdate = true; this.chappalMesh.instanceMatrix.needsUpdate = true;
   }
 
+  /**
+   * The player's vehicle meets people: at a crawl they jump aside and shout; faster and
+   * they are knocked over (they get up again, no blood) and it is a hit-and-run if seen.
+   * Children are always pulled clear.
+   */
+  carVsPeople(car) {
+    const sp = Math.hypot(car.vx || 0, car.vz || 0);
+    if (sp < 1.2) return;
+    const fx = Math.sin(car.heading), fz = Math.cos(car.heading), HL = car.halfLength, R = car.radius + 0.28;
+    const test = (o, kind) => {
+      if (!o || o.combat?.mode === 'down' || o.downT > 0) return;
+      const dx = o.x - car.pos.x, dz = o.z - car.pos.z;
+      if (Math.abs(dx) > 9 || Math.abs(dz) > 9 || car.vx * dx + car.vz * dz <= 0) return;
+      const along = Math.max(-HL, Math.min(HL, dx * fx + dz * fz));
+      let ex = dx - fx * along, ez = dz - fz * along;
+      const d = Math.hypot(ex, ez);
+      if (d > R) return;
+      if (d < 0.05) { ex = -fz; ez = fx; } else { ex /= d; ez /= d; }
+      const hard = sp > 4.2 && this.adult(o) && kind !== 'npcKid';
+      if (!hard) {
+        // Jump clear, sideways out of the car's path.
+        const nx = o.x + ex * (R - d + 0.25), nz = o.z + ez * (R - d + 0.25);
+        if (!this.tiles.hits(nx, nz, 0.2)) { o.x = nx; o.z = nz; }
+        if (!o.yelledAt || performance.now() - o.yelledAt > 2500) { o.yelledAt = performance.now(); this.say(o, kind === 'cop' ? 'Ae! Gaadi peeche lo!' : ['Arre! Dekh ke!', 'Oye! Marega kya?!', 'Footpath pe chadha dega kya?!'], kind === 'cop' ? 'cop' : ''); }
+        if (kind === 'ped' && !o.combat) { o.state = 'angry'; o.timer = 2; }
+        return;
+      }
+      // Knocked off their feet, thrown a little along the car's way.
+      const ux = car.vx / sp, uz = car.vz / sp, throwD = Math.min(3, 0.6 + sp * 0.18);
+      const nx = o.x + ux * throwD + ex * 0.6, nz = o.z + uz * throwD + ez * 0.6;
+      if (!this.tiles.hits(nx, nz, 0.2)) { o.x = nx; o.z = nz; }
+      car.vx *= 0.86; car.vz *= 0.86; car.lastSpeed = NaN; // the car loses some speed
+      this.audio.punch?.(1);
+      this.say(o, HURT);
+      if (kind === 'cop') { o.task = null; this.police.offence('assault', car); return; }
+      if (kind === 'ped') { this.free(o, 'down'); o.combat.t = 3.5 + Math.random() * 2.5; o.hp = 0.5; }
+      else { o.basePose ??= o.pose; o.pose = POSE.FALLEN; o.downT = 4 + Math.random() * 2; this.knocked.push(o); }
+      this.police.offence('hitrun', car);
+    };
+    for (const p of this.street.peds) test(p, 'ped');
+    for (const f of this.street.fixtures.values()) for (const p of f.people || []) test(p, 'npc');
+    for (const c of this.police.cops) test(c, 'cop');
+  }
+
   // ------------------------------------------------------------------ frame
   update(dt, input, onFoot) {
     this.onFoot = onFoot;

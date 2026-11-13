@@ -36,9 +36,11 @@ Effort: S small, M medium, L large. ✅ done · 🟡 in progress · ⬜ to do.
 ## Owner requests added 2026-11-13 (evening)
 | # | Item | Effort | Status |
 |---|---|---|---|
-| R1 | Steal and drive any vehicle (traffic or parked): F near a car, driver pulled out and reacts, theft offence if seen, per-type handling (bus heavy, bike nimble), your taxi stays where you left it | M | ⬜ |
-| R2 | Collision physics: cars shove each other by mass (bike < car < SUV < bus), parked cars get pushed and stay moved, people are hit and knocked down (no blood) with hit-and-run offence | M | ⬜ |
+| R1 | Steal and drive any vehicle (traffic, parked or one you left): F on foot next to it; driver pulled out and fights, throws things or runs; ₹5,000 theft challan if a constable sees; per-type top speed, acceleration, size and weight (BEST double-decker to scooter); the kaali-peeli stays where you left it (F next to it to return; R tows you back to it); taxi duty only in the taxi | M | ✅ |
+| R2 | Collision physics: momentum exchange by mass (scooter 110 kg … bus 11 t): parked cars are shoved, spin and stay moved; traffic cars are knocked aside, brake, then steer back; two-wheelers fall over and riders come off; people jump clear at a crawl and are knocked down at speed (they get up; hit-and-run if seen) | M | ✅ |
 | R3 | Fist fights: combos, block, hit reactions and knockouts with the real characters, crowd gathers, police break it up | M | ⬜ |
+| R5 | Firecrackers: ground crackers and sky shots; the player can light them | M | ⬜ |
+| R6 | Character bugs: feet in the ground, running animation, old procedural figures still showing | M | ⬜ |
 | R4 | Better rendering: continues in Phase 2 (lighting ✅, window depth ✅, facades, clutter, people) | — | 🟡 |
 
 ## Phase 2 — Look and feel of Mumbai at street level
