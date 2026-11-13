@@ -29,6 +29,7 @@ import { Cheats } from './game/cheats.js';
 import { Garage } from './vehicles/garage.js';
 import { Crackers } from './game/crackers.js';
 import { Stars } from './game/stars.js';
+import { Interiors } from './world/interiors.js';
 import { Story } from './game/story.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
@@ -119,7 +120,10 @@ traffic.signals = signals;
 const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
 const characters = new Characters(scene, BASE, tier, lib, started);
 let frameDt = 0;
-people.beforeEnd = (list) => characters.update(frameDt, camera.position, list, onFoot || garage.rider ? walker.person : null);
+people.beforeEnd = (list) => {
+  interiors?.cull(list); // indoors, only the people in the room are drawn
+  characters.update(frameDt, camera.position, list, onFoot || garage.rider ? walker.person : null);
+};
 const bubbles = new Bubbles(document.body);
 const audio = new CityAudio(lib);
 const radio = new Radio(audio);
@@ -255,6 +259,7 @@ function taxiHits(x, z, r) {
  * nearest vehicle: the one you left, your taxi, or anybody else's (that is a theft).
  */
 function toggleFoot() {
+  if (interiors?.inside) { say('Step outside first', 1.5); return; } // no vehicles indoors
   if (!onFoot) {
     if (Math.abs(player.speed) > 2) { say('Slow down to get out', 1.5); return; }
     const h = player.heading, rx = -Math.cos(h), rz = Math.sin(h), side = player.radius + 0.8;
@@ -286,6 +291,7 @@ function toggleFoot() {
 
 // ------------------------------------------------------------------ camera
 const camPos = new THREE.Vector3();
+let interiors = null; // created below, once the systems it talks to exist
 const lookAt = new THREE.Vector3();
 const view = new ViewControl(renderer.domElement, input);
 function placeCamera(dt) {
@@ -307,10 +313,13 @@ function placeCamera(dt) {
   const px = a.pos.x + rx * shoulder, py = a.pos.y + (onFoot ? 1.55 : veh?.big ? 3.4 : 1.6), pz = a.pos.z + rz * shoulder;
   const target = new THREE.Vector3(px - fx * dist, Math.max(a.pos.y + 0.4, py - fy * dist), pz - fz * dist);
   // Keep the camera out of buildings: pull it in towards the player if a wall is in the way.
+  // Indoors (interiors.js) the walls are the room's own, and the camera stays under its ceiling.
+  const indoors = !!interiors?.inside;
   for (let i = 1; i <= 8; i++) {
     const t = i / 8, x = px + (target.x - px) * t, z = pz + (target.z - pz) * t;
-    if (tiles.hits(x, z, 0.25)) { const k = Math.max(0.15, (i - 1) / 8); target.x = px + (target.x - px) * k; target.z = pz + (target.z - pz) * k; break; }
+    if (indoors ? interiors.hits(x, z, 0.25, true) : tiles.hits(x, z, 0.25)) { const k = Math.max(0.15, (i - 1) / 8); target.x = px + (target.x - px) * k; target.z = pz + (target.z - pz) * k; break; }
   }
+  if (indoors) target.y = Math.min(target.y, interiors.ceiling(target.x, target.z) - 0.3);
   if (story?.camera) {
     // Cutscene camera: slow orbit around whoever is talking.
     camPos.lerp(story.camera.pos, 1 - Math.exp(-dt * 3));
@@ -334,7 +343,9 @@ garage.combat = combat;
 const crackers = new Crackers({ scene, tiles, audio, bubbles, street, police, traffic, hud, tier, renderer });
 // Fan meets at two (fictional) film stars' houses, in Bandra and Juhu.
 const stars = new Stars({ scene, tiles, index, people, bubbles, audio, hud, story, state, crackers, traffic });
-cityMap.markers = () => stars.markers();
+// Places to walk into (E at a glowing door): the terminus, the palace hotel, an Irani café, the flat in Powai.
+interiors = new Interiors({ scene, renderer, tiles, index, lib, tier, env, clock, state, people, bubbles, audio, hud, phone, view, walker, player, story, onFoot: () => onFoot, snapCamera: () => placeCamera(0) });
+cityMap.markers = () => [...stars.markers(), ...interiors.markers()];
 // Collisions with other vehicles: riders come off their bikes, drivers shout, hard hits are hit-and-run.
 traffic.onRiderDown = (bike) => { garage.eject(bike, null, 'down'); if (!onFoot) police.offence('hitrun', player); };
 traffic.onShunt = (car, dv) => { if (dv > 1.5) bubbles.say(car, ['Arre! Andha hai kya?!', 'Gaadi thok di!', 'Dekh ke chala!', 'Mera bumper!'][Math.floor(Math.random() * 4)], 2.5, 'driver'); };
@@ -416,6 +427,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Tab') { e.preventDefault(); view.release(); cityMap.toggle(!cityMap.open, player); return; }
   if (e.code === 'Escape' && cityMap.open) { cityMap.toggle(false); return; }
   if (cityMap.open) return;
+  if (interiors.blocks(e.code)) return; // indoors: no vehicles, taxi duty, crackers, kicks or insults
   if (e.code === 'KeyQ') changeQuality(nextTier(tierKey));
   if (e.code === 'KeyH') honk();
   if (e.code === 'KeyP') { view.release(); phone.toggle(); }
@@ -449,6 +461,7 @@ for (const id of ['btn-horn', 'btn-fuel']) {
 
 /** E: refuel at a pump (in the taxi), or buy a snack at a thela. */
 function interact() {
+  if (onFoot && interiors.interact()) return; // a door, or something to use indoors
   if (!onFoot) {
     const p = nearestPump();
     if (p && p.d < 16) { refuel(); return; }
@@ -539,7 +552,7 @@ function choice(title, options) {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { THREE, garage, crackers, stars, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { THREE, garage, crackers, stars, interiors, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const cheats = new Cheats(window.__gtb, (t, s) => say(t, s));
 window.__gtb.cheat = (code) => cheats.enter(code);
 window.__gtb.cheats = cheats;
@@ -570,7 +583,10 @@ function step(dt) {
   frameDt = dt;
   clock.update(dt);
   // The active body: the taxi, or the player on foot.
-  const active = onFoot ? walker : player;
+  const body = onFoot ? walker : player;
+  // Indoors, the city carries on around the street door (interiors.anchor) while the walker is in the room.
+  const indoors = !!interiors.inside;
+  const active = indoors ? interiors.anchor : body;
   const cutscene = !!story.camera;
   player.update(dt, onFoot || cutscene ? NO_INPUT : input, world);
   // Tyre marks and car sounds.
@@ -592,7 +608,7 @@ function step(dt) {
   propPhysics.update(dt, onFoot ? null : player);
   if (garage.inTaxi && player.condition > 0.97 && (damage.front || damage.rear)) damage.repair();
   if (onFoot) {
-    walker.update(dt, cutscene ? NO_INPUT : input, footWorld, state.s.energy, clock.aqi, view);
+    walker.update(dt, cutscene ? NO_INPUT : input, indoors ? interiors.world : footWorld, state.s.energy, clock.aqi, view);
     // Careless drivers knock you over.
     for (const c of traffic.cars) {
       if (c.speed > 2 && Math.hypot(c.x - walker.pos.x, c.z - walker.pos.z) < 1.5 && walker.down <= 0) {
@@ -606,16 +622,18 @@ function step(dt) {
   traffic.update(dt, active, clock);
   signals.update(dt, tiles, traffic, active.pos, clock.night);
   people.cam = camera.position;
-  people.focus = active.pos;
+  people.focus = body.pos;
   people.begin();
   police.onFoot = onFoot;
   police.update(dt, active, clock);
   street.onFoot = onFoot;
   street.update(dt, active, clock);
-  combat.update(dt, { fire: input.fire || input.brake }, onFoot);
+  const fire = (input.fire || input.brake) && !indoors; // fists and pichkari stay holstered indoors
+  combat.update(dt, { fire }, onFoot);
   if (!onFoot && !cutscene) combat.carVsPeople(player);
   crackers.update(dt, clock, active.pos, camera.position, onFoot ? walker : null);
   stars.update(dt, clock, active, clock.night);
+  interiors.update(dt, onFoot); // doors on the street; indoors: the room's people, lights and things to use
   story.update(dt, { player, onFoot, walker });
   if (onFoot) walker.draw(people, combat.weapon);
   else if (garage.rider) {
@@ -631,11 +649,11 @@ function step(dt) {
     people.add({ noHero: true, x: r.x - Math.sin(r.heading) * 0.28, y: seat - 0.42, z: r.z - Math.cos(r.heading) * 0.28, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.look.helmet ? FLAG.BERET : 0, scale: 1, ...r.look });
   }
   if (view.wheel) { pichkari.setPressure(pichkari.pressure - view.wheel); view.wheel = 0; }
-  pichkari.update(dt, onFoot ? walker : null, onFoot && combat.weapon === 'pichkari' && (input.fire || input.brake), view);
+  pichkari.update(dt, onFoot ? walker : null, onFoot && combat.weapon === 'pichkari' && fire, view);
   people.end();
   placeCamera(dt);
   bubbles.update(dt, camera);
-  env.update(dt, active.pos, clock);
+  if (!interiors.inside) env.update(dt, active.pos, clock); // indoors the room lights itself (interiors.lights)
 
   // Night: lit windows and signs, glowing lamps, real lights on the nearest lamp posts.
   const night = clock.night;
@@ -659,15 +677,16 @@ function step(dt) {
     if (d < 80 && Math.random() < 0.6) audio.play(Math.random() < 0.25 ? 'truckHorn' : 'horn', 0.5 / (1 + d / 15));
   }
   audio.update(seaFactor, clock.traffic, clock.daylight);
+  if (interiors.inside) interiors.ambience(audio); // the street is a murmur behind the walls
   radio.update(dt, !onFoot, settings.radio !== false, { clock, police, state, road: tiles.roadNameAt(player.pos.x, player.pos.z) });
-  cityMap.update(dt, onFoot ? walker : player);
+  cityMap.update(dt, active);
   navigator.speech = settings.speech !== false;
-  navigator.update(dt, onFoot ? walker : player, !onFoot);
+  navigator.update(dt, active, !onFoot);
   state.update(dt, clock);
-  jobs.focus = onFoot ? walker : player;
+  jobs.focus = active;
   jobs.update(dt, player);
   phone.update(dt);
-  minimap.update(dt, onFoot ? walker : player, traffic);
+  minimap.update(dt, active, traffic);
   hudTimer -= dt;
   messageTimer -= dt;
   if (hudTimer <= 0) { hudTimer = 0.2; updateHud(); }
@@ -714,7 +733,7 @@ function updateHud() {
   $('fuel-label').textContent = onFoot ? 'Stamina' : 'Fuel';
   $('cond-label').textContent = onFoot ? 'Health' : 'Car';
   const here = onFoot ? walker : player;
-  $('road').textContent = tiles.roadNameAt(here.pos.x, here.pos.z);
+  $('road').textContent = interiors.inside ? interiors.inside.name : tiles.roadNameAt(here.pos.x, here.pos.z);
   $('clock').textContent = clock.label;
   const [label, colour] = clock.aqiLabel;
   $('aqi').innerHTML = `AQI <b style="color:${colour}">${clock.aqi}</b> ${label}`;
@@ -753,6 +772,7 @@ function updateHud() {
       player.condition < 0.35 ? 'Car is battered: get it checked at a ⛽' :
       state.s.hunger < 0.15 ? 'Pet mein chuhe daud rahe hain! Eat at a thela (E) or order on Bhookh (P)' :
       state.s.energy < 0.12 ? 'So tired… have a cutting chai (E at a thela)' : '';
+    if (interiors.prompt && !police.flagger) message = interiors.prompt; // "E: enter …" at a door, things to use indoors
   }
   $('message').textContent = message;
   $('message').style.opacity = message ? 1 : 0;
