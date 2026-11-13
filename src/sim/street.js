@@ -146,6 +146,7 @@ export class StreetLife {
     if (this.peds.length < want) this.spawnPed(player, hour);
     const pfx = Math.sin(player.heading), pfz = Math.cos(player.heading);
     for (const p of this.peds) {
+      if (p.free) continue; // fighting, fleeing or knocked down: driven by the combat system
       p.timer -= dt;
       if (p.state === 'walk' || p.state === 'cross') {
         if (p.state === 'walk') {

@@ -15,7 +15,7 @@ import { Traffic } from './sim/traffic.js';
 import { FacadeParts } from './world/facadeParts.js';
 import { Signals } from './sim/signals.js';
 import { Police } from './sim/police.js';
-import { PeopleRenderer, POSE, FLAG } from './sim/people.js';
+import { PeopleRenderer, POSE, FLAG, HOLI } from './sim/people.js';
 import { Bubbles } from './ui/bubbles.js';
 import { StreetLife } from './sim/street.js';
 import { Animals } from './sim/animals.js';
@@ -28,6 +28,8 @@ import { Pichkari } from './player/pichkari.js';
 import { SkidMarks } from './vehicles/skids.js';
 import { TaxiDamage } from './vehicles/damage.js';
 import { PropPhysics } from './world/propPhysics.js';
+import { ViewControl } from './player/view.js';
+import { Combat } from './player/combat.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
@@ -88,6 +90,7 @@ const police = new Police({ scene, tiles, traffic, signals, people, audio, bubbl
 const animals = new Animals(scene);
 const street = new StreetLife({ scene, tiles, traffic, signals, people, animals, bubbles, audio, police, tier, hud });
 const pichkari = new Pichkari(scene, { tiles, street, police, traffic, bubbles, audio, hud });
+let combat = null; // created once the camera control exists (below)
 const jobs = new Jobs({ scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street });
 jobs.taxi = player;
 const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => cycleTier(tierKey), onPhoto: () => takePhoto() });
@@ -137,7 +140,7 @@ function toggleFoot() {
     walker.heading = h; walker.speed = 0;
     onFoot = true;
     if (jobs.ride?.stage === 'ride') say('Your passenger is waiting in the taxi!', 3);
-    say('On foot: W/S walk, A/D turn, Shift run, Space pichkari, C colour, F back into the taxi', 5);
+    say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · F back in', 6);
   } else {
     if (walker.pos.distanceTo(player.pos) > 4) { say('Walk to your taxi to get in', 1.5); return; }
     onFoot = false;
@@ -148,25 +151,40 @@ function toggleFoot() {
 // ------------------------------------------------------------------ camera
 const camPos = new THREE.Vector3();
 const lookAt = new THREE.Vector3();
+const view = new ViewControl(renderer.domElement, input);
 function placeCamera(dt) {
-  // In the taxi: chase camera. On foot: closer, over the shoulder.
+  // GTA-style orbit camera: behind the taxi (mouse to look around, it swings back), or over
+  // the player's right shoulder on foot (closer and zoomed in while aiming).
   const a = onFoot ? walker : player;
-  const back = onFoot ? 3.8 : 6.4 + Math.abs(player.speed) * 0.12;
-  const up = onFoot ? 1.9 : 2.5;
-  const target = new THREE.Vector3(a.pos.x - Math.sin(a.heading) * back + (onFoot ? Math.cos(a.heading) * 0.5 : 0), a.pos.y + up, a.pos.z - Math.cos(a.heading) * back - (onFoot ? Math.sin(a.heading) * 0.5 : 0));
+  view.update(dt, a, onFoot);
+  if (onFoot && view.idle > 2.5 && !view.aim && Math.abs(walker.speed) > 0.5) {
+    // No mouse for a while (keyboard or touch): ease the camera in behind the player.
+    let d = walker.heading - view.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+    view.yaw += d * Math.min(1, dt * 1.5);
+  }
+  const aim = onFoot && view.aim;
+  const dist = onFoot ? (aim ? 1.9 : 3.6) : 6.4 + Math.abs(player.speed) * 0.12;
+  const shoulder = onFoot ? (aim ? 0.6 : 0.4) : 0;
+  const [fx, fy, fz] = view.forward();
+  const rx = -Math.cos(view.yaw), rz = Math.sin(view.yaw);
+  const px = a.pos.x + rx * shoulder, py = a.pos.y + (onFoot ? 1.55 : 1.6), pz = a.pos.z + rz * shoulder;
+  const target = new THREE.Vector3(px - fx * dist, Math.max(a.pos.y + 0.4, py - fy * dist), pz - fz * dist);
   // Keep the camera out of buildings: pull it in towards the player if a wall is in the way.
-  const hx = a.pos.x, hz = a.pos.z;
   for (let i = 1; i <= 8; i++) {
-    const t = i / 8, x = hx + (target.x - hx) * t, z = hz + (target.z - hz) * t;
-    if (tiles.hits(x, z, 0.25)) { const k = Math.max(0.15, (i - 1) / 8); target.x = hx + (target.x - hx) * k; target.z = hz + (target.z - hz) * k; break; }
+    const t = i / 8, x = px + (target.x - px) * t, z = pz + (target.z - pz) * t;
+    if (tiles.hits(x, z, 0.25)) { const k = Math.max(0.15, (i - 1) / 8); target.x = px + (target.x - px) * k; target.z = pz + (target.z - pz) * k; break; }
   }
   if (dt === 0) camPos.copy(target);
-  else camPos.lerp(target, 1 - Math.exp(-dt * (onFoot ? 6 : 4.5)));
+  else camPos.lerp(target, 1 - Math.exp(-dt * (onFoot ? (aim ? 14 : 8) : 5)));
   camera.position.copy(camPos);
-  lookAt.set(a.pos.x + Math.sin(a.heading) * 2, a.pos.y + (onFoot ? 1.45 : 1.2), a.pos.z + Math.cos(a.heading) * 2);
+  lookAt.set(px + fx * 6, py + fy * 6 + (onFoot ? 0 : -0.4), pz + fz * 6);
   camera.lookAt(lookAt);
+  const fov = aim ? 44 : 58;
+  if (Math.abs(camera.fov - fov) > 0.1) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 10); camera.updateProjectionMatrix(); }
 }
 placeCamera(0);
+combat = new Combat({ scene, street, police, bubbles, audio, hud, tiles, walker, pichkari, view });
+pichkari.ctx.combat = combat;
 
 await tiles.whenReady(spawn.x, spawn.z, 350, (done, total) => { $('loading').textContent = `Loading ${index.name}… ${done}/${total}`; });
 $('loading').remove();
@@ -189,21 +207,30 @@ const say = (text, seconds = 3) => { message = text; messageTimer = seconds; };
 addEventListener('keydown', (e) => {
   audio.start();
   if (e.repeat) return;
-  if (e.code === 'Tab') { e.preventDefault(); cityMap.toggle(!cityMap.open, player); return; }
+  if (e.code === 'Tab') { e.preventDefault(); view.release(); cityMap.toggle(!cityMap.open, player); return; }
   if (e.code === 'Escape' && cityMap.open) { cityMap.toggle(false); return; }
   if (cityMap.open) return;
   if (e.code === 'KeyQ') cycleTier(tierKey);
   if (e.code === 'KeyH') honk();
-  if (e.code === 'KeyP') phone.toggle();
+  if (e.code === 'KeyP') { view.release(); phone.toggle(); }
   if (e.code === 'Escape' && phone.open) phone.toggle(false);
   if (e.code === 'KeyJ') jobs.toggleDuty(player);
   if (e.code === 'KeyF') toggleFoot();
-  if (e.code === 'KeyC' && onFoot) pichkari.nextColour();
+  if (e.code === 'KeyC' && onFoot) { pichkari.nextColour(e.shiftKey ? -1 : 1); if (combat.weapon !== 'pichkari') combat.setWeapon('pichkari'); }
+  if (onFoot && e.code === 'Digit1') combat.setWeapon('fists');
+  if (onFoot && e.code === 'Digit2') combat.setWeapon('pichkari');
+  if (onFoot && e.code === 'KeyV') combat.kick();
+  if (onFoot && e.code === 'KeyG') combat.abuse();
+  if (onFoot && e.code === 'BracketRight') pichkari.setPressure(pichkari.pressure + 1);
+  if (onFoot && e.code === 'BracketLeft') pichkari.setPressure(pichkari.pressure - 1);
   if (e.code === 'KeyE') interact();
   if (e.code === 'KeyT') { clock.hour = (clock.hour + 1) % 24; say(`Time: ${clock.label}`, 1.5); }
   if (e.code === 'KeyM') audio.toggleMute();
 });
 addEventListener('pointerdown', () => audio.start());
+for (const [id, fn] of [['btn-kick', () => combat.kick()], ['btn-abuse', () => combat.abuse()], ['btn-weapon', () => combat.toggleWeapon()], ['btn-colour', () => { pichkari.nextColour(); combat.setWeapon('pichkari'); }]]) {
+  $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); fn(); });
+}
 $('btn-door')?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); toggleFoot(); });
 for (const id of ['btn-horn', 'btn-fuel']) {
   $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); if (id === 'btn-horn') honk(); else interact(); });
@@ -229,7 +256,7 @@ function hospital() {
 }
 
 function honk() {
-  if (onFoot) { pichkari.nextColour(); return; }
+  if (onFoot) { pichkari.nextColour(); combat.setWeapon('pichkari'); return; }
   if (state.owns('horn')) audio.musicalHorn?.(); else audio.play('horn', 0.9);
   street.onHorn();
   jobs.honk();
@@ -275,13 +302,16 @@ function refuel() {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const timer = new THREE.Timer();
+const crosshair = $('crosshair');
 let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 renderer.setAnimationLoop((time) => {
   timer.update(time);
   const dt = Math.min(timer.getDelta(), 0.05);
   if (cityMap.open) return; // paused while the map is open
+  crosshair.hidden = !(onFoot && (view.aim || (combat.weapon === 'pichkari' && view.locked)));
+  document.body.classList.toggle('onfoot', onFoot);
   if (input.reset) { input.reset = false; teleportHome(); }
   step(dt);
   post.render();
@@ -311,7 +341,7 @@ function step(dt) {
   propPhysics.update(dt, onFoot ? null : player);
   if (player.condition > 0.97 && (damage.front || damage.rear)) damage.repair();
   if (onFoot) {
-    walker.update(dt, input, footWorld, state.s.energy, clock.aqi);
+    walker.update(dt, input, footWorld, state.s.energy, clock.aqi, view);
     // Careless drivers knock you over.
     for (const c of traffic.cars) {
       if (c.speed > 2 && Math.hypot(c.x - walker.pos.x, c.z - walker.pos.z) < 1.5 && walker.down <= 0) {
@@ -329,12 +359,14 @@ function step(dt) {
   police.update(dt, active, clock);
   street.onFoot = onFoot;
   street.update(dt, active, clock);
-  if (onFoot) walker.draw(people);
+  combat.update(dt, { fire: input.fire || input.brake }, onFoot);
+  if (onFoot) walker.draw(people, combat.weapon);
   for (const r of traffic.riders) {
     // Motorbike riders sit astride, hands on the handlebar; most wear helmets.
     people.add({ x: r.x - Math.sin(r.heading) * 0.15, y: 0.5, z: r.z - Math.cos(r.heading) * 0.15, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.look.helmet ? FLAG.BERET : 0, scale: 1, ...r.look });
   }
-  pichkari.update(dt, onFoot ? walker : null, onFoot && input.brake);
+  if (view.wheel) { pichkari.setPressure(pichkari.pressure - view.wheel); view.wheel = 0; }
+  pichkari.update(dt, onFoot ? walker : null, onFoot && combat.weapon === 'pichkari' && (input.fire || input.brake), view);
   people.end();
   placeCamera(dt);
   bubbles.update(dt, camera);
@@ -415,6 +447,12 @@ function updateHud() {
   $('fuel-bar').style.width = `${Math.round((onFoot ? walker.stamina : player.fuel) * 100)}%`;
   $('fuel-bar').style.background = player.fuel < 0.15 ? '#e74c3c' : '#f7c600';
   $('cond-bar').style.width = `${Math.round((onFoot ? walker.health : player.condition) * 100)}%`;
+  $('weapon').hidden = !onFoot;
+  if (onFoot) {
+    $('weapon').innerHTML = combat.weapon === 'pichkari'
+      ? `💦 <b>Pichkari</b> <i style="background:#${HOLI[pichkari.colour].getHexString()}"></i>${pichkari.colourName} · Pressure ${'●'.repeat(pichkari.pressure)}${'○'.repeat(5 - pichkari.pressure)} · Tank ${Math.round(pichkari.tank * 100)}%`
+      : '👊 <b>Fists</b> · click punch · V kick · G insult';
+  }
   $('food-bar').style.width = `${Math.round(state.s.hunger * 100)}%`;
   $('food-bar').style.background = state.s.hunger < 0.2 ? '#e74c3c' : '#f39c12';
   $('energy-bar').style.width = `${Math.round(state.s.energy * 100)}%`;

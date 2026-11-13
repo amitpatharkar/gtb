@@ -105,8 +105,15 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/game/state.js` — saved player state (localStorage): money, hunger, energy, purchases, messages, rides; home
   address in Powai (`HOME`); `src/game/jobs.js` — taxi fares (J / Chalo app; meter, time, comfort → tips or cuts,
   rating), delivery riders, snacks at thelas (E)
-- `src/player/walker.js` — on foot (F out/in; walk, Shift run with stamina, health, knocked over by cars);
-  `src/player/pichkari.js` — Holi pichkari (Space spray, C colour): drops, splats, reactions
+- `src/player/view.js` — GTA-style camera control: click to capture the mouse (pointer lock), orbit around the taxi
+  (swings back behind it) or over the shoulder on foot, right mouse aims (zoom + crosshair), wheel = pichkari pressure;
+  touch: drag to look, 🎯 aim button
+- `src/player/walker.js` — on foot (F out/in; camera-relative WASD, Shift run with stamina, health, pushed/knocked
+  over); `src/player/pichkari.js` — gun-shaped Holi pichkari (left mouse/Space spray where the camera aims, C colour
+  ×12, [ ] or wheel pressure 1–5, tank), drops, splats, colour patches on people (`addPatch` in people.js, 6 per
+  person, shader splats in rest-pose space), NPC sprayers; `src/player/combat.js` — fists (punch), V kick, G insult
+  (bleeped); NPC reactions (insult back, fight with punches/pushes, throw tomatoes/chappals, spray back ~1.5 %, flee,
+  knocked down then limp away); ~4.5 % of passers-by start it; kids and animals never targets; police: brawl/assault
 - `src/world/propPhysics.js` — solid trees/lamp posts/bus shelters/thelas, tree shake, bent poles, flying fruit,
   scattering garbage (simple rigid bits)
 - `src/ui/minimap.js` — rotating radar (land, roads, traffic, petrol pumps, GPS route); `src/ui/cityMap.js` — full map
@@ -116,8 +123,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `src/ui/bubbles.js` — speech bubbles; `src/audio.js` — ambience, horns, synthesised whistle, siren, bark, engine,
   tyre squeal, crash, spray, musical horn; starts on first key/tap
 - `src/rickshaw.js` — old auto-rickshaw (unused in South Mumbai; keep for the suburbs, where autos are allowed)
-- `src/input.js` — keyboard and touch (Shift = run); keys in main.js: H horn, E interact (refuel/snack), F out/in of the
-  taxi, Tab map, P phone, J taxi duty, C pichkari colour, T +1 hour, M mute, Q graphics, R reset
+- `src/input.js` — keyboard and touch (Shift = run, fire/aim touch buttons); keys in main.js: H horn, E interact
+  (refuel/snack), F out/in of the taxi, Tab map, P phone, J taxi duty, on foot 1 fists / 2 pichkari, V kick, G insult,
+  C colour, [ ] pressure; T +1 hour, M mute, Q graphics, R reset
 - `scripts/build-tiles.mjs` — converter (`npm run tiles`, ~7 s): v1 steps plus streets via Clipper (`lib/clip.mjs`:
   road surface union, footpaths by class, plots, parks cut out of plots), markings/crossings/trees/lights/stalls/
   garbage/potholes/puddles (`lib/streets.mjs`), building style + colour by district (`lib/districts.mjs`, from the

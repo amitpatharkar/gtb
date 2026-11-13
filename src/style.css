@@ -260,3 +260,15 @@ canvas { display: block; }
 body.photo #hud, body.photo #status, body.photo #radar, body.photo #message, body.photo #job, body.photo #btn-phone, body.photo #touch, body.photo #bubbles { visibility: hidden; }
 @media (max-width: 700px) { #phone { right: 8px; left: 8px; width: auto; bottom: 80px; } #job { top: 112px; font-size: 12px; } }
 #phone[hidden], #map-screen[hidden], #job[hidden] { display: none !important; }
+
+/* On foot: weapon panel, crosshair, touch combat buttons */
+#weapon { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); background: #000a; color: #fff; padding: 6px 12px; border-radius: 10px; font: 13px system-ui, sans-serif; pointer-events: none; white-space: nowrap; }
+#weapon i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin: 0 4px -1px 8px; border: 1px solid #fff8; }
+#weapon[hidden], #crosshair[hidden] { display: none !important; }
+#crosshair { position: fixed; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; pointer-events: none; z-index: 5;
+  background: radial-gradient(circle, #fff 0 2px, transparent 3px), linear-gradient(#fff, #fff) center/2px 7px no-repeat, linear-gradient(90deg, #fff, #fff) center/7px 2px no-repeat;
+  -webkit-mask: radial-gradient(circle, #000 0 2.5px, transparent 3px, transparent 5px, #000 5.5px); mask: radial-gradient(circle, #000 0 2.5px, transparent 3px, transparent 5px, #000 5.5px); filter: drop-shadow(0 0 1px #000); }
+#touch .pad.combat { display: none; }
+body.onfoot #touch .pad.combat { display: grid; grid-template-columns: repeat(3, 52px); gap: 8px; align-self: flex-end; }
+body.onfoot #touch .pad.combat button { width: 52px; height: 52px; font-size: 20px; }
+@media (pointer: coarse) { #weapon { bottom: 150px; font-size: 12px; } }

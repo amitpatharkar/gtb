@@ -211,6 +211,47 @@ export class CityAudio {
     o.connect(og).connect(this.master); o.start(t0); o.stop(t0 + 0.32);
   }
 
+  noiseBuf() {
+    if (!this.noise) {
+      const b = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.5, this.ctx.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      this.noise = b;
+    }
+    return this.noise;
+  }
+
+  /** Dhishoom: a punch landing. */
+  punch(v = 1) {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime, src = this.ctx.createBufferSource(), lp = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+    src.buffer = this.noiseBuf(); lp.type = 'lowpass'; lp.frequency.value = 500;
+    g.gain.setValueAtTime(0.6 * v, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
+    src.connect(lp).connect(g).connect(this.master); src.start(t0, 0, 0.14);
+    const o = this.ctx.createOscillator(), og = this.ctx.createGain();
+    o.frequency.setValueAtTime(140, t0); o.frequency.exponentialRampToValueAtTime(50, t0 + 0.12);
+    og.gain.setValueAtTime(0.4 * v, t0); og.gain.exponentialRampToValueAtTime(0.001, t0 + 0.14);
+    o.connect(og).connect(this.master); o.start(t0); o.stop(t0 + 0.15);
+  }
+
+  /** Swish of a swing or a throw. */
+  whoosh() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime, src = this.ctx.createBufferSource(), bp = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+    src.buffer = this.noiseBuf(); bp.type = 'bandpass'; bp.Q.value = 1.5;
+    bp.frequency.setValueAtTime(400, t0); bp.frequency.exponentialRampToValueAtTime(1800, t0 + 0.15);
+    g.gain.setValueAtTime(0.0, t0); g.gain.linearRampToValueAtTime(0.18, t0 + 0.05); g.gain.linearRampToValueAtTime(0, t0 + 0.18);
+    src.connect(bp).connect(g).connect(this.master); src.start(t0, 0.1, 0.2);
+  }
+
+  /** The TV-censor beep over a gaali. */
+  bleep() {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.frequency.value = 1000;
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.08, t0 + 0.01); g.gain.setValueAtTime(0.08, t0 + 0.32); g.gain.linearRampToValueAtTime(0, t0 + 0.34);
+    o.connect(g).connect(this.master); o.start(t0); o.stop(t0 + 0.36);
+  }
+
   /** Musical horn (Dukaan upgrade): a cheeky little tune. */
   musicalHorn() {
     if (!this.ctx) return;
