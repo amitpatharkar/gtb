@@ -1,6 +1,6 @@
 // Web Worker: download a tile, unzip it, decode it and turn it into ready-to-upload
 // mesh arrays plus collision data, so the main thread only creates GPU buffers.
-import { decodeTile, AREA, ROAD } from './tileFormat.js';
+import { decodeTile, AREA, ROAD, ROAD_FLAG, POINT } from './tileFormat.js';
 import { Y } from './levels.js';
 import { buildGround } from './mesh/ground.js';
 import { buildBuildings } from './mesh/buildings.js';
@@ -66,7 +66,7 @@ function buildTile(t) {
   const ox = (t.tx + 0.5) * t.size, oz = (t.tz + 0.5) * t.size; // tile centre in world metres
   const toWorld = (r) => { const w = new Float32Array(r.length); for (let i = 0; i < r.length; i += 2) { w[i] = r[i] + ox; w[i + 1] = r[i + 1] + oz; } return w; };
 
-  const ground = buildGround(t, ox, oz);
+  const { builders: ground, tetrapods } = buildGround(t, ox, oz);
   const { builders, tanks, solid } = buildBuildings(t, ox, oz, toWorld);
   const meshes = {};
   for (const [key, m] of [...ground, ...builders]) meshes[key] = m.finish(transfer);
@@ -75,6 +75,7 @@ function buildTile(t) {
   // [x, y, z, angle, size] per instance, tile-local.
   const points = {};
   for (const p of t.points) (points[p.kind] ||= []).push(p.x, Y.KERB, p.z, p.angle, p.size);
+  if (tetrapods.length) points[POINT.TETRAPOD] = tetrapods;
   for (const k in points) { points[k] = new Float32Array(points[k]); transfer.push(points[k].buffer); }
 
   // Walkable ground: land and piers (roads over water are checked separately).
@@ -87,7 +88,8 @@ function buildTile(t) {
     const vehicle = r.cls <= ROAD.SERVICE || r.cls === ROAD.TRACK;
     for (let i = 0; i + 1 < n; i++) {
       const x0 = r.line[i * 2] + ox, z0 = r.line[i * 2 + 1] + oz, x1 = r.line[i * 2 + 2] + ox, z1 = r.line[i * 2 + 3] + oz;
-      segs.push(x0, z0, x1, z1, hw, vehicle ? 1 : 0);
+      // Flags: 1 = vehicle road, 2 = one-way (in drawing direction), 4 = main road.
+      segs.push(x0, z0, x1, z1, hw, (vehicle ? 1 : 0) | (r.flags & ROAD_FLAG.ONEWAY ? 2 : 0) | (r.cls <= ROAD.TERTIARY ? 4 : 0));
       segName.push(vehicle ? r.name : -1);
       segBox.push(Math.min(x0, x1) - hw, Math.min(z0, z1) - hw, Math.max(x0, x1) + hw, Math.max(z0, z1) + hw);
     }

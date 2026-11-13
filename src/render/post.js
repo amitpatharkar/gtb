@@ -47,7 +47,7 @@ export function createPost(renderer, scene, camera, tier) {
     composer.addPass(gtao);
   }
   if (tier.bloom) {
-    composer.addPass(new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.28, 0.55, 1.6));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.22, 0.35, 3.2));
   }
   composer.addPass(new OutputPass());
   composer.addPass(new ShaderPass(GradeShader));

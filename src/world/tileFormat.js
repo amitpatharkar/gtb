@@ -38,7 +38,7 @@ export const RAIL_FLAG = { BRIDGE: 1 };
 export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2, SHOPS: 4 };
 export const POINT = {
   RAIN_TREE: 0, GULMOHAR: 1, PEEPAL: 2, PALM: 3, LIGHT: 4, SIGNAL: 5, BUS_STOP: 6,
-  POTHOLE: 7, PUDDLE: 8, GARBAGE: 9, STALL: 10, FUEL: 11,
+  POTHOLE: 7, PUDDLE: 8, GARBAGE: 9, STALL: 10, FUEL: 11, TETRAPOD: 12,
 };
 
 export class ByteReader {

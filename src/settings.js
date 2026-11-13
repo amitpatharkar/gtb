@@ -7,7 +7,7 @@ export const TIERS = {
     shadowMapSize: 4096, shadowRange: 120, anisotropy: 8, trees: 1, detailRadius: 350,
   },
   medium: {
-    name: 'Medium', pixelRatio: 1.25, msaa: 4, ao: false, bloom: true, normalMaps: true,
+    name: 'Medium', pixelRatio: 1.25, msaa: 4, ao: false, bloom: true, normalMaps: false,
     shadowMapSize: 2048, shadowRange: 90, anisotropy: 4, trees: 0.8, detailRadius: 250,
   },
   low: {

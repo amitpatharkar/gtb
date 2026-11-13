@@ -246,12 +246,12 @@ export function makeSignAtlas(fontFamilies = {}) {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
-  const draw = () => {
+  const draw = (families = fontFamilies) => {
     const g = c.getContext('2d');
     let seed = 7;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    const latin = [fontFamilies.latin1, fontFamilies.latin2, fontFamilies.latin3, 'Arial Black', 'Impact'].filter(Boolean);
-    const deva = fontFamilies.deva || 'sans-serif';
+    const latin = [families.latin1, families.latin2, families.latin3, 'Arial Black', 'Impact'].filter(Boolean);
+    const deva = families.deva || 'sans-serif';
     for (let i = 0; i < 128; i++) {
       const x = (i % 8) * cw, y = Math.floor(i / 8) * ch;
       const bg = SIGN_BG[Math.floor(rnd() * SIGN_BG.length)];

@@ -211,6 +211,18 @@ export function createProps() {
     box(2.6, 0.2, 1.2, -2.5, 0.1, 0, 0x9a9a9a), box(2.6, 0.2, 1.2, 2.5, 0.1, 0, 0x9a9a9a),
   ]);
 
+  // Tetrapod: four stubby concrete legs pointing to the corners of a tetrahedron.
+  const tetraG = (() => {
+    const legs = [];
+    const dirs = [[0, 1, 0], [0.943, -0.333, 0], [-0.471, -0.333, 0.816], [-0.471, -0.333, -0.816]];
+    for (const [x, y, z] of dirs) {
+      const leg = new THREE.CylinderGeometry(0.22, 0.42, 1.2, 8).translate(0, 0.6, 0);
+      leg.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(x, y, z)));
+      legs.push(paint(leg, 0x9a958c));
+    }
+    return merge(legs);
+  })();
+  const concrete = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
   const holeTex = blobTexture(5, 'rgba(38,34,30,1)', 'rgba(70,66,60,0)');
   const puddleTex = blobTexture(9, 'rgba(255,255,255,1)', 'rgba(255,255,255,0)');
   const decal = (size) => new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2);
@@ -232,6 +244,7 @@ export function createProps() {
     [POINT.GARBAGE]: [[garbageG, vc, true]],
     [POINT.STALL]: [[stallG, vc, true]],
     [POINT.FUEL]: [[fuelG, vc, true]],
+    [POINT.TETRAPOD]: [[tetraG, concrete, true]],
   };
   return { KINDS, lampMat, signalLampMat };
 }

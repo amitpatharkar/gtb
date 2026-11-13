@@ -11,7 +11,7 @@ const MAX_IN_FLIGHT = 3;
 const DETAIL_MESHES = new Set(['railSteel', 'paint']);
 // [cast shadow, receive shadow] by mesh key (walls and roofs cast; ground only receives).
 const shadowsFor = (key) => (key.startsWith('walls') || key.startsWith('roof') || key === 'parapet' ? [true, true] : [false, true]);
-const SEG = 6; // floats per road segment: x0 z0 x1 z1 halfWidth vehicle
+const SEG = 6; // floats per road segment: x0 z0 x1 z1 halfWidth flags (1 vehicle, 2 one-way, 4 main road)
 
 export class TileManager {
   constructor(scene, materials, tier) {
@@ -141,6 +141,7 @@ export class TileManager {
     group.updateMatrixWorld(true);
     this.scene.add(group);
     this.tiles.set(key, { ...t, group, detail });
+    this.version = (this.version || 0) + 1;
   }
 
   unload(key) {
@@ -153,6 +154,7 @@ export class TileManager {
       else if (o.geometry && o.geometry !== this.tankGeo) o.geometry.dispose();
     });
     this.tiles.delete(key);
+    this.version = (this.version || 0) + 1;
   }
 
   /** Resolves once every tile within `radius` of (x, z) is loaded (or failed). */
@@ -215,7 +217,7 @@ export class TileManager {
       const rd = t.collide.roads;
       gridAny(rd, x, z, slack, (i) => {
         const s = rd.segs, o = i * SEG;
-        if (vehicleOnly && !s[o + 5]) return false;
+        if (vehicleOnly && !(s[o + 5] & 1)) return false;
         const d = segDist(x, z, s[o], s[o + 1], s[o + 2], s[o + 3]);
         if (d <= s[o + 4] + slack && (!best || d < best.dist)) best = { tile: t, index: i, dist: d };
         return false;

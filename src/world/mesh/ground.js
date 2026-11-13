@@ -32,6 +32,9 @@ export function buildGround(t, ox, oz) {
     (Math.abs(x - cx0) < 0.06 ? 1 : 0) | (Math.abs(x - cx1) < 0.06 ? 2 : 0) |
     (Math.abs(z - cz0) < 0.06 ? 4 : 0) | (Math.abs(z - cz1) < 0.06 ? 8 : 0);
   const sand = t.areas.filter((a) => a.kind === AREA.SAND);
+  const tetrapods = [];
+  let seed = (t.tx * 73856093) ^ (t.tz * 19349663);
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
   const roads = t.areas.filter((a) => a.kind === AREA.ROAD);
 
   for (const a of t.areas) {
@@ -86,6 +89,17 @@ export function buildGround(t, ox, oz) {
             const t0 = par.v(ax, top, az, 0, 1, 0, u, 0, WHITE), t1 = par.v(bx, top, bz, 0, 1, 0, u + len, 0, WHITE);
             const t2 = par.v(bx + ix, top, bz + iz, 0, 1, 0, u + len, PARAPET_W, WHITE), t3 = par.v(ax + ix, top, az + iz, 0, 1, 0, u, PARAPET_W, WHITE);
             par.triUp(t0, t1, t2); par.triUp(t0, t2, t3);
+            // Concrete tetrapods piled against west-facing sea walls (Marine Drive, Nariman Point).
+            if (nx < -0.35) {
+              for (let d = 0.8; d < len; d += 1.5) {
+                const f = d / len, ex = ax + (bx - ax) * f, ez = az + (bz - az) * f;
+                for (const row of [1.3, 2.7, 4.1]) {
+                  if (row > 3 && rnd() < 0.5) continue;
+                  const o = row + (rnd() - 0.5) * 0.6, j = (rnd() - 0.5) * 0.8;
+                  tetrapods.push(ex + nx * o + (bx - ax) / len * j, Y.SEA - 0.6 + row * 0.12 + rnd() * 0.4, ez + nz * o + (bz - az) / len * j, rnd() * 6.28, 0.85 + rnd() * 0.3);
+                }
+              }
+            }
           }
           u += len;
         }
@@ -120,5 +134,5 @@ export function buildGround(t, ox, oz) {
     ribbon(bed, r.line, 1.7, -1.7, Y.KERB + 0.03, ballast, { vScale: 1 / 0.65 });
     for (const s of [1, -1]) ribbon(steel, r.line, s * 0.9, s * 0.8, Y.KERB + 0.18, WHITE, { vScale: 0.1 });
   }
-  return b;
+  return { builders: b, tetrapods };
 }

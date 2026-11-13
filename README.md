@@ -10,7 +10,12 @@ Built with [Three.js](https://threejs.org) and [Vite](https://vite.dev). Free fr
   (this first converts the OpenStreetMap data into map tiles, about 3 seconds).
 
 ## Controls
-W A S D / arrow keys to drive, Space to brake, R to go back to the start. On-screen buttons on phones.
+W A S D / arrow keys to drive, Space to brake, H horn, F refuel at a petrol pump (⛽ on the map), T jump one hour,
+M mute, R go back to the start (towed, with some fuel), Q graphics quality. On-screen buttons on phones.
+
+You drive a kaali-peeli taxi through South Mumbai (autos aren't allowed there). The clock runs a full day in
+24 minutes: the sun moves, the city lights up at night, traffic peaks at rush hours, and the air quality index (AQI)
+changes the haze.
 
 ## Map
 South Mumbai (Colaba, Gateway of India, Fort, CST, Churchgate, Marine Drive, Malabar Hill) built from

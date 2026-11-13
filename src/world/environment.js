@@ -12,7 +12,7 @@ const SEA_LEVEL = -0.7;
 
 export async function createEnvironment(renderer, scene, bounds, tier, lib) {
   const pmrem = new THREE.PMREMGenerator(renderer);
-  let sunDir, sunColor, haze;
+  let sunDir, sunColor, haze, skySun = null;
 
   const hdrUrl = lib.available && lib.url(SKY_ID);
   if (hdrUrl) {
@@ -23,6 +23,7 @@ export async function createEnvironment(renderer, scene, bounds, tier, lib) {
     scene.backgroundRotation.set(0, yaw, 0);
     scene.environmentRotation.set(0, yaw, 0);
     sunDir = info.sun.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    skySun = info.sun.clone();
     hdr.mapping = THREE.EquirectangularReflectionMapping;
     scene.background = hdr;
     scene.backgroundIntensity = 1;
@@ -46,6 +47,10 @@ export async function createEnvironment(renderer, scene, bounds, tier, lib) {
 
   const hemi = new THREE.HemisphereLight(0xcfe0f0, 0x6b5d4a, lib.available ? 0.15 : 0.6);
   scene.add(hemi);
+  // Moonlight: a dim blue fill at night (no shadows).
+  const moon = new THREE.DirectionalLight(0x8fa6d8, 0);
+  moon.position.set(0.3, 1, -0.4);
+  scene.add(moon);
 
   const sun = new THREE.DirectionalLight(sunColor, lib.available ? 3.2 : 2.0);
   sun.castShadow = true;
@@ -71,14 +76,43 @@ export async function createEnvironment(renderer, scene, bounds, tier, lib) {
   scene.add(sea);
 
   const snap = new THREE.Vector3();
+  const dayHaze = haze.clone(), nightHaze = new THREE.Color(0.022, 0.026, 0.04), duskTint = new THREE.Color(1.0, 0.62, 0.38);
+  const smogTint = new THREE.Color(0.62, 0.52, 0.4);
+  const tmp = new THREE.Color(), warm = new THREE.Color(1, 0.55, 0.3), white = new THREE.Color(1, 0.9, 0.8);
+  const up = new THREE.Vector3(0, 1, 0);
   return {
     sun,
     sunDir,
-    update(dt, focus) {
+    /** Move the sun with the clock; sky, haze and exposure follow daylight and air quality. */
+    update(dt, focus, clock) {
+      if (clock) {
+        sunDir.copy(clock.sunDir);
+        if (skySun) {
+          // Keep the sky photo's sun disk on the real sun's bearing.
+          const yaw = Math.atan2(skySun.z, skySun.x) - Math.atan2(sunDir.z, sunDir.x);
+          scene.backgroundRotation.set(0, yaw, 0);
+          scene.environmentRotation.set(0, yaw, 0);
+        }
+        const d = clock.daylight, n = clock.night, tw = clock.twilight;
+        const elevDeg = THREE.MathUtils.radToDeg(clock.elevation);
+        const smog = THREE.MathUtils.clamp((clock.aqi - 50) / 350, 0, 1);
+        scene.backgroundIntensity = 0.03 + 0.97 * d;
+        scene.environmentIntensity = 0.05 + 0.95 * d;
+        sun.intensity = 3.2 * THREE.MathUtils.smoothstep(elevDeg, -1, 7) * (1 - 0.45 * smog);
+        sun.color.copy(warm).lerp(white, THREE.MathUtils.smoothstep(elevDeg, 2, 30));
+        hemi.intensity = 0.15 + 0.1 * n;
+        moon.intensity = 0.35 * n;
+        // Haze: browner and thicker with worse air; dark at night with a dusk glow.
+        tmp.copy(dayHaze).lerp(smogTint, smog * 0.35).lerp(duskTint.clone().multiplyScalar(dayHaze.r), tw * 0.35);
+        scene.fog.color.copy(nightHaze).lerp(tmp, d);
+        scene.fog.density = 0.0007 + clock.aqi * 0.0000072 + n * 0.0003;
+        renderer.toneMappingExposure = THREE.MathUtils.lerp(1.15, 0.62, d);
+        seaMat.color.setRGB(0.17, 0.31, 0.34).multiplyScalar(0.25 + 0.75 * d);
+      }
       // Shadow box follows the player; snap to whole texels so shadows don't shimmer.
       snap.set(Math.round(focus.x / texel) * texel, 0, Math.round(focus.z / texel) * texel);
       sun.target.position.copy(snap);
-      sun.position.copy(snap).addScaledVector(sunDir, 400);
+      sun.position.copy(snap).addScaledVector(sunDir.y > 0.02 ? sunDir : up, 400);
       seaMat.userData.time.value += dt;
     },
   };
@@ -146,7 +180,7 @@ function gradientSky(haze) {
  * tiling), Fresnel sky reflection from the environment map, colour varying with noise.
  */
 function seaMaterial() {
-  const mat = new THREE.MeshStandardMaterial({ color: 0x2c4f57, roughness: 0.07, metalness: 0 });
+  const mat = new THREE.MeshStandardMaterial({ color: 0x2c4f57, roughness: 0.13, metalness: 0 });
   const time = { value: 0 };
   mat.userData.time = time;
   mat.normalMap = waveNormals();
