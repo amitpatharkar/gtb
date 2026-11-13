@@ -369,6 +369,8 @@ function honk() {
   if (state.owns('horn')) audio.musicalHorn?.(); else audio.play('horn', 0.9);
   street.onHorn();
   jobs.honk();
+  const ahead = traffic.honkedBy(player);
+  if (ahead && Math.random() < 0.3) bubbles.say(ahead, ['Haan bhai, jaa!', 'Kitna horn!', 'Udd ke jaayega kya?'][Math.floor(Math.random() * 3)], 2, 'driver');
 }
 $('btn-phone').addEventListener('click', (e) => { e.preventDefault(); audio.start(); phone.toggle(); });
 

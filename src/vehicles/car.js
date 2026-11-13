@@ -85,8 +85,8 @@ export class Car {
     // Body motion: pitch from acceleration and slope, roll from cornering.
     const accelNow = (this.speed - prev) / Math.max(dt, 1e-3);
     this.lastBump = Math.max(0, this.lastBump - dt);
-    const targetPitch = THREE.MathUtils.clamp(-accelNow * 0.006, -0.05, 0.05) + Math.atan2(gR - gF, 2.34) + Math.sin(this.lastBump * 40) * this.lastBump * 0.08;
-    const targetRoll = THREE.MathUtils.clamp(-yawRate * this.speed * 0.012, -0.07, 0.07);
+    const targetPitch = THREE.MathUtils.clamp(-accelNow * 0.009, -0.075, 0.06) + Math.atan2(gR - gF, 2.34) + Math.sin(this.lastBump * 40) * this.lastBump * 0.08;
+    const targetRoll = THREE.MathUtils.clamp(-yawRate * this.speed * 0.016, -0.1, 0.1); // old taxi, soft springs
     // Tyre slip (for marks and squeal): locking up under hard braking, sliding in fast corners.
     const lateral = Math.abs(yawRate * this.speed);
     const braking = (input.brake && Math.abs(this.speed) > 4) || (input.back && this.speed > 4);

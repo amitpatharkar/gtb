@@ -230,7 +230,9 @@ export class Traffic {
       const gx = ((s2[2] - s2[0]) / car.seg.len) * car.dir, gz = ((s2[3] - s2[1]) / car.seg.len) * car.dir;
       const [lx, lz] = LEFT(gx, gz);
       const two = !(s2[5] & 2);
+      if (car.yield) { car.yield = Math.max(0, car.yield - dt); }
       const laneWant = car.pulled ? Math.max(0, s2[4] - type.wid / 2 - 0.25)
+        : car.yield ? Math.max(0, s2[4] - type.wid / 2 - 0.3)
         : car.squeeze ? (two ? Math.min(s2[4] * 0.5, 1.9) : 0) - 2.4
         : (two ? Math.min(s2[4] * 0.5, 1.9) : 0) + Math.min(car.kerb, Math.max(0, s2[4] - 1.2));
       car.lane += (laneWant - car.lane) * Math.min(1, dt * 1.5);
@@ -270,6 +272,19 @@ export class Traffic {
         if (m.instanceColor) m.instanceColor.needsUpdate = true;
       }
     }
+  }
+
+  /** The player honked: the car right ahead moves over to the left to let them pass. */
+  honkedBy(player) {
+    const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
+    let best = null, bd = 18;
+    for (const c of this.cars) {
+      const dx = c.x - player.pos.x, dz = c.z - player.pos.z, along = dx * fx + dz * fz;
+      if (along < 2 || along > bd || Math.abs(dx * fz - dz * fx) > 2.5) continue;
+      bd = along; best = c;
+    }
+    if (best && !best.pulled) { best.yield = 4; if (Math.random() < 0.4) this.honks.push([best.x, best.z]); }
+    return best;
   }
 
   /** Is a circle at (x, z) touching any traffic vehicle? */

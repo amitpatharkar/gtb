@@ -50,7 +50,7 @@ export class Walker {
     const moving = mz || mx;
     const canRun = this.stamina > 0.05 && moving && !aiming;
     const run = input.run && canRun;
-    const top = !moving ? 0 : aiming ? 1.25 : run ? 4.6 * (0.7 + 0.3 * energy) : 1.6;
+    const top = !moving ? 0 : aiming ? 1.4 : run ? 5.2 * (0.7 + 0.3 * energy) : 1.9;
     this.speed += Math.max(-8 * dt, Math.min(6 * dt, top - this.speed));
     // Stamina: running drains it (faster in bad air), walking and standing restore it.
     const drain = (0.11 + aqi / 2500) * (1.3 - energy * 0.3);
