@@ -150,8 +150,9 @@ export class FacadeParts {
     if (!this.radius) return;
     this.signMat.emissiveIntensity = night * 0.9;
     this.timer -= dt;
-    if (this.timer > 0) return;
-    if (this.last.distanceToSquared(player.pos) < 100 && this.version === tiles.version) return;
+    const changed = this.version !== tiles.version; // tiles loaded or unloaded: refresh at once
+    if (this.timer > 0 && !changed) return;
+    if (this.last.distanceToSquared(player.pos) < 100 && !changed) return;
     this.timer = 0.5;
     this.last.copy(player.pos);
     this.version = tiles.version;

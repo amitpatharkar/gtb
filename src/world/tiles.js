@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createProps, buildProps } from './props.js';
 import { Y } from './levels.js';
+import { POINT } from './tileFormat.js';
 
 // Streams map tiles around the player and answers collision questions.
 // Tiles are built by tileWorker.js (download, unzip, decode, mesh) off the main thread.
@@ -246,6 +247,26 @@ export class TileManager {
   /** Ground height under (x, z): asphalt on carriageways, kerb level elsewhere. */
   groundHeight(x, z) {
     return this.roadAt(x, z, -0.15, true) ? Y.ROAD : Y.KERB;
+  }
+
+  /** Ground height felt by the player's wheels: rough lanes undulate, potholes dip. */
+  wheelHeight(x, z) {
+    const r = this.roadAt(x, z, -0.15, true);
+    if (!r) return Y.KERB;
+    const f = r.tile.collide.roads.segs[r.index * SEG + 5];
+    let y = Y.ROAD;
+    if (f & 16) y += 0.028 * Math.sin(x * 1.7 + Math.sin(z * 0.6) * 2.2) * Math.sin(z * 2.1 + x * 0.35) + 0.012 * Math.sin(x * 5.3 - z * 4.1);
+    else if (f & 8) y += 0.01 * Math.sin(x * 1.2 + z * 0.9) * Math.sin(z * 1.6);
+    for (const t of this.nearTiles(x, z, 2)) {
+      const arr = t.points[POINT.POTHOLE];
+      if (!arr) continue;
+      for (let i = 0; i < arr.length; i += 5) {
+        const dx = x - arr[i] - t.origin[0], dz = z - arr[i + 2] - t.origin[1], rad = arr[i + 4] * 0.45;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < rad * rad) y -= 0.09 * (1 - Math.sqrt(d2) / rad);
+      }
+    }
+    return y;
   }
 
   /** Segment geometry helper for tools and traffic: [x0, z0, x1, z1, halfWidth, vehicle]. */

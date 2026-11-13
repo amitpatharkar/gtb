@@ -69,7 +69,13 @@ export class Car {
     const fx = Math.sin(this.heading) * 1.17, fz = Math.cos(this.heading) * 1.17;
     const gF = world.groundHeight(this.pos.x + fx, this.pos.z + fz), gR = world.groundHeight(this.pos.x - fx, this.pos.z - fz);
     const g = (gF + gR) / 2;
-    if (Math.abs(g - this.pos.y) > 0.08 && Math.abs(this.speed) > 3) { this.speed *= 0.93; this.lastBump = 0.25; }
+    if (Math.abs(g - this.pos.y) > 0.06 && Math.abs(this.speed) > 3) {
+      // Kerbs and potholes: a jolt, some lost speed, and a little damage when taken fast.
+      this.speed *= 0.93;
+      this.lastBump = 0.25;
+      if (Math.abs(this.speed) > 9) this.condition = Math.max(0, this.condition - 0.002 * Math.abs(this.speed));
+      this.bumped = true;
+    }
     this.pos.y += (g - this.pos.y) * Math.min(1, dt * 12);
 
     // Body motion: pitch from acceleration and slope, roll from cornering.

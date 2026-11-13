@@ -8,6 +8,8 @@ import { MeshBuilder, wall, flatPolygon, ribbon, linear, WHITE, inPolygon } from
 const GROUND = {
   [AREA.ROAD]: ['road', Y.ROAD, 0xffffff],
   [AREA.FOOTPATH]: ['footpath', Y.KERB, 0xffffff],
+  [AREA.ROAD_WORN]: ['roadWorn', Y.ROAD, 0xffffff],
+  [AREA.ROAD_POOR]: ['roadPoor', Y.ROAD, 0xffffff],
   [AREA.PLOT]: ['plot', Y.KERB, 0xffffff],
   [AREA.PAVED]: ['paved', Y.KERB + 0.006, 0xffffff],
   [AREA.PLATFORM]: ['paved', Y.KERB + 0.01, 0xe8e2d6],

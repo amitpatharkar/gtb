@@ -25,6 +25,7 @@ export const DM = 10; // units per metre
 export const AREA = {
   LAND: 0, PAVED: 1, GRASS: 2, PITCH: 3, WOOD: 4, SAND: 5, POOL: 6,
   PIER: 7, PLATFORM: 8, DIRT: 9, RAILYARD: 10, PLOT: 11, ROAD: 12, FOOTPATH: 13,
+  ROAD_WORN: 14, ROAD_POOR: 15, // drawn over ROAD (which keeps the kerbs): patched tertiary roads, rough lanes
 };
 
 // Road classes, ordered roughly by importance.

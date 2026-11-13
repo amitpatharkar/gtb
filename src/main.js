@@ -75,7 +75,7 @@ const animals = new Animals(scene);
 const street = new StreetLife({ scene, tiles, traffic, signals, people, animals, bubbles, audio, police, tier, hud });
 const world = {
   hits: (x, z, r) => tiles.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r),
-  groundHeight: (x, z) => tiles.groundHeight(x, z),
+  groundHeight: (x, z) => tiles.wheelHeight(x, z),
 };
 const spawn = index.spawn;
 function respawn() {

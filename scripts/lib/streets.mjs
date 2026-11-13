@@ -212,8 +212,10 @@ export function streetFurniture(parts, opts) {
     const { cls, width } = p.info;
     if (!isVehicle(p.info.cls) || p.pts.length < 2 || cls === ROAD.TRACK) continue;
     const s = arcLengths(p.pts), L = s[s.length - 1], hw = width / 2;
-    const rate = cls <= ROAD.SECONDARY ? 0.25 : cls === ROAD.TERTIARY ? 0.5 : 0.8;
-    for (let t = 8 + (p.id % 17); t < L - 4; t += 35 + opts.rand(p.id * 13 + t) * 70) {
+    // Main roads: the odd pothole; tertiary: some; colony lanes and gallis: plenty.
+    const rate = cls <= ROAD.SECONDARY ? 0.07 : cls <= ROAD.LINK ? 0.4 : 0.85;
+    const gap = cls <= ROAD.SECONDARY ? 60 : cls <= ROAD.LINK ? 35 : 14;
+    for (let t = 8 + (p.id % 17); t < L - 4; t += gap + opts.rand(p.id * 13 + t) * gap * 2) {
       const r = opts.rand(p.id * 17 + t * 7);
       if (r > rate) continue;
       const q = pointAt(p.pts, s, t);

@@ -499,6 +499,13 @@ for (const tile of tiles.values()) {
     return [...groups].map(([delta, lines]) => ({ delta, lines }));
   };
   const carriage = C.bufferLines(byWidth((p) => p.hw));
+  // Road quality: main roads are smooth; tertiary roads are worn and patched; lanes in the
+  // colonies and gallis are rough. Better surfaces win where roads meet.
+  const quality = (p) => (p.info.cls <= ROAD.SECONDARY ? 0 : p.info.cls <= ROAD.LINK ? 1 : 2);
+  const good = C.bufferLines(byWidth((p) => (quality(p) === 0 ? p.hw : 0)));
+  const wornAll = C.bufferLines(byWidth((p) => (quality(p) === 1 ? p.hw : 0)));
+  const worn = C.intersect(C.difference(wornAll, good), [C.rectPath(tile.clip)]);
+  const poor = C.intersect(C.difference(C.difference(carriage, good), wornAll), [C.rectPath(tile.clip)]);
   const outer = C.union(C.bufferLines(byWidth((p) => (p.fw ? p.hw + p.fw : 0))), carriage);
   const clipRect = [C.rectPath(tile.clip)];
   const land = C.mpToPaths(tile.land);
@@ -522,6 +529,8 @@ for (const tile of tiles.values()) {
   for (const p of C.toPolygons(C.difference(plot, covered), 1)) tile.areas.push({ kind: AREA.PLOT, poly: p });
   for (const p of C.toPolygons(footpath, 0.5)) tile.areas.push({ kind: AREA.FOOTPATH, poly: p });
   for (const p of C.toPolygons(road, 0.5)) tile.areas.push({ kind: AREA.ROAD, poly: p });
+  for (const p of C.toPolygons(worn, 0.5)) tile.areas.push({ kind: AREA.ROAD_WORN, poly: p });
+  for (const p of C.toPolygons(poor, 0.5)) tile.areas.push({ kind: AREA.ROAD_POOR, poly: p });
   tile.areas.push(...pieces);
 }
 log(`streets and areas: ${areaCount} area pieces (${((Date.now() - streetMs) / 1000).toFixed(1)}s)`);
@@ -729,7 +738,7 @@ for (const t of ordered) {
   const areas = [];
   for (const a of t.areas) {
     const rings = a.poly.map((ring, i) => {
-      const tol = a.kind === AREA.ROAD || a.kind === AREA.FOOTPATH || a.kind === AREA.PLOT ? 0.06 : 0.3;
+      const tol = a.kind === AREA.ROAD || a.kind === AREA.ROAD_WORN || a.kind === AREA.ROAD_POOR || a.kind === AREA.FOOTPATH || a.kind === AREA.PLOT ? 0.06 : 0.3;
       let r = quantize(G.simplifyRing(G.openRing(ring), tol), t.cx, t.cz, true);
       if ((G.signedArea(r) > 0) !== (i === 0)) r = r.reverse();
       return r;
