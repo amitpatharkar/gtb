@@ -254,6 +254,7 @@ export class Police {
 
   // ------------------------------------------------------------------ player offences
   offence(kind, player) {
+    if (this.off) return; // cheat: police on holiday
     const [name, amount] = FINES[kind];
     this.offences = (this.offences || 0) + 1;
     const w = this.witness(player.pos.x, player.pos.z);

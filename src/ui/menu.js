@@ -1,6 +1,8 @@
 // Title screen (Continue / New game / Settings / Guide / Credits), GTA-style illustrated
 // loading screens with tips, and the in-game pause menu. Settings are saved in this browser.
 
+import { CHEATS } from '../game/cheats.js';
+
 const KEY = 'gtb.settings';
 export const DEFAULTS = { tier: 'low', volume: 0.8, sens: 1, invertY: false, hints: true, radio: true, speech: true };
 
@@ -8,6 +10,7 @@ export function loadSettings() {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { ...DEFAULTS }; }
 }
 export function saveSettings(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); localStorage.setItem('gtb.quality', s.tier); } catch { /* ignore */ } }
+
 
 const GUIDE = `
 <h3>Driving the taxi</h3>
@@ -19,7 +22,9 @@ const GUIDE = `
 <h3>Police</h3>
 <p>Red lights, wrong way on one-ways, driving on the footpath and street fights earn challan stars — but only if a constable or patrol car sees it. Stop by the constable to pay, or lose them by staying out of sight.</p>
 <h3>Map</h3>
-<p><b>Tab</b> (or tap the radar): the city map. Tap anywhere for a waypoint; the GPS shows the way. <b>T</b> skips an hour, <b>M</b> mutes, <b>R</b> resets to the start, <b>?</b> shows the key list.</p>`;
+<p><b>Tab</b> (or tap the radar): the city map. Tap anywhere for a waypoint; the GPS shows the way. <b>T</b> skips an hour, <b>M</b> mutes, <b>R</b> resets to the start, <b>?</b> shows the key list.</p>
+<h3>Developer cheats</h3>
+<p>Press <b>\`</b> (backquote; on a phone double-tap the clock) and type a code: ${CHEATS.map((c) => `<b>${c.code}</b> ${c.what}`).join(' · ')}.</p>`;
 
 const TIPS = [
   'Cutting chai at a thela (E) brings your energy back. Bad air (AQI) tires you faster.',

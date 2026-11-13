@@ -25,6 +25,7 @@ import { Landmarks } from './world/landmarks.js';
 import { StreetProps } from './world/streetProps.js';
 import { Radio } from './radio.js';
 import { Characters } from './sim/characters.js';
+import { Cheats } from './game/cheats.js';
 import { Story } from './game/story.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
@@ -445,6 +446,9 @@ function choice(title, options) {
 
 // ------------------------------------------------------------------ loop
 window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+const cheats = new Cheats(window.__gtb, (t, s) => say(t, s));
+window.__gtb.cheat = (code) => cheats.enter(code);
+window.__gtb.cheats = cheats;
 const timer = new THREE.Timer();
 // Shadows: redraw the shadow map every frame on High, every other frame below.
 renderer.shadowMap.autoUpdate = false;
@@ -468,6 +472,7 @@ renderer.setAnimationLoop((time) => {
 /** One simulation step (also used by headless tests). */
 const NO_INPUT = {};
 function step(dt) {
+  const t0 = performance.now();
   frameDt = dt;
   clock.update(dt);
   // The active body: the taxi, or the player on foot.
@@ -559,6 +564,8 @@ function step(dt) {
   hudTimer -= dt;
   messageTimer -= dt;
   if (hudTimer <= 0) { hudTimer = 0.2; updateHud(); }
+  cheats.update(dt);
+  window.__gtb.stepMs = window.__gtb.stepMs * 0.9 + (performance.now() - t0) * 0.1 || 0;
 }
 window.__gtb.step = step;
 

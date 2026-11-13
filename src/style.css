@@ -340,3 +340,13 @@ body.onfoot #touch .pad.combat button { width: 52px; height: 52px; font-size: 20
 #cutscene b { color: #f7c600; }
 #cutscene small { opacity: 0.5; font-size: 11px; margin-top: 4px; }
 body.cutscene #hud, body.cutscene #status, body.cutscene #radar, body.cutscene #objective, body.cutscene #job, body.cutscene #nav, body.cutscene #weapon, body.cutscene #btn-phone, body.cutscene #touch, body.cutscene #crosshair { visibility: hidden; }
+
+/* Developer cheats: code box, stats line, teleport fade */
+#cheat { position: fixed; left: 50%; top: 38%; transform: translateX(-50%); z-index: 60; display: flex; gap: 8px; align-items: center;
+  background: rgba(10, 10, 14, 0.88); border: 1px solid #f5c518; border-radius: 10px; padding: 10px 14px; color: #f5c518; font-weight: 700; }
+#cheat[hidden] { display: none !important; }
+#cheat input { width: min(260px, 60vw); background: transparent; border: none; border-bottom: 1px solid #555; color: #fff; font: 600 16px system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; outline: none; }
+#stats { position: fixed; left: 12px; top: 150px; z-index: 40; font: 12px ui-monospace, monospace; color: #9f9; background: rgba(0, 0, 0, 0.55); padding: 4px 8px; border-radius: 6px; pointer-events: none; max-width: 70vw; }
+#stats[hidden] { display: none !important; }
+#fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 55; transition: opacity 0.35s; }
+#fade.on { opacity: 1; transition: none; }
