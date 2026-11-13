@@ -33,6 +33,14 @@ Effort: S small, M medium, L large. ✅ done · 🟡 in progress · ⬜ to do.
 | 1.8 | Per-frame performance: numeric tile lookups (no string keys), prop grid, throttle HTML writes, traffic spatial buckets, incremental road graphs, map/GPS from a small overview file in a worker | M | ⬜ |
 | 1.9 | Developer cheat console (` key) | S | ✅ |
 
+## Owner requests added 2026-11-13 (evening)
+| # | Item | Effort | Status |
+|---|---|---|---|
+| R1 | Steal and drive any vehicle (traffic or parked): F near a car, driver pulled out and reacts, theft offence if seen, per-type handling (bus heavy, bike nimble), your taxi stays where you left it | M | ⬜ |
+| R2 | Collision physics: cars shove each other by mass (bike < car < SUV < bus), parked cars get pushed and stay moved, people are hit and knocked down (no blood) with hit-and-run offence | M | ⬜ |
+| R3 | Fist fights: combos, block, hit reactions and knockouts with the real characters, crowd gathers, police break it up | M | ⬜ |
+| R4 | Better rendering: continues in Phase 2 (lighting ✅, window depth ✅, facades, clutter, people) | — | 🟡 |
+
 ## Phase 2 — Look and feel of Mumbai at street level
 | # | Item | Effort | Status |
 |---|---|---|---|
@@ -40,7 +48,7 @@ Effort: S small, M medium, L large. ✅ done · 🟡 in progress · ⬜ to do.
 | 2.2 | More vehicles: police (white Scorpio N/Bolero, chequered band), BMC garbage compactors (white-blue), water tankers, ambulances (Eeco red cross), handcarts, milk and dabbawala cycles; autos only in the suburbs (black-yellow) | M | ⬜ |
 | 2.3 | Street edge: kerb paint only along main roads (plain concrete kerbs elsewhere) ✅; grey broken lanes instead of brown mud ✅; sharper ground on Low (anisotropy 8) ✅. parked cars nose-to-tail and angled rows of scooters/bikes along streets ≥ 9 m wide, seeded per segment (same cars when you return), solid, drawn in the traffic batches ✅. Still to do: compound walls, gates and watchmen on plastic chairs | M | 🟡 |
 | 2.4 | Light and colour: Neutral tone mapping (true cream/white walls, cleaner shade), grey concrete bounce instead of brown, more shade fill by day ✅; nights: lamp lights 90→30, window tube lights halved, landmark floodlights fade upwards and keep their texture, less flat night fill ✅. Still to do: HDRIs per time of day; painted light pools instead of point lights | S–M | 🟡 |
-| 2.5 | Facades: window depth in the shader (works on Low), per-window types (sliders, louvres, box grilles, enclosed balconies), Art Deco curves and eyebrow fins on Marine Drive, Gothic gables in Fort, chawl galleries; real heights from Google Open Buildings 2.5D; shop/room atlas behind windows | M–L | ⬜ |
+| 2.5 | Facades: window depth in the shader (glass recessed 0.18 m with lit sill and shaded reveals, on every tier) ✅; still to do: per-window types (sliders, louvres, box grilles, enclosed balconies), Art Deco curves and eyebrow fins on Marine Drive, Gothic gables in Fort, chawl galleries; real heights from Google Open Buildings 2.5D; shop/room atlas behind windows | M–L | 🟡 |
 | 2.6 | Clutter: cable bundles, rooftop hoardings with parody ads, awnings and tarps, blue street-name boards, drain pipes, stains | M | ⬜ |
 | 2.7 | People: realistic CC0 bodies (Quaternius Universal Base Characters + Universal Animation Library; owner uploads the zip to a GitHub Release), Indian clothes (sari, salwar-kurta, lungi, school uniform, Koli nauvari), varied faces and hair; behaviour by district and hour | M–L | 🟡 chibi pack in, proportions fixed |
 | 2.8 | Taxi polish: clear-coat reflections, tail lamps, chrome bumpers, interior through the rear glass | S–M | ⬜ |

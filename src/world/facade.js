@@ -230,6 +230,17 @@ export function makeFacadeMaterial(signAtlas) {
                 flatNormal = 1.0;
               }
             } else if (inWin > 0.5) {
+              // Window recess: the glass sits ~0.18 m behind the wall face. At an angle the view
+              // ray meets the reveal first: the sill catches the light, sides and head are in shade.
+              float recess = 0.18 / max(ray.z, 0.08);
+              vec2 gp = roomP + ray.xy * recess;
+              vec2 g01 = gp / roomS;
+              if (g01.x < r.x || g01.x > r.y || g01.y < r.z || g01.y > r.w) {
+                diffuseColor.rgb = wallC * (g01.y < r.z ? 0.92 : g01.y > r.w ? 0.42 : 0.6);
+                roughnessFactor = 0.9;
+                flatNormal = 1.0;
+              } else {
+              lx = g01.x; ly = g01.y; roomP = gp; // frame, glass and room are drawn on the recessed plane
               float frameW = 0.035;
               float frame = 1.0 - fBox(vec2(lx, ly), r + vec4(frameW, -frameW, frameW, -frameW));
               float mid = fBand(lx, 0.5 * (r.x + r.y) - 0.012, 0.5 * (r.x + r.y) + 0.012);
@@ -258,6 +269,7 @@ export function makeFacadeMaterial(signAtlas) {
                   roughnessFactor = 0.8;
                   facadeEmissive *= 0.2;
                 }
+              }
               }
             } else {
               // Wall around the window: sunshade (chajja), monsoon streaks, AC unit (painted for distance).

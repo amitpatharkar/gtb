@@ -171,12 +171,13 @@ state.beforeSave = () => {
   if (teleporting) return;
   state.s.world = {
     x: player.pos.x, z: player.pos.z, heading: player.heading, fuel: player.fuel, condition: player.condition,
-    hour: clock.hour, stars: police.stars, fines: police.fines,
+    hour: clock.hour, stars: police.stars, fines: police.fines, origin: JSON.stringify(index.origin),
     orders: jobs.riders.filter((r) => r.state === 'coming').map((r) => ({ app: r.app, items: r.items, eta: Math.max(20, r.eta - r.t) })),
   };
 };
 const saved = !newGame && !resume && state.s.world;
-if (saved && Number.isFinite(saved.x) && tiles.walkable(saved.x, saved.z)) {
+// Positions only make sense on the same map grid (the origin moves if the map is rebuilt differently).
+if (saved && Number.isFinite(saved.x) && saved.origin === JSON.stringify(index.origin) && tiles.walkable(saved.x, saved.z)) {
   player.pos.set(saved.x, 0.02, saved.z);
   player.heading = saved.heading || 0;
   player.fuel = saved.fuel ?? player.fuel;
