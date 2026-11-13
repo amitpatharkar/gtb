@@ -6,8 +6,9 @@
  *   npm run tiles -- --bbox 18.890,72.795,18.975,72.860 --name "South Mumbai"
  *
  * Reads data/raw/mumbai-region.osm.pbf, keeps the bounding box (south,west,north,east),
- * projects to local metres (x = east, z = south, origin = box centre), and writes
- * public/tiles/<tx>_<tz>.bin.gz plus public/tiles/index.json.
+ * projects to local metres (x = east, z = south) around a fixed world origin (--origin,
+ * Mahim by default, so coordinates and tile numbers never move when the box grows), and
+ * writes public/tiles/<tx>_<tz>.bin.gz plus public/tiles/index.json.
  * Tile format: src/world/tileFormat.js.
  */
 import fs from 'node:fs';
@@ -36,6 +37,9 @@ const CFG = {
   out: path.resolve(root, args.out || 'public/tiles'),
   name: args.name || 'South Mumbai',
   bbox: (args.bbox || '18.890,72.795,18.975,72.860').split(',').map(Number), // south, west, north, east
+  // Fixed world origin (Mahim, near the middle of the island city and the suburbs): every
+  // box shares one coordinate system, and nothing is more than ~16 km from it.
+  origin: (args.origin || '19.03,72.85').split(',').map(Number),
   margin: 0.01, // extra degrees read around the box so features crossing the edge stay whole
   tileSize: 500,
   spawn: (args.spawn || '18.9217,72.8340').split(',').map(Number), // Apollo Bunder, by the Gateway of India
@@ -46,8 +50,10 @@ const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1)}s]`, ...a);
 
 // ---------------------------------------------------------------- projection
+// Flat (equirectangular) projection with metres per degree taken at the origin: under 0.1 %
+// error across the whole city, so the 1:1 scale holds.
 const [S, W, N, E] = CFG.bbox;
-const lat0 = (S + N) / 2, lon0 = (W + E) / 2;
+const [lat0, lon0] = CFG.origin;
 const rad = Math.PI / 180;
 const M_LAT = 111132.92 - 559.82 * Math.cos(2 * lat0 * rad) + 1.175 * Math.cos(4 * lat0 * rad);
 const M_LON = 111412.84 * Math.cos(lat0 * rad) - 93.5 * Math.cos(3 * lat0 * rad);
@@ -80,6 +86,11 @@ function classifyArea(t) {
   if (mm === 'pier') return AREA.PIER;
   if (rw === 'platform') return AREA.PLATFORM;
   if ((hw === 'pedestrian' || hw === 'footway' || hw === 'service') && t.area === 'yes') return AREA.PAVED;
+  // Racecourses (Mahalaxmi) are tagged as stadiums but are mostly turf.
+  if (l === 'stadium' && (t.sport === 'horse_racing' || /race ?course/i.test(t.name || '') || GREEN_LANDUSE.has(u))) return AREA.GRASS;
+  // Airfields: grass with paved aprons (runways and taxiways are lines, see AEROWAY_WIDTH).
+  if (t.aeroway === 'aerodrome') return AREA.GRASS;
+  if (t.aeroway === 'apron' || AEROWAY_WIDTH[t.aeroway] && t.area === 'yes') return AREA.PAVED;
   if (am === 'parking' || l === 'stadium' || hw === 'pedestrian' && t.type === 'multipolygon') return AREA.PAVED;
   if (l === 'pitch' || l === 'track') return AREA.PITCH;
   if (GREEN_LEISURE.has(l) || GREEN_LANDUSE.has(u) || n === 'grassland') return AREA.GRASS;
@@ -89,6 +100,11 @@ function classifyArea(t) {
   if (u === 'railway') return AREA.RAILYARD;
   return null;
 }
+
+/** Open ground where no trees are scattered (racecourses, airfields, stadiums). */
+const openGround = (t) => t.leisure === 'stadium' || t.aeroway === 'aerodrome';
+/** Default paved widths of runway and taxiway centre lines (m). */
+const AEROWAY_WIDTH = { runway: 45, stopway: 45, taxiway: 23, taxilane: 12 };
 
 const HIGHWAYS = {
   motorway: [ROAD.MOTORWAY, 15], trunk: [ROAD.TRUNK, 14], primary: [ROAD.PRIMARY, 12],
@@ -118,7 +134,9 @@ function classifyRoad(t) {
 }
 
 function classifyRail(t) {
-  if (!['rail', 'light_rail', 'narrow_gauge', 'subway', 'tram'].includes(t.railway)) return null;
+  // Main-line railways only. The Metro (railway=subway) and the monorail run on viaducts here;
+  // they are left out until they can be raised on piers (flat track would block the roads).
+  if (t.railway !== 'rail' && t.railway !== 'narrow_gauge') return null;
   if ((t.tunnel && t.tunnel !== 'no') || t.location === 'underground' || parseFloat(t.layer) < 0) return null;
   return { cls: t.service ? RAIL.SERVICE : RAIL.MAIN, flags: t.bridge && t.bridge !== 'no' ? RAIL_FLAG.BRIDGE : 0 };
 }
@@ -150,6 +168,7 @@ const SMALL = new Set(['hut', 'shed', 'kiosk', 'garage', 'garages', 'cabin', 'to
   'transformer_tower', 'guardhouse', 'shelter', 'gatehouse', 'booth']);
 const HOUSE = new Set(['house', 'detached', 'bungalow', 'semidetached_house', 'terrace', 'villa', 'farm']);
 const BIG_SHED = new Set(['industrial', 'warehouse', 'hangar', 'manufacture', 'train_station', 'transportation', 'depot']);
+const TOWER_TYPES = new Set(['yes', 'apartments', 'residential', 'commercial', 'office', 'hotel', 'mixed']);
 
 function wallColour(t, id) {
   const c = (t['building:colour'] || t.colour || '').toLowerCase().trim();
@@ -161,7 +180,7 @@ function wallColour(t, id) {
   return pal[Math.floor(hash01(id, 7) * pal.length)];
 }
 
-function buildingHeights(t, id, area) {
+function buildingHeights(t, id, area, d) {
   const type = t.building && t.building !== 'yes' ? t.building : t['building:part'] || 'yes';
   let h = parseLength(t.height ?? t['building:height']);
   const levels = parseFloat(t['building:levels']);
@@ -185,6 +204,13 @@ function buildingHeights(t, id, area) {
       // Dense South Mumbai: mostly 3–7 storey blocks, more for big footprints.
       let lv = area < 50 ? 1 + r * 2 : area < 150 ? 2 + r * 3 : area < 400 ? 3 + r * 4 : area < 1200 ? 4 + r * 4 : 4 + r * 6;
       if (type === 'apartments') lv += 2;
+      // District rules: suburban bungalows, self-built low-rise, and towers on big plots
+      // (Worli, Lower Parel, Hiranandani); only 3–10 % of suburban outlines carry real heights.
+      const rule = d?.lv;
+      if (rule?.bungalows && area < rule.bungalows && (HOUSE.has(type) || type === 'yes' || type === 'residential')) lv = 1 + r * 2.4;
+      const tw = rule?.towers;
+      if (tw && area >= tw[0] && TOWER_TYPES.has(type) && hash01(id, 5) < tw[1]) lv = tw[2] + hash01(id, 9) * (tw[3] - tw[2]);
+      if (rule?.cap) lv = Math.min(lv, 1 + r * (rule.cap - 0.6));
       h = Math.floor(lv) * LEVEL + 0.8;
     }
   }
@@ -205,12 +231,13 @@ const STYLE_COLOURS = {
   [STYLE.BRICK]: ['#F1EBE2', '#E8DED2'],
 };
 const hex = (c) => parseInt(c.slice(1), 16);
-function buildingLook(b, type, h, area, c) {
-  const t = b.tags, r = hash01(b.id, 3), d = districtXZ(c[0], c[1]);
+function buildingLook(b, type, h, area, d) {
+  const t = b.tags, r = hash01(b.id, 3);
   let style;
   if (type === 'construction') style = STYLE.BRICK;
   else if (SMALL.has(type) || BIG_SHED.has(type) && type !== 'train_station') style = r < 0.6 ? STYLE.SHED : STYLE.PLASTER;
   else if (type === 'church' || type === 'cathedral' || type === 'chapel') style = STYLE.STONE;
+  else if (h > 32 && d.tall && !(t.heritage || t.historic)) style = pickStyle(d.tall, r); // district towers (Hiranandani, Worli…)
   else if (h > 60) style = r < 0.4 ? STYLE.GLASS : r < 0.7 ? STYLE.CONCRETE : STYLE.PLASTER;
   else if ((t.heritage || t.historic) && h < 40) style = r < 0.8 ? STYLE.STONE : STYLE.BASALT;
   else if (h > 32) style = pickStyle({ CONCRETE: 4, PLASTER: 4, GLASS: d.styles.GLASS ? 3 : 1 }, r);
@@ -239,7 +266,7 @@ readOsmPbf(CFG.input, {
     const kind = classifyBuilding(tags) || classifyArea(tags);
     if (kind == null) return;
     const ways = members.filter((m) => m.type === 'way');
-    relations.push({ id, tags, ways });
+    relations.push({ id, tags, ways, open: openGround(tags) });
     ways.forEach((m) => relWays.add(m.ref));
   },
 });
@@ -255,6 +282,7 @@ const areasRaw = [];     // { id, kind, polys }
 const roadsRaw = [];     // { id, tags, info, pts }
 const railsRaw = [];
 const coastWays = [];
+const aeroLines = [];     // runway and taxiway centre lines: { pts, width, runway }
 const treeNodes = [], signalNodes = [], signalIds = new Set(), crossingIds = new Set(), busStops = [], fuel = [];
 readOsmPbf(CFG.input, {
   nodeTags: true,
@@ -288,7 +316,7 @@ readOsmPbf(CFG.input, {
       const a = classifyArea(tags);
       if (a != null) {
         const ring = resolveRing(refs, false);
-        if (ring) areasRaw.push({ id, kind: a, polys: [[ring]] });
+        if (ring) areasRaw.push({ id, kind: a, polys: [[ring]], open: openGround(tags), aero: !!tags.aeroway });
         return;
       }
     }
@@ -299,6 +327,8 @@ readOsmPbf(CFG.input, {
     }
     const rail = classifyRail(tags);
     if (rail) for (const pts of resolveLine(refs)) railsRaw.push({ id, info: rail, pts });
+    const aw = AEROWAY_WIDTH[tags.aeroway];
+    if (aw) for (const pts of resolveLine(refs)) aeroLines.push({ pts, width: num(tags.width, 5, 100) || aw, runway: tags.aeroway === 'runway' || tags.aeroway === 'stopway' });
   },
 });
 log(`pass 2: ${nodeX.size} nodes, ${buildingsRaw.length} building ways, ${areasRaw.length} areas, ${roadsRaw.length} roads, ${railsRaw.length} rails, ${coastWays.length} coastline ways`);
@@ -347,7 +377,19 @@ for (const rel of relations) {
     if (p) p.push(inner);
   }
   if (b) buildingsRaw.push({ id: rel.id, tags: rel.tags, part: b === 'part', polys });
-  else areasRaw.push({ id: rel.id, kind: classifyArea(rel.tags), polys });
+  else areasRaw.push({ id: rel.id, kind: classifyArea(rel.tags), polys, open: rel.open, aero: !!rel.tags.aeroway });
+}
+
+// Runways and taxiways: centre lines with a width → paved airfield polygons (square-cut runway ends).
+if (aeroLines.length) {
+  const groups = new Map();
+  for (const l of aeroLines) {
+    const k = `${Math.round(l.width * 5) / 10}|${l.runway}`;
+    (groups.get(k) || groups.set(k, { delta: Math.round(l.width * 5) / 10, butt: l.runway, lines: [] }).get(k)).lines.push(l.pts);
+  }
+  const polys = C.toPolygons(C.bufferLines([...groups.values()], 0.5), 20);
+  for (const poly of polys) areasRaw.push({ id: 0, kind: AREA.PAVED, polys: [poly], open: true, aero: true });
+  log(`airfields: ${aeroLines.length} runway/taxiway lines → ${polys.length} paved areas`);
 }
 
 // ---------------------------------------------------------------- coastline → land
@@ -561,8 +603,10 @@ for (const [x, z, id] of treeNodes) {
 }
 trees.forEach(addTree);
 // Trees scattered in parks and gardens (maidans keep their open centres: pitches are excluded by blocked()).
+const pitchGrid = new Grid(50);
+for (const a of areasRaw) if (a.kind === AREA.PITCH) for (const poly of a.polys) { const bb = G.bboxOf(poly[0]); pitchGrid.add([bb[0] - 3, bb[1] - 3, bb[2] + 3, bb[3] + 3], poly); }
 for (const a of areasRaw) {
-  if (a.kind !== AREA.GRASS && a.kind !== AREA.WOOD) continue;
+  if (a.kind !== AREA.GRASS && a.kind !== AREA.WOOD || a.open) continue;
   for (const poly of a.polys) {
     const bb = G.bboxOf(poly[0]);
     const ar = Math.abs(G.signedArea(poly[0]));
@@ -576,10 +620,7 @@ for (const a of areasRaw) {
   }
 }
 function inPitch(x, z) {
-  return areasRaw.some((a) => a.kind === AREA.PITCH && a.polys.some((poly) => {
-    const bb = a.bb || (a.bb = G.bboxOf(a.polys.flatMap((p) => p[0])));
-    return x >= bb[0] - 3 && x <= bb[2] + 3 && z >= bb[1] - 3 && z <= bb[3] + 3 && inMP([poly], x, z);
-  }));
+  return pitchGrid.near(x, z, 3, (poly) => inMP([poly], x, z));
 }
 points.push(...lights);
 for (const c of clutter) {
@@ -599,11 +640,14 @@ const fuelStations = fuel.map(([x, z]) => [r1(x), r1(z)]);
 
 // Landmarks: hand-built models replace these OpenStreetMap outlines (names are parodies).
 // The outline stays for collisions; the model is fitted to its oriented bounding box.
+// Only outlines within LANDMARK_RADIUS of the map point count (a bigger map has namesakes,
+// such as "BMC Building No E4" in Sion).
+const LANDMARK_RADIUS = 300;
 const LANDMARKS = [
   { id: 'gateway', name: 'Gateway of Indiyaa', match: /gateway of india/i, at: [18.9220, 72.8347], hide: true },
   { id: 'palace', name: 'Royal Chaj Mahal Palace', match: /taj mahal palace|taj mahal hotel/i, at: [18.9217, 72.8330], hide: true },
   { id: 'terminus', name: 'Chhatrapati Chai Terminus', match: /chhatrapati shivaji (maharaj )?terminus|victoria terminus|^cs[m]?t$/i, at: [18.9400, 72.8355], hide: true },
-  { id: 'bmc', name: 'Big Mumbai Council HQ', match: /municipal corporation (building|head)|bmc (building|head)/i, at: [18.9405, 72.8344], hide: true },
+  { id: 'bmc', name: 'Big Mumbai Council HQ', match: /municipal corporation (building|head|of greater mumbai)|bmc (building|head)/i, at: [18.9405, 72.8344], hide: true },
   { id: 'clocktower', name: 'Rajabhai Tick-Tock Tower', match: /rajabai/i, at: [18.9297, 72.8305], hide: false, size: [16, 16] },
 ];
 function orientedBox(ring) {
@@ -625,7 +669,8 @@ function orientedBox(ring) {
 const landmarks = [];
 for (const L of LANDMARKS) {
   const [px, pz] = project(L.at[0], L.at[1]);
-  const named = buildingsRaw.filter((b) => L.match.test(b.tags.name || '') || L.match.test(b.tags['name:en'] || ''));
+  const near = (b) => { const c = G.centroid(b.polys[0][0]); return (c[0] - px) ** 2 + (c[1] - pz) ** 2 < LANDMARK_RADIUS ** 2; };
+  const named = buildingsRaw.filter((b) => (L.match.test(b.tags.name || '') || L.match.test(b.tags['name:en'] || '')) && near(b));
   const containing = buildingsRaw.filter((b) => !b.part && b.polys.some((p) => G.pointInRing(px, pz, p[0])));
   const pickBig = (list) => list.sort((a, b) => Math.abs(G.signedArea(b.polys[0][0])) - Math.abs(G.signedArea(a.polys[0][0])))[0];
   const b = pickBig(named.filter((x) => !x.part)) || pickBig(named) || pickBig(containing);
@@ -649,23 +694,27 @@ for (const L of LANDMARKS) {
 
 // Buildings: whole footprints, assigned to the tile holding their centre.
 // Simple 3D Buildings rule: if an outline contains building:part pieces, draw the parts instead.
-const parts = buildingsRaw.filter((b) => b.part).map((b) => G.centroid(b.polys[0][0]));
+const partGrid = new Grid(50);
+for (const b of buildingsRaw) if (b.part) { const [x, z] = G.centroid(b.polys[0][0]); partGrid.add([x, z, x, z], [x, z]); }
 let bCount = 0, bSkipped = 0, bWithHeight = 0;
 for (const b of buildingsRaw) {
   for (const poly of b.polys) {
     const outer = poly[0];
     const c = G.centroid(outer);
     if (!inBox(c)) continue;
-    if (!b.part && parts.length) {
+    if (!b.part) {
       const bb = G.bboxOf(outer);
-      if (parts.some(([x, z]) => x >= bb[0] && x <= bb[2] && z >= bb[1] && z <= bb[3] && G.pointInRing(x, z, outer))) { bSkipped++; continue; }
+      const hasPart = partGrid.near((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, Math.max(bb[2] - bb[0], bb[3] - bb[1]) / 2,
+        ([x, z]) => x >= bb[0] && x <= bb[2] && z >= bb[1] && z <= bb[3] && G.pointInRing(x, z, outer));
+      if (hasPart) { bSkipped++; continue; }
     }
     const area = Math.abs(G.signedArea(outer));
     if (area < 4) continue;
-    const { h, minH, flags, type } = buildingHeights(b.tags, b.id, area);
+    const d = districtXZ(c[0], c[1]);
+    const { h, minH, flags, type } = buildingHeights(b.tags, b.id, area, d);
     if (b.tags.height || b.tags['building:levels']) bWithHeight++;
     const tile = getTile(Math.floor(c[0] / T), Math.floor(c[1] / T));
-    const look = buildingLook(b, type, h, area, c);
+    const look = buildingLook(b, type, h, area, d);
     const rings = poly.map((ring, i) => {
       let r = quantize(G.simplifyRing(ring, 0.15), tile.cx, tile.cz, true);
       // Outer rings positive signed area in (x, z), holes negative (the worker relies on this).

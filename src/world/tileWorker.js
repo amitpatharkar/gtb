@@ -6,6 +6,7 @@ import { buildGround } from './mesh/ground.js';
 import { buildBuildings } from './mesh/buildings.js';
 
 const GRID_CELL = 16; // metres, collision grid
+const UV_PERIOD = 8;  // tiles (4 km): ground UVs stay under ~4 km, well inside float32 precision
 
 /** Uniform grid over item bounding boxes, stored as compressed rows (CSR). */
 function buildGrid(boxes, count, transfer) {
@@ -65,9 +66,14 @@ function buildTile(t) {
   const transfer = [];
   const ox = (t.tx + 0.5) * t.size, oz = (t.tz + 0.5) * t.size; // tile centre in world metres
   const toWorld = (r) => { const w = new Float32Array(r.length); for (let i = 0; i < r.length; i += 2) { w[i] = r[i] + ox; w[i + 1] = r[i + 1] + oz; } return w; };
+  // Ground texture coordinates are metres from a UV origin that repeats every UV_PERIOD tiles,
+  // not from the world origin: float32 UVs 15–25 km out step by 1–2 texels and look blocky.
+  // Textures still line up across tile seams, except on the lines every UV_PERIOD × 500 m.
+  const P = t.size * UV_PERIOD;
+  const uvX = ox - P * Math.floor(ox / P), uvZ = oz - P * Math.floor(oz / P);
 
-  const { builders: ground, tetrapods } = buildGround(t, ox, oz);
-  const { builders, tanks, solid, parts } = buildBuildings(t, ox, oz, toWorld);
+  const { builders: ground, tetrapods } = buildGround(t, uvX, uvZ);
+  const { builders, tanks, solid, parts } = buildBuildings(t, uvX, uvZ, toWorld);
   const facadeParts = {};
   for (const k in parts) if (parts[k].length) { facadeParts[k] = new Float32Array(parts[k]); transfer.push(facadeParts[k].buffer); }
   const meshes = {};

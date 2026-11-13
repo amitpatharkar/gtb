@@ -63,7 +63,7 @@ export function wall(m, ax, az, bx, bz, y0, y1, nx, nz, u0, u1, v0, v1, colBotto
   else { m.tri(a0, b0, b1); m.tri(a0, b1, a1); }
 }
 
-/** Flat polygon (outer + holes) at height y; UVs are world metres (ox, oz = tile centre). */
+/** Flat polygon (outer + holes) at height y; UVs are metres (ox, oz = tile centre in UV space, see tileWorker.js). */
 export function flatPolygon(m, rings, y, col, ox, oz) {
   const flat = [], holes = [];
   for (let r = 0; r < rings.length; r++) {
@@ -79,7 +79,7 @@ export function flatPolygon(m, rings, y, col, ox, oz) {
 
 /**
  * Ribbon along a polyline between lateral offsets left/right (metres, + = left of travel),
- * mitred joins. uvMode 'world' = world metres, otherwise u across (0..1) and v along (metres × vScale).
+ * mitred joins. uvMode 'world' = metres in UV space (tile-local + ox/oz), otherwise u across (0..1) and v along (metres × vScale).
  */
 export function ribbon(m, line, left, right, y, col, { vScale = 1, uvMode = 'along', ox = 0, oz = 0 } = {}) {
   const n = line.length / 2;
