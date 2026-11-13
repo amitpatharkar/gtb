@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 // Holi colour patches per person (blotchy splats that move with the limbs), so a few
 // hundred people cost one draw call.
 
-export const POSE = { WALK: 0, STAND: 1, WAVE: 2, POINT: 3, ARGUE: 4, BAT: 5, SIT: 6, CROUCH: 7, FALLEN: 8, KICK: 9, PUSH: 10, PUNCH: 11, FIGHT: 12, THROW: 13 };
+export const POSE = { WALK: 0, STAND: 1, WAVE: 2, POINT: 3, ARGUE: 4, BAT: 5, SIT: 6, CROUCH: 7, FALLEN: 8, KICK: 9, PUSH: 10, PUNCH: 11, FIGHT: 12, THROW: 13, PEDAL: 14 };
 export const FLAG = { CAP: 1, SARI: 2, BERET: 4 };
 
 /** Holi colours (pichkari, gulal, tomatoes use index 6 = red). */
@@ -92,7 +92,8 @@ const ANIM_GLSL = `
     if (pose < 10.5) return arm ? vec2(-1.45, -side * 0.12) : leg ? vec2(side * 0.25, 0.0) : vec2(0.0);       // push
     if (pose < 11.5) return arm ? vec2((sw * side > 0.0) ? -1.55 : -0.85, -side * 0.15) : leg ? vec2(side * 0.18, 0.0) : vec2(0.0); // punches
     if (pose < 12.5) return arm ? vec2(-0.95 + sin(ph * 2.0 + side) * 0.12, -side * 0.2) : leg ? vec2(side * 0.22, 0.0) : vec2(0.0); // guard
-    return limb == 4.0 ? vec2(-2.7 + max(0.0, sin(ph)) * 1.6, 0.1) : arm ? vec2(-0.3, -0.1) : vec2(0.0);     // throw
+    if (pose < 13.5) return limb == 4.0 ? vec2(-2.7 + max(0.0, sin(ph)) * 1.6, 0.1) : arm ? vec2(-0.3, -0.1) : vec2(0.0);     // throw
+    return leg ? vec2(-0.52 + sw * 0.34 * side, side * 0.07) : vec2(-0.95, side * 0.1);                       // pedalling a bicycle
   }
   vec3 animate(vec3 p, bool isNormal) {
     float part = partLimb.x, limb = partLimb.y;

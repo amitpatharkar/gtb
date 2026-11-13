@@ -101,6 +101,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   Splendor, Bullet). Bodies are lofted cross-sections (bonnet, raked glass, wheel arches, tumblehome); each type has
   near + far (LOD) geometry; traffic.js draws the whole fleet with one BatchedMesh per part (paint tinted per car,
   glass, trim with vertex colours, lamps) = 4 draw calls. Type fields: weight, night, mainRoad, big, rider, seat.
+  Also: auto-rickshaw (`city: 0` = suburbs only, north of ~19.046° N, `traffic.inSuburbs(z)`; `open` + `seat` +
+  `seatZ` = visible khaki driver, `pax` = passenger on the bench), water tanker, garbage truck, ambulance, school
+  bus, bicycle and dabbawala cycle (`slow` = others overtake, `pedal` = POSE.PEDAL). The batches must keep
+  `frustumCulled = false` (their bounding sphere is computed once; traffic vanished far from the start).
 - `src/vehicles/skids.js` (tyre marks), `damage.js` (dents, loose bumpers, dying lamps, bonnet smoke; repair at pumps)
 - `src/sim/signals.js` — working signals at OSM signal junctions: poles on the left kerb per approach, lamps and
   red/green countdowns, two phase groups; `ahead(x, z, fx, fz)` gives the next stop line and its light

@@ -16,11 +16,13 @@ const DRIVE = {
   city: [38, 7.8], ertiga: [31, 6], cabErtiga: [31, 6], coolcab: [31, 6], innova: [34, 6.4], bolero: [29, 5.4], creta: [36, 7], eeco: [25, 5],
   padmini: [26, 6.2], bus: [18, 2.6], decker: [16, 2.3], ace: [20, 3.6], tempo: [21, 3.2],
   scooter: [22, 6.5], delivery: [22, 6.5], bike: [27, 8], bullet: [30, 7.2],
+  auto: [17, 4.2], cycle: [8, 3.2], dabba: [8, 3], ambulance: [30, 6], school: [17, 2.5], tanker: [19, 2.8], compactor: [17, 2.6],
 };
 /** Rough kerb weights (kg) for collisions. */
 export const MASS = {
   alto: 760, wagonr: 850, taxi: 850, taxiI10: 900, i10: 900, swift: 900, dzire: 950, cabDzire: 950, city: 1150, ertiga: 1200, cabErtiga: 1200, coolcab: 1200,
   innova: 1800, bolero: 1650, creta: 1300, eeco: 950, padmini: 900, bus: 11000, decker: 15000, ace: 1100, tempo: 3200, scooter: 110, delivery: 120, bike: 115, bullet: 195,
+  auto: 380, cycle: 20, dabba: 40, ambulance: 1000, school: 9000, tanker: 7500, compactor: 8000,
 };
 
 export class Garage {
@@ -42,6 +44,8 @@ export class Garage {
   get spec() { return this.traffic.types[this.type === 'taxi' ? 'padmini' : this.type]; }
   get name() { return this.inTaxi ? 'your kaali-peeli' : this.spec.name; }
   get rider() { return !this.inTaxi && !!this.spec.rider; }
+  /** The player can be seen driving: two-wheelers and open autos. */
+  get seated() { return !this.inTaxi && !!(this.spec.rider || this.spec.open); }
 
   /** A drivable model built from the fleet's geometry (same four parts as traffic). */
   build(type, tint) {

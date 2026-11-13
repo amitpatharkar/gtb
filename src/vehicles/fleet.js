@@ -128,8 +128,14 @@ function lofted(s, far = false) {
     }
     if (s.rails) for (const sx of [-1, 1]) trim.push(paint(box(0.04, 0.04, g.zr1 - g.zr0 - 0.1, sx * (gtw((g.zr0 + g.zr1) / 2) - 0.08), roofY + 0.06, (g.zr0 + g.zr1) / 2), 0x1b1b1b));
     if (s.spare) trim.push(paint(new THREE.CylinderGeometry(r + 0.03, r + 0.03, 0.2, 16).rotateX(Math.PI / 2).translate(0, belt(-L / 2) - 0.05, -L / 2 - 0.12), 0x1a1a1a));
+    if (s.amb) for (const sx of [-1, 1]) {
+      // Ambulance: red stripe and a red cross on each side.
+      trim.push(paint(box(0.012, 0.09, L - 1.5, sx * (hwF(0) * 0.985 + 0.004), belt(0) - 0.2, 0), 0xc81414));
+      trim.push(paint(box(0.014, 0.3, 0.09, sx * (hwF(-0.6) * 0.985 + 0.006), belt(0) - 0.42, -0.6), 0xc81414), paint(box(0.014, 0.09, 0.3, sx * (hwF(-0.6) * 0.985 + 0.006), belt(0) - 0.42, -0.6), 0xc81414));
+    }
     if (s.rack) for (const x of [-0.45, 0.45]) trim.push(paint(box(0.03, 0.03, g.zr1 - g.zr0, x, roofY + 0.08, (g.zr0 + g.zr1) / 2), 0xbfbfbf));
   }
+  if (s.amb) { lamps.push(paint(box(0.3, 0.09, 0.16, -0.3, roofY + 0.06, g.zr1 - 0.25), 0x2a6cff), paint(box(0.3, 0.09, 0.16, 0.3, roofY + 0.06, g.zr1 - 0.25), 0xff2a2a)); }
   // Head and tail lamps (+ amber indicators), on the nose and tail faces.
   const hx = Math.min(W / 2 - 0.26, hwF(L / 2 - 0.06) - 0.2);
   for (const sx of [-1, 1]) {
@@ -182,6 +188,9 @@ SPECS.cabErtiga = { ...SPECS.ertiga, cab: true };
 // Mumbai's Cool Cab style: blue body, yellow plates.
 SPECS.coolcab = { ...SPECS.ertiga, cab: true };
 
+// Ambulance on the Eeco van (the most common kind): white, red stripe and cross, roof beacons.
+SPECS.ambulance = { ...SPECS.eeco, amb: true };
+
 // ------------------------------------------------------------------ buses, trucks, two-wheelers
 /** BEST bus: red, rounded box; single-decker (12 m) or the new electric double-decker. */
 function bestBus(deck2, far = false) {
@@ -231,22 +240,137 @@ function ace(far = false) {
   return { paint: mergePlain([cab].map(strip)), glass: mergePlain(glass.map(strip)), trim: merge(trim), lamps: merge(lamps) };
 }
 
-/** Goods truck (Tata 407 class) for night deliveries. */
-function truck(far = false) {
+/**
+ * Goods truck (Tata 407 class). `kind`: 'tempo' (painted wooden load box, night deliveries),
+ * 'tanker' (water tanker: Mumbai's buildings buy water by the tanker-load) or 'compactor'
+ * (the municipal garbage truck, white with a blue band and a hopper at the back).
+ */
+function truck(far = false, kind = 'tempo') {
   const L = 5.6, W = 2.0, r = 0.4, fz = 1.75, rz = -1.65;
   const cab = loft(stations(1.2, 2.8, far ? 0.6 : 0.15), { y0: () => 0.7, y1: curve([[1.2, 2.25], [2.2, 2.25], [2.65, 1.95], [2.8, 1.2]]), hw: () => W / 2 - 0.03, tw: () => W / 2 - 0.12, rb: () => 0.05, rt: () => 0.14 }, { n: far ? 1 : 2 });
   const glass = [loft(stations(2.25, 2.75, 0.1), { y0: () => 1.35, y1: curve([[2.25, 2.15], [2.62, 1.9], [2.75, 1.38]]), hw: () => W / 2 - 0.02, tw: () => W / 2 - 0.1, rb: () => 0.01, rt: () => 0.05 }, { n: 1 })];
   const trim = [
     paint(box(W, 0.18, 4.0, 0, 0.78, -0.75), 0x2a2a2a),
-    paint(box(W + 0.04, 1.5, 3.8, 0, 1.65, -0.8), 0xd9c27a), // load body (painted wooden box, truck art below)
-    paint(box(W + 0.06, 0.2, 3.82, 0, 2.45, -0.8), 0x8b2a1a),
-    paint(box(1.4, 0.4, 0.02, 0, 1.2, -2.72), 0xf6f1e3), // "Horn OK Please" board
     paint(box(0.5, 0.12, 0.02, 0, 0.82, 2.84), 0xf2c200),
     ...wheelSet([rz, fz], W / 2 - 0.16, r, 0.24, 0x6f7378, far ? 8 : 14),
   ];
+  if (kind === 'tanker') {
+    // A steel tank on cradles, a filler hatch on top, a hose rolled at the back.
+    const tank = new THREE.CylinderGeometry(0.98, 0.98, 3.7, far ? 10 : 18).rotateX(Math.PI / 2).scale(1, 0.86, 1).translate(0, 1.76, -0.8);
+    trim.push(paint(tank, 0x2c6fb3));
+    trim.push(paint(new THREE.CylinderGeometry(1.0, 1.0, 0.5, far ? 10 : 18).rotateX(Math.PI / 2).scale(1, 0.86, 1).translate(0, 1.76, -0.8), 0xf1efe6)); // white band (the "water" lettering goes here)
+    if (!far) {
+      trim.push(paint(new THREE.CylinderGeometry(0.26, 0.26, 0.16, 12).translate(0, 2.64, -0.4), 0x8f9499));
+      for (const z of [-2.2, -0.8, 0.6]) trim.push(paint(box(W - 0.2, 0.3, 0.14, 0, 0.98, z), 0x333333));
+      trim.push(paint(new THREE.TorusGeometry(0.3, 0.07, 6, 14).translate(0, 1.5, -2.72), 0x1d1d1d)); // hose
+      trim.push(paint(box(0.1, 0.3, 0.1, 0.5, 1.05, -2.7), 0xb8862b)); // brass outlet valve
+    }
+  } else if (kind === 'compactor') {
+    const body = loft(stations(-2.75, 1.05, far ? 1.2 : 0.4), { y0: () => 0.9, y1: curve([[-2.75, 2.0], [-2.3, 2.75], [1.05, 2.6]]), hw: () => W / 2 + 0.04, tw: () => W / 2 - 0.02, rb: () => 0.04, rt: () => 0.12 }, { n: far ? 1 : 2 });
+    trim.push(paint(body, 0xf0f0ec));
+    trim.push(paint(box(W + 0.12, 0.34, 3.4, 0, 1.5, -0.7), 0x1f5fa8)); // blue band
+    if (!far) {
+      trim.push(paint(box(W - 0.1, 0.9, 0.5, 0, 1.25, -2.8), 0x25303a)); // hopper mouth
+      trim.push(paint(box(W + 0.1, 0.12, 0.6, 0, 0.84, -2.8), 0x3a3f45));
+      for (const sx of [-1, 1]) trim.push(paint(box(0.08, 1.3, 0.1, sx * (W / 2 + 0.04), 1.6, -2.55), 0xf2c200)); // lifting arms
+    }
+  } else {
+    trim.push(
+      paint(box(W + 0.04, 1.5, 3.8, 0, 1.65, -0.8), 0xd9c27a), // load body (painted wooden box, truck art below)
+      paint(box(W + 0.06, 0.2, 3.82, 0, 2.45, -0.8), 0x8b2a1a),
+      paint(box(1.4, 0.4, 0.02, 0, 1.2, -2.72), 0xf6f1e3), // "Horn OK Please" board
+    );
+  }
   const lamps = [];
-  for (const sx of [-1, 1]) { lamps.push(paint(box(0.24, 0.14, 0.04, sx * 0.7, 1.25, 2.82), 0xfff2d2), paint(box(0.14, 0.2, 0.04, sx * 0.8, 0.95, -2.72), 0xc81010)); }
+  for (const sx of [-1, 1]) { lamps.push(paint(box(0.24, 0.14, 0.04, sx * 0.7, 1.25, 2.82), 0xfff2d2), paint(box(0.14, 0.2, 0.04, sx * 0.8, 0.95, kind === 'compactor' ? -3.06 : -2.72), 0xc81010)); }
+  if (kind === 'compactor') lamps.push(paint(box(0.2, 0.1, 0.2, 0, 2.3, 2.2), 0xffa020)); // amber beacon on the cab
   return { paint: mergePlain([cab].map(strip)), glass: mergePlain(glass.map(strip)), trim: merge(trim), lamps: merge(lamps) };
+}
+
+/**
+ * Auto-rickshaw (Bajaj RE class): three wheels, open sides, a canvas hood. Mumbai's are black
+ * with a yellow hood and run only in the suburbs (north of Bandra and Sion). The driver and
+ * passengers are drawn by the people renderer (type fields `open`, `seat`, `pax`).
+ */
+function auto(far = false) {
+  const W = 1.3, r = 0.2, fz = 1.02, rz = -0.92, n = far ? 1 : 2;
+  const HOOD = 0xf2c200, REXINE = 0x4a2620;
+  // Floor pan, rear body (engine cover behind the bench, seat base in front of it) and the nose.
+  const floor = loft(stations(-1.3, 0.8, far ? 0.6 : 0.2, [rz], r + 0.08, 0.07), { y0: archLine([rz], r, 0.2, 0.05), y1: () => 0.33, hw: () => W / 2, rb: () => 0.03, rt: () => 0.03 }, { n: 1 });
+  const rear = loft(stations(-1.3, -0.3, far ? 0.3 : 0.1), { y0: () => 0.31, y1: curve([[-1.3, 0.84], [-1.12, 0.95], [-0.93, 0.95], [-0.86, 0.6], [-0.3, 0.6]]), hw: curve([[-1.3, W / 2 - 0.07], [-1.1, W / 2], [-0.3, W / 2]]), tw: (z) => (z < -1.1 ? W / 2 - 0.12 : W / 2 - 0.02), rb: () => 0.03, rt: () => 0.06 }, { n });
+  const nose = loft(stations(0.58, 1.26, far ? 0.25 : 0.08), { y0: curve([[0.58, 0.31], [0.8, 0.31], [0.86, 0.47], [1.26, 0.5]]), y1: curve([[0.58, 0.98], [0.8, 0.98], [1.0, 0.93], [1.16, 0.82], [1.26, 0.62]]), hw: curve([[0.58, W / 2 - 0.04], [0.76, 0.52], [1.0, 0.3], [1.26, 0.15]]), tw: curve([[0.58, W / 2 - 0.1], [0.76, 0.46], [1.0, 0.24], [1.26, 0.1]]), rb: () => 0.05, rt: () => 0.08 }, { n });
+  const paintParts = [floor, rear, nose, box(0.62, 0.36, 0.4, 0, 0.5, 0.2)]; // + the driver's seat box
+  // Canvas hood: a thin shell over the cabin that wraps down to the body behind the bench.
+  const top = curve([[-1.3, 1.02], [-1.14, 1.48], [-0.9, 1.66], [0.35, 1.71], [0.72, 1.63]]);
+  const hood = loft(stations(-1.3, 0.72, far ? 0.4 : 0.12), { y0: (z) => (z < -0.94 ? 0.93 : top(z) - 0.05), y1: top, hw: curve([[-1.3, W / 2 - 0.1], [-1.1, W / 2 - 0.01], [0.72, W / 2 - 0.03]]), tw: curve([[-1.3, W / 2 - 0.22], [-1.1, W / 2 - 0.1], [0.72, W / 2 - 0.12]]), rb: () => 0.02, rt: () => 0.1 }, { n });
+  const trim = [paint(hood, HOOD)];
+  trim.push(
+    paint(cyl(r, 0.11, far ? 8 : 14).translate(0, r, fz), 0x141414), paint(cyl(r * 0.5, 0.13, 8).translate(0, r, fz), 0x8a8d92),
+    paint(cyl(r, 0.12, far ? 8 : 14).translate(W / 2 - 0.09, r, rz), 0x141414), paint(cyl(r, 0.12, far ? 8 : 14).translate(-W / 2 + 0.09, r, rz), 0x141414),
+    paint(box(0.56, 0.08, 0.36, 0, 0.71, 0.2), REXINE), // driver's cushion
+    paint(box(W - 0.14, 0.09, 0.5, 0, 0.64, -0.58), REXINE), // passenger bench
+    paint(box(W - 0.14, 0.52, 0.09, 0, 0.9, -0.88), REXINE), // bench backrest
+  );
+  // The windscreen is clear (you can see the driver): only its tinted top band is "glass".
+  const glass = [box(W - 0.2, 0.14, 0.025, 0, 1.55, 0.67)];
+  if (!far) {
+    trim.push(paint(box(W - 0.12, 0.035, 0.035, 0, 0.99, 0.72), 0x111111), paint(box(W - 0.16, 0.03, 0.03, 0, 1.47, 0.675), 0x111111)); // windscreen frame, wiper rail
+    for (const sx of [-1, 1]) {
+      trim.push(paint(beam([sx * (W / 2 - 0.05), 0.98, 0.72], [sx * (W / 2 - 0.08), 1.64, 0.66], 0.035, 0.05), 0x111111)); // windscreen frame
+      trim.push(paint(beam([sx * (W / 2 - 0.03), 0.33, 0.0], [sx * (W / 2 - 0.06), 1.68, -0.02], 0.03, 0.04), 0x151515)); // hood bow behind the driver
+      trim.push(paint(box(0.03, 0.44, 0.62, sx * (W / 2 - 0.02), 0.56, -0.6), 0x0c0c0c)); // low side panel by the bench
+      trim.push(paint(box(0.012, 0.07, 1.0, sx * (W / 2 + 0.002), 0.5, -0.8), 0x1f8a3a)); // green CNG stripe
+      trim.push(paint(box(0.02, 0.36, 0.46, sx * (W / 2 - 0.035), 1.44, -0.72), HOOD)); // canvas flap by the passengers
+      trim.push(paint(cyl(r * 0.5, 0.14, 8).translate(sx * (W / 2 - 0.09), r, rz), 0x8a8d92));
+      trim.push(paint(box(0.09, 0.07, 0.12, sx * (W / 2 - 0.1), 1.02, 0.7), 0x202020)); // mirrors
+    }
+    trim.push(
+      paint(box(0.62, 0.035, 0.035, 0, 1.0, 0.56), 0x2a2a2a), // handlebar
+      paint(beam([0, 0.42, 0.98], [0, 1.0, 0.58], 0.05, 0.05), 0x3a3a3a), // steering column
+      paint(box(0.13, 0.16, 0.08, -0.36, 1.06, 0.62), 0x8f9499), // fare meter
+      paint(box(W - 0.1, 0.62, 0.03, 0, 0.64, 0.02), 0x0e0e0e), // partition behind the driver
+      paint(box(0.36, 0.1, 0.02, 0, 0.56, 1.27), 0xf2c200), paint(box(0.44, 0.11, 0.02, 0, 0.52, -1.31), 0xf2c200), // yellow plates
+      paint(box(0.18, 0.05, 0.5, 0, 0.44, fz), 0x0c0c0c), // front mudguard
+    );
+  }
+  const lamps = [paint(new THREE.CylinderGeometry(0.075, 0.075, 0.05, 10).rotateX(Math.PI / 2).translate(0, 0.76, 1.2), 0xfff2d2)];
+  for (const sx of [-1, 1]) lamps.push(paint(box(0.07, 0.05, 0.04, sx * 0.3, 0.86, 0.96), 0xff9a1a), paint(box(0.1, 0.12, 0.04, sx * (W / 2 - 0.2), 0.72, -1.3), 0xc81010));
+  return { paint: mergePlain(paintParts.map(strip)), glass: mergePlain(glass.map(strip)), trim: merge(trim), lamps: merge(lamps) };
+}
+
+/**
+ * Roadster bicycle (the black "doodhwala" kind with a carrier). `dabba`: a dabbawala's cycle
+ * with tiffin carriers hung from the handlebar and a crate on the carrier.
+ */
+function cycle(dabba = false, far = false) {
+  const r = 0.34, fz = 0.55, rz = -0.52, seg = far ? 10 : 22;
+  const tube = (a, b, t = 0.03) => beam(a, b, t, t);
+  const wheel = (z) => new THREE.TorusGeometry(r - 0.02, 0.02, 5, seg).rotateY(Math.PI / 2).translate(0, r, z);
+  const paintParts = [
+    tube([0, 0.3, 0.02], [0, 0.86, -0.18]), // seat tube
+    tube([0, 0.84, -0.16], [0, 0.88, 0.36]), // top tube
+    tube([0, 0.3, 0.02], [0, 0.82, 0.38]), // down tube
+    tube([0, 0.3, 0.02], [0, r, rz], 0.025), tube([0, 0.82, -0.17], [0, r, rz], 0.02), // stays
+    tube([0, 0.98, 0.34], [0, r, fz], 0.03), // head tube + fork
+  ];
+  const trim = [
+    paint(wheel(fz), 0x161616), paint(wheel(rz), 0x161616),
+    paint(box(0.2, 0.06, 0.28, 0, 0.9, -0.2), 0x2a1d14), // saddle
+    paint(box(0.5, 0.025, 0.025, 0, 1.0, 0.3), 0xb8bcc2), // handlebar
+    paint(box(0.26, 0.02, 0.4, 0, 0.72, -0.6), 0x8f9499), // carrier
+    paint(box(0.05, 0.02, 0.44, 0, r * 2 + 0.03, rz), 0x1a1a1a), paint(box(0.05, 0.02, 0.4, 0, r * 2 + 0.03, fz), 0x1a1a1a), // mudguards
+  ];
+  if (!far) {
+    for (const z of [fz, rz]) for (let k = 0; k < 4; k++) trim.push(paint(box(0.008, 2 * r - 0.06, 0.008, 0, r, z).translate(0, -r, -z).rotateX((k * Math.PI) / 4).translate(0, r, z), 0x9a9da2)); // spokes
+    trim.push(paint(cyl(0.09, 0.02, 10).translate(0.04, 0.3, 0.02), 0x8f9499), paint(box(0.012, 0.012, 0.56, 0.04, 0.32, -0.25), 0x55585c)); // chainwheel, chain
+  }
+  if (dabba) {
+    trim.push(paint(box(0.42, 0.2, 0.62, 0, 0.84, -0.62), 0x9a7b4f)); // wooden crate of tiffins
+    for (const sx of [-1, 1]) for (const z of [0.2, 0.36]) trim.push(paint(new THREE.CylinderGeometry(0.06, 0.06, 0.32, 8).translate(sx * 0.2, 0.8, z), 0xc9ccd1)); // steel dabbas on the handlebar
+  } else if (!far) trim.push(paint(new THREE.CylinderGeometry(0.11, 0.11, 0.36, 10).translate(0.2, 0.66, -0.6), 0xc9ccd1)); // a milk can on the carrier
+  const glass = [box(0.02, 0.02, 0.02, 0, 0.3, 0)];
+  const lamps = [paint(box(0.05, 0.04, 0.02, 0, 0.74, -0.82), 0xc81010)]; // rear reflector
+  return { paint: mergePlain(paintParts.map(strip)), glass: mergePlain(glass.map(strip)), trim: merge(trim), lamps: merge(lamps) };
 }
 
 /** Scooter (Activa class): front apron, floorboard, rear body; optional delivery box. */
@@ -297,8 +421,10 @@ function padmini() {
 const PRIVATE = [0xf4f4f2, 0xf4f4f2, 0xf4f4f2, 0xf4f4f2, 0xc5c8cc, 0xc5c8cc, 0x8a8f95, 0x9b1b1b, 0x1d3f7a, 0x1b1b1b, 0x6b4a32, 0xd9d4c7, 0x8c1c2a];
 
 /**
- * type → { parts, far, name, len, wid, speed, weight, night, tints, rider, big, mainRoad }.
- * weight: share in South Mumbai daytime traffic; night: multiplier after 10 pm.
+ * type → { parts, far, name, len, wid, speed, weight, night, tints, rider, big, mainRoad, … }.
+ * weight: share in daytime traffic; night: multiplier after 10 pm; city / suburb: multipliers
+ * south / north of the Bandra–Sion line (autos have city 0); open + seat + seatZ: the driver is
+ * drawn (auto); pax: a passenger seat; slow: others overtake (bicycles).
  */
 export function buildFleet() {
   const T = {};
@@ -328,5 +454,15 @@ export function buildFleet() {
   T.delivery = { parts: scooter(true), far: scooter(true, true), name: 'Bhookh delivery scooter', len: 1.9, wid: 0.7, speed: 12.5, weight: 0.8, night: 1.4, tints: [0x1b1b1b, 0xc5c8cc, 0xf4f4f2], rider: true, seat: 0.8 };
   T.bike = { parts: motorbike(), far: motorbike(false, true), name: 'Hiro Splendour', len: 2.0, wid: 0.75, speed: 13, weight: 2.0, night: 0.6, tints: [0x1b1b1b, 0x1b1b1b, 0xb32020, 0x1d3f7a, 0x2e2e2e, 0x5a5a5a], rider: true, seat: 0.86 };
   T.bullet = { parts: motorbike(true), far: motorbike(true, true), name: 'Royal Enfeeld Bullet', len: 2.15, wid: 0.8, speed: 12.5, weight: 0.35, night: 0.6, tints: [0x111111, 0x5a1a14, 0x2e3a2a], rider: true, seat: 0.86 };
+  T.ambulance = { parts: lofted(SPECS.ambulance), far: lofted(SPECS.ambulance, true), name: 'Ambulance (Maroti Eko)', len: SPECS.eeco.L, wid: SPECS.eeco.W, speed: 14, weight: 0.1, night: 1.5, tints: [0xf4f4f2] };
+  T.school = { parts: bestBus(false), far: bestBus(false, true), name: 'School bus', len: 11.6, wid: 2.55, speed: 8.5, weight: 0.14, night: 0, tints: [0xf0b400], big: true, mainRoad: true };
+  T.tanker = { parts: truck(false, 'tanker'), far: truck(true, 'tanker'), name: 'Water tanker', len: 5.6, wid: 2.0, speed: 8.5, weight: 0.3, night: 0.8, tints: [0xf2c200, 0xd8641a, 0xe8e8e8, 0x2d6cb5], big: true };
+  T.compactor = { parts: truck(false, 'compactor'), far: truck(true, 'compactor'), name: 'Municipal garbage truck', len: 5.9, wid: 2.05, speed: 8, weight: 0.14, night: 0.4, tints: [0xf0f0ec], big: true };
+  // Autos: the suburbs' taxi. Not allowed in the island city, so `city: 0`.
+  T.auto = { parts: auto(), far: auto(true), name: 'Bajaaj auto-rickshaw', len: 2.64, wid: 1.3, speed: 10, weight: 8, night: 1.2, city: 0, tints: [0x0c0c0c], open: true, seat: 0.75, seatZ: 0.2, pax: { z: -0.56, seat: 0.69 } };
+  T.cycle = { parts: cycle(), far: cycle(false, true), name: 'Bicycle (Hiro Jet)', len: 1.8, wid: 0.6, speed: 4.4, weight: 0.5, night: 0.15, tints: [0x101010, 0x101010, 0x1d3f2a, 0x5a1a14], rider: true, seat: 0.95, seatZ: -0.2, slow: true, pedal: true };
+  T.dabba = { parts: cycle(true), far: cycle(true, true), name: "Dabbawala's bicycle", len: 1.8, wid: 0.66, speed: 5, weight: 0.3, night: 0, suburb: 0.4, tints: [0x101010], rider: true, seat: 0.95, seatZ: -0.2, slow: true, pedal: true, dabbawala: true };
+  // Kaali-peelis thin out in the suburbs, where autos do their job.
+  T.taxi.suburb = 0.3; T.taxiI10.suburb = 0.3; T.padmini.suburb = 0.2; T.coolcab.suburb = 0.4;
   return T;
 }

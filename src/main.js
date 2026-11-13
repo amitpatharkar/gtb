@@ -120,7 +120,7 @@ traffic.signals = signals;
 const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
 const characters = new Characters(scene, BASE, tier, lib, started);
 let frameDt = 0;
-people.beforeEnd = (list) => characters.update(frameDt, camera.position, list, onFoot || garage.rider ? walker.person : null);
+people.beforeEnd = (list) => characters.update(frameDt, camera.position, list, onFoot || garage.seated ? walker.person : null);
 const bubbles = new Bubbles(document.body);
 const audio = new CityAudio(lib);
 const radio = new Radio(audio);
@@ -626,17 +626,21 @@ function step(dt) {
   eggs.update(dt, { player, onFoot, walker });
   story.update(dt, { player, onFoot, walker });
   if (onFoot) walker.draw(people, combat.weapon);
-  else if (garage.rider) {
-    // Riding a two-wheeler: the player sits astride it.
-    const seat = garage.spec.seat ?? 0.9, L = walker.look;
+  else if (garage.seated) {
+    // Riding a two-wheeler or driving an auto: the player can be seen in the seat.
+    const seat = garage.spec.seat ?? 0.9, back = -(garage.spec.seatZ ?? -0.28), L = walker.look;
     const P = (walker.person ||= { isPlayer: true, flags: 0, scale: 1, model: 0, hair: new THREE.Color(0x17110c) });
-    Object.assign(P, { x: player.pos.x - Math.sin(player.heading) * 0.28, y: player.pos.y + seat - 0.42, z: player.pos.z - Math.cos(player.heading) * 0.28, heading: player.heading, phase: 0, pose: POSE.SIT, amp: 1, speed: 0, shirt: L.shirt, pants: L.pants, skin: L.skin, patches: walker.patches });
+    Object.assign(P, { x: player.pos.x - Math.sin(player.heading) * back, y: player.pos.y + seat - 0.42, z: player.pos.z - Math.cos(player.heading) * back, heading: player.heading, phase: 0, pose: POSE.SIT, amp: 1, speed: 0, shirt: L.shirt, pants: L.pants, skin: L.skin, patches: walker.patches });
     people.add(P);
   }
   for (const r of traffic.riders) {
-    // Motorbike riders sit astride, hands on the handlebar; most wear helmets.
-    const seat = traffic.types[r.type]?.seat ?? 0.92;
-    people.add({ noHero: true, x: r.x - Math.sin(r.heading) * 0.28, y: seat - 0.42, z: r.z - Math.cos(r.heading) * 0.28, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.look.helmet ? FLAG.BERET : 0, scale: 1, ...r.look });
+    // Riders sit astride their bikes (most wear helmets); auto drivers sit up front in khaki,
+    // dabbawalas pedal in white caps; some autos carry a passenger on the bench.
+    const T = traffic.types[r.type], seat = T?.seat ?? 0.92, back = -(T?.seatZ ?? -0.28);
+    const sh = Math.sin(r.heading), ch = Math.cos(r.heading), L = r.look;
+    if (T?.pedal) r.pedal = (r.pedal || 0) + dt * (r.speed || 0) * 1.7;
+    people.add({ noHero: true, x: r.x - sh * back, y: seat - (T?.pedal ? 0.86 : 0.42), z: r.z - ch * back, heading: r.heading, phase: r.pedal || 0, pose: T?.pedal ? POSE.PEDAL : POSE.SIT, amp: 1, flags: L.helmet ? FLAG.BERET : L.cap ? FLAG.CAP : 0, scale: 1, shirt: L.shirt, pants: L.pants, skin: L.skin });
+    if (r.pax && T.pax) people.add({ noHero: true, x: r.x + sh * T.pax.z - ch * 0.22, y: T.pax.seat - 0.42, z: r.z + ch * T.pax.z + sh * 0.22, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.pax.sari ? FLAG.SARI : 0, scale: 0.96, shirt: r.pax.shirt, pants: r.pax.pants, skin: r.pax.skin });
   }
   if (view.wheel) { pichkari.setPressure(pichkari.pressure - view.wheel); view.wheel = 0; }
   pichkari.update(dt, onFoot ? walker : null, onFoot && combat.weapon === 'pichkari' && (input.fire || input.brake), view);

@@ -17,6 +17,20 @@ function riderLook() {
   return { shirt: new THREE.Color(shirts[Math.floor(Math.random() * shirts.length)]), pants: new THREE.Color(Math.random() < 0.5 ? 0x24324a : 0x2b2b2b), skin: new THREE.Color(skin), helmet: Math.random() < 0.75 };
 }
 
+/** Auto-rickshaw drivers wear khaki; dabbawalas white with a Gandhi cap. */
+function driverLook(type) {
+  const skin = new THREE.Color([0x8d5a3b, 0x7a4a2f, 0xa06a46, 0x6b3f26][Math.floor(Math.random() * 4)]);
+  if (type.dabbawala) return { shirt: new THREE.Color(0xf1eee6), pants: new THREE.Color(0xe9e5da), skin, cap: true };
+  if (type.open) return { shirt: new THREE.Color(0xb39a68), pants: new THREE.Color(0x9a8457), skin };
+  return riderLook();
+}
+
+/** Someone on the back bench of an auto. */
+function paxLook() {
+  const r = riderLook();
+  return { shirt: r.shirt, pants: r.pants, skin: r.skin, sari: Math.random() < 0.3 };
+}
+
 export class Traffic {
   constructor(scene, tiles, tier) {
     this.scene = scene;
@@ -44,6 +58,9 @@ export class Traffic {
       b.castShadow = part === 'paint' || part === 'trim';
       b.receiveShadow = part !== 'lamps';
       b.sortObjects = false;
+      // The batch's own bounding sphere is computed once (around wherever the first cars were):
+      // far from there the whole fleet would be culled. Each instance is still culled by itself.
+      b.frustumCulled = false;
       this.geo[part] = {};
       for (const n of this.typeNames) this.geo[part][n] = [b.addGeometry(this.types[n].parts[part]), b.addGeometry(this.types[n].far[part])];
       for (let i = 0; i < this.cap; i++) { b.addInstance(this.geo[part][this.typeNames[0]][0]); b.setVisibleAt(i, false); }
@@ -118,10 +135,22 @@ export class Traffic {
     this.graphVersion = this.tiles.version;
   }
 
+  /**
+   * North of the Bandra–Sion line (about 19.046° N) is "the suburbs": autos are allowed there
+   * and only there, and they take most of the kaali-peelis' work.
+   */
+  inSuburbs(z) {
+    if (this.suburbZ === undefined) {
+      const ix = this.tiles.index;
+      this.suburbZ = ix?.origin ? -(19.046 - ix.origin.lat) * ix.metresPerDegree.lat : -1e9;
+    }
+    return z < this.suburbZ;
+  }
+
   /** Vehicle mix by hour: goods tempos run at night, BEST buses and private cars by day. */
-  pickType() {
-    const night = this.hour >= 22 || this.hour < 6;
-    const w = (n) => this.types[n].weight * (night ? this.types[n].night ?? 1 : 1);
+  pickType(z = 0) {
+    const night = this.hour >= 22 || this.hour < 6, suburb = this.inSuburbs(z);
+    const w = (n) => { const T = this.types[n]; return T.weight * (night ? T.night ?? 1 : 1) * (suburb ? T.suburb ?? 1 : T.city ?? 1); };
     let r = Math.random() * this.typeNames.reduce((s, n) => s + w(n), 0);
     for (const n of this.typeNames) { r -= w(n); if (r <= 0) return n; }
     return 'wagonr';
@@ -135,7 +164,7 @@ export class Traffic {
       const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
       const d = Math.hypot(mx - player.pos.x, mz - player.pos.z);
       if (d < 45 || d > 220) continue;
-      const type = this.pickType();
+      const type = this.pickType(mz);
       if (this.types[type].mainRoad && !(s[5] & 4)) continue; // buses stick to main roads
       const oneway = s[5] & 2;
       const dir = oneway || Math.random() < 0.5 ? 1 : -1;
@@ -145,8 +174,9 @@ export class Traffic {
         // Some drivers jump red lights (more at night, never buses); many stop on the zebra.
         jumper: !this.types[type].big && Math.random() < 0.1 + this.night * 0.12, creep: Math.random() < 0.35 ? 2.5 : 0,
         pulled: null, boost: 0, lane: oneway ? 0 : Math.min(s[4] * 0.5, 1.9), lastSig: null, lastDist: 0,
-        kerb: this.types[type].rider ? 0.6 + Math.random() * 0.8 : 0, // two-wheelers keep further left and squeeze through
-        look: this.types[type].rider ? riderLook() : null,
+        kerb: this.types[type].rider ? 0.6 + Math.random() * 0.8 : this.types[type].open ? 0.5 : 0, // two-wheelers keep further left and squeeze through
+        look: this.types[type].rider || this.types[type].open ? driverLook(this.types[type]) : null,
+        pax: this.types[type].pax && Math.random() < 0.6 ? paxLook() : null,
       };
       if (this.cars.some((c) => Math.hypot(c.x - mx, c.z - mz) < 12)) continue;
       this.cars.push(car);
@@ -204,12 +234,13 @@ export class Traffic {
       const fx = ((s[2] - s[0]) / car.seg.len) * car.dir, fz = ((s[3] - s[1]) / car.seg.len) * car.dir;
       // Look ahead for other vehicles and the player in our lane.
       let gap = 40;
-      const check = (x, z, len) => {
+      let slowAhead = false;
+      const check = (x, z, len, slow) => {
         const dx = x - car.x, dz = z - car.z;
         const along = dx * fx + dz * fz, lateral = Math.abs(dx * fz - dz * fx);
-        if (along > 0 && lateral < (car.squeeze ? 1.3 : 1.9)) gap = Math.min(gap, along - (type.len + len) / 2);
+        if (along > 0 && lateral < (car.squeeze ? 1.3 : 1.9)) { const g = along - (type.len + len) / 2; if (g < gap) { gap = g; slowAhead = !!slow; } }
       };
-      for (const o of this.cars) if (o !== car) check(o.x, o.z, this.types[o.type].len);
+      for (const o of this.cars) if (o !== car) check(o.x, o.z, this.types[o.type].len, this.types[o.type].slow && !type.slow);
       check(player.pos.x, player.pos.z, 3.7);
       if (this.taxi && this.taxi !== player) check(this.taxi.pos.x, this.taxi.pos.z, 3.7); // the parked taxi while on foot
       for (const o of this.obstacles) check(o[0], o[1], o[2]);
@@ -245,8 +276,8 @@ export class Traffic {
       if (car.wait > 2.5) { this.honks.push([car.x, car.z]); car.wait = -4; }
       // Mumbai driving: stuck behind someone (not at a red light)? Squeeze past on the right,
       // into the oncoming lane if need be. And honk for no reason now and then.
-      if (gap < 7 && car.speed < 2.5 && !atRed && !car.pulled && type.len < 6) car.blockedT = (car.blockedT || 0) + dt; else car.blockedT = Math.max(0, (car.blockedT || 0) - dt * 0.5);
-      if (car.blockedT > 1.8 && !car.squeeze) { car.squeeze = 4 + Math.random() * 3; if (Math.random() < 0.6) this.honks.push([car.x, car.z]); }
+      if (gap < 7 && (car.speed < 2.5 || (slowAhead && !type.big)) && !atRed && !car.pulled && type.len < 6) car.blockedT = (car.blockedT || 0) + dt; else car.blockedT = Math.max(0, (car.blockedT || 0) - dt * 0.5);
+      if (car.blockedT > (slowAhead ? 0.5 : 1.8) && !car.squeeze) { car.squeeze = 4 + Math.random() * 3; if (Math.random() < 0.6) this.honks.push([car.x, car.z]); }
       if (car.squeeze) { car.squeeze -= dt; if (car.squeeze <= 0) car.squeeze = 0; }
       if (Math.random() < dt * 0.015 * (0.3 + jam)) this.honks.push([car.x, car.z]);
       car.t += (car.speed * dt) / car.seg.len;
@@ -289,7 +320,7 @@ export class Traffic {
         B[part].setVisibleAt(i, true);
       }
       B.paint.setColorAt(i, v.tint);
-      if (this.types[v.type].rider && v.look) this.riders.push(v);
+      if (v.look && !v.roll && (this.types[v.type].rider || this.types[v.type].open)) this.riders.push(v);
       i++;
     };
     for (const car of this.cars) put(car);
@@ -324,7 +355,8 @@ export class Traffic {
     this.parkAt = { x: player.pos.x, z: player.pos.z, v: this.tiles.version };
     const R = 130, out = [];
     const carTypes = ['wagonr', 'alto', 'swift', 'i10', 'dzire', 'city', 'ertiga', 'innova', 'creta', 'bolero', 'eeco', 'wagonr', 'swift', 'cabDzire'];
-    const twoTypes = ['scooter', 'scooter', 'bike', 'scooter', 'bullet'];
+    const twoTypes = ['scooter', 'scooter', 'bike', 'scooter', 'bullet', 'scooter', 'bike', 'cycle'];
+    const suburbTypes = [...carTypes, 'auto', 'auto', 'auto', 'auto', 'auto'];
     const tint = (type, h) => { const t = this.types[type].tints; return new THREE.Color(t[Math.floor(h * t.length) % t.length]); };
     for (const seg of this.segList || []) {
       const s = seg.s, hw = s[4];
@@ -358,7 +390,8 @@ export class Traffic {
             }
             d += n * 0.85 + 1.5;
           } else {
-            const type = carTypes[Math.floor(rnd() * carTypes.length)], T = this.types[type], o = hw - T.wid / 2 - 0.25, th = rnd();
+            const list = this.inSuburbs(z0) ? suburbTypes : carTypes;
+            const type = list[Math.floor(rnd() * list.length)], T = this.types[type], o = hw - T.wid / 2 - 0.25, th = rnd();
             const key = `${segKey}:${side}:${Math.round(d * 10)}`;
             if (!this.movedKeys.has(key)) out.push({ type, x: x0 + fx * T.len / 2 + lx * o, z: z0 + fz * T.len / 2 + lz * o, heading, tint: tint(type, th), parked: true, key });
             d += T.len + 0.6 + rnd() * 1.2;
