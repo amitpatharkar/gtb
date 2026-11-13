@@ -30,7 +30,8 @@ export class Traffic {
       trim: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.15 }),
       lamps: new THREE.MeshBasicMaterial({ vertexColors: true }),
     };
-    this.cap = this.max + 24; // traffic plus extras (broken-down taxis, parked props)
+    this.parkMax = tier.name === 'High' ? 140 : tier.name === 'Medium' ? 100 : 60;
+    this.cap = this.max + 24 + this.parkMax; // traffic, extras (broken-down taxis) and parked vehicles
     this.batches = {};
     this.geo = {};
     for (const part of ['paint', 'glass', 'trim', 'lamps']) {
@@ -58,7 +59,9 @@ export class Traffic {
     this.events = [];      // { type: 'jump', car, ap } for the police
     this.signals = null;   // set by main.js
     this.obstacles = [];   // [x, z, length]: cows, cricket pitches, jaywalkers (set by street life)
-    this.extras = [];      // parked/broken-down vehicles drawn with the traffic meshes
+    this.extras = [];      // broken-down vehicles drawn with the traffic meshes
+    this.parked = [];      // parked cars and two-wheelers along wide streets near the player
+    this.parkAt = { x: 1e9, z: 1e9, v: -1 };
     this.night = 0;
   }
 
@@ -173,6 +176,7 @@ export class Traffic {
       // Drop cars whose road tile was unloaded.
       this.cars = this.cars.filter((c) => this.tiles.tiles.has(`${c.seg.t.tx},${c.seg.t.tz}`));
     }
+    if (Math.hypot(player.pos.x - this.parkAt.x, player.pos.z - this.parkAt.z) > 35 || this.parkAt.v !== this.tiles.version) this.placeParked(player);
     const target = Math.round(this.max * clock.traffic);
     this.cars = this.cars.filter((c) => Math.hypot(c.x - player.pos.x, c.z - player.pos.z) < 320);
     if (this.cars.length < target && this.segList.length) this.spawn(player);
@@ -274,6 +278,7 @@ export class Traffic {
     };
     for (const car of this.cars) put(car);
     for (const e of this.extras) put(e);
+    for (const p of this.parked) put(p);
     for (let k = i; k < this.shown; k++) for (const part in B) B[part].setVisibleAt(k, false);
     this.shown = i;
     this.mats.lamps.color.setScalar(0.7 + this.night * 3.5);
@@ -293,7 +298,66 @@ export class Traffic {
   }
 
   /** Is a circle at (x, z) touching any traffic vehicle? */
+  /**
+   * Parked vehicles along streets at least ~9 m wide (narrower lanes would block traffic):
+   * cars nose-to-tail at the kerb, rows of scooters and bikes angled in front of shops.
+   * Placement is seeded per road segment, so the same cars are there when you come back.
+   */
+  placeParked(player) {
+    this.parkAt = { x: player.pos.x, z: player.pos.z, v: this.tiles.version };
+    const R = 130, out = [];
+    const carTypes = ['wagonr', 'alto', 'swift', 'i10', 'dzire', 'city', 'ertiga', 'innova', 'creta', 'bolero', 'eeco', 'wagonr', 'swift', 'cabDzire'];
+    const twoTypes = ['scooter', 'scooter', 'bike', 'scooter', 'bullet'];
+    const tint = (type, h) => { const t = this.types[type].tints; return new THREE.Color(t[Math.floor(h * t.length) % t.length]); };
+    for (const seg of this.segList || []) {
+      const s = seg.s, hw = s[4];
+      if (hw < 4.5 || seg.len < 22) continue;
+      const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
+      if (Math.hypot(mx - player.pos.x, mz - player.pos.z) > R + seg.len / 2) continue;
+      const fx = (s[2] - s[0]) / seg.len, fz = (s[3] - s[1]) / seg.len;
+      let seed = (Math.abs(Math.round(s[0] * 7 + s[1] * 13 + s[2] * 3)) % 9973) + 1;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      for (const side of [1, -1]) {
+        if (side < 0 && !(s[5] & 2) && hw < 6) continue; // two-way streets under 12 m: one side only
+        // Left kerb when facing along the segment: right vector is (-fz, fx) → left is (fz, -fx).
+        const lx = fz * side, lz = -fx * side;
+        let d = 8 + rnd() * 6;
+        while (d < seg.len - 8 && out.length < this.parkMax) {
+          const x0 = s[0] + fx * d, z0 = s[1] + fz * d;
+          const pd = Math.hypot(x0 - player.pos.x, z0 - player.pos.z);
+          if (pd > R || pd < 7) { d += 6; continue; } // not on top of the player's taxi
+          const r = rnd();
+          if (r < 0.28) { d += 4 + rnd() * 8; continue; } // gap: a gate, a shop front, a hydrant
+          const heading = Math.atan2(fx * side, fz * side) + (rnd() < 0.15 ? Math.PI : 0);
+          if (r < 0.5) {
+            // A row of two-wheelers, angled to the kerb.
+            const n = 2 + Math.floor(rnd() * 5);
+            for (let k = 0; k < n && out.length < this.parkMax; k++) {
+              const type = twoTypes[Math.floor(rnd() * twoTypes.length)], o = hw - 0.9;
+              out.push({ type, x: x0 + fx * k * 0.85 + lx * o, z: z0 + fz * k * 0.85 + lz * o, heading: Math.atan2(lx, lz) + Math.PI + 0.5, tint: tint(type, rnd()), parked: true });
+            }
+            d += n * 0.85 + 1.5;
+          } else {
+            const type = carTypes[Math.floor(rnd() * carTypes.length)], T = this.types[type], o = hw - T.wid / 2 - 0.25;
+            out.push({ type, x: x0 + fx * T.len / 2 + lx * o, z: z0 + fz * T.len / 2 + lz * o, heading, tint: tint(type, rnd()), parked: true });
+            d += T.len + 0.6 + rnd() * 1.2;
+          }
+        }
+      }
+    }
+    this.parked = out;
+  }
+
   hits(x, z, r) {
+    for (const car of this.parked) {
+      if (Math.abs(x - car.x) > 4 || Math.abs(z - car.z) > 4) continue;
+      const type = this.types[car.type];
+      const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
+      const dx = x - car.x, dz = z - car.z;
+      const along = THREE.MathUtils.clamp(dx * fx + dz * fz, -type.len / 2 + type.wid / 2, type.len / 2 - type.wid / 2);
+      const cx = car.x + fx * along, cz = car.z + fz * along;
+      if ((x - cx) ** 2 + (z - cz) ** 2 < (r + type.wid / 2) ** 2) return true;
+    }
     for (const car of this.cars) {
       const type = this.types[car.type];
       const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
