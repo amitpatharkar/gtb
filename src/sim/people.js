@@ -197,14 +197,14 @@ export class PeopleRenderer {
   occludes(p) {
     if (!this.cam || p.isPlayer) return false;
     const c = this.cam, f = this.focus;
-    const px = p.x - c.x, py = (p.y || 0) + 1 - c.y, pz = p.z - c.z;
-    if (px * px + py * py + pz * pz < 2.2) return true;
+    const px = p.x - c.x, py = (p.y || 0) + 1.2 - c.y, pz = p.z - c.z;
+    if (px * px + py * py + pz * pz < 4) return true;
     if (!f) return false;
     const fx = f.x - c.x, fy = f.y + 1 - c.y, fz = f.z - c.z, ff = fx * fx + fy * fy + fz * fz || 1;
     const t = (px * fx + py * fy + pz * fz) / ff;
     if (t <= 0 || t >= 0.92) return false;
     const dx = px - fx * t, dy = py - fy * t, dz = pz - fz * t;
-    return dx * dx + dy * dy + dz * dz < 0.55;
+    return dx * dx + dy * dy + dz * dz < 1.0;
   }
 
   add(p) {

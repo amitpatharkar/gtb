@@ -11,6 +11,25 @@ export class Minimap {
     this.timer = 0;
   }
 
+  /** Path2D outlines of a tile's land and its roads (minor and main). */
+  paths(t) {
+    const land = new Path2D(), main = new Path2D(), minor = new Path2D();
+    const w = t.collide.walkable;
+    for (let r = 0; r < w.ringStart.length - 1; r++) {
+      const s = w.ringStart[r], e = w.ringStart[r + 1];
+      for (let k = s; k < e; k++) (k === s ? land.moveTo : land.lineTo).call(land, w.coords[k * 2], w.coords[k * 2 + 1]);
+      land.closePath();
+    }
+    const rd = t.collide.roads;
+    for (let i = 0; i < rd.count; i++) {
+      const o = i * 6, f = rd.segs[o + 5];
+      if (!(f & 1)) continue;
+      const p = f & 4 ? main : minor;
+      p.moveTo(rd.segs[o], rd.segs[o + 1]); p.lineTo(rd.segs[o + 2], rd.segs[o + 3]);
+    }
+    return { land, main, minor };
+  }
+
   update(dt, player, traffic) {
     this.timer -= dt;
     if (this.timer > 0) return;
@@ -26,36 +45,20 @@ export class Minimap {
     g.rotate(Math.PI + h); // heading up
     g.scale(scale, scale);
     g.translate(-px, -pz);
-    // Land
-    g.fillStyle = '#c9c1b0';
+    // Land and roads: one cached Path2D set per tile (built once, drawn with the transform).
+    const vis = [];
     for (const t of this.tiles.tiles.values()) {
       const [x0, z0, x1, z1] = t.clip;
       if (x1 < px - R || x0 > px + R || z1 < pz - R || z0 > pz + R) continue;
-      const w = t.collide.walkable;
-      g.beginPath();
-      for (let r = 0; r < w.ringStart.length - 1; r++) {
-        const s = w.ringStart[r], e = w.ringStart[r + 1];
-        for (let k = s; k < e; k++) (k === s ? g.moveTo : g.lineTo).call(g, w.coords[k * 2], w.coords[k * 2 + 1]);
-        g.closePath();
-      }
-      g.fill('evenodd');
+      vis.push(t._radar ||= this.paths(t));
     }
-    // Roads
-    g.lineCap = 'round';
-    for (const pass of [0, 1]) {
-      g.strokeStyle = pass ? '#ffffff' : '#7c7c80';
-      for (const t of this.tiles.tiles.values()) {
-        const [x0, z0, x1, z1] = t.clip;
-        if (x1 < px - R || x0 > px + R || z1 < pz - R || z0 > pz + R) continue;
-        const rd = t.collide.roads;
-        for (let i = 0; i < rd.count; i++) {
-          const o = i * 6, f = rd.segs[o + 5];
-          if (!(f & 1) || !!(f & 4) !== !!pass) continue;
-          g.lineWidth = Math.max(rd.segs[o + 4] * 2, 5 / scale);
-          g.beginPath(); g.moveTo(rd.segs[o], rd.segs[o + 1]); g.lineTo(rd.segs[o + 2], rd.segs[o + 3]); g.stroke();
-        }
-      }
-    }
+    g.fillStyle = '#c9c1b0';
+    for (const p of vis) g.fill(p.land, 'evenodd');
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.strokeStyle = '#7c7c80'; g.lineWidth = Math.max(9, 5 / scale);
+    for (const p of vis) g.stroke(p.minor);
+    g.strokeStyle = '#ffffff'; g.lineWidth = Math.max(14, 6 / scale);
+    for (const p of vis) g.stroke(p.main);
     // GPS route and waypoint
     const nav = this.nav;
     if (nav?.route) {

@@ -193,6 +193,8 @@ export class CityMap {
     this.routeT = 1.5;
     const from = this.nearest(player.pos.x, player.pos.z, player.heading);
     const r = this.path(from, this.goal);
+    // Drop route nodes right next to the player so the line starts cleanly ahead.
+    while (r && r.length > 2 && Math.hypot(r[0][0] - player.pos.x, r[0][1] - player.pos.z) < 8) r.shift();
     this.route = r ? [[player.pos.x, player.pos.z], ...r, [this.waypoint.x, this.waypoint.z]] : null;
   }
 

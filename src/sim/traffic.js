@@ -18,7 +18,7 @@ export class Traffic {
   constructor(scene, tiles, tier) {
     this.scene = scene;
     this.tiles = tiles;
-    this.max = tier.name === 'High' ? 70 : tier.name === 'Medium' ? 44 : 24;
+    this.max = tier.name === 'High' ? 110 : tier.name === 'Medium' ? 80 : 55; // Mumbai is busy
     this.types = buildFleet();
     this.typeNames = Object.keys(this.types);
     this.totalWeight = this.typeNames.reduce((s, n) => s + this.types[n].weight, 0);
@@ -119,7 +119,7 @@ export class Traffic {
       const s = seg.s;
       const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
       const d = Math.hypot(mx - player.pos.x, mz - player.pos.z);
-      if (d < 60 || d > 260) continue;
+      if (d < 45 || d > 220) continue;
       const type = this.pickType();
       if (type === 'bus' && !(s[5] & 4)) continue; // buses stick to main roads
       const oneway = s[5] & 2;
@@ -182,7 +182,7 @@ export class Traffic {
       const check = (x, z, len) => {
         const dx = x - car.x, dz = z - car.z;
         const along = dx * fx + dz * fz, lateral = Math.abs(dx * fz - dz * fx);
-        if (along > 0 && lateral < 1.9) gap = Math.min(gap, along - (type.len + len) / 2);
+        if (along > 0 && lateral < (car.squeeze ? 1.3 : 1.9)) gap = Math.min(gap, along - (type.len + len) / 2);
       };
       for (const o of this.cars) if (o !== car) check(o.x, o.z, this.types[o.type].len);
       check(player.pos.x, player.pos.z, 3.7);
@@ -217,6 +217,12 @@ export class Traffic {
       car.speed += THREE.MathUtils.clamp(want - car.speed, -decel * dt, 2.5 * dt);
       car.wait = car.speed < 0.5 && gap < 6 && !atRed && !car.pulled ? car.wait + dt : 0;
       if (car.wait > 2.5) { this.honks.push([car.x, car.z]); car.wait = -4; }
+      // Mumbai driving: stuck behind someone (not at a red light)? Squeeze past on the right,
+      // into the oncoming lane if need be. And honk for no reason now and then.
+      if (gap < 7 && car.speed < 2.5 && !atRed && !car.pulled && type.len < 6) car.blockedT = (car.blockedT || 0) + dt; else car.blockedT = Math.max(0, (car.blockedT || 0) - dt * 0.5);
+      if (car.blockedT > 1.8 && !car.squeeze) { car.squeeze = 4 + Math.random() * 3; if (Math.random() < 0.6) this.honks.push([car.x, car.z]); }
+      if (car.squeeze) { car.squeeze -= dt; if (car.squeeze <= 0) car.squeeze = 0; }
+      if (Math.random() < dt * 0.015 * (0.3 + jam)) this.honks.push([car.x, car.z]);
       car.t += (car.speed * dt) / car.seg.len;
       while (car.t >= 1) { car.t -= 1; this.advance(car); }
       const s2 = car.seg.s;
@@ -224,7 +230,9 @@ export class Traffic {
       const gx = ((s2[2] - s2[0]) / car.seg.len) * car.dir, gz = ((s2[3] - s2[1]) / car.seg.len) * car.dir;
       const [lx, lz] = LEFT(gx, gz);
       const two = !(s2[5] & 2);
-      const laneWant = car.pulled ? Math.max(0, s2[4] - type.wid / 2 - 0.25) : (two ? Math.min(s2[4] * 0.5, 1.9) : 0) + Math.min(car.kerb, Math.max(0, s2[4] - 1.2));
+      const laneWant = car.pulled ? Math.max(0, s2[4] - type.wid / 2 - 0.25)
+        : car.squeeze ? (two ? Math.min(s2[4] * 0.5, 1.9) : 0) - 2.4
+        : (two ? Math.min(s2[4] * 0.5, 1.9) : 0) + Math.min(car.kerb, Math.max(0, s2[4] - 1.2));
       car.lane += (laneWant - car.lane) * Math.min(1, dt * 1.5);
       const lane = car.lane;
       const px = s2[0] + (s2[2] - s2[0]) * t + lx * lane, pz = s2[1] + (s2[3] - s2[1]) * t + lz * lane;

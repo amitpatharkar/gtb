@@ -20,6 +20,7 @@ import { Bubbles } from './ui/bubbles.js';
 import { StreetLife } from './sim/street.js';
 import { Animals } from './sim/animals.js';
 import { CityMap } from './ui/cityMap.js';
+import { Navigator } from './ui/navigator.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
 import { Phone } from './ui/phone.js';
@@ -90,12 +91,13 @@ const traffic = new Traffic(scene, tiles, tier);
 const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
 const signals = new Signals(scene);
 traffic.signals = signals;
-const people = new PeopleRenderer(scene, tier.name === 'Low' ? 150 : 400);
+const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
 const bubbles = new Bubbles(document.body);
 const audio = new CityAudio(lib);
 const minimap = new Minimap($('minimap'), tiles, index.fuel || []);
 const cityMap = new CityMap({ index, baseUrl: `${BASE}tiles/`, fuel: index.fuel || [], hud: { message: (t) => say(t, 4) } });
 minimap.nav = cityMap;
+const navigator = new Navigator(scene, cityMap, tiles);
 $('minimap').addEventListener('click', () => cityMap.toggle(true, player));
 
 // The player drives a kaali-peeli taxi (auto-rickshaws aren't allowed in South Mumbai).
@@ -395,6 +397,9 @@ function choice(title, options) {
 // ------------------------------------------------------------------ loop
 window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const timer = new THREE.Timer();
+// Shadows: redraw the shadow map every frame on High, every other frame below.
+renderer.shadowMap.autoUpdate = false;
+let frameNo = 0;
 const crosshair = $('crosshair');
 let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 renderer.setAnimationLoop((time) => {
@@ -406,6 +411,7 @@ renderer.setAnimationLoop((time) => {
   document.body.classList.toggle('onfoot', onFoot);
   if (input.reset) { input.reset = false; teleportHome(); }
   step(dt);
+  renderer.shadowMap.needsUpdate = tier.name === 'High' || (frameNo++ & 1) === 0;
   post.render();
 });
 
@@ -487,6 +493,8 @@ function step(dt) {
   }
   audio.update(seaFactor, clock.traffic, clock.daylight);
   cityMap.update(dt, onFoot ? walker : player);
+  navigator.speech = settings.speech !== false;
+  navigator.update(dt, onFoot ? walker : player, !onFoot);
   state.update(dt, clock);
   jobs.focus = onFoot ? walker : player;
   jobs.update(dt, player);

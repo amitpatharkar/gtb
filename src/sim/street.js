@@ -39,7 +39,7 @@ const ARGUE = ['Ae! Andha hai kya?!', 'Meri gaadi thok di!', 'Nuksaan kaun dega?
 export class StreetLife {
   constructor({ scene, tiles, traffic, signals, people, animals, bubbles, audio, police, tier, hud }) {
     Object.assign(this, { scene, tiles, traffic, signals, people, animals, bubbles, audio, police, hud });
-    this.maxPeds = tier.name === 'High' ? 90 : tier.name === 'Medium' ? 60 : 30;
+    this.maxPeds = tier.name === 'High' ? 170 : tier.name === 'Medium' ? 120 : 75; // crowds, not a ghost town
     this.peds = [];
     this.fixtures = new Map();
     this.scanT = 0;
@@ -104,11 +104,11 @@ export class StreetLife {
 
   spawnPed(player, hour) {
     const segs = this.traffic.segList;
-    for (let tries = 0; tries < 12 && segs.length; tries++) {
+    for (let tries = 0; tries < 30 && segs.length; tries++) {
       const seg = segs[Math.floor(Math.random() * segs.length)], s = seg.s;
       const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
       const d = Math.hypot(mx - player.pos.x, mz - player.pos.z);
-      if (d < 25 || d > 120 || seg.len < 6) continue;
+      if (d < 18 || d > 120 || seg.len < 6) continue;
       const side = Math.random() < 0.5 ? 1 : -1;
       const off = this.footOffset(seg, side);
       if (off == null) continue;
@@ -143,7 +143,7 @@ export class StreetLife {
   updatePeds(dt, player, hour) {
     const want = Math.round(this.maxPeds * this.activity(hour));
     this.peds = this.peds.filter((p) => !p.dead && Math.hypot(p.x - player.pos.x, p.z - player.pos.z) < 150);
-    if (this.peds.length < want) this.spawnPed(player, hour);
+    for (let k = 0; k < 3 && this.peds.length < want; k++) this.spawnPed(player, hour);
     const pfx = Math.sin(player.heading), pfz = Math.cos(player.heading);
     for (const p of this.peds) {
       if (p.free) continue; // fighting, fleeing or knocked down: driven by the combat system

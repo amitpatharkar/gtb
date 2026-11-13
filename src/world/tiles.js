@@ -28,6 +28,7 @@ export class TileManager {
     this.tankGeo.translate(0, 0.75, 0);
     this.props = createProps();
     this.detailRadius = tier?.detailRadius ?? 300;
+    this.loadRadius = tier?.loadRadius ?? LOAD_RADIUS;   // smaller on Low: fewer tiles, fewer draw calls
   }
 
   async init(baseUrl) {
@@ -52,7 +53,7 @@ export class TileManager {
   }
 
   update(x, z) {
-    const s = this.size, r = Math.ceil(LOAD_RADIUS / s) + 1;
+    const s = this.size, r = Math.ceil(this.loadRadius / s) + 1;
     const ptx = Math.floor(x / s), ptz = Math.floor(z / s);
     const wanted = [];
     for (let tx = ptx - r; tx <= ptx + r; tx++) {
@@ -60,7 +61,7 @@ export class TileManager {
         const key = `${tx},${tz}`;
         if (!this.available.has(key) || this.tiles.has(key) || this.pending.has(key) || this.failed.has(key)) continue;
         const d = this.tileDistance(tx, tz, x, z);
-        if (d <= LOAD_RADIUS) wanted.push([d, tx, tz, key]);
+        if (d <= this.loadRadius) wanted.push([d, tx, tz, key]);
       }
     }
     wanted.sort((a, b) => a[0] - b[0]);
@@ -70,7 +71,7 @@ export class TileManager {
     }
     for (const [key, tile] of this.tiles) {
       const d = this.tileDistance(tile.tx, tile.tz, x, z);
-      if (d > UNLOAD_RADIUS) this.unload(key);
+      if (d > this.loadRadius + (UNLOAD_RADIUS - LOAD_RADIUS)) this.unload(key);
       else tile.detail.visible = d < this.detailRadius;
     }
   }
