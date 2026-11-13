@@ -27,6 +27,9 @@ const GUIDE = `
 <h3>Vehicles and crackers</h3>
 <p>On foot, <b>F</b> next to any vehicle gets in — yours, or anybody else's (drivers object, and so do the police). Your taxi stays where you left it; <b>R</b> tows you back to it. <b>Space</b> while steering at speed is a handbrake turn.</p>
 <p><b>X</b> lights a firecracker a step ahead, <b>Z</b> changes the type: anar, chakri, ladi, sutli bomb, sky shot. No crackers after 10 pm if a constable is watching.</p>
+<h3>Missions and things to find</h3>
+<p><b>Yellow markers</b> are the story, <b>blue markers</b> are side missions (some only at certain hours); both are on the map. Drive or walk into one to start; if you fail, go back to it to try again.</p>
+<p>Thirty-two <b>golden cutting-chai glasses</b> are hidden at famous places across the city, from Colaba to Powai — walk or drive through them. There are easter eggs too. Look closely at Powai Lake.</p>
 <h3>Developer cheats</h3>
 <p>Press <b>\`</b> (backquote; on a phone double-tap the clock) and type a code: ${CHEATS.map((c) => `<b>${c.code}</b> ${c.what}`).join(' · ')}.</p>`;
 

@@ -111,6 +111,8 @@ export class Combat {
   abuse() {
     if (this.cool > 0) return;
     this.cool = 0.8;
+    // Gandhigiri: with a rose in hand (from the stall at Mani Bhavan), offer it instead.
+    if (this.foe && this.giveRose?.(this.foe)) { this.foe.combat.mode = 'flee'; this.foe.combat.t = 4; this.foe.hp = 1; return; }
     this.say(this.walker, INSULTS);
     this.audio.bleep?.();
     for (const p of this.street.peds) {

@@ -142,9 +142,13 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   villa front; fans + constables are persistent people objects; the star is out by the clock (`hours`, `sunday`) or
   via `callOut()` (cheat DARSHAN); `story.playScene(lines, cam, done)` is the generic ad-hoc cutscene (letterbox,
   subtitles, Space skips; `story.busy`); first meeting gives a gift (`state.s.fanMeets`). Never real names/likeness.
+- `src/game/eggs.js` — things to find: 32 golden cutting-chai glasses (`CHAI` list of famous spots; snapped to the
+  nearest road once tiles load; walk or drive through; saved in `state.s.eggs.chai`) and easter eggs built lazily
+  near the player (crocodile in Powai Lake, Old Woman's Shoe, talkies marquee, flamingos, wax-taxi stall = daily
+  full repair, rose stall = `useRose()` ends a fight via `combat.giveRose`, tower guard); `markers()` for the map.
 - `src/game/cheats.js` — developer cheat console (` key or double-tap the clock; `window.__gtb.cheat(code)`):
   PAISAHIPAISA, CHALANMAAF, MAAMUCHUTTI, PETROLBHARO, AMRUT, SHAKTIMAAN, DHOOMMACHALE, JADOO (teleport to waypoint),
-  SUBAHHOGAYI, DOPEHER, RAATHOGAYI, TRAFFICJAM, DARSHAN (stars step out), DEBUGKARO (stats line); listed in the Guide
+  SUBAHHOGAYI, DOPEHER, RAATHOGAYI, TRAFFICJAM, DARSHAN (stars step out), CHAIPILO (chai spots on the map), DEBUGKARO (stats line); listed in the Guide
 - `src/ui/menu.js` — title screen (Continue/New/Settings/Guide/Credits), GTA-style loading screens (original SVG art,
   tips), Esc pause menu; settings in localStorage (`gtb.settings`: tier — Low by default —, volume, mouse sensitivity,
   invert Y, hints, spoken GPS, radio). Graphics changes reload via `gtb.resume` (sessionStorage) back into the game.

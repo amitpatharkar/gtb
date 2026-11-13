@@ -29,6 +29,7 @@ import { Cheats } from './game/cheats.js';
 import { Garage } from './vehicles/garage.js';
 import { Crackers } from './game/crackers.js';
 import { Stars } from './game/stars.js';
+import { Eggs } from './game/eggs.js';
 import { Story } from './game/story.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
@@ -334,7 +335,10 @@ garage.combat = combat;
 const crackers = new Crackers({ scene, tiles, audio, bubbles, street, police, traffic, hud, tier, renderer });
 // Fan meets at two (fictional) film stars' houses, in Bandra and Juhu.
 const stars = new Stars({ scene, tiles, index, people, bubbles, audio, hud, story, state, crackers, traffic });
-cityMap.markers = () => [...stars.markers(), ...story.markers()];
+// Hidden golden cutting-chai glasses and easter eggs.
+const eggs = new Eggs({ scene, tiles, index, state, hud, bubbles, people, audio, clock, damage });
+combat.giveRose = (foe) => eggs.useRose(foe, (o, text) => bubbles.say(o, text, 3)); // Gandhigiri: G with a rose ends a fight
+cityMap.markers = () => [...stars.markers(), ...story.markers(), ...eggs.markers(onFoot ? walker : player)];
 // Missions can reach into these systems (vehicle requirements, cracker counts, calling a star out, clearing challans).
 Object.assign(story.world, { stars, garage, crackers, police });
 crackers.onLit = (kind) => story.event('cracker', kind);
@@ -542,7 +546,7 @@ function choice(title, options) {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { THREE, garage, crackers, stars, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { THREE, garage, crackers, stars, eggs, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const cheats = new Cheats(window.__gtb, (t, s) => say(t, s));
 window.__gtb.cheat = (code) => cheats.enter(code);
 window.__gtb.cheats = cheats;
@@ -619,6 +623,7 @@ function step(dt) {
   if (!onFoot && !cutscene) combat.carVsPeople(player);
   crackers.update(dt, clock, active.pos, camera.position, onFoot ? walker : null);
   stars.update(dt, clock, active, clock.night);
+  eggs.update(dt, { player, onFoot, walker });
   story.update(dt, { player, onFoot, walker });
   if (onFoot) walker.draw(people, combat.weapon);
   else if (garage.rider) {
