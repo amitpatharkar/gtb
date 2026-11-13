@@ -27,6 +27,7 @@ import { Radio } from './radio.js';
 import { Characters } from './sim/characters.js';
 import { Cheats } from './game/cheats.js';
 import { Garage } from './vehicles/garage.js';
+import { Crackers } from './game/crackers.js';
 import { Story } from './game/story.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
@@ -262,7 +263,7 @@ function toggleFoot() {
     walker.heading = h; walker.speed = 0;
     onFoot = true;
     if (jobs.ride?.stage === 'ride') say('Your passenger is waiting in the taxi!', 3);
-    say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · F gets into the nearest vehicle', 6);
+    say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · X light a cracker (Z changes it) · F gets into the nearest vehicle', 6);
   } else {
     // Nearest of: what you were driving, your parked taxi, anything else on the street.
     const wx = walker.pos.x, wz = walker.pos.z;
@@ -328,6 +329,8 @@ placeCamera(0);
 combat = new Combat({ scene, street, police, bubbles, audio, hud, tiles, walker, pichkari, view });
 pichkari.ctx.combat = combat;
 garage.combat = combat;
+// Phatake: firecrackers the player can light on foot (X; Z changes type); the city lights its own on evenings.
+const crackers = new Crackers({ scene, tiles, audio, bubbles, street, police, traffic, hud, tier, renderer });
 // Collisions with other vehicles: riders come off their bikes, drivers shout, hard hits are hit-and-run.
 traffic.onRiderDown = (bike) => { garage.eject(bike, null, 'down'); if (!onFoot) police.offence('hitrun', player); };
 traffic.onShunt = (car, dv) => { if (dv > 1.5) bubbles.say(car, ['Arre! Andha hai kya?!', 'Gaadi thok di!', 'Dekh ke chala!', 'Mera bumper!'][Math.floor(Math.random() * 4)], 2.5, 'driver'); };
@@ -421,6 +424,8 @@ addEventListener('keydown', (e) => {
   if (onFoot && e.code === 'Digit2') combat.setWeapon('pichkari');
   if (onFoot && e.code === 'KeyV') combat.kick();
   if (onFoot && e.code === 'KeyG') combat.abuse();
+  if (onFoot && e.code === 'KeyX') crackers.playerLight(walker, clock);
+  if (onFoot && e.code === 'KeyZ') crackers.next();
   if (onFoot && e.code === 'BracketRight') pichkari.setPressure(pichkari.pressure + 1);
   if (onFoot && e.code === 'BracketLeft') pichkari.setPressure(pichkari.pressure - 1);
   if (e.code === 'KeyE') interact();
@@ -530,7 +535,7 @@ function choice(title, options) {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { THREE, garage, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { THREE, garage, crackers, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const cheats = new Cheats(window.__gtb, (t, s) => say(t, s));
 window.__gtb.cheat = (code) => cheats.enter(code);
 window.__gtb.cheats = cheats;
@@ -605,6 +610,7 @@ function step(dt) {
   street.update(dt, active, clock);
   combat.update(dt, { fire: input.fire || input.brake }, onFoot);
   if (!onFoot && !cutscene) combat.carVsPeople(player);
+  crackers.update(dt, clock, active.pos, camera.position, onFoot ? walker : null);
   story.update(dt, { player, onFoot, walker });
   if (onFoot) walker.draw(people, combat.weapon);
   else if (garage.rider) {
@@ -715,6 +721,7 @@ function updateHud() {
     $('weapon').innerHTML = combat.weapon === 'pichkari'
       ? `💦 <b>Pichkari</b> <i style="background:#${HOLI[pichkari.colour].getHexString()}"></i>${pichkari.colourName} · Pressure ${'●'.repeat(pichkari.pressure)}${'○'.repeat(5 - pichkari.pressure)} · Tank ${Math.round(pichkari.tank * 100)}%`
       : '👊 <b>Fists</b> · click punch · V kick · G insult';
+    $('weapon').innerHTML += ` · 🎆 X: ${crackers.current.name.split(' (')[0]}`;
   }
   $('food-bar').style.width = `${Math.round(state.s.hunger * 100)}%`;
   $('food-bar').style.background = state.s.hunger < 0.2 ? '#e74c3c' : '#f39c12';

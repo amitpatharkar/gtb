@@ -23,6 +23,9 @@ const GUIDE = `
 <p>Red lights, wrong way on one-ways, driving on the footpath and street fights earn challan stars — but only if a constable or patrol car sees it. Stop by the constable to pay, or lose them by staying out of sight.</p>
 <h3>Map</h3>
 <p><b>Tab</b> (or tap the radar): the city map. Tap anywhere for a waypoint; the GPS shows the way. <b>T</b> skips an hour, <b>M</b> mutes, <b>R</b> resets to the start, <b>?</b> shows the key list.</p>
+<h3>Vehicles and crackers</h3>
+<p>On foot, <b>F</b> next to any vehicle gets in — yours, or anybody else's (drivers object, and so do the police). Your taxi stays where you left it; <b>R</b> tows you back to it. <b>Space</b> while steering at speed is a handbrake turn.</p>
+<p><b>X</b> lights a firecracker a step ahead, <b>Z</b> changes the type: anar, chakri, ladi, sutli bomb, sky shot. No crackers after 10 pm if a constable is watching.</p>
 <h3>Developer cheats</h3>
 <p>Press <b>\`</b> (backquote; on a phone double-tap the clock) and type a code: ${CHEATS.map((c) => `<b>${c.code}</b> ${c.what}`).join(' · ')}.</p>`;
 

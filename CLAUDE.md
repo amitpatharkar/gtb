@@ -132,6 +132,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   peds driven by combat.js; `police.offence('theft')`. Collisions: car.js asks `world.bodyAt()` (traffic.js) and
   exchanges momentum by mass; `traffic.shove()` slides/spins vehicles (`knock`/`recover` for driven cars, parked →
   `left` with `movedKeys`, two-wheelers `roll` over, `onRiderDown`); `combat.carVsPeople()` knocks people down.
+- `src/game/crackers.js` — firecrackers: one additive `Points` particle system (packed arrays, swap-remove),
+  synthesised bangs/crackle/hiss/whistle with distance delay; types anar, chakri, ladi, bomb, rocket (shells: peony,
+  ring, willow, glitter); `playerLight()` (X, Z = next type), evening ambience (`shell()` over rooftops, peds
+  lighting crackers), `startle()`; `police.offence('noise')` after 10 pm.
 - `src/game/cheats.js` — developer cheat console (` key or double-tap the clock; `window.__gtb.cheat(code)`):
   PAISAHIPAISA, CHALANMAAF, MAAMUCHUTTI, PETROLBHARO, AMRUT, SHAKTIMAAN, DHOOMMACHALE, JADOO (teleport to waypoint),
   SUBAHHOGAYI, DOPEHER, RAATHOGAYI, TRAFFICJAM, DEBUGKARO (stats line); listed in the Guide
@@ -169,7 +173,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/rickshaw.js` — old auto-rickshaw (unused in South Mumbai; keep for the suburbs, where autos are allowed)
 - `src/input.js` — keyboard and touch (Shift = run, fire/aim touch buttons); keys in main.js: H horn, E interact
   (refuel + repair menu / snack), F out/in of the taxi, Tab map, P phone, J taxi duty, N radio, Esc pause, ? key list,
-  on foot 1 fists / 2 pichkari, V kick, G insult, C colour, [ ] pressure; T +1 hour, M mute, Q graphics, R reset
+  on foot 1 fists / 2 pichkari, V kick, G insult, C colour, [ ] pressure, X light a cracker, Z cracker type,
+  F into the nearest vehicle (anyone's); ` cheat console; T +1 hour, M mute, Q graphics, R reset
 - `scripts/build-tiles.mjs` — converter (`npm run tiles`, ~7 s): v1 steps plus streets via Clipper (`lib/clip.mjs`:
   road surface union, footpaths by class, plots, parks cut out of plots), markings/crossings/trees/lights/stalls/
   garbage/potholes/puddles (`lib/streets.mjs`), building style + colour by district (`lib/districts.mjs`, from the
