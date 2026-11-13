@@ -62,7 +62,9 @@ export class Walker {
     // Slide along walls instead of stopping dead.
     if (!world.hits(this.pos.x + dx, this.pos.z, 0.3)) this.pos.x += dx;
     if (!world.hits(this.pos.x, this.pos.z + dz, 0.3)) this.pos.z += dz;
-    this.pos.y += (this.tiles.groundHeight(this.pos.x, this.pos.z) - this.pos.y) * Math.min(1, dt * 15);
+    // The floor: the street, or the room's own (stairs included) when the world provides it.
+    const ground = world.groundHeight ? world.groundHeight(this.pos.x, this.pos.z) : this.tiles.groundHeight(this.pos.x, this.pos.z);
+    this.pos.y += (ground - this.pos.y) * Math.min(1, dt * 15);
     this.phase += dt * Math.abs(this.speed) * 4.3;
     this.attacking = Math.max(0, (this.attacking || 0) - dt);
   }

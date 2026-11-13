@@ -174,6 +174,14 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/landmarks.js` — hand-built Gateway of Indiyaa, Royal Chaj Mahal Palace (generic, not the trademarked
   facade), Chhatrapati Chai Terminus, BMC HQ, Rajabhai clock tower, fitted to OSM footprints (converter `LANDMARKS`:
   outline found by name, flagged `BUILDING_FLAG.HIDDEN` = collide only, `index.landmarks` = x, z, angle, w, d)
+- `src/world/interiors.js` + `interiors/` (`kit.js` room-building kit, `terminus.js`, `palace.js`, `cafe.js`, `flat.js`)
+  — places to walk into: glowing street doors (E on foot), fade, rooms built on first entry 4 km west of the map and
+  300 m up, drawn alone on camera layer 1; `inside`, `anchor` (a stand-in at the street door: tiles, traffic,
+  police, street life, jobs, minimap and GPS get it instead of the walker — `active` in `step()`), `world`
+  (`hits`/`groundHeight` for the walker), `keepCamera`, `interact()`, `blocks(code)`, `cull(list)`, `markers()`,
+  `enter(id)`/`exit()` (ids terminus, palace, cafe, flat). Nothing is saved indoors. Floors are cut into 4 m cells
+  (a single large quad drew over objects in SwiftShader). On foot the vehicle left behind gets `PARKED` input
+  (handbrake on) so traffic cannot push it away.
 - `src/world/models.js` — glTF/GLB → instanced meshes (metres, base on ground); `src/world/streetProps.js` — Poly Haven
   chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
 - `src/sim/characters.js` — Quaternius rigged characters (from the pipeline's `converted/` GLBs, only if listed in
@@ -274,6 +282,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   tier load radius and shadow throttling; landmarks; Poly Haven props; radio; Bhookh delivery job; wardrobe; hawaldar
   pay/argue/run; baraat and cricket-window events. Asset pipeline: Blender on Ubuntu needs `python3-numpy`;
   `_convert.log` next to each pack on the `assets` branch shows conversion results.
+- Done (2026-11-13, night): easter eggs and chai glasses; autos (suburbs only), tankers, garbage trucks, ambulances,
+  school buses, bicycles; auto duty; 22 missions (lent vehicles, fees); rooftop hoardings; far skyline; trousers,
+  shoes and saris; engine voices; pigeons and kites; four interiors. Fix: traffic was invisible in the suburbs.
 - Done (2026-11-13, evening — details and status per item in `docs/plan.md`): five reviews + plan; Indian traffic
   fleet (lofted bodies, BatchedMesh, LOD) and parked vehicles; driving physics (slide along walls, grip, handbrake,
   momentum exchange by mass, people knocked down); take and drive any vehicle; cheats; faster loading (prefetch, gated

@@ -82,6 +82,8 @@ export async function createEnvironment(renderer, scene, bounds, tier, lib) {
   const up = new THREE.Vector3(0, 1, 0);
   return {
     sun,
+    hemi,   // the indoor lighting (interiors.js) switches the sky fill and the moon off
+    moon,
     sunDir,
     /** Move the sun with the clock; sky, haze and exposure follow daylight and air quality. */
     update(dt, focus, clock) {
