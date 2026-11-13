@@ -178,7 +178,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   11/20/30 within 34–46 m); people.js draws in two phases (`beforeEnd` picks heroes). Each character is ONE skinned
   mesh / draw call (merged in `prepare()`, `aSlot`/`aBase` attributes, per-character colour uniforms; "Face" = eyes).
   The pack's models wear shorts and no shoes: bare leg skin gets slot `leg` (trouser colour for adults, skin for
-  the `kid` build) and feet slot `shoe`, by dominant skin bone.
+  the `kid` build) and feet slot `shoe`, by dominant skin bone. About 62 % of women wear a sari: `sariGeometry()` (skirt +
+  pallu, a rigid mesh in metres on the character's holder, border colour per person; hidden when sitting or down).
   **Adult bodies:** the pack has a child's proportions, so `rig()` + `shapeBody()` scale bones along/across their
   own axes (`ADULT` male/female: legs ×1.45, head ×0.56, shorter torso, wider shoulders, longer arms) and every
   child bone cancels its parent's scale (`compensate()` overrides `updateMatrix`) so joints never shear. The feet are

@@ -154,6 +154,42 @@ function characterMaterial() {
   return m;
 }
 
+/**
+ * A sari for the real characters: a skirt from waist to ankle and the pallu, the end of the
+ * cloth that crosses the chest and falls over the left shoulder. One small rigid mesh in
+ * metres (child of the character's holder); `mask` marks the border, coloured per person.
+ */
+function sariGeometry() {
+  const pos = [], mask = [], idx = [];
+  const v = (x, y, z, m) => { pos.push(x, y, z); mask.push(m); return pos.length / 3 - 1; };
+  // Skirt: rings of an elliptical cone, a border band at the hem.
+  const N = 14, rings = [[0.985, 0.168, 0.128, 0], [0.62, 0.215, 0.185, 0], [0.16, 0.285, 0.275, 0], [0.155, 0.287, 0.277, 1], [0.045, 0.292, 0.282, 1]];
+  const start = [];
+  for (const [y, rx, rz, m] of rings) {
+    start.push(pos.length / 3);
+    for (let i = 0; i <= N; i++) { const a = (i / N) * Math.PI * 2; v(Math.sin(a) * rx, y, Math.cos(a) * rz + 0.012, m); }
+  }
+  for (let r = 0; r + 1 < rings.length; r++) for (let i = 0; i < N; i++) { const a = start[r] + i, b = start[r + 1] + i; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+  // Pallu: a ribbon from the right hip, across the chest, over the left shoulder and down the back.
+  const path = [[-0.15, 0.97, 0.125], [-0.04, 1.14, 0.15], [0.09, 1.3, 0.125], [0.165, 1.405, 0.03], [0.17, 1.39, -0.07], [0.16, 1.12, -0.135], [0.15, 0.78, -0.15]];
+  const w = 0.085;
+  let prev = null;
+  path.forEach(([x, y, z], i) => {
+    // Width runs across the body on the chest, and across the back behind.
+    const a = v(x - w, y - (i < 3 ? 0.03 : 0), z, i === path.length - 1 ? 1 : 0), b = v(x + w, y + (i < 3 ? 0.03 : 0), z, i === path.length - 1 ? 1 : 0);
+    if (prev) idx.push(prev[0], a, prev[1], prev[1], a, b);
+    prev = [a, b];
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(pos.length), 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  g.userData.mask = mask;
+  return g;
+}
+let SARI_GEO = null;
+
 export class Characters {
   constructor(scene, base, tier, lib = null, started = Promise.resolve()) {
     this.scene = scene;
@@ -329,6 +365,23 @@ export class Characters {
     // Black to dark-brown hair, a little grey on some.
     p.hair ??= new THREE.Color().setHSL(0.07, 0.35, Math.random() < 0.1 ? 0.2 : 0.03 + Math.random() * 0.04);
     c.u.uHair.value.copy(p.hair);
+    // Most women wear a sari over the blouse (the rest: salwar or trousers).
+    if (c.t.female && p.build !== 'kid' && !p.isPlayer) p.sari ??= Math.random() < 0.62;
+    c.wearSari = !!p.sari && c.t.female;
+    if (c.wearSari) {
+      if (!c.sari) {
+        SARI_GEO ||= sariGeometry();
+        const geo = SARI_GEO.clone(); geo.userData.mask = SARI_GEO.userData.mask;
+        c.sari = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.78 }));
+        c.sari.castShadow = true; c.sari.frustumCulled = false;
+        c.holder.add(c.sari);
+      }
+      p.sariBorder ??= new THREE.Color([0xd9a21b, 0xe8c15a, 0xb3122a, 0x0f6b4f, 0xf2efe6][Math.floor(Math.random() * 5)]);
+      const col = c.sari.geometry.attributes.color, mask = c.sari.geometry.userData.mask, body = c.u.uPants.value, edge = p.sariBorder;
+      for (let i = 0; i < col.count; i++) { const k = mask[i] ? edge : body; col.setXYZ(i, k.r, k.g, k.b); }
+      col.needsUpdate = true;
+    }
+    if (c.sari) c.sari.visible = c.wearSari;
     const hat = (p.flags || 0) & 1 ? 'cap' : (p.flags || 0) & 4 ? 'helmet' : null;
     if (c.cap) c.cap.visible = false;
     c.cap = null;
@@ -451,6 +504,7 @@ export class Characters {
       y += 0.025 * run;
       if (run > 0 && c.current) y += Math.abs(Math.sin((c.current.time * Math.PI * 2) / c.current.getClip().duration)) * 0.045 * run;
       c.holder.position.set(p.x, y, p.z);
+      if (c.sari) { c.sari.visible = c.wearSari && !fallen && !sitting; c.sari.scale.setScalar(s * (c.t.female ? 1 : 1.08)); }
       // Far characters animate at half rate.
       const far = (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2 > 24 * 24 && !p.isPlayer;
       if (!far || (this.frame & 1) === 0) {
