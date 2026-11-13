@@ -199,7 +199,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   slides cost %), `lend` (a vehicle of a given type parked at the kerb for the mission: `traffic.left` entry with
   `lent` + `taken`, re-lent after a reload or if towed; F prefers it over the taxi), `pickup` with `on` (passenger in any
   vehicle; shown on the bench of an auto), `visit` (several stops), `race` (checkpoints; the clock starts when you ride off), `catch` (a
-  runaway penguin on foot), `task` rides/colour/crackers (`story.event('cracker', kind)`), `call`, `reward`.
+  runaway penguin on foot), `task` rides/colour/crackers (`story.event('cracker', kind)`), `pay` (a fee; waits until affordable), `call`, `reward`.
   Fail → retry from the marker. Script coordinates are places: `snap()` moves markers/targets onto the nearest
   road once tiles are loaded. `story.world` gives missions access to stars, garage, crackers, police.
   `story.playScene()` runs ad-hoc cutscenes. Saved in `state.s.story` (mission + step; re-entered after a reload).

@@ -12,7 +12,7 @@ import { HOME } from './state.js';
 // (mission and step); a save taken mid-step re-enters that step.
 
 const MARK = { story: 0xf7c600, side: 0x35b6ff, target: 0x9cf0ff };
-const ON_TEXT = { foot: 'on foot', vehicle: 'in a vehicle', taxi: 'in your taxi', two: 'on a two-wheeler', swift: 'in a Maroti Swyft', auto: 'in the auto-rickshaw', tanker: 'in the water tanker', ambulance: 'in the ambulance', school: 'in the school bus', cycle: 'on the bicycle' };
+const ON_TEXT = { foot: 'on foot', vehicle: 'in a vehicle', taxi: 'in your taxi', two: 'on a two-wheeler', swift: 'in a Maroti Swyft', auto: 'in the auto-rickshaw', tanker: 'in the water tanker', ambulance: 'in the ambulance', school: 'in the school bus', cycle: 'on the bicycle', bus: 'in the BEST bus', decker: 'in the double-decker' };
 const inHours = (h, [a, b]) => (a <= b ? h >= a && h < b : h >= a || h < b);
 const clockText = (h) => `${((Math.floor(h) + 11) % 12) + 1}${h % 1 ? ':30' : ''} ${h >= 12 && h < 24 ? 'pm' : 'am'}`;
 
@@ -423,6 +423,11 @@ export class Story {
       p.inTaxi = false; p.gone = true;
       this.bubbles.say(player.pos, st.line, 3, 'driver');
       this.next(ctx);
+    } else if (st.pay) {
+      // A fee: waits until the player can afford it.
+      const have = this.state.s.money;
+      objective = `${st.label || 'Pay'} — ₹${st.pay.toLocaleString('en-IN')} (you have ₹${Math.max(0, have).toLocaleString('en-IN')}${have < st.pay ? '; earn the rest with fares, J' : ''})`;
+      if (have >= st.pay) { this.state.earn(-st.pay, st.what || `Mission: ${m.title}`); if (st.line) this.bubbles.say(me.pos, st.line, 3); this.next(ctx); }
     } else if (st.waitHour) {
       const h = this.clock.hour;
       objective = `${st.label} · now ${this.clock.label}`;

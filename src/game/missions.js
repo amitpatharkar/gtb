@@ -12,6 +12,7 @@
 //   { goto: [x, z] | () => [x, z], label, on, limit, radius }   on: 'vehicle' | 'taxi' | 'two' | 'foot' | type name
 //   { pickup: id, at, line, on } / { dropoff: id, line }  a passenger (for the taxi unless `on` names a vehicle type)
 //   { waitHour: [from, to], label }
+//   { pay: rupees, label, what, line }                a fee; waits until the player has the money
 //   { cargo: { name, min, icon } } / { cargo: null }  something fragile on board until cleared
 //   { visit: [[x, z, label], ...], label, on, limit } several stops in any order
 //   { race: [[x, z], ...], label, on, limit }         checkpoints in order, against the clock
@@ -65,6 +66,10 @@ export function buildMissions(index, home) {
     wadala: ll(index, 19.0170, 72.8580),
     dadarTT: ll(index, 19.0183, 72.8478),
     hinduColony: ll(index, 19.0215, 72.8490),
+    rto: ll(index, 18.9690, 72.8135),          // the transport office, Tardeo
+    colabaDepot: ll(index, 18.9105, 72.8190),
+    regal: ll(index, 18.9255, 72.8320),
+    hanging: ll(index, 18.9565, 72.8052),
     thakurdwar: ll(index, 18.9535, 72.8215),
     khotachiwadi: ll(index, 18.9548, 72.8190),
     charni: ll(index, 18.9515, 72.8195),
@@ -119,6 +124,18 @@ export function buildMissions(index, home) {
         { cut: [['mamaji', 'Bhanje, ab tu Mumbaikar ho gaya. Powai mein ek flat dekha hai tere liye — Lake Breeze, barahvi manzil.'], ['mamaji', 'Lamba rasta hai: Dadar, Sion, phir Powai. GPS laga, aaraam se ja. Chaabi watchman ke paas hai.'], ['you', 'Apna ghar… Mumbai mein! Mamaji, aap great ho.']] },
         { goto: P.home, label: 'Drive home to Lake Breeze, Powai (the phone\'s Ghar app also has "GPS route home")', on: 'vehicle', radius: 60 },
         { reward: 3000, line: 'Ghar aa gaya! Lake ka view toh dekho.' },
+      ],
+    },
+
+    {
+      id: 'permit', title: 'Permit Raj', strand: 'story', after: 'ghar', hours: [9, 17], at: P.start, giver: 'mamaji',
+      cast: { babu: { name: 'Babu at counter 7', kind: 'office' } },
+      steps: [
+        { cut: [['mamaji', 'Bhanje, ek kaam reh gaya. Taxi ka permit is mahine khatam ho raha hai.'], ['mamaji', 'Tardeo ke RTO ja. Fitness test hoga — gaadi chamakti honi chahiye, nabbe percent se upar. Aur fees teen hazaar.'], ['you', 'Line kitni lambi hogi, Mamaji?'], ['mamaji', 'Beta, yeh Mumbai hai. Line hi toh zindagi hai.']] },
+        { goto: P.rto, label: 'Drive your taxi to the RTO in Tardeo — in good condition (repair at a petrol pump, E)', on: 'taxi', minCondition: 0.9, radius: 30 },
+        { cut: [['babu', 'Form 4A? Yeh toh Form 4B hai. Khidki number saat pe jao.'], ['you', 'Yeh khidki number saat hi hai…'], ['babu', 'Haan toh lunch ke baad aana. Achha theek hai, theek hai. Gaadi dikhao. Hmm. Chamak rahi hai. Fees?']] },
+        { pay: 3000, label: 'Pay the permit fee at the RTO', what: 'Taxi permit renewal', line: 'Stamp! Agle paanch saal ke liye permit pakka.' },
+        { reward: 4000, line: 'Mamaji: "Shabaash! Ab yeh taxi kaagaz pe bhi teri hai." (He sent the fee back on PayKaro, and a little more.)' },
       ],
     },
 
@@ -283,6 +300,32 @@ export function buildMissions(index, home) {
         { visit: [[...P.khotachiwadi, 'Khotachiwadi'], [...P.charni, 'The chawl by Charni Road'], [...P.operaHouse, 'Opera House building']], label: 'On the bicycle: deliver milk to all three buildings before chai time', on: 'cycle', limit: 330, fail: 'The lane woke up without chai. Nobody is speaking to Yadav.' },
         { cargo: null },
         { reward: 500, line: 'Doodh time pe! Yeh lo, ek glass taaza doodh.', also: (w) => w.state.eat?.(1) },
+      ],
+    },
+    {
+      id: 'bus', title: 'BEST Of Luck', strand: 'side', after: 'welcome', hours: [7, 21], at: P.colabaDepot, giver: 'conductor',
+      cast: { conductor: { name: 'Conductor Kamble', kind: 'khaki', cap: true } },
+      steps: [
+        { cut: [['conductor', 'Arre driver saab nahi aaye aaj! Bus bhari hai, log chilla rahe hain.'], ['conductor', 'Tum taxi chalate ho na? Bas thodi lambi taxi samjho. Chaar stop, phir Crawford Market. Aaraam se — log khade hain!'], ['you', 'Ticket, ticket! …Yeh aap bolo, main chalata hoon.']] },
+        { lend: 'bus', at: P.colabaDepot },
+        { cargo: { name: 'Standing passengers', min: 0.4, icon: '🚌' } },
+        { visit: [[...P.regal, 'Bus stop: Regal Circle'], [...P.fountain, 'Bus stop: Flora Fountain'], [...P.terminusRoad, 'Bus stop: Chai Terminus']], label: 'In the BEST bus: stop at all three bus stops', on: 'bus', limit: 420, fail: 'The passengers got off and took taxis. Kamble is writing a report.' },
+        { goto: P.crawford, label: 'Last stop: Crawford Market', on: 'bus', limit: 200, radius: 30, fail: 'Too late: the 138 behind you overtook. Twice.' },
+        { cargo: null },
+        { reward: 1400, line: 'Last stop! Sab utro. Driver saab, kal bhi aa jao!' },
+      ],
+    },
+    {
+      id: 'darshan', title: 'Bombay Darshan', strand: 'side', after: 'welcome', hours: [15, 19.5], at: P.gateway, giver: 'guide',
+      cast: { guide: { name: 'Guide Pinto', kind: 'casual', cap: true } },
+      steps: [
+        { cut: [['guide', 'Boss! Forty tourists, one open-top double-decker, zero drivers. You are my hero today.'], ['guide', 'Gateway, then Marine Drive, Chowpatty and up to Hanging Gardens for the sunset. Slowly — they are standing upstairs with cameras.'], ['you', 'Ladies and gentlemen, on your left: traffic. On your right: more traffic.']] },
+        { lend: 'decker', at: P.gateway },
+        { cargo: { name: 'Tourists upstairs', min: 0.45, icon: '📸' } },
+        { visit: [[...P.marine, 'Photo stop: Marine Drive'], [...P.chowpatty, 'Photo stop: Girgaum Chowpatty']], label: 'In the double-decker: make both photo stops', on: 'decker', limit: 480, fail: 'The tourists gave the tour one star. "Too much Bombay, not enough darshan."' },
+        { goto: P.hanging, label: 'Take the tour up to Hanging Gardens for the sunset', on: 'decker', limit: 300, radius: 34, fail: 'The sun set without you.' },
+        { cargo: null },
+        { reward: 1600, line: 'What a sunset! Forty five-star reviews, boss.' },
       ],
     },
   ];
