@@ -16,7 +16,7 @@ const ADS = [
   'Bhookh pe order karo, garam vada pav seedha aapki khidki pe!',
   'Dukaan dot in. Car perfume, seat cover, aur musical horn. Pados waale jal jayenge!',
   'PayKaro. Rent bharo, challan bharo, sab ek UPI se.',
-  'Chalo Driver. Gaadi chalao, paisa kamao. Aaj hi join karo!',
+  'Kidhar Driver. Gaadi chalao, paisa kamao. Aaj hi join karo!',
 ];
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
@@ -80,6 +80,7 @@ export class Radio {
     const ctx = this.audio.ctx, s = this.station;
     if (!s.bpm) return;
     const beat = 60 / s.bpm / 2; // eighth notes
+    if (this.nextNote < ctx.currentTime - 0.1) this.nextNote = ctx.currentTime + 0.05; // after a pause: skip, don't catch up
     while (this.nextNote < ctx.currentTime + 0.25) {
       const t = this.nextNote + (this.step % 2 ? beat * s.swing : 0);
       const k = this.step % 16;
@@ -120,7 +121,7 @@ export class Radio {
     if (ctx.clock.traffic > 0.85) lines.push(`Traffic update: rush hour chal raha hai. ${ctx.road || 'Marine Drive'} pe gaadiyan reng rahi hain.`);
     else if (h < 5) lines.push('Raat ke is waqt sadkein khaali hain. Dheere chalao, kutte jaag rahe hain!');
     if (ctx.police.stars) lines.push(`Breaking news! Ek kaali-peeli taxi police se bhaag rahi hai. ${ctx.police.stars} star ka challan! Kaun hai yeh?`);
-    if (ctx.state.money < 0) lines.push('Udhaar mein ho? Chalo Driver pe ride lo, paisa kamao!');
+    if (ctx.state.money < 0) lines.push('Udhaar mein ho? Kidhar Driver pe ride lo, paisa kamao!');
     lines.push(pick(ADS));
     this.say(pick(lines));
   }

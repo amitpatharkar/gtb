@@ -62,6 +62,13 @@ function umbrellaGeometry() {
   return mergeGeometries(parts);
 }
 
+/** Two circles along a car (front and back), like the player's own collision shape. */
+function carHit(car, x, z, r) {
+  const fx = Math.sin(car.heading || 0) * 1.1, fz = Math.cos(car.heading || 0) * 1.1;
+  if (car.condition === undefined) return Math.hypot(x - car.pos.x, z - car.pos.z) < r + 0.5; // a person on foot
+  return (x - car.pos.x - fx) ** 2 + (z - car.pos.z - fz) ** 2 < (r + 0.8) ** 2 || (x - car.pos.x + fx) ** 2 + (z - car.pos.z + fz) ** 2 < (r + 0.8) ** 2;
+}
+
 export class Police {
   constructor({ scene, tiles, traffic, signals, people, audio, bubbles, hud }) {
     Object.assign(this, { scene, tiles, traffic, signals, people, audio, bubbles, hud });
@@ -333,6 +340,8 @@ export class Police {
       if (d > 45) {
         // Drove off from a constable: patrol car incoming.
         this.flagger = null;
+        this.deciding = false;
+        this.onFlagGone?.();
         f.task = { type: 'shout', car: { x: player.pos.x, z: player.pos.z }, t: 0, said: 0 };
         this.stars = Math.min(5, this.stars + 1);
         this.fines += FINES.evade[1];
@@ -374,7 +383,7 @@ export class Police {
     this.deciding = false;
     const extra = caught ? 500 * this.stars : 0;
     const total = this.fines + extra;
-    if (player.pay) player.pay(total, 'Traffic challan'); else player.money -= total;
+    this.payFn(total, 'Traffic challan');
     this.hud.message(caught ? `Pakde gaye! Paid ${rupees(total)} in challans` : `Paid ${rupees(total)} challan`);
     const anchor = by.site ? by : by.car.pos;
     this.bubbles.say(anchor, pick(COP_SAYS.paid), 2.8, 'cop');
@@ -565,6 +574,7 @@ export class Police {
     this.handleTrafficEvents(player);
     for (const c of this.cops) this.updateCop(c, dt, player);
     this.checkPlayer(dt, player);
+    if (!this.stars && this.deciding) { this.deciding = false; this.onFlagGone?.(); }
 
     // Seen or not: stars fade after a while out of sight (longer for more stars).
     if (this.stars) {
@@ -591,7 +601,7 @@ export class Police {
     const chasing = this.patrols.filter((p) => p.mode === 'chase').length;
     if (chasing < want && Math.random() < dt * 0.6) this.spawnPatrol(player);
     const world = {
-      hits: (x, z, r) => this.tiles.hits(x, z, r) || this.traffic.hits(x, z, r) || Math.hypot(x - player.pos.x, z - player.pos.z) < r + 1.1,
+      hits: (x, z, r) => this.tiles.hits(x, z, r) || this.traffic.hits(x, z, r) || carHit(player, x, z, r) || (this.taxi && this.taxi !== player && carHit(this.taxi, x, z, r)),
       groundHeight: (x, z) => this.tiles.groundHeight(x, z),
     };
     let siren = 0;
@@ -599,7 +609,10 @@ export class Police {
       this.drivePatrol(p, dt, player, world);
       if (p.mode === 'chase') siren = Math.max(siren, 1 / (1 + p.car.pos.distanceTo(player.pos) / 40));
     }
-    for (const p of this.patrols.filter((p) => p.dead)) this.scene.remove(p.model.root);
+    for (const p of this.patrols.filter((p) => p.dead)) {
+      this.scene.remove(p.model.root);
+      p.model.root.traverse((o) => { o.geometry?.dispose(); for (const m of [o.material].flat()) m?.dispose?.(); });
+    }
     this.patrols = this.patrols.filter((p) => !p.dead);
     this.audio.siren(siren);
 

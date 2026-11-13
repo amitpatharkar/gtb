@@ -18,7 +18,7 @@ const fresh = () => ({
   messages: [
     { from: 'Aai', text: 'Beta, khana time pe kha lena. Aur taxi dhyan se chalana!', t: 0 },
     { from: 'Landlord (Powai)', text: 'Namaste. Rent ₹25,000 due on the 5th. Please transfer by UPI.', t: 0 },
-    { from: 'Chalo Partner', text: 'Welcome, driver! Go on duty in the Chalo app (or press J) to get fares.', t: 0 },
+    { from: 'Kidhar Partner', text: 'Welcome, driver! Go on duty in the Kidhar app (or press J) to get fares.', t: 0 },
   ],
   txns: [],           // { what, amount, t }
   rides: 0, ratingSum: 0, earned: 0, day: 1,

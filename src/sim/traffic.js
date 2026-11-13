@@ -22,32 +22,38 @@ export class Traffic {
     this.types = buildFleet();
     this.typeNames = Object.keys(this.types);
     this.totalWeight = this.typeNames.reduce((s, n) => s + this.types[n].weight, 0);
-    // One instanced mesh per vehicle type and part (paint, glass, trim, lamps).
+    // All vehicle types share one BatchedMesh per part (paint, glass, trim, lamps): four draw
+    // calls for the whole fleet; each instance picks its type's near or far geometry.
     this.mats = {
-      paint: new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.38, metalness: 0.2, clearcoat: 0.5, clearcoatRoughness: 0.18 }),
-      glass: new THREE.MeshStandardMaterial({ color: 0x0d1115, roughness: 0.06, metalness: 0.7 }),
-      trim: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.2 }),
+      paint: new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.36, metalness: 0.15, clearcoat: 0.6, clearcoatRoughness: 0.16 }),
+      glass: new THREE.MeshStandardMaterial({ color: 0x141a20, roughness: 0.05, metalness: 0.6 }),
+      trim: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.15 }),
       lamps: new THREE.MeshBasicMaterial({ vertexColors: true }),
     };
-    this.meshes = {};
-    for (const name of this.typeNames) {
-      this.meshes[name] = {};
-      for (const part of ['paint', 'glass', 'trim', 'lamps']) {
-        const m = new THREE.InstancedMesh(this.types[name].parts[part], this.mats[part], this.max);
-        m.count = 0;
-        m.castShadow = part === 'paint' || part === 'trim';
-        m.receiveShadow = part !== 'lamps';
-        m.frustumCulled = false;
-        if (part === 'paint') m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(this.max * 3).fill(1), 3);
-        scene.add(m);
-        this.meshes[name][part] = m;
-      }
+    this.cap = this.max + 24; // traffic plus extras (broken-down taxis, parked props)
+    this.batches = {};
+    this.geo = {};
+    for (const part of ['paint', 'glass', 'trim', 'lamps']) {
+      let verts = 0;
+      for (const n of this.typeNames) verts += this.types[n].parts[part].attributes.position.count + this.types[n].far[part].attributes.position.count;
+      const b = new THREE.BatchedMesh(this.cap, verts, 0, this.mats[part]);
+      b.castShadow = part === 'paint' || part === 'trim';
+      b.receiveShadow = part !== 'lamps';
+      b.sortObjects = false;
+      this.geo[part] = {};
+      for (const n of this.typeNames) this.geo[part][n] = [b.addGeometry(this.types[n].parts[part]), b.addGeometry(this.types[n].far[part])];
+      for (let i = 0; i < this.cap; i++) { b.addInstance(this.geo[part][this.typeNames[0]][0]); b.setVisibleAt(i, false); }
+      scene.add(b);
+      this.batches[part] = b;
     }
+    this.shown = 0;
     this.riders = [];      // people on motorbikes (drawn by main.js with the people renderer)
     this.cars = [];
     this.graphVersion = -1;
     this.matrix = new THREE.Matrix4();
     this.q = new THREE.Quaternion();
+    this.pos = new THREE.Vector3();
+    this.unit = new THREE.Vector3(1, 1, 1);
     this.honks = [];
     this.events = [];      // { type: 'jump', car, ap } for the police
     this.signals = null;   // set by main.js
@@ -106,10 +112,10 @@ export class Traffic {
   /** Vehicle mix by hour: goods tempos run at night, BEST buses and private cars by day. */
   pickType() {
     const night = this.hour >= 22 || this.hour < 6;
-    const w = (n) => this.types[n].weight * (night ? { tempo: 3, bus: 0.3, taxi: 1.5, hatch: 0.6, sedan: 0.6 }[n] ?? 1 : 1);
+    const w = (n) => this.types[n].weight * (night ? this.types[n].night ?? 1 : 1);
     let r = Math.random() * this.typeNames.reduce((s, n) => s + w(n), 0);
     for (const n of this.typeNames) { r -= w(n); if (r <= 0) return n; }
-    return 'hatch';
+    return 'wagonr';
   }
 
   spawn(player) {
@@ -121,17 +127,17 @@ export class Traffic {
       const d = Math.hypot(mx - player.pos.x, mz - player.pos.z);
       if (d < 45 || d > 220) continue;
       const type = this.pickType();
-      if (type === 'bus' && !(s[5] & 4)) continue; // buses stick to main roads
+      if (this.types[type].mainRoad && !(s[5] & 4)) continue; // buses stick to main roads
       const oneway = s[5] & 2;
       const dir = oneway || Math.random() < 0.5 ? 1 : -1;
       const tints = this.types[type].tints;
       const car = {
         type, seg, dir, t: Math.random(), speed: 0, tint: new THREE.Color(tints[Math.floor(Math.random() * tints.length)]), wait: 0, x: mx, z: mz, heading: 0,
         // Some drivers jump red lights (more at night, never buses); many stop on the zebra.
-        jumper: type !== 'bus' && Math.random() < 0.1 + this.night * 0.12, creep: Math.random() < 0.35 ? 2.5 : 0,
+        jumper: !this.types[type].big && Math.random() < 0.1 + this.night * 0.12, creep: Math.random() < 0.35 ? 2.5 : 0,
         pulled: null, boost: 0, lane: oneway ? 0 : Math.min(s[4] * 0.5, 1.9), lastSig: null, lastDist: 0,
-        kerb: type === 'bike' ? 0.6 + Math.random() * 0.8 : 0, // bikes keep further left and squeeze through
-        look: type === 'bike' ? riderLook() : null,
+        kerb: this.types[type].rider ? 0.6 + Math.random() * 0.8 : 0, // two-wheelers keep further left and squeeze through
+        look: this.types[type].rider ? riderLook() : null,
       };
       if (this.cars.some((c) => Math.hypot(c.x - mx, c.z - mz) < 12)) continue;
       this.cars.push(car);
@@ -186,6 +192,7 @@ export class Traffic {
       };
       for (const o of this.cars) if (o !== car) check(o.x, o.z, this.types[o.type].len);
       check(player.pos.x, player.pos.z, 3.7);
+      if (this.taxi && this.taxi !== player) check(this.taxi.pos.x, this.taxi.pos.z, 3.7); // the parked taxi while on foot
       for (const o of this.obstacles) check(o[0], o[1], o[2]);
       // Signals: stop at red (and at amber if there is room); jumpers just go.
       let atRed = false;
@@ -247,31 +254,29 @@ export class Traffic {
       car.heading += dh * Math.min(1, dt * 6);
     }
 
-    // Write instances.
-    const counts = {};
-    for (const n of this.typeNames) counts[n] = 0;
+    // Write instances: near geometry within ~90 m of the player, the coarse version beyond.
     this.riders.length = 0;
+    const B = this.batches, px = player.pos.x, pz = player.pos.z;
+    let i = 0;
     const put = (v) => {
-      const ms = this.meshes[v.type];
-      if (!ms || counts[v.type] >= this.max) return;
-      const i = counts[v.type]++;
+      if (i >= this.cap || !this.types[v.type]) return;
+      const lod = (v.x - px) ** 2 + (v.z - pz) ** 2 > 90 * 90 ? 1 : 0;
       this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, v.heading);
-      this.matrix.compose(new THREE.Vector3(v.x, 0.02, v.z), this.q, new THREE.Vector3(1, 1, 1));
-      for (const part in ms) ms[part].setMatrixAt(i, this.matrix);
-      ms.paint.setColorAt(i, v.tint);
-      if (this.types[v.type].rider) this.riders.push(v);
+      this.matrix.compose(this.pos.set(v.x, 0.02, v.z), this.q, this.unit);
+      for (const part in B) {
+        B[part].setGeometryIdAt(i, this.geo[part][v.type][lod]);
+        B[part].setMatrixAt(i, this.matrix);
+        B[part].setVisibleAt(i, true);
+      }
+      B.paint.setColorAt(i, v.tint);
+      if (this.types[v.type].rider && v.look) this.riders.push(v);
+      i++;
     };
     for (const car of this.cars) put(car);
     for (const e of this.extras) put(e);
+    for (let k = i; k < this.shown; k++) for (const part in B) B[part].setVisibleAt(k, false);
+    this.shown = i;
     this.mats.lamps.color.setScalar(0.7 + this.night * 3.5);
-    for (const n of this.typeNames) {
-      for (const part in this.meshes[n]) {
-        const m = this.meshes[n][part];
-        m.count = counts[n];
-        m.instanceMatrix.needsUpdate = true;
-        if (m.instanceColor) m.instanceColor.needsUpdate = true;
-      }
-    }
   }
 
   /** The player honked: the car right ahead moves over to the left to let them pass. */

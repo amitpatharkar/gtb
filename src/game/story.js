@@ -17,6 +17,8 @@ export class Story {
     this.cast = {};
     this.camera = null;      // { pos, look } while a cutscene runs
     this.markerT = 0;
+    this.stepT = 0;
+    this.entered = false;    // a mission loaded from a save is re-entered on the first update
     const g = new THREE.CylinderGeometry(1.6, 1.6, 0.25, 24, 1, true);
     this.marker = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: new THREE.Color(0xf7c600).multiplyScalar(2), transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }));
     this.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 30, 8, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xf7c600).multiplyScalar(1.5), transparent: true, opacity: 0.25, depthWrite: false }));
@@ -58,8 +60,8 @@ export class Story {
       {
         id: 'firstrides', title: 'Pehli Sawaari', after: 'sunset', at: P.start,
         steps: [
-          { cut: [['mamaji', 'Ab asli kaam. Chalo Driver app pe duty laga (J), teen sawaari utha.'], ['mamaji', 'Aaraam se chalana. Rating achhi hogi toh kamaai achhi hogi.']] },
-          { task: 'rides', count: 3, label: 'Complete 3 Chalo rides with an average of 3.5★ or more' },
+          { cut: [['mamaji', 'Ab asli kaam. Kidhar Driver app pe duty laga (J), teen sawaari utha.'], ['mamaji', 'Aaraam se chalana. Rating achhi hogi toh kamaai achhi hogi.']] },
+          { task: 'rides', count: 3, label: 'Complete 3 Kidhar rides with an average of 3.5★ or more' },
           { reward: 1000, line: 'Teen sawaari, achhi rating! Mamaji proud hai.' },
         ],
       },
@@ -90,7 +92,7 @@ export class Story {
   }
 
   start(m, ctx) {
-    this.s.active = m.id; this.s.step = 0; this.stepT = 0;
+    this.s.active = m.id; this.s.step = 0; this.stepT = 0; this.entered = true;
     this.hud.message(`Mission: ${m.title}`);
     this.audio?.whistle?.(0.2);
     this.enterStep(ctx);
@@ -103,9 +105,10 @@ export class Story {
     this.cast = {};
   }
 
-  enterStep(ctx) {
+  enterStep(ctx, resume = false) {
     const m = this.missions.find((x) => x.id === this.s.active);
-    const st = m?.steps[this.s.step];
+    if (!m) { this.s.active = null; this.s.step = 0; return; }
+    const st = m.steps[this.s.step];
     this.stepT = 0;
     if (!st) { this.s.done.push(m.id); this.s.active = null; this.cast = {}; this.hud.message(`Mission complete: ${m.title}`); this.state.save(); return; }
     if (st.goto) this.cityMap.routeTo(st.goto[0], st.goto[1], st.label);
@@ -122,7 +125,7 @@ export class Story {
       p.inTaxi = false;
       this.cityMap.routeTo(p.x, p.z, p.name);
     }
-    if (st.reward) {
+    if (st.reward && !resume) {
       this.state.earn(st.reward, `Mission: ${m.title}`);
       if (st.line) this.bubbles.say(ctx.player.pos, st.line, 3);
       this.hud.message(`Mission complete: ${m.title} · +₹${st.reward}`);
@@ -146,6 +149,8 @@ export class Story {
   update(dt, ctx) {
     const { player, onFoot, walker } = ctx;
     const me = onFoot ? walker : player;
+    // A save taken mid-mission: rebuild the step's state (cutscene lines, task counters, cast).
+    if (this.s.active && !this.entered) { this.entered = true; this.enterStep(ctx, true); }
     // Mission marker at the next start.
     const avail = this.available();
     this.marker.visible = this.beam.visible = !!avail;

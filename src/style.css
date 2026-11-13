@@ -348,5 +348,3 @@ body.cutscene #hud, body.cutscene #status, body.cutscene #radar, body.cutscene #
 #cheat input { width: min(260px, 60vw); background: transparent; border: none; border-bottom: 1px solid #555; color: #fff; font: 600 16px system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; outline: none; }
 #stats { position: fixed; left: 12px; top: 150px; z-index: 40; font: 12px ui-monospace, monospace; color: #9f9; background: rgba(0, 0, 0, 0.55); padding: 4px 8px; border-radius: 6px; pointer-events: none; max-width: 70vw; }
 #stats[hidden] { display: none !important; }
-#fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 55; transition: opacity 0.35s; }
-#fade.on { opacity: 1; transition: none; }

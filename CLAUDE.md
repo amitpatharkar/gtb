@@ -17,7 +17,12 @@ Owner: Amit Patharkar (GitHub: amitpatharkar). Working title "GTB"; name candida
   hand-made landmarks and lighting (detail where the camera looks).
 - **Real scale (decided 2026-11-13):** Mumbai stays 1:1 (1 game metre = 1 real metre); the map grows outward.
 - **Names:** real brands, logos and trademarked buildings (e.g. the Taj Mahal Palace facade) get altered names;
-  ideas in `docs/research/mumbai-guide.md`.
+  ideas in `docs/research/mumbai-guide.md` and `mumbai-guide-2.md`. The ride app is **Kidhar** ("Chalo" is BEST's
+  real app). Never use "Jhakaas" or "Bhidu" (court-protected catchphrases). No real celebrities (names, faces,
+  voices): fictional stars with original house designs and altered house names (OpenStreetMap carries "Mannat",
+  "Jalsa", "Antilia" — never show those). No 2008-attack, riot or gangster references; never mock poverty.
+- **The plan:** `docs/plan.md` (phases 1–5, status per item) built from the reviews in `docs/research/*-2026-11.md`.
+  Work through it in order; update the status column as items land.
 - **Must stay light to load:** first load under ~50 megabytes; stream map tiles near the player;
   compress textures (KTX2) and models (Draco or meshopt). GitHub Pages site must stay under 1 gigabyte;
   no single file over 100 megabytes in git.
@@ -89,7 +94,12 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   sedans, SUVs, BEST buses on main roads, tempos (more at night), motorbikes with riders), keeps LEFT, follows the
   road graph (loose ends within 2.5 m joined), respects one-ways, stops at red (jumpers, amber gamblers, zebra creepers),
   stops for `obstacles` (cows, cricket, jaywalkers), draws `extras` (broken-down taxi), pull-overs, honks
-- `src/vehicles/fleet.js` — procedural traffic vehicles, 4 parts per type (paint tinted per car, glass, trim, lamps)
+- `src/vehicles/fleet.js` + `loft.js` — Indian traffic at real sizes with parody names (Alto, WagonR, Swift, i10,
+  Dzire, City, Ertiga, Innova, Bolero, Creta, Eeco, WagonR/Santro kaali-peelis, white app cabs with yellow plates,
+  Cool Cab, vintage Padmini, BEST bus + electric double-decker, Tata Ace, 407 tempo, Activa, delivery scooter,
+  Splendor, Bullet). Bodies are lofted cross-sections (bonnet, raked glass, wheel arches, tumblehome); each type has
+  near + far (LOD) geometry; traffic.js draws the whole fleet with one BatchedMesh per part (paint tinted per car,
+  glass, trim with vertex colours, lamps) = 4 draw calls. Type fields: weight, night, mainRoad, big, rider, seat.
 - `src/vehicles/skids.js` (tyre marks), `damage.js` (dents, loose bumpers, dying lamps, bonnet smoke; repair at pumps)
 - `src/sim/signals.js` — working signals at OSM signal junctions: poles on the left kerb per approach, lamps and
   red/green countdowns, two phase groups; `ahead(x, z, fx, fz)` gives the next stop line and its light
@@ -116,6 +126,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   knocked down then limp away); ~4.5 % of passers-by start it; kids and animals never targets; police: brawl/assault
 - `src/world/propPhysics.js` — solid trees/lamp posts/bus shelters/thelas, tree shake, bent poles, flying fruit,
   scattering garbage (simple rigid bits)
+- `src/game/cheats.js` — developer cheat console (` key or double-tap the clock; `window.__gtb.cheat(code)`):
+  PAISAHIPAISA, CHALANMAAF, MAAMUCHUTTI, PETROLBHARO, AMRUT, SHAKTIMAAN, DHOOMMACHALE, JADOO (teleport to waypoint),
+  SUBAHHOGAYI, DOPEHER, RAATHOGAYI, TRAFFICJAM, DEBUGKARO (stats line); listed in the Guide
 - `src/ui/menu.js` — title screen (Continue/New/Settings/Guide/Credits), GTA-style loading screens (original SVG art,
   tips), Esc pause menu; settings in localStorage (`gtb.settings`: tier — Low by default —, volume, mouse sensitivity,
   invert Y, hints, spoken GPS, radio). Graphics changes reload via `gtb.resume` (sessionStorage) back into the game.

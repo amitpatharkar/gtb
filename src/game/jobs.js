@@ -4,14 +4,14 @@ import { LIGHT } from '../sim/signals.js';
 import { POINT } from '../world/tileFormat.js';
 
 // Side jobs and errands:
-// - Taxi fares (Chalo app or J): a passenger hails you nearby, you pick them up, the GPS
+// - Taxi fares (Kidhar app or J): a passenger hails you nearby, you pick them up, the GPS
 //   shows the way, and the fare depends on the meter, the time and how comfortable the
 //   ride was (hard braking, crashes, potholes, horn spam, red lights and police chases
 //   all annoy them). Good rides earn tips and stars.
 // - Delivery riders bring food (Bhookh) and quick-commerce orders (JhatPat) to your window.
 // - Stop next to a thela and press E to buy a snack.
 
-const FARE_BASE = 28, FARE_KM = 18.7;
+const FARE_BASE = 33, FARE_KM = 22; // Mumbai kaali-peeli tariff (Sept 2026): ₹33 for the first 1.5 km
 const rupees = (n) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
@@ -135,7 +135,7 @@ export class Jobs {
     this.cityMap.routeTo(spot.roadX, spot.roadZ, 'Passenger');
     const dist = Math.round(Math.hypot(spot.x - player.pos.x, spot.z - player.pos.z));
     this.hud.message(delivery ? 'New Bhookh order! Pick it up at the thela (GPS).' : `Fare request: ${type.who}. Follow the GPS to pick them up.`);
-    this.state.message(delivery ? 'Bhookh Partner' : 'Chalo Partner', delivery ? `New order to pick up, ${dist} m away.` : `New ride request: ${type.who}, ${dist} m away.`);
+    this.state.message(delivery ? 'Bhookh Partner' : 'Kidhar Partner', delivery ? `New order to pick up, ${dist} m away.` : `New ride request: ${type.who}, ${dist} m away.`);
   }
 
   async startRide(player) {
@@ -193,7 +193,7 @@ export class Jobs {
     const accel = (player.speed - r.last.speed) / Math.max(dt, 1e-3);
     let dh = player.heading - r.last.heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
     const lateral = Math.abs((dh / Math.max(dt, 1e-3)) * player.speed);
-    if (accel < -8.5 && player.speed > 3) this.annoy(10 * dt, r.type.lines.rough, player, 'Hard braking');
+    if (accel < -11.5 && player.speed > 3) this.annoy(10 * dt, r.type.lines.rough, player, 'Hard braking');
     if (accel > 4.8 && player.speed > 4) this.annoy(1.5 * dt, null, player, 'Jerky acceleration');
     if (lateral > 8.5) this.annoy(3 * dt * (lateral - 8.5), r.type.lines.rough, player, 'Sharp turn at speed');
     if (r.last.speed - Math.abs(player.speed) > 3) this.annoy(14, 'Arre! Thok di gaadi!', player, 'Crash!');
@@ -231,7 +231,7 @@ export class Jobs {
     if (stars >= 4.3) tip = Math.round(meter * 0.15 * r.type.tip + 10 * r.type.tip);
     if (r.comfort < 45) cut = Math.round(meter * 0.25);
     if (late > 0.5) cut += Math.round(meter * 0.1);
-    const bonus = r.type.delivery ? 0 : 40; // Chalo pays drivers a per-ride incentive on top of the meter
+    const bonus = r.type.delivery ? 0 : 40; // Kidhar pays drivers a per-ride incentive on top of the meter
     const total = Math.max(0, Math.round(meter + tip - cut + bonus));
     this.state.earn(total, r.type.delivery ? `Bhookh delivery to ${r.dest.name}` : `Taxi fare to ${r.dest.name}`);
     this.state.s.rides++;
@@ -239,7 +239,7 @@ export class Jobs {
     this.state.s.earned += total;
     const line = stars >= 4 ? r.type.lines.good : stars >= 2.5 ? 'Theek hai.' : 'Kabhi nahi baithunga tumhari taxi mein!';
     this.bubbles.say(player.pos, line, 3, 'driver');
-    this.hud.message(`${r.type.delivery ? `Delivery pay ${rupees(meter)}` : `Fare ${rupees(meter)} + Chalo bonus ${rupees(bonus)}`}${tip ? ` + tip ${rupees(tip)}` : ''}${cut ? ` − ${rupees(cut)} (${r.type.delivery ? 'cold or spilled food' : 'unhappy'})` : ''} = ${rupees(total)} · ${'★'.repeat(Math.round(stars))}${'☆'.repeat(5 - Math.round(stars))}`);
+    this.hud.message(`${r.type.delivery ? `Delivery pay ${rupees(meter)}` : `Fare ${rupees(meter)} + Kidhar bonus ${rupees(bonus)}`}${tip ? ` + tip ${rupees(tip)}` : ''}${cut ? ` − ${rupees(cut)} (${r.type.delivery ? 'cold or spilled food' : 'unhappy'})` : ''} = ${rupees(total)} · ${'★'.repeat(Math.round(stars))}${'☆'.repeat(5 - Math.round(stars))}`);
     this.state.message('PayKaro', `Credited ${rupees(total)} for a ride to ${r.dest.name}. Rating ${stars.toFixed(1)}★.`);
   }
 

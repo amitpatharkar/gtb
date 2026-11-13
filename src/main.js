@@ -293,6 +293,10 @@ async function teleportHome() {
 let message = '', messageTimer = 0;
 const say = (text, seconds = 3) => { message = text; messageTimer = seconds; };
 // The hawaldar waves you over and walks up: pay, argue or run.
+police.onFlagGone = () => closeChoice?.(-1);
+// Fines and settlements always come out of the wallet, on foot or in the taxi.
+police.payFn = street.payFn = (amount, what) => state.pay(amount, what);
+traffic.taxi = police.taxi = player; // NPC cars and patrols also avoid the parked taxi
 police.onFlagStop = (f, who) => {
   choice(`Hawaldar: "Challan ₹${police.fines.toLocaleString('en-IN')}, saheb."`, [
     [`Pay ₹${police.fines.toLocaleString('en-IN')}`, () => police.pay(false, f, who)],
@@ -311,7 +315,7 @@ function applySettings(st) {
 }
 let paused = false;
 const pause = pauseMenu({
-  paused: (on) => { paused = on; if (on) view.release(); },
+  paused: (on) => { paused = on; if (on) view.release(); audio.ctx?.[on ? 'suspend' : 'resume']?.(); },
   quality: (t) => changeQuality(t),
   settings: (st) => applySettings(st),
   quit: () => { state.save(); location.reload(); },
@@ -348,6 +352,8 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') audio.toggleMute();
 });
 addEventListener('pointerdown', () => audio.start());
+// A hidden tab stops sound (and the radio doesn't pile up missed notes on return).
+document.addEventListener('visibilitychange', () => { audio.ctx?.[document.hidden ? 'suspend' : paused ? 'suspend' : 'resume']?.(); });
 for (const [id, fn] of [['btn-kick', () => combat.kick()], ['btn-abuse', () => combat.abuse()], ['btn-weapon', () => combat.toggleWeapon()], ['btn-colour', () => { pichkari.nextColour(); combat.setWeapon('pichkari'); }]]) {
   $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); fn(); });
 }
@@ -433,12 +439,15 @@ function repairMenu() {
 }
 
 /** A small menu of choices (click or press 1, 2, 3…). */
+let closeChoice = null;
 function choice(title, options) {
+  closeChoice?.(-1);
   const box = $('choice');
   box.innerHTML = `<b>${title}</b>${options.map(([label], i) => `<button data-i="${i}"><kbd>${i + 1}</kbd> ${label}</button>`).join('')}`;
   box.hidden = false;
   view.release();
-  const done = (i) => { box.hidden = true; removeEventListener('keydown', key, true); options[i]?.[1](); };
+  const done = (i) => { box.hidden = true; removeEventListener('keydown', key, true); closeChoice = null; options[i]?.[1](); };
+  closeChoice = done;
   const key = (e) => { const i = Number(e.key) - 1; if (i >= 0 && i < options.length) { e.preventDefault(); e.stopPropagation(); done(i); } if (e.code === 'Escape') { e.stopPropagation(); done(options.length - 1); } };
   addEventListener('keydown', key, true);
   box.onclick = (e) => { const b = e.target.closest('button'); if (b) done(Number(b.dataset.i)); };
@@ -521,7 +530,8 @@ function step(dt) {
   if (onFoot) walker.draw(people, combat.weapon);
   for (const r of traffic.riders) {
     // Motorbike riders sit astride, hands on the handlebar; most wear helmets.
-    people.add({ noHero: true, x: r.x - Math.sin(r.heading) * 0.15, y: 0.5, z: r.z - Math.cos(r.heading) * 0.15, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.look.helmet ? FLAG.BERET : 0, scale: 1, ...r.look });
+    const seat = traffic.types[r.type]?.seat ?? 0.92;
+    people.add({ noHero: true, x: r.x - Math.sin(r.heading) * 0.28, y: seat - 0.42, z: r.z - Math.cos(r.heading) * 0.28, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.look.helmet ? FLAG.BERET : 0, scale: 1, ...r.look });
   }
   if (view.wheel) { pichkari.setPressure(pichkari.pressure - view.wheel); view.wheel = 0; }
   pichkari.update(dt, onFoot ? walker : null, onFoot && combat.weapon === 'pichkari' && (input.fire || input.brake), view);
@@ -606,7 +616,8 @@ function updateHud() {
   $('speed').textContent = `${Math.round(Math.abs((onFoot ? walker : player).speed) * 3.6)} km/h`;
   $('fuel-label').textContent = onFoot ? 'Stamina' : 'Fuel';
   $('cond-label').textContent = onFoot ? 'Health' : 'Car';
-  $('road').textContent = tiles.roadNameAt(player.pos.x, player.pos.z);
+  const here = onFoot ? walker : player;
+  $('road').textContent = tiles.roadNameAt(here.pos.x, here.pos.z);
   $('clock').textContent = clock.label;
   const [label, colour] = clock.aqiLabel;
   $('aqi').innerHTML = `AQI <b style="color:${colour}">${clock.aqi}</b> ${label}`;
@@ -634,7 +645,7 @@ function updateHud() {
     else if (police.stars >= 2 && police.patrols.length) message = 'Police chasing! Stop to pay up, or get out of sight';
     const p = nearestPump();
     if (!police.flagger && !(police.stars >= 2 && police.patrols.length)) message = player.fuel <= 0 ? 'Out of fuel! Press R to get towed back' :
-      p && p.d < 16 ? 'Petrol pump: stop and press F to fill up' :
+      p && p.d < 16 ? 'Petrol pump: stop and press E to fill up' :
       player.fuel < 0.12 ? 'Low fuel — find ⛽ on the map' :
       player.condition < 0.35 ? 'Car is battered: get it checked at a ⛽' :
       state.s.hunger < 0.15 ? 'Pet mein chuhe daud rahe hain! Eat at a thela (E) or order on Bhookh (P)' :

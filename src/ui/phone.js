@@ -35,7 +35,7 @@ const SHOP = [
 ];
 
 const APPS = [
-  ['maps', 'Maps', '🗺️', '#3b8ad9'], ['chalo', 'Chalo Driver', '🚕', '#f7c600'], ['bhookh', 'Bhookh', '🍛', '#f26722'],
+  ['maps', 'Maps', '🗺️', '#3b8ad9'], ['chalo', 'Kidhar Driver', '🚕', '#f7c600'], ['bhookh', 'Bhookh', '🍛', '#f26722'],
   ['jhatpat', 'JhatPat', '⚡', '#2e9e44'], ['dukaan', 'Dukaan', '📦', '#1b4f8a'], ['paykaro', 'PayKaro', '💸', '#5f259f'],
   ['messages', 'Messages', '💬', '#27ae60'], ['camera', 'Camera', '📷', '#444'], ['home', 'Ghar', '🏠', '#b5651d'], ['settings', 'Settings', '⚙️', '#777'],
 ];
@@ -160,7 +160,7 @@ export class Phone {
       }
       case 'chalo': {
         const j = this.jobs;
-        html = `${head('Chalo Driver', '#d4a900')}<div class="pad">
+        html = `${head('Kidhar Driver', '#d4a900')}<div class="pad">
           <div class="big">${j.onDuty ? '🟢 On duty' : '⚪ Off duty'}</div>
           <button class="primary" data-act="duty">${j.onDuty ? 'Go off duty' : 'Go on duty (J)'}</button>
           <p>Rides: <b>${d.rides}</b> · Rating: <b>${s.rating ? s.rating.toFixed(2) : '–'}★</b> · Earned: <b>${rupees(d.earned)}</b></p>

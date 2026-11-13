@@ -18,7 +18,7 @@ const GUIDE = `
 <h3>On foot</h3>
 <p><b>F</b> get out or back in · <b>WASD</b> walk where the camera looks · <b>Shift</b> run · <b>left click</b> punch or spray · <b>right click</b> aim · <b>V</b> kick · <b>G</b> insult · <b>1</b> fists, <b>2</b> pichkari · <b>C</b> colour · <b>[ ]</b> or wheel: pressure.</p>
 <h3>Earning and spending</h3>
-<p><b>J</b> or the Chalo app: go on taxi duty. Pick up passengers, follow the purple GPS route and drive smoothly for tips. <b>E</b> at a petrol pump to refuel and repair, or at a thela for vada pav and chai. <b>P</b> phone: food, groceries, shopping, payments. Rent for your Powai flat is ₹25,000.</p>
+<p><b>J</b> or the Kidhar app: go on taxi duty. Pick up passengers, follow the purple GPS route and drive smoothly for tips. <b>E</b> at a petrol pump to refuel and repair, or at a thela for vada pav and chai. <b>P</b> phone: food, groceries, shopping, payments. Rent for your Powai flat is ₹25,000.</p>
 <h3>Police</h3>
 <p>Red lights, wrong way on one-ways, driving on the footpath and street fights earn challan stars — but only if a constable or patrol car sees it. Stop by the constable to pay, or lose them by staying out of sight.</p>
 <h3>Map</h3>

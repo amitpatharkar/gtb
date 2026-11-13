@@ -586,7 +586,7 @@ export class StreetLife {
       if (a.said < lines.length && a.t > a.said * 2.6 + 0.5) this.bubbles.say(d, lines[a.said++], 2.5);
       a.stay = Math.abs(player.speed) < 1 && dist < 6 ? a.stay + dt : 0;
       if (a.stay > 2.5 && a.said >= 3) {
-        if (player.pay) player.pay(500, 'Settled a fender-bender'); else player.money -= 500;
+        this.payFn(500, 'Settled a fender-bender');
         this.hud.message(`Paid ${rupees(500)} to settle it ("compromise")`);
         this.bubbles.say(d, 'Chal, theek hai. Dhyan se chala!', 2.6);
         a.state = 'leave';

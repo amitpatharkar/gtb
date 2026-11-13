@@ -15,6 +15,8 @@ addEventListener('keydown', (e) => {
   const k = keyMap[e.code];
   if (k) { input[k] = true; e.preventDefault(); }
 });
+// Alt-Tab or clicking away: nothing stays held down.
+addEventListener('blur', () => { for (const k of Object.values(keyMap)) if (k !== 'reset') input[k] = false; });
 addEventListener('keyup', (e) => {
   const k = keyMap[e.code];
   if (k && k !== 'reset') input[k] = false; // reset is cleared by the game once handled

@@ -791,7 +791,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 | 25 | Namkeen snacks | **Chakna King** |
 | 26 | Instant noodles | **Do-Minute Noodles** |
 | 27 | Mouth freshener (elaichi) | **Elaichi Express** |
-| 28 | Detergent | **Jhakaas Wash Powder** |
+| 28 | Detergent | **Chakachak Wash Powder** |
 | 29 | Soap | **Nahao Soap** |
 | 30 | Toothpaste | **Chamak Daant** |
 | 31 | Hair oil | **Nariyal Shine Oil** |

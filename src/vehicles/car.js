@@ -15,7 +15,7 @@ export class Car {
     this.halfLength = 1.1;
     this.maxSpeed = opts.maxSpeed ?? 26;   // ~90 km/h flat out; 60–70 km/h comes quickly
     this.accel = opts.accel ?? 6.2;
-    this.fuel = opts.fuel ?? 0.6;          // 0..1 (full tank ≈ 40 km)
+    this.fuel = opts.fuel ?? 0.6;          // 0..1 (full tank ≈ 300 km)
     this.condition = 1;                    // 0..1, drops in crashes
     this.odometer = 0;
     this.lastBump = 0;
@@ -65,7 +65,7 @@ export class Car {
     // Fuel: ~1 % per 400 m, a trickle when idling.
     const dist = Math.hypot(dx, dz);
     this.odometer += dist;
-    this.fuel = Math.max(0, this.fuel - dist / 60000 - dt * 0.00001); // ~60 km per tank
+    this.fuel = Math.max(0, this.fuel - dist / 300000 - dt * 0.000004); // ~300 km per tank (35 L, ~8.5 km/L)
 
     // Ground: average of front and rear wheels; kerbs give a bump.
     const fx = Math.sin(this.heading) * 1.17, fz = Math.cos(this.heading) * 1.17;
