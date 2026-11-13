@@ -348,3 +348,11 @@ body.cutscene #hud, body.cutscene #status, body.cutscene #radar, body.cutscene #
 #cheat input { width: min(260px, 60vw); background: transparent; border: none; border-bottom: 1px solid #555; color: #fff; font: 600 16px system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; outline: none; }
 #stats { position: fixed; left: 12px; top: 150px; z-index: 40; font: 12px ui-monospace, monospace; color: #9f9; background: rgba(0, 0, 0, 0.55); padding: 4px 8px; border-radius: 6px; pointer-events: none; max-width: 70vw; }
 #stats[hidden] { display: none !important; }
+
+/* Fist fights: opponent's stamina, and a flash when the player takes a hit */
+#foe { position: fixed; left: 50%; bottom: 62px; transform: translateX(-50%); z-index: 20; background: rgba(10, 10, 14, 0.78); color: #fff; padding: 5px 12px; border-radius: 999px; font: 600 13px system-ui, sans-serif; display: flex; gap: 8px; align-items: center; }
+#foe[hidden] { display: none !important; }
+#foe i { display: inline-block; width: 110px; height: 7px; border-radius: 4px; background: #3a3a40; overflow: hidden; }
+#foe i b { display: block; height: 100%; background: #e74c3c; }
+body.hurt::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 30; box-shadow: inset 0 0 140px rgba(210, 40, 30, 0.55); }
+body.cutscene #foe { display: none !important; }

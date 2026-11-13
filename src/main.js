@@ -616,7 +616,7 @@ function step(dt) {
   else if (garage.rider) {
     // Riding a two-wheeler: the player sits astride it.
     const seat = garage.spec.seat ?? 0.9, L = walker.look;
-    const P = (walker.person ||= { isPlayer: true, flags: 0, scale: 1, model: 0 });
+    const P = (walker.person ||= { isPlayer: true, flags: 0, scale: 1, model: 0, hair: new THREE.Color(0x17110c) });
     Object.assign(P, { x: player.pos.x - Math.sin(player.heading) * 0.28, y: player.pos.y + seat - 0.42, z: player.pos.z - Math.cos(player.heading) * 0.28, heading: player.heading, phase: 0, pose: POSE.SIT, amp: 1, speed: 0, shirt: L.shirt, pants: L.pants, skin: L.skin, patches: walker.patches });
     people.add(P);
   }
@@ -722,7 +722,12 @@ function updateHud() {
       ? `💦 <b>Pichkari</b> <i style="background:#${HOLI[pichkari.colour].getHexString()}"></i>${pichkari.colourName} · Pressure ${'●'.repeat(pichkari.pressure)}${'○'.repeat(5 - pichkari.pressure)} · Tank ${Math.round(pichkari.tank * 100)}%`
       : '👊 <b>Fists</b> · click punch · V kick · G insult';
     $('weapon').innerHTML += ` · 🎆 X: ${crackers.current.name.split(' (')[0]}`;
+    if (combat.weapon === 'fists') $('weapon').innerHTML = $('weapon').innerHTML.replace('click punch', 'click punch ×3 combo · right mouse block');
   }
+  const foe = onFoot ? combat.foe : null;
+  $('foe').hidden = !foe;
+  if (foe) $('foe').innerHTML = `🥊 Opponent <i><b style="width:${Math.round(Math.max(0, Math.min(1, foe.hp ?? 1)) * 100)}%"></b></i>${combat.blocking ? ' · blocking' : ''}`;
+  document.body.classList.toggle('hurt', onFoot && walker.hurt > 0.05);
   $('food-bar').style.width = `${Math.round(state.s.hunger * 100)}%`;
   $('food-bar').style.background = state.s.hunger < 0.2 ? '#e74c3c' : '#f39c12';
   $('energy-bar').style.width = `${Math.round(state.s.energy * 100)}%`;

@@ -31,6 +31,7 @@ const CLIP = {
 const STRETCH = new THREE.Vector3(0.93, 1.1, 0.93);   // slimmer and taller
 const HEAD = new THREE.Vector3(0.76, 0.68, 0.76);     // smaller head (the stretch makes it taller again)
 const HEIGHT = 1.7;
+const GUARD_AT = 0.3; // fraction of the punch clip held as the guard stance
 const SLOT = { other: 0, skin: 1, shirt: 2, pants: 3, hair: 4, face: 5 };
 // Limbs whose swing is amplified when running: [bone name pattern, extra factor at a full run].
 const RUN_BONES = [[/^upperleg/i, 0.55], [/^lowerleg/i, 0.35], [/^upperarm/i, 0.7], [/^lowerarm/i, 0.5]];
@@ -183,7 +184,7 @@ export class Characters {
     const find = (re) => { for (const [n, b] of bones) if (re.test(n)) return b; return null; };
     const run = [];
     for (const [n, b] of bones) { const r = RUN_BONES.find(([re]) => re.test(n)); if (r && t.ref.has(n)) run.push([b, t.ref.get(n), r[1]]); }
-    return { t, holder, root, mesh, mixer, actions, u: mesh.material.userData.u, head: find(/^head$/i), spine: find(/^abdomen$/i) || find(/^torso$/i), hand: find(/^fist\.?r$|^hand\.?r$|righthand/i), run, lift: t.liftIdle, current: null, who: null, cap: null, spineClean: new THREE.Quaternion(), spineLeaned: new THREE.Quaternion(), leaned: false };
+    return { t, holder, root, mesh, mixer, actions, u: mesh.material.userData.u, head: find(/^head$/i), spine: find(/^abdomen$/i) || find(/^torso$/i), hand: find(/^fist\.?r$|^hand\.?r$|righthand/i), legR: find(/^upperleg\.?r$/i), run, lift: t.liftIdle, current: null, who: null, cap: null, adds: [] };
   }
 
   play(c, name) {
@@ -238,6 +239,21 @@ export class Characters {
     return m;
   }
 
+  /**
+   * Extra rotation of one bone about the character's right axis (world space), remembered so
+   * it can be undone next frame if the clip doesn't key that bone.
+   */
+  bend(c, bone, heading, angle) {
+    if (!bone || !angle) return;
+    let a = c.adds.find((x) => x.bone === bone);
+    if (!a) { a = { bone, clean: new THREE.Quaternion(), applied: new THREE.Quaternion(), on: false }; c.adds.push(a); }
+    if (!a.on) a.clean.copy(bone.quaternion);
+    bone.parent.getWorldQuaternion(this.qp);
+    this.qLean.setFromAxisAngle(this.axis.set(Math.cos(heading), 0, -Math.sin(heading)), angle);
+    bone.quaternion.premultiply(this.q.copy(this.qp).invert().multiply(this.qLean).multiply(this.qp));
+    a.applied.copy(bone.quaternion); a.on = true;
+  }
+
   /** Pick a body for a person: female models for saris, a stable choice per person. */
   templateFor(p) {
     const female = p.flags & 2 || p.kind === 'sari';
@@ -283,10 +299,25 @@ export class Characters {
       const moving = pose === POSE.WALK, sitting = pose === POSE.SIT, fallen = pose === POSE.FALLEN;
       const speed = p.speed ?? 1.3;
       const run = moving ? THREE.MathUtils.clamp((speed - 2.2) / 2.6, 0, 1) : 0; // 0 walk … 1 full run
-      const clip = fallen ? 'idle' : sitting ? 'sit' : pose === POSE.PUNCH || pose === POSE.PUSH || pose === POSE.KICK || pose === POSE.FIGHT || pose === POSE.THROW ? 'punch'
+      const guard = pose === POSE.FIGHT, kick = pose === POSE.KICK;
+      const swing = pose === POSE.PUNCH || pose === POSE.PUSH || pose === POSE.THROW;
+      const flinch = p.hitT > 0 && c.actions.hit && !fallen && !sitting;
+      const clip = fallen ? 'idle' : flinch ? 'hit' : sitting ? 'sit' : swing || guard || kick ? 'punch'
         : pose === POSE.POINT ? 'aim' : pose === POSE.WAVE ? 'wave' : moving ? (run > 0.5 && c.actions.run ? 'run' : 'walk') : 'idle';
       this.play(c, clip);
-      if (c.current) c.current.timeScale = sitting ? 0 : moving ? THREE.MathUtils.clamp(speed / (1.35 * (1 + run * 0.75)), 0.6, 2.1) : 1;
+      if (c.current) {
+        c.current.timeScale = sitting ? 0 : moving ? THREE.MathUtils.clamp(speed / (1.35 * (1 + run * 0.75)), 0.6, 2.1) : 1;
+        if (clip === 'punch') {
+          const dur = c.current.getClip().duration;
+          if (swing) {
+            // Every swing starts the punch from the top.
+            if (c.swingN !== p.swingN || c.wasGuard) { c.swingN = p.swingN; c.current.time = dur * 0.12; }
+            c.current.timeScale = 1.6;
+          } else { c.current.timeScale = 0; c.current.time = dur * GUARD_AT; } // guard up (also the base of a kick)
+          c.wasGuard = !swing;
+        } else if (clip === 'hit' && c.hitFor !== p.hitT && p.hitT > (c.hitFor || 0)) c.current.time = 0;
+        c.hitFor = p.hitT;
+      }
       // Feet on the ground: the standing and walking poses sit at slightly different heights.
       const liftWant = sitting ? t.sitLift : moving ? t.liftWalk : t.liftIdle;
       c.lift += (liftWant - c.lift) * Math.min(1, dt * 10);
@@ -305,20 +336,19 @@ export class Characters {
       if (!far || (this.frame & 1) === 0) {
         c.mixer.update(far ? dt * 2 : dt);
         if (c.head) c.head.scale.copy(t.headScale);
-        // The clips don't key every bone: undo last frame's lean if the mixer left the spine alone.
-        if (c.spine && c.leaned && c.spine.quaternion.equals(c.spineLeaned)) c.spine.quaternion.copy(c.spineClean);
-        c.leaned = false;
+        // The clips don't key every bone: undo last frame's extra rotations where the mixer left them.
+        for (const a of c.adds) { if (a.on && a.bone.quaternion.equals(a.applied)) a.bone.quaternion.copy(a.clean); a.on = false; }
         if (run > 0) {
           for (const [b, ref, k] of c.run) b.quaternion.copy(this.q.copy(ref).slerp(b.quaternion, 1 + k * run));
-          if (c.spine) {
-            c.spineClean.copy(c.spine.quaternion);
-            // Lean the upper body into the run (about the character's right axis, in world space),
-            // leaving the legs and feet where the walk cycle puts them.
-            c.spine.parent.getWorldQuaternion(this.qp);
-            this.qLean.setFromAxisAngle(this.axis.set(Math.cos(p.heading), 0, -Math.sin(p.heading)), 0.34 * run);
-            c.spine.quaternion.premultiply(this.q.copy(this.qp).invert().multiply(this.qLean).multiply(this.qp));
-            c.spineLeaned.copy(c.spine.quaternion); c.leaned = true;
-          }
+          // Lean the upper body into the run, leaving the legs where the walk cycle puts them.
+          this.bend(c, c.spine, p.heading, 0.34 * run);
+        }
+        if (kick) {
+          // No kick clip in the pack: swing the right leg up from the guard pose and lean back a little.
+          const k = Math.sin(Math.min(1, ((p.kickT = (p.kickN === p.swingN ? p.kickT : 0) + dt) / 0.4)) * Math.PI);
+          p.kickN = p.swingN;
+          this.bend(c, c.legR, p.heading, -1.35 * k);
+          this.bend(c, c.spine, p.heading, -0.22 * k);
         }
       }
       // Where the right hand is (the player's pichkari is held there).

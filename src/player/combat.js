@@ -80,24 +80,32 @@ export class Combat {
   }
 
   // ------------------------------------------------------------------ player actions
+  /** Left-right-heavy: the third punch in a quick chain lands much harder. */
   punch() {
     if (this.cool > 0 || this.walker.down > 0) return;
-    this.cool = 0.4;
-    this.walker.action = { pose: POSE.PUNCH, t: 0.32, phase: (this.punchSide = -(this.punchSide || 1)) * Math.PI / 2 };
-    this.walker.attacking = 0.6;
+    this.combo = this.time - (this.lastPunch ?? -9) < 0.8 ? (this.combo % 3) + 1 : 1;
+    this.lastPunch = this.time;
+    const heavy = this.combo === 3;
+    this.cool = heavy ? 0.55 : 0.32;
+    this.walker.action = { pose: POSE.PUNCH, t: heavy ? 0.42 : 0.27, phase: (this.punchSide = -(this.punchSide || 1)) * Math.PI / 2, n: (this.swings = (this.swings || 0) + 1) };
+    this.walker.attacking = 0.9;
     this.audio.whoosh?.();
-    const t = this.inFront(1.35)[0];
-    if (t) this.strike(t, 0.3, 1.2, 0.08);
+    const t = this.inFront(heavy ? 1.5 : 1.35)[0];
+    if (!t) return;
+    this.strike(t, heavy ? 0.5 : 0.2, heavy ? 2.8 : 1.0, heavy ? 0.4 : 0.03, heavy);
+    if (heavy) this.say(this.walker, ['Dhishoom!', 'Yeh le!', 'Aur le!']);
   }
 
+  /** A kick; straight after two or more punches it is a finisher. */
   kick() {
     if (this.cool > 0 || this.walker.down > 0) return;
-    this.cool = 0.7;
-    this.walker.action = { pose: POSE.KICK, t: 0.45, phase: 0 };
-    this.walker.attacking = 0.8;
+    const finisher = this.combo >= 2 && this.time - (this.lastPunch ?? -9) < 0.9;
+    this.cool = 0.7; this.combo = 0;
+    this.walker.action = { pose: POSE.KICK, t: 0.45, phase: 0, n: (this.swings = (this.swings || 0) + 1) };
+    this.walker.attacking = 0.9;
     this.audio.whoosh?.();
     const t = this.inFront(1.6)[0];
-    if (t) this.strike(t, 0.5, 2.4, 0.35);
+    if (t) this.strike(t, finisher ? 0.65 : 0.4, finisher ? 3.4 : 2.4, finisher ? 0.7 : 0.3, finisher);
   }
 
   abuse() {
@@ -116,10 +124,11 @@ export class Combat {
   }
 
   /** The player hit someone: damage, knockback, reaction. */
-  strike(t, damage, push, knockChance) {
+  strike(t, damage, push, knockChance, heavy = false) {
     const o = t.o, w = this.walker;
     const dx = o.x - w.pos.x, dz = o.z - w.pos.z, l = Math.hypot(dx, dz) || 1;
-    this.audio.punch?.(1);
+    this.audio.punch?.(heavy ? 1.4 : 0.9);
+    o.hitT = 0.32; // flinch (real characters play their hit reaction)
     if (t.kind === 'cop') {
       this.say(o, 'Pulis pe haath?! Ab toh andar!', 'cop');
       this.police.offence('assault', w);
@@ -139,9 +148,11 @@ export class Combat {
     o.x += (dx / l) * push * 0.4; o.z += (dz / l) * push * 0.4;
     this.crime('brawl');
     if (o.hp <= 0 || Math.random() < knockChance) {
+      const ko = o.hp <= 0;
       this.free(o, 'down');
-      o.combat.t = 3.5 + Math.random() * 2;
-      this.say(o, HURT);
+      o.combat.t = ko ? 6 + Math.random() * 2 : 3 + Math.random() * 1.5;
+      this.say(o, ko ? ['💫 …', 'Bas… bas…', 'Maa…!'] : HURT);
+      if (ko) { this.hud.message('Knockout! 💫'); this.kos = (this.kos || 0) + 1; }
       return;
     }
     if (!o.combat || o.combat.mode === 'flee') {
@@ -204,18 +215,39 @@ export class Combat {
         if (d > 1.05) { this.moveTo(p, w.pos.x, w.pos.z, 3.0, dt); p.pose = POSE.WALK; p.amp = 1.4; p.phase += dt * 8; break; }
         p.heading = Math.atan2(dx, dz);
         p.pose = POSE.FIGHT;
-        if (c.cool <= 0 && w.down <= 0) {
-          c.cool = 1.0 + Math.random() * 0.7;
-          const push = Math.random() < 0.4;
-          p.pose = push ? POSE.PUSH : POSE.PUNCH;
-          c.swing = 0.3;
-          const l = d || 1;
-          w.hitBy(push ? 0.03 : 0.055, dx / l, dz / l, push ? 4.5 : 1.6);
-          if (push && Math.random() < 0.2) w.knock(0.02);
-          this.audio.punch?.(0.8);
-          if (Math.random() < 0.35) this.say(p, push ? ['Hatt!', 'Chal nikal!', 'Dhakka!'] : FIGHT);
+        if (p.hitT > 0) { c.wind = 0; break; } // staggered: the swing is interrupted
+        if (c.cool <= 0 && w.down <= 0 && !(c.wind > 0)) {
+          // Wind up first: the player gets a moment to block (right mouse) or step back.
+          c.wind = 0.42; c.push = Math.random() < 0.35; p.swingN = (p.swingN || 0) + 1;
         }
-        if (c.swing > 0) { c.swing -= dt; p.pose = POSE.PUNCH; }
+        if (c.wind > 0) {
+          c.wind -= dt;
+          p.pose = c.push ? POSE.PUSH : POSE.PUNCH;
+          if (c.wind <= 0) {
+            c.cool = 0.8 + Math.random() * 0.8;
+            if (d < 1.45 && w.down <= 0) {
+              const l = d || 1, blocked = this.blocking;
+              if (blocked) {
+                w.hitBy(c.push ? 0.004 : 0.01, dx / l, dz / l, c.push ? 1.6 : 0.5);
+                this.audio.punch?.(0.35);
+                if (Math.random() < 0.4) this.say(w, ['Block!', 'Bas itna hi?', 'Aur zor se!']);
+              } else {
+                w.hitBy(c.push ? 0.03 : 0.06, dx / l, dz / l, c.push ? 4.5 : 1.6);
+                if (c.push && Math.random() < 0.2) w.knock(0.02);
+                this.audio.punch?.(0.8);
+                if (Math.random() < 0.35) this.say(p, c.push ? ['Hatt!', 'Chal nikal!', 'Dhakka!'] : FIGHT);
+              }
+            } else if (Math.random() < 0.5) this.say(p, ['Ruk!', 'Bhaag mat!', 'Idhar aa!']);
+          }
+        }
+        // A long fight draws in a friend of theirs.
+        if (c.life > 7 && !c.calledFriend) {
+          c.calledFriend = true;
+          if (Math.random() < 0.35) {
+            const pal = this.street.peds.find((q) => q !== p && !q.combat && this.adult(q) && Math.hypot(q.x - p.x, q.z - p.z) < 12);
+            if (pal) { this.free(pal, 'fight'); pal.rolled = true; this.say(pal, ['Mere dost ko maarega?!', 'Ek pe do? Chalega!', 'Ruk, main aata hoon!']); }
+          }
+        }
         break;
       case 'throw': {
         if (far) { c.mode = 'flee'; c.t = 5; break; }
@@ -324,11 +356,35 @@ export class Combat {
   // ------------------------------------------------------------------ frame
   update(dt, input, onFoot) {
     this.onFoot = onFoot;
+    this.time = (this.time || 0) + dt;
     this.cool -= dt;
     this.offenceCool -= dt;
     const w = this.walker;
     if (w.action) { w.action.t -= dt; if (w.action.t <= 0) w.action = null; }
+    if (w.hurt > 0) w.hurt -= dt;
     w.aiming = onFoot && (this.view.aim || (this.weapon === 'fists' && w.attacking > 0));
+    // Guard up (right mouse with fists): blows do a fraction of the damage and don't knock you back.
+    this.blocking = onFoot && this.weapon === 'fists' && (this.view.aim || input.aim) && !w.action && w.down <= 0;
+    // Who we're fighting (for the HUD), flinch timers, and the crowd a fight draws.
+    this.foe = null;
+    let fd = 9;
+    for (const p of this.street.peds) {
+      if (p.hitT > 0) p.hitT -= dt;
+      if (p.free && p.combat?.mode === 'fight') { const d = Math.hypot(p.x - w.pos.x, p.z - w.pos.z); if (d < fd) { fd = d; this.foe = p; } }
+    }
+    for (const f of this.street.fixtures.values()) for (const p of f.people || []) if (p.hitT > 0) p.hitT -= dt;
+    if (this.foe && onFoot) {
+      this.crowdT = (this.crowdT || 0) - dt;
+      if (this.crowdT <= 0) {
+        this.crowdT = 1.2 + Math.random() * 1.2;
+        const near = this.street.peds.filter((q) => !q.combat && q.state === 'walk' && Math.hypot(q.x - w.pos.x, q.z - w.pos.z) < 14);
+        const q = near[Math.floor(Math.random() * near.length)];
+        if (q) {
+          q.state = 'watch'; q.watch = w.pos; q.timer = 4 + Math.random() * 3;
+          if (Math.random() < 0.6) this.say(q, ['Maar! Maar!', 'Arre chhodo yaar!', 'Reel bana raha hoon!', 'Police ko bulao!', 'Wah! Kya punch tha!', 'Jhagda! Jhagda!', 'Sahi ja raha hai!']);
+        }
+      }
+    }
     if (onFoot && this.weapon === 'fists' && input.fire) this.punch();
     // Some people are spoiling for a fight (about 4–5 %); 1.5 % carry a pichkari.
     if (onFoot) {

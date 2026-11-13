@@ -88,7 +88,8 @@ export class Walker {
     else if (this.aiming) pose = POSE.FIGHT;
     if (this.down > 0) pose = POSE.FALLEN;
     // One persistent object, so the real character model keeps following the same person.
-    const p = (this.person ||= { isPlayer: true, flags: 0, scale: 1, model: 0 });
+    const p = (this.person ||= { isPlayer: true, flags: 0, scale: 1, model: 0, hair: new THREE.Color(0x17110c) });
+    p.hitT = this.hurt > 0 ? this.hurt : 0; p.swingN = this.action?.n || p.swingN || 0;
     Object.assign(p, { x: this.pos.x, y: this.pos.y, z: this.pos.z, heading: this.heading, phase: this.action?.t > 0 ? this.action.phase : this.phase, pose, amp: Math.min(1.7, Math.abs(this.speed) / 1.3 + 0.2), speed: Math.abs(this.speed), shirt: this.look.shirt, pants: this.look.pants, skin: this.look.skin, patches: this.patches });
     people.add(p);
   }
