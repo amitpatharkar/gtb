@@ -15,7 +15,7 @@ import { Traffic } from './sim/traffic.js';
 import { FacadeParts } from './world/facadeParts.js';
 import { Signals } from './sim/signals.js';
 import { Police } from './sim/police.js';
-import { PeopleRenderer, POSE, FLAG, HOLI } from './sim/people.js';
+import { PeopleRenderer, POSE, FLAG, HOLI, outfit } from './sim/people.js';
 import { Bubbles } from './ui/bubbles.js';
 import { StreetLife } from './sim/street.js';
 import { Animals } from './sim/animals.js';
@@ -163,6 +163,32 @@ function respawn() {
   player.fuel = Math.max(player.fuel, 0.3);
 }
 respawn();
+// Where the world was at the last save (taxi, clock, wanted level, orders on their way).
+state.beforeSave = () => {
+  if (teleporting) return;
+  state.s.world = {
+    x: player.pos.x, z: player.pos.z, heading: player.heading, fuel: player.fuel, condition: player.condition,
+    hour: clock.hour, stars: police.stars, fines: police.fines,
+    orders: jobs.riders.filter((r) => r.state === 'coming').map((r) => ({ app: r.app, items: r.items, eta: Math.max(20, r.eta - r.t) })),
+  };
+};
+const saved = !newGame && !resume && state.s.world;
+if (saved && Number.isFinite(saved.x) && tiles.walkable(saved.x, saved.z)) {
+  player.pos.set(saved.x, 0.02, saved.z);
+  player.heading = saved.heading || 0;
+  player.fuel = saved.fuel ?? player.fuel;
+  player.condition = saved.condition ?? player.condition;
+  if (Number.isFinite(saved.hour) && !query.has('hour')) clock.hour = saved.hour;
+}
+if (saved) {
+  // Challans don't vanish with a reload; orders already paid for still arrive.
+  police.stars = Math.min(5, saved.stars || 0); police.fines = saved.fines || 0;
+  for (const o of saved.orders || []) {
+    const look = outfit('casual');
+    look.shirt = new THREE.Color(o.app === 'jhatpat' ? 0x2e9e44 : 0xf26722);
+    jobs.riders.push({ app: o.app, items: o.items, eta: o.eta, t: 0, look, state: 'coming', person: null });
+  }
+}
 if (resume) {
   player.pos.set(resume.x, 0.02, resume.z);
   player.heading = resume.heading;
@@ -295,7 +321,11 @@ markStarted();
 let teleporting = false;
 async function teleportHome() {
   if (teleporting) return;
+  // R: a tow truck takes you and the taxi back to the Gateway (free if you're already close).
+  const far = Math.hypot(player.pos.x - spawn.x, player.pos.z - spawn.z) > 150;
   teleporting = true;
+  if (far) { state.pay(300, 'Tow to the Gateway'); say(state.money < 0 ? 'Tow truck: ₹300 on credit. Back at the Gateway.' : 'Tow truck: ₹300. Back at the Gateway.', 3); }
+  if (onFoot) { onFoot = false; walker.spraying = false; }
   $('fade').classList.add('on');
   await new Promise((r) => setTimeout(r, 250));
   respawn();

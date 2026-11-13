@@ -88,6 +88,6 @@ export class GameState {
   eat(amount) { this.s.hunger = Math.min(1, this.s.hunger + amount); this.changed(); }
   rest(amount) { this.s.energy = Math.min(1, this.s.energy + amount); this.changed(); }
 
-  save() { try { localStorage.setItem(KEY, JSON.stringify(this.s)); } catch { /* ignore */ } }
+  save() { try { this.beforeSave?.(); localStorage.setItem(KEY, JSON.stringify(this.s)); } catch { /* ignore */ } }
   reset() { this.s = fresh(); this.save(); this.changed(); }
 }
