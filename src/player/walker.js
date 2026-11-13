@@ -87,6 +87,6 @@ export class Walker {
     else if (this.spraying || (this.aiming && weapon === 'pichkari')) pose = POSE.POINT;
     else if (this.aiming) pose = POSE.FIGHT;
     if (this.down > 0) pose = POSE.FALLEN;
-    people.add({ x: this.pos.x, y: this.pos.y, z: this.pos.z, heading: this.heading, phase: this.action?.t > 0 ? this.action.phase : this.phase, pose, amp: Math.min(1.7, Math.abs(this.speed) / 1.3 + 0.2), flags: 0, scale: 1, ...this.look, patches: this.patches });
+    people.add({ isPlayer: true, x: this.pos.x, y: this.pos.y, z: this.pos.z, heading: this.heading, phase: this.action?.t > 0 ? this.action.phase : this.phase, pose, amp: Math.min(1.7, Math.abs(this.speed) / 1.3 + 0.2), flags: 0, scale: 1, ...this.look, patches: this.patches });
   }
 }

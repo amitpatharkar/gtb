@@ -251,6 +251,7 @@ export class TileManager {
 
   /** Ground height felt by the player's wheels: rough lanes undulate, potholes dip. */
   wheelHeight(x, z) {
+    this.inPothole = false;
     const r = this.roadAt(x, z, -0.15, true);
     if (!r) return Y.KERB;
     const f = r.tile.collide.roads.segs[r.index * SEG + 5];
@@ -263,7 +264,7 @@ export class TileManager {
       for (let i = 0; i < arr.length; i += 5) {
         const dx = x - arr[i] - t.origin[0], dz = z - arr[i + 2] - t.origin[1], rad = arr[i + 4] * 0.45;
         const d2 = dx * dx + dz * dz;
-        if (d2 < rad * rad) y -= 0.09 * (1 - Math.sqrt(d2) / rad);
+        if (d2 < rad * rad) { y -= 0.09 * (1 - Math.sqrt(d2) / rad); this.inPothole = true; }
       }
     }
     return y;

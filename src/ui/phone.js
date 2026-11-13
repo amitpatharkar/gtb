@@ -87,6 +87,7 @@ export class Phone {
     if (act === 'order') {
       if (!this.cart.length) return;
       const total = this.cart.reduce((a, i) => a + i.price, 0) + (this.app === 'bhookh' ? 35 : 15);
+      if (!s.canAfford(total)) { this.toast(`Payment declined: you have ₹${Math.max(0, s.money)}. Earn with taxi fares (J).`); return; }
       s.pay(total, this.app === 'bhookh' ? 'Bhookh food order' : 'JhatPat order');
       this.jobs.order(this.app, this.cart, this.player);
       this.cart = [];
@@ -95,12 +96,14 @@ export class Phone {
     if (act === 'buy') {
       const item = SHOP.find((i) => i.id === arg);
       if (s.owns(item.id) || s.s.pending.some((p) => p.id === item.id)) return;
+      if (!s.canAfford(item.price)) { this.toast('Payment declined — not enough money.'); return; }
       s.pay(item.price, `Dukaan: ${item.name}`);
       s.s.pending.push({ id: item.id, name: item.name, due: this.now() + 120 });
       s.message('Dukaan', `Ordered ${item.name}. Delivery to ${HOME.line1}, ${HOME.city} in about 2 hours.`);
       this.toast('Ordered! Delivered to your home in Powai.');
     }
     if (act === 'rent') {
+      if (!s.canAfford(25000)) { this.toast('Not enough money for rent yet.'); return; }
       s.pay(25000, 'Rent, Flat 1204 Powai');
       s.message('Landlord (Powai)', 'Rent received. Thank you! 🙏');
       this.toast('Rent paid.');

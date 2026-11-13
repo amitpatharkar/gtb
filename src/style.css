@@ -272,3 +272,53 @@ body.photo #hud, body.photo #status, body.photo #radar, body.photo #message, bod
 body.onfoot #touch .pad.combat { display: grid; grid-template-columns: repeat(3, 52px); gap: 8px; align-self: flex-end; }
 body.onfoot #touch .pad.combat button { width: 52px; height: 52px; font-size: 20px; }
 @media (pointer: coarse) { #weapon { bottom: 150px; font-size: 12px; } }
+
+/* Key list: shown for the first minute, then on ? */
+#help { display: none; }
+#help.show { display: block; }
+
+/* Title, loading and pause screens */
+#title-screen, #load-screen, #pause-screen { position: fixed; inset: 0; z-index: 50; overflow: hidden; background: #111; color: #fff; font-family: system-ui, sans-serif; }
+#pause-screen { background: #000c; z-index: 40; }
+#pause-screen[hidden] { display: none; }
+#title-screen .art, #load-screen .art { position: absolute; inset: 0; }
+#title-screen .art svg, #load-screen .art svg { width: 100%; height: 100%; display: block; }
+#load-screen .art { opacity: 0; transition: opacity 1.2s; }
+#load-screen .art.on { opacity: 1; animation: kenburns 9s ease-out forwards; }
+@keyframes kenburns { from { transform: scale(1.12) translateX(2%); } to { transform: scale(1) translateX(0); } }
+.halftone { position: absolute; inset: 0; background: radial-gradient(#0004 1px, transparent 1.6px) 0 0 / 6px 6px; mix-blend-mode: multiply; pointer-events: none; }
+.logo { position: absolute; left: 6vw; top: 8vh; line-height: 0.85; text-shadow: 4px 4px 0 #000, 0 0 30px #0008; }
+.logo b { display: block; font: 900 clamp(70px, 14vw, 190px)/0.85 'Arial Black', Impact, sans-serif; letter-spacing: -4px; color: #f7c600; -webkit-text-stroke: 3px #000; }
+.logo span { display: block; font: 900 clamp(26px, 4.4vw, 60px) 'Arial Black', Impact, sans-serif; letter-spacing: 10px; color: #fff; -webkit-text-stroke: 2px #000; }
+.logo small { display: block; margin-top: 10px; font: italic 700 clamp(14px, 1.6vw, 22px) Georgia, serif; color: #ffd27a; letter-spacing: 2px; }
+.logo.small b { font-size: clamp(48px, 7vw, 96px); }
+.logo.small span { font-size: clamp(18px, 2.4vw, 32px); letter-spacing: 6px; }
+#title-screen .menu, #pause-screen .menu { position: absolute; left: 6vw; bottom: 12vh; display: flex; flex-direction: column; gap: 10px; min-width: 260px; }
+#title-screen .menu button, #pause-screen .menu button {
+  text-align: left; background: #000b; color: #fff; border: 0; border-left: 6px solid transparent; padding: 12px 18px; font: 800 20px system-ui, sans-serif; letter-spacing: 1px; cursor: pointer; text-transform: uppercase; }
+#title-screen .menu button:hover, #pause-screen .menu button:hover, #title-screen .menu button.main, #pause-screen .menu button.main { border-left-color: #f7c600; background: #000e; }
+#title-screen .menu small { display: block; font: 600 12px system-ui; text-transform: none; opacity: 0.8; margin-top: 2px; }
+#title-screen .panel, #pause-screen .panel { position: absolute; right: 5vw; top: 10vh; bottom: 10vh; width: min(520px, 88vw); overflow: auto; background: #000e; border-top: 6px solid #f7c600; padding: 20px 24px; font: 15px/1.5 system-ui, sans-serif; }
+#title-screen .panel[hidden], #pause-screen .panel[hidden] { display: none; }
+.panel h2 { margin: 0 0 12px; font: 900 26px 'Arial Black', sans-serif; color: #f7c600; }
+.panel h3 { margin: 14px 0 4px; color: #ffd27a; }
+.panel label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
+.panel select, .panel input[type=range] { width: 55%; }
+.panel .close { position: absolute; right: 12px; top: 10px; background: none; border: 0; color: #fff; font-size: 22px; cursor: pointer; }
+.panel .small { opacity: 0.7; font-size: 12px; }
+#title-screen .foot { position: absolute; right: 16px; bottom: 10px; font-size: 11px; opacity: 0.8; text-shadow: 0 1px 2px #000; }
+#load-screen .bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 6vw 28px; background: linear-gradient(#0000, #000d 40%); }
+#load-screen .tip { font: 600 clamp(14px, 1.6vw, 19px)/1.4 system-ui, sans-serif; max-width: 900px; margin-bottom: 14px; text-shadow: 0 2px 4px #000; }
+#load-screen .tip::before { content: 'TIP  '; color: #f7c600; font-weight: 900; letter-spacing: 2px; }
+#load-screen .bar { height: 6px; background: #fff3; border-radius: 3px; overflow: hidden; max-width: 900px; }
+#load-screen .bar i { display: block; height: 100%; width: 0; background: #f7c600; transition: width 0.3s; }
+#load-screen .status { margin-top: 8px; font: 12px system-ui; opacity: 0.8; }
+#load-screen.out { opacity: 0; transition: opacity 0.7s; pointer-events: none; }
+#loading { display: none; }
+#choice { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 30; background: #000e; color: #fff; border-top: 5px solid #f7c600; padding: 16px 18px; border-radius: 6px; min-width: 300px; font: 15px system-ui, sans-serif; display: flex; flex-direction: column; gap: 8px; }
+#choice[hidden] { display: none; }
+#choice b { margin-bottom: 4px; }
+#choice button { text-align: left; background: #ffffff14; color: #fff; border: 0; padding: 9px 12px; border-radius: 6px; font: 600 14px system-ui; cursor: pointer; }
+#choice button:hover { background: #f7c60044; }
+#choice kbd { background: #f7c600; color: #000; border-radius: 4px; padding: 0 6px; margin-right: 6px; font: 700 12px system-ui; }
+#credits-panel { z-index: 60; }

@@ -13,8 +13,8 @@ export class Car {
     this.steer = 0;        // front wheel angle
     this.radius = 0.8;
     this.halfLength = 1.1;
-    this.maxSpeed = opts.maxSpeed ?? 25;
-    this.accel = opts.accel ?? 5.2;
+    this.maxSpeed = opts.maxSpeed ?? 26;   // ~90 km/h flat out; 60–70 km/h comes quickly
+    this.accel = opts.accel ?? 6.2;
     this.fuel = opts.fuel ?? 0.6;          // 0..1 (full tank ≈ 40 km)
     this.condition = 1;                    // 0..1, drops in crashes
     this.odometer = 0;
@@ -27,12 +27,12 @@ export class Car {
     const BRAKE = 9, DRAG = 0.35, ROLLING = 0.6;
     const fwd = Math.cos(this.heading), side = Math.sin(this.heading);
     const empty = this.fuel <= 0;
-    const top = this.maxSpeed * (0.55 + 0.45 * this.condition);
+    const top = this.maxSpeed * (0.8 + 0.2 * this.condition);
     let a = 0;
-    if (input.fwd && !empty) a += this.speed < 0 ? BRAKE : this.accel * (1 - Math.max(0, this.speed) / top);
+    if (input.fwd && !empty) a += this.speed < 0 ? BRAKE : this.accel * (1 - (Math.max(0, this.speed) / top) ** 2);
     if (input.back) a -= this.speed > 0.5 ? BRAKE : empty ? 0 : this.accel * 0.6;
     if (input.brake) a -= Math.sign(this.speed) * Math.min(Math.abs(this.speed) / dt, BRAKE * 1.2);
-    a -= this.speed * DRAG * Math.abs(this.speed) * 0.02 + Math.sign(this.speed) * ROLLING * (input.fwd || input.back ? 0 : 1);
+    a -= this.speed * DRAG * Math.abs(this.speed) * 0.007 + Math.sign(this.speed) * ROLLING * (input.fwd || input.back ? 0 : 1);
     const prev = this.speed;
     this.speed += a * dt;
     if (Math.sign(prev) !== Math.sign(this.speed) && !input.fwd && !input.back) this.speed = 0;
@@ -58,24 +58,26 @@ export class Car {
       const impact = Math.abs(this.speed);
       // Which side hit, in the car's own frame: mostly the end it was moving towards.
       if (impact > (this.impact || 0)) { this.impact = impact; this.impactLocal = [(Math.random() - 0.5) * 0.8, Math.sign(this.speed) || 1]; }
-      if (impact > 4) this.condition = Math.max(0, this.condition - impact * 0.004);
+      if (impact > 4) this.condition = Math.max(0, this.condition - (impact - 3) * 0.004);
       this.speed *= -0.25;
     }
 
     // Fuel: ~1 % per 400 m, a trickle when idling.
     const dist = Math.hypot(dx, dz);
     this.odometer += dist;
-    this.fuel = Math.max(0, this.fuel - dist / 40000 - dt * 0.00002);
+    this.fuel = Math.max(0, this.fuel - dist / 60000 - dt * 0.00001); // ~60 km per tank
 
     // Ground: average of front and rear wheels; kerbs give a bump.
     const fx = Math.sin(this.heading) * 1.17, fz = Math.cos(this.heading) * 1.17;
+    world.pothole = false;
     const gF = world.groundHeight(this.pos.x + fx, this.pos.z + fz), gR = world.groundHeight(this.pos.x - fx, this.pos.z - fz);
     const g = (gF + gR) / 2;
     if (Math.abs(g - this.pos.y) > 0.06 && Math.abs(this.speed) > 3) {
       // Kerbs and potholes: a jolt, some lost speed, and a little damage when taken fast.
       this.speed *= 0.93;
       this.lastBump = 0.25;
-      if (Math.abs(this.speed) > 9) this.condition = Math.max(0, this.condition - 0.002 * Math.abs(this.speed));
+      // Only potholes hurt the car (kerbs and rough patches just jolt it).
+      if (world.pothole && Math.abs(this.speed) > 9) this.condition = Math.max(0, this.condition - 0.0012 * Math.abs(this.speed));
       this.bumped = true;
     }
     this.pos.y += (g - this.pos.y) * Math.min(1, dt * 12);

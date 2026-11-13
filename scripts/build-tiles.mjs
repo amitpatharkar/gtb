@@ -666,9 +666,73 @@ function addLines(list, put, tolerance = 0.2, mustKeep = null) {
   }
   return n;
 }
-const roadName = (t) => t['name:en'] || t.name || t.ref || '';
+const roadName = (t) => t.name || t['name:en'] || t.ref || ''; // one name per road: the signposted `name` first
+
+// OSM often spells one road several ways along its length ("P J Ramchandani Marg",
+// "Prem J. Ramchandani Road", "Apollo Bandar Road/P J Ramchandani Marg"). Pieces that touch
+// and share a distinctive word are merged and all get the name used along most of them.
+{
+  const COMMON = new Set(['road', 'marg', 'street', 'lane', 'cross', 'flyover', 'bridge', 'chowk', 'nagar', 'galli', 'gully', 'path', 'avenue', 'station', 'east', 'west', 'north', 'south', 'first', 'second', 'third', 'fourth', 'fifth', 'raod', 'service', 'maharshi', 'maharaj', 'shivaji', 'gandhi', 'mahatma', 'sardar', 'netaji', 'subhash']);
+  const words = (n) => new Set(n.toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter((w) => w.length >= 7 && !COMMON.has(w)));
+  const named = roadsRaw.filter((r) => roadName(r.tags));
+  const parent = new Map(named.map((r) => [r, r]));
+  const find = (r) => { while (parent.get(r) !== r) { parent.set(r, parent.get(parent.get(r))); r = parent.get(r); } return r; };
+  const byNode = new Map();
+  for (const r of named) {
+    r.words = words(roadName(r.tags));
+    for (const id of r.ids) (byNode.get(id) || byNode.set(id, []).get(id)).push(r);
+  }
+  for (const list of byNode.values()) {
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const a = list[i], b = list[j];
+      if (roadName(a.tags) === roadName(b.tags) || [...a.words].some((w) => b.words.has(w))) parent.set(find(a), find(b));
+    }
+  }
+  // Same name apart from punctuation ("P D' Mello Road" / "P D Mello Road"), or a shared
+  // distinctive word with ends within 40 m of each other (pieces joined by unnamed links).
+  const key = (r) => roadName(r.tags).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const byKey = new Map();
+  for (const r of named) { const k = key(r); if (byKey.has(k)) parent.set(find(r), find(byKey.get(k))); else byKey.set(k, r); }
+  const byWord = new Map();
+  for (const r of named) for (const w of r.words) (byWord.get(w) || byWord.set(w, []).get(w)).push(r);
+  for (const list of byWord.values()) {
+    if (list.length > 60) continue;
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const a = list[i], b = list[j];
+      if (find(a) === find(b)) continue;
+      const close = (u, v) => [u.pts[0], u.pts[u.pts.length - 1]].some((p) => v.pts.some((q) => (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 < 1600));
+      const near = close(a, b) || close(b, a);
+      if (near) parent.set(find(a), find(b));
+    }
+  }
+  const groups = new Map();
+  for (const r of named) (groups.get(find(r)) || groups.set(find(r), []).get(find(r))).push(r);
+  let renamed = 0;
+  for (const g of groups.values()) {
+    const score = new Map();
+    for (const r of g) {
+      let len = 0;
+      for (let i = 1; i < r.pts.length; i++) len += Math.hypot(r.pts[i][0] - r.pts[i - 1][0], r.pts[i][1] - r.pts[i - 1][1]);
+      const n = roadName(r.tags);
+      score.set(n, (score.get(n) || 0) + len - (n.includes('/') || n.includes('(') ? 1e5 : 0));
+    }
+    const best = [...score].sort((a, b) => b[1] - a[1])[0][0];
+    for (const r of g) if (roadName(r.tags) !== best) { r.canon = best; renamed++; }
+  }
+  // Combined names ("Apollo Bandar Road/P J Ramchandani Marg (Strand Raod)"): use the part
+  // that is the name of a road elsewhere.
+  const finalName = (r) => r.canon || roadName(r.tags);
+  const known = new Set(named.map(finalName).filter((n) => !/[/(]/.test(n)));
+  for (const r of named) {
+    const n = finalName(r);
+    if (!/[/(]/.test(n)) continue;
+    const part = n.split(/[/()]/).map((x) => x.trim()).find((x) => known.has(x));
+    if (part) { r.canon = part; renamed++; }
+  }
+  log(`road names: ${renamed} pieces renamed to their road's main name`);
+}
 const nRoads = addLines(roadsRaw, (tile, r, line) => {
-  const name = roadName(r.tags);
+  const name = r.canon || roadName(r.tags);
   let idx = -1;
   if (name) {
     if (!tile.names.has(name)) tile.names.set(name, tile.names.size);

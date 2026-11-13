@@ -4,7 +4,7 @@ import { TileManager } from './world/tiles.js';
 import { createMaterials } from './world/materials.js';
 import { createEnvironment } from './world/environment.js';
 import { setupCredits } from './credits.js';
-import { TIERS, pickTier, cycleTier, query } from './settings.js';
+import { TIERS, pickTier, query } from './settings.js';
 import { TextureLibrary } from './world/textures.js';
 import { createPost } from './render/post.js';
 import { facadeDebug, facadeNight } from './world/facade.js';
@@ -33,9 +33,27 @@ import { Combat } from './player/combat.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
+import { titleScreen, loadingScreen, pauseMenu, loadSettings } from './ui/menu.js';
 
 const BASE = import.meta.env.BASE_URL;
-const tierKey = TIERS[query.get('quality')] ? query.get('quality') : pickTier();
+
+// ------------------------------------------------------------------ title screen
+// A quality change mid-game saves where you are and reloads straight back into the game.
+const RESUME_KEY = 'gtb.resume';
+let resume = null;
+try { resume = JSON.parse(sessionStorage.getItem(RESUME_KEY) || 'null'); sessionStorage.removeItem(RESUME_KEY); } catch { /* ignore */ }
+let settings = loadSettings();
+let newGame = false;
+const skipMenu = resume || query.has('play') || query.has('quality') || query.has('hour');
+if (!skipMenu) {
+  let save = null;
+  try { const raw = JSON.parse(localStorage.getItem('gtb.save.v1') || 'null'); if (raw) save = { money: raw.money ?? 0, day: raw.day ?? 1, rides: raw.rides ?? 0 }; } catch { /* ignore */ }
+  const choice = await titleScreen({ save });
+  settings = choice.settings;
+  newGame = choice.action === 'new';
+}
+const loader = loadingScreen();
+const tierKey = TIERS[query.get('quality')] ? query.get('quality') : TIERS[settings.tier] ? settings.tier : pickTier();
 const tier = TIERS[tierKey];
 const $ = (id) => document.getElementById(id);
 
@@ -54,14 +72,16 @@ const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.4, 20
 
 setupCredits(BASE);
 $('quality').textContent = `Graphics: ${tier.name}`;
-$('quality').addEventListener('click', (e) => { e.preventDefault(); cycleTier(tierKey); });
+$('quality').addEventListener('click', (e) => { e.preventDefault(); changeQuality(nextTier(tierKey)); });
 
 // ------------------------------------------------------------------ world
 const lib = await new TextureLibrary(renderer, BASE, tier).init();
 const materials = createMaterials(renderer, lib, tier);
 loadSignFonts(lib, materials.signs);
 const tiles = new TileManager(scene, materials, tier);
-const index = await tiles.init(`${BASE}tiles/`).catch((err) => { $('loading').textContent = String(err.message || err); throw err; });
+loader.progress(0.1, 'Loading textures and the map…');
+const index = await tiles.init(`${BASE}tiles/`).catch((err) => { $('loading').textContent = String(err.message || err); loader.progress(0, String(err.message || err)); throw err; });
+loader.progress(0.2, 'Lighting the sky…');
 const env = await createEnvironment(renderer, scene, index.bounds, tier, lib);
 const post = createPost(renderer, scene, camera, tier);
 const startHour = Number(query.get('hour'));
@@ -83,6 +103,7 @@ const taxi = createTaxi();
 scene.add(taxi.root);
 const player = new Car(taxi);
 const state = new GameState();
+if (newGame) state.reset();
 Object.defineProperty(player, 'money', { get: () => state.money, set: (v) => { state.money = v; } }); // ₹ in the wallet
 player.pay = (amount, what) => state.pay(amount, what);
 const hud = { message: (t) => say(t, 4) };
@@ -93,11 +114,11 @@ const pichkari = new Pichkari(scene, { tiles, street, police, traffic, bubbles, 
 let combat = null; // created once the camera control exists (below)
 const jobs = new Jobs({ scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street });
 jobs.taxi = player;
-const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => cycleTier(tierKey), onPhoto: () => takePhoto() });
+const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => changeQuality(nextTier(tierKey)), onPhoto: () => takePhoto() });
 const propPhysics = new PropPhysics(scene, tiles, { bubbles, hud, state, audio });
 const world = {
   hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r),
-  groundHeight: (x, z) => tiles.wheelHeight(x, z),
+  groundHeight: (x, z) => { const y = tiles.wheelHeight(x, z); if (tiles.inPothole) world.pothole = true; return y; },
 };
 const spawn = index.spawn;
 function respawn() {
@@ -107,14 +128,38 @@ function respawn() {
   player.fuel = Math.max(player.fuel, 0.3);
 }
 respawn();
+if (resume) {
+  player.pos.set(resume.x, 0.02, resume.z);
+  player.heading = resume.heading;
+  player.fuel = resume.fuel ?? player.fuel;
+  player.condition = resume.condition ?? player.condition;
+  if (Number.isFinite(resume.hour)) clock.hour = resume.hour;
+}
+
+/** Graphics changes rebuild every buffer, so save where we are and reload straight back in. */
+function nextTier(t) { return { low: 'medium', medium: 'high', high: 'low' }[t] || 'low'; }
+function changeQuality(next) {
+  if (jobs.ride?.stage === 'ride') { say('Finish the ride before changing graphics', 3); return; }
+  state.save();
+  try {
+    sessionStorage.setItem(RESUME_KEY, JSON.stringify({ x: player.pos.x, z: player.pos.z, heading: player.heading, hour: clock.hour, fuel: player.fuel, condition: player.condition }));
+    localStorage.setItem('gtb.quality', next);
+    const st = loadSettings(); st.tier = next; localStorage.setItem('gtb.settings', JSON.stringify(st));
+  } catch { /* ignore */ }
+  location.reload();
+}
 
 // Night lighting near the player: real lights on the closest street lamps, taxi headlamps.
-const lampLights = Array.from({ length: tier.name === 'Low' ? 2 : 6 }, () => {
-  const l = new THREE.PointLight(0xffd9a6, 0, 30, 1.8);
+const lampLights = Array.from({ length: tier.name === 'Low' ? 3 : 6 }, () => {
+  const l = new THREE.PointLight(0xffd9a6, 0, 40, 1.6);
   scene.add(l);
   return l;
 });
-const headlamp = new THREE.SpotLight(0xfff1d6, 0, 70, 0.55, 0.6, 1.6);
+const headlamp = new THREE.SpotLight(0xfff1d6, 0, 95, 0.5, 0.55, 1.3);
+const lowBeam = new THREE.SpotLight(0xfff1d6, 0, 30, 0.95, 0.8, 1.2); // wide light on the road just ahead
+lowBeam.position.set(0, 0.7, 1.9);
+lowBeam.target.position.set(0, 0, 9);
+taxi.root.add(lowBeam, lowBeam.target);
 headlamp.position.set(0, 0.7, 1.9);
 headlamp.target.position.set(0, 0, 22);
 taxi.root.add(headlamp, headlamp.target);
@@ -186,8 +231,12 @@ placeCamera(0);
 combat = new Combat({ scene, street, police, bubbles, audio, hud, tiles, walker, pichkari, view });
 pichkari.ctx.combat = combat;
 
-await tiles.whenReady(spawn.x, spawn.z, 350, (done, total) => { $('loading').textContent = `Loading ${index.name}… ${done}/${total}`; });
+await tiles.whenReady(player.pos.x, player.pos.z, 350, (done, total) => {
+  $('loading').textContent = `Loading ${index.name}… ${done}/${total}`;
+  loader.progress(0.3 + 0.7 * (done / Math.max(1, total)), `Building ${index.name}… ${done}/${total}`);
+});
 $('loading').remove();
+loader.done();
 
 // ------------------------------------------------------------------ controls
 let teleporting = false;
@@ -204,13 +253,34 @@ async function teleportHome() {
 }
 let message = '', messageTimer = 0;
 const say = (text, seconds = 3) => { message = text; messageTimer = seconds; };
+// ------------------------------------------------------------------ settings, pause menu, hints
+function applySettings(st) {
+  settings = st;
+  audio.setVolume(st.volume);
+  view.sens = st.sens;
+  view.invertY = st.invertY;
+  $('help').classList.toggle('show', !!st.hints && helpTimer > 0);
+}
+let paused = false;
+const pause = pauseMenu({
+  paused: (on) => { paused = on; if (on) view.release(); },
+  quality: (t) => changeQuality(t),
+  settings: (st) => applySettings(st),
+  quit: () => { state.save(); location.reload(); },
+});
+let helpTimer = 50; // the long key list shows for the first 50 s, then ? brings it back
+applySettings(settings);
+
 addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' && !phone.open && !cityMap.open) { pause.toggle(); return; }
+  if (pause.open) return;
+  if (e.code === 'Slash') { helpTimer = helpTimer > 0 ? 0 : 30; $('help').classList.toggle('show', helpTimer > 0); }
   audio.start();
   if (e.repeat) return;
   if (e.code === 'Tab') { e.preventDefault(); view.release(); cityMap.toggle(!cityMap.open, player); return; }
   if (e.code === 'Escape' && cityMap.open) { cityMap.toggle(false); return; }
   if (cityMap.open) return;
-  if (e.code === 'KeyQ') cycleTier(tierKey);
+  if (e.code === 'KeyQ') changeQuality(nextTier(tierKey));
   if (e.code === 'KeyH') honk();
   if (e.code === 'KeyP') { view.release(); phone.toggle(); }
   if (e.code === 'Escape' && phone.open) phone.toggle(false);
@@ -291,14 +361,35 @@ function refuel() {
   const p = nearestPump();
   if (!p || p.d > 16) { say('No petrol pump here — find ⛽ on the map'); return; }
   if (Math.abs(player.speed) > 1) { say('Stop at the pump to fill up'); return; }
-  const litres = Math.round((1 - player.fuel) * 35);
-  if (litres) state.pay(litres * 103, `Petrol ${litres} L`);
-  player.fuel = 1;
-  // The pump's mechanic fixes dents, bumpers and lamps too (for a price).
-  const repair = Math.round((1 - player.condition) * 4000 / 50) * 50;
-  if (repair > 0) state.pay(repair, 'Repairs at the pump');
-  player.condition = 1;
-  say(`${litres ? `Filled ${litres} L · ₹${litres * 103}` : 'Tank already full'}${repair > 0 ? ` · repairs ₹${repair}` : ' · tyres and water checked'}`);
+  const want = Math.round((1 - player.fuel) * 35);
+  const afford = Math.max(0, Math.floor(state.money / 103));
+  const litres = Math.min(want, afford);
+  if (litres > 0) { state.pay(litres * 103, `Petrol ${litres} L`); player.fuel = Math.min(1, player.fuel + litres / 35); }
+  say(want === 0 ? 'Tank already full' : litres < want ? (litres ? `Filled ${litres} L — that's all your money covers` : 'Not enough money for petrol — earn some with taxi fares (J)') : `Filled ${litres} L · ₹${litres * 103}`);
+  if (player.condition < 0.9) repairMenu();
+}
+
+/** The pump mechanic: a cheap patch-up or a full repair, priced before you pay. */
+function repairMenu() {
+  const full = Math.round((1 - player.condition) * 1800 / 10) * 10 + 150;
+  const patch = 350;
+  choice('Pump mechanic: "Gaadi ka haal kharab hai, saheb."', [
+    [`Patch-up · ₹${patch} · +30% (dents stay)`, () => { if (!state.canAfford(patch)) return say('Not enough money for the patch-up'); state.pay(patch, 'Patch-up at the pump'); player.condition = Math.min(1, player.condition + 0.3); say('Patched up. Runs better, still looks rough.'); }],
+    [`Full repair · ₹${full} · like new`, () => { if (!state.canAfford(full)) return say('Not enough money for a full repair'); state.pay(full, 'Full repair at the pump'); player.condition = 1; damage.repair(); say('Good as new — dents out, lamps fixed.'); }],
+    ['No thanks', () => {}],
+  ]);
+}
+
+/** A small menu of choices (click or press 1, 2, 3…). */
+function choice(title, options) {
+  const box = $('choice');
+  box.innerHTML = `<b>${title}</b>${options.map(([label], i) => `<button data-i="${i}"><kbd>${i + 1}</kbd> ${label}</button>`).join('')}`;
+  box.hidden = false;
+  view.release();
+  const done = (i) => { box.hidden = true; removeEventListener('keydown', key, true); options[i]?.[1](); };
+  const key = (e) => { const i = Number(e.key) - 1; if (i >= 0 && i < options.length) { e.preventDefault(); e.stopPropagation(); done(i); } if (e.code === 'Escape') { e.stopPropagation(); done(options.length - 1); } };
+  addEventListener('keydown', key, true);
+  box.onclick = (e) => { const b = e.target.closest('button'); if (b) done(Number(b.dataset.i)); };
 }
 
 // ------------------------------------------------------------------ loop
@@ -309,7 +400,8 @@ let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 renderer.setAnimationLoop((time) => {
   timer.update(time);
   const dt = Math.min(timer.getDelta(), 0.05);
-  if (cityMap.open) return; // paused while the map is open
+  if (cityMap.open || paused) return; // paused while the map or the pause menu is open
+  if (helpTimer > 0) { helpTimer -= dt; if (helpTimer <= 0) $('help').classList.remove('show'); }
   crosshair.hidden = !(onFoot && (view.aim || (combat.weapon === 'pichkari' && view.locked)));
   document.body.classList.toggle('onfoot', onFoot);
   if (input.reset) { input.reset = false; teleportHome(); }
@@ -336,7 +428,7 @@ function step(dt) {
     }
     player.impact = 0;
   }
-  damage.update(dt, player);
+  damage.update(dt, player, camera);
   if (!onFoot) propPhysics.sweep(player);
   propPhysics.update(dt, onFoot ? null : player);
   if (player.condition > 0.97 && (damage.front || damage.rear)) damage.repair();
@@ -354,6 +446,8 @@ function step(dt) {
   tiles.update(active.pos.x, active.pos.z);
   traffic.update(dt, active, clock);
   signals.update(dt, tiles, traffic, active.pos, clock.night);
+  people.cam = camera.position;
+  people.focus = active.pos;
   people.begin();
   police.onFoot = onFoot;
   police.update(dt, active, clock);
@@ -379,7 +473,8 @@ function step(dt) {
   tiles.props.lampMat.emissiveIntensity = night * 9;
   const lamps = damage.headlampFactor(player.condition);
   taxi.lights.headMat.emissiveIntensity = (0.2 + night * 5) * lamps;
-  headlamp.intensity = night * 60 * lamps;
+  headlamp.intensity = night * 140 * lamps;
+  lowBeam.intensity = night * 60 * lamps;
   lampTimer -= dt;
   if (lampTimer <= 0) {
     lampTimer = 0.4;
@@ -422,7 +517,7 @@ function placeLampLights(night) {
     const n = near[i];
     if (!n) { l.intensity = 0; return; }
     l.position.set(n[1], 8.6, n[2]);
-    l.intensity = night * 55;
+    l.intensity = night * 90;
   });
 }
 

@@ -127,8 +127,9 @@ export class Jobs {
     this.hud.message(`Take them to ${dest.name}. Meter down!`);
   }
 
-  annoy(amount, line, player) {
+  annoy(amount, line, player, reason = null) {
     const r = this.ride;
+    if (reason && amount > 0.02) { r.reason = reason; r.reasonT = 1.5; }
     const extras = (this.state.owns('perfume') ? 0.85 : 1) * (this.state.owns('seatcovers') ? 0.85 : 1);
     r.comfort = Math.max(0, r.comfort - amount * r.type.care * extras);
     if (line && r.complaintT <= 0) { this.bubbles.say(player.pos, line, 2.4, 'driver'); r.complaintT = 4; }
@@ -138,6 +139,7 @@ export class Jobs {
     const r = this.ride;
     r.t += dt;
     r.complaintT -= dt;
+    r.reasonT = (r.reasonT || 0) - dt;
     const P = player.pos;
     if (r.stage === 'pickup') {
       r.person.phase += dt * 3;
@@ -154,7 +156,7 @@ export class Jobs {
         if ((l < 1.6 || r.wait > 4) && !r.starting) { r.starting = true; this.startRide(player); }
       } else r.wait = 0;
       if (r.t > 150) { this.hud.message('The passenger got tired of waiting and took another taxi.'); this.ride = null; this.cooldown = 8; this.cityMap.setWaypoint(null); }
-      if (r.stage === 'pickup') this.people.add(r.person);
+      if (r.stage === 'pickup' && !r.starting) this.people.add(r.person); // once they get in, they're in the taxi
       return;
     }
     if (r.stage !== 'ride' || !r.dest) return;
@@ -162,15 +164,15 @@ export class Jobs {
     const accel = (player.speed - r.last.speed) / Math.max(dt, 1e-3);
     let dh = player.heading - r.last.heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
     const lateral = Math.abs((dh / Math.max(dt, 1e-3)) * player.speed);
-    if (accel < -8.5) this.annoy(6 * dt * 3, r.type.lines.rough, player);
-    if (accel > 4.8 && player.speed > 4) this.annoy(2 * dt, null, player);
-    if (lateral > 7) this.annoy(5 * dt, r.type.lines.rough, player);
-    if (r.last.speed - Math.abs(player.speed) > 3) this.annoy(14, 'Arre! Thok di gaadi!', player);
-    if (player.bumped) { player.bumped = false; this.annoy(3, pick(['Gaddha!', 'Uff, yeh roads…', r.type.lines.rough]), player); }
-    if (this.police.stars > 0) this.annoy(2 * dt, 'Police?! Mujhe utaar do!', player);
-    if (this.police.offences > (r.offences ?? this.police.offences)) this.annoy(10, 'Arre bhai, signal tha!', player);
+    if (accel < -8.5 && player.speed > 3) this.annoy(10 * dt, r.type.lines.rough, player, 'Hard braking');
+    if (accel > 4.8 && player.speed > 4) this.annoy(1.5 * dt, null, player, 'Jerky acceleration');
+    if (lateral > 8.5) this.annoy(3 * dt * (lateral - 8.5), r.type.lines.rough, player, 'Sharp turn at speed');
+    if (r.last.speed - Math.abs(player.speed) > 3) this.annoy(14, 'Arre! Thok di gaadi!', player, 'Crash!');
+    if (player.bumped) { player.bumped = false; this.annoy(2.5, pick(['Gaddha!', 'Uff, yeh roads…', r.type.lines.rough]), player, 'Pothole / kerb'); }
+    if (this.police.stars > 0) this.annoy(2 * dt, 'Police?! Mujhe utaar do!', player, 'Police chase');
+    if (this.police.offences > (r.offences ?? this.police.offences)) this.annoy(10, 'Arre bhai, signal tha!', player, 'Broke a traffic rule');
     r.offences = this.police.offences;
-    if (player.speed > 19) this.annoy(1.5 * dt, 'Bhai, dheere! Jaan pyaari hai!', player);
+    if (player.speed > 22) this.annoy(1.5 * dt, 'Bhai, dheere! Jaan pyaari hai!', player, 'Too fast');
     if (r.t > r.eta && r.complaintT <= 0 && Math.random() < dt * 0.15) this.annoy(2, r.type.lines.late, player);
     r.dist += Math.hypot(P.x - r.last.x, P.z - r.last.z);
     r.last = { speed: player.speed, heading: player.heading, x: P.x, z: P.z };
@@ -179,7 +181,7 @@ export class Jobs {
     if (left < 22 && Math.abs(player.speed) < 1) this.endRide(player, 'done');
   }
 
-  honk() { if (this.ride?.stage === 'ride') this.annoy(1.5, pick(['Itna horn kyun?', 'Kaan pak gaye!']), { pos: this.lastPlayerPos || { x: 0, z: 0 } }); }
+  honk() { if (this.ride?.stage === 'ride') this.annoy(1.5, pick(['Itna horn kyun?', 'Kaan pak gaye!']), { pos: this.lastPlayerPos || { x: 0, z: 0 } }, 'Horn'); }
 
   endRide(player, how) {
     const r = this.ride;
@@ -200,14 +202,15 @@ export class Jobs {
     if (stars >= 4.3) tip = Math.round(meter * 0.15 * r.type.tip + 10 * r.type.tip);
     if (r.comfort < 45) cut = Math.round(meter * 0.25);
     if (late > 0.5) cut += Math.round(meter * 0.1);
-    const total = Math.max(0, Math.round(meter + tip - cut));
+    const bonus = 40; // Chalo pays drivers a per-ride incentive on top of the meter
+    const total = Math.max(0, Math.round(meter + tip - cut + bonus));
     this.state.earn(total, `Taxi fare to ${r.dest.name}`);
     this.state.s.rides++;
     this.state.s.ratingSum += stars;
     this.state.s.earned += total;
     const line = stars >= 4 ? r.type.lines.good : stars >= 2.5 ? 'Theek hai.' : 'Kabhi nahi baithunga tumhari taxi mein!';
     this.bubbles.say(player.pos, line, 3, 'driver');
-    this.hud.message(`Fare ${rupees(meter)}${tip ? ` + tip ${rupees(tip)}` : ''}${cut ? ` − ${rupees(cut)} (unhappy)` : ''} = ${rupees(total)} · ${'★'.repeat(Math.round(stars))}${'☆'.repeat(5 - Math.round(stars))}`);
+    this.hud.message(`Fare ${rupees(meter)} + Chalo bonus ${rupees(bonus)}${tip ? ` + tip ${rupees(tip)}` : ''}${cut ? ` − ${rupees(cut)} (unhappy)` : ''} = ${rupees(total)} · ${'★'.repeat(Math.round(stars))}${'☆'.repeat(5 - Math.round(stars))}`);
     this.state.message('PayKaro', `Credited ${rupees(total)} for a ride to ${r.dest.name}. Rating ${stars.toFixed(1)}★.`);
   }
 
@@ -269,6 +272,7 @@ export class Jobs {
       if (Math.hypot(f.x - player.pos.x, f.z - player.pos.z) > 9) continue;
       const menu = [['Vada pav', 20, 0.25, 0], ['Cutting chai', 15, 0.05, 0.25], ['Bhutta', 30, 0.2, 0], ['Pav bhaji', 120, 0.55, 0.05], ['Nimbu paani', 25, 0.05, 0.15], ['Fruit plate', 60, 0.3, 0.05]];
       const [name, price, hunger, energy] = pick(menu);
+      if (!this.state.canAfford(price)) { this.hud.message(`₹${price} for ${name.toLowerCase()} — you're broke. Drive some fares (J).`); return true; }
       this.state.pay(price, name);
       this.state.eat(hunger); this.state.rest(energy);
       this.bubbles.say(f.people[0], `Ek ${name.toLowerCase()}, ${rupees(price)}!`, 2.5, 'vendor');
@@ -307,7 +311,7 @@ export class Jobs {
       const c = Math.round(r.comfort);
       rows.push(`<b>To:</b> ${r.dest.name} · ${left} m`);
       rows.push(`<b>Meter</b> ${rupees(meter)} · <b>Time</b> <span class="${late ? 'bad' : ''}">${fmt(r.t)}</span> / ${fmt(r.eta)} · ${Math.round(Math.abs(player.speed) * 3.6)} km/h`);
-      rows.push(`<b>Comfort</b> <span class="bar"><i style="width:${c}%;background:${c > 70 ? '#4caf50' : c > 40 ? '#f4d03f' : '#e74c3c'}"></i></span> ${c}%`);
+      rows.push(`<b>Comfort</b> <span class="bar"><i style="width:${c}%;background:${c > 70 ? '#4caf50' : c > 40 ? '#f4d03f' : '#e74c3c'}"></i></span> ${c}%${r.reasonT > 0 ? ` <span class="bad">▼ ${r.reason}</span>` : ''}`);
     }
     for (const d of this.riders) if (d.state === 'coming') rows.push(`${d.app === 'jhatpat' ? '🟢 JhatPat' : '🟠 Bhookh'} order: ${Math.max(0, Math.ceil(d.eta - d.t))} s`);
     else if (d.state === 'walking') rows.push(`${d.app === 'jhatpat' ? '🟢' : '🟠'} Delivery partner is here — stop to collect`);

@@ -40,6 +40,9 @@ export class GameState {
   set money(v) { this.s.money = Math.round(v); }
   get rating() { return this.s.rides ? this.s.ratingSum / this.s.rides : 0; }
 
+  /** Purchases need the money; fines and bills can still push you into debt. */
+  canAfford(amount) { return this.s.money >= amount; }
+
   pay(amount, what) {
     this.s.money -= Math.round(amount);
     this.s.txns.unshift({ what, amount: -Math.round(amount), t: Date.now() });
@@ -66,6 +69,11 @@ export class GameState {
   changed() { for (const f of this.listeners) f(); }
 
   update(dt, clock) {
+    // In debt: a reminder now and then (purchases are blocked until you earn it back).
+    if (this.s.money < 0) {
+      this.debtT = (this.debtT ?? 0) - dt;
+      if (this.debtT <= 0) { this.debtT = 300; this.message('Udhaar Recovery', `You owe ₹${Math.abs(this.s.money).toLocaleString('en-IN')}. Drive fares (J) and pay it back soon, bhai.`); }
+    }
     // Hunger and energy drain with game time (1 real second = 1 game minute);
     // bad air tires you faster, chai and food bring you back.
     const gameHours = dt / 60 * (clock.speed / 60);

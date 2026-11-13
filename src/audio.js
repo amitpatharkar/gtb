@@ -269,6 +269,11 @@ export class CityAudio {
   toggleMute() {
     if (!this.ctx) return;
     this.muted = !this.muted;
-    this.master.gain.setTargetAtTime(this.muted ? 0 : 0.8, this.ctx.currentTime, 0.1);
+    this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume ?? 0.8, this.ctx.currentTime, 0.1);
+  }
+
+  setVolume(v) {
+    this.volume = v;
+    if (this.ctx && !this.muted) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.1);
   }
 }

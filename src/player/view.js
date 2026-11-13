@@ -17,8 +17,12 @@ export class ViewControl {
     this.locked = false;
     this.wheel = 0;          // accumulated wheel clicks (consumed by the pichkari)
     this.enabled = true;
+    this.sens = 1;
+    this.invertY = false;
     const look = (dx, dy, k = 0.0024) => {
       if (!this.enabled) return;
+      k *= this.sens;
+      if (this.invertY) dy = -dy;
       this.offset -= dx * k;
       this.yaw -= dx * k;
       this.pitch = Math.max(-0.55, Math.min(0.9, this.pitch + dy * k));

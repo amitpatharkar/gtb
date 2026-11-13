@@ -22,11 +22,11 @@ function stored() {
   try { return localStorage.getItem(KEY); } catch { return null; }
 }
 
+/** Low by default (it runs everywhere); Medium and High only when the player picks them. */
 export function pickTier() {
   const saved = stored();
   if (saved && TIERS[saved]) return saved;
-  const phone = matchMedia('(pointer: coarse)').matches;
-  return phone ? 'medium' : 'high';
+  return 'low';
 }
 
 /** Move to the next tier and reload (simplest way to rebuild every buffer and material). */
