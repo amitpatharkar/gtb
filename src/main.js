@@ -22,6 +22,7 @@ import { Animals } from './sim/animals.js';
 import { CityMap } from './ui/cityMap.js';
 import { Navigator } from './ui/navigator.js';
 import { Landmarks } from './world/landmarks.js';
+import { StreetProps } from './world/streetProps.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
 import { Phone } from './ui/phone.js';
@@ -87,6 +88,13 @@ loader.progress(0.2, 'Lighting the sky…');
 const env = await createEnvironment(renderer, scene, index.bounds, tier, lib);
 const post = createPost(renderer, scene, camera, tier);
 const landmarks = new Landmarks(scene, index.landmarks || [], lib);
+const streetProps = new StreetProps(scene, tiles, BASE, tier);
+if (tier.partsRadius) {
+  // Real outdoor AC units on the facades (Poly Haven), hung with their back on the wall.
+  import('./world/models.js').then(({ loadParts }) => loadParts(`${BASE}media/models/prop-ph-exterior-aircon-unit/exterior_aircon_unit_1k.gltf`, { size: 0.82, axis: 'width', node: 0 }))
+    .then((parts) => facadeParts.useModel('ac', parts, (g) => { g.computeBoundingBox(); const b = g.boundingBox; g.translate(0, -(b.max.y - b.min.y) / 2 - 0.18, -b.min.z); }))
+    .catch(() => {});
+}
 const startHour = Number(query.get('hour'));
 const clock = new GameClock(query.has('hour') && Number.isFinite(startHour) ? startHour : 17.25);
 const traffic = new Traffic(scene, tiles, tier);
@@ -397,7 +405,7 @@ function choice(title, options) {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const timer = new THREE.Timer();
 // Shadows: redraw the shadow map every frame on High, every other frame below.
 renderer.shadowMap.autoUpdate = false;
@@ -478,6 +486,7 @@ function step(dt) {
   const night = clock.night;
   facadeNight.value = night;
   landmarks.update(night);
+  streetProps.update(dt, active.pos);
   facadeParts.update(dt, player, tiles, night);
   tiles.props.lampMat.emissiveIntensity = night * 9;
   const lamps = damage.headlampFactor(player.condition);

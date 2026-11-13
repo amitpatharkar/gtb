@@ -58,6 +58,7 @@ function colored(g, hex) {
 
 export class FacadeParts {
   constructor(scene, lib, signAtlas, tier) {
+    this.scene = scene;
     this.radius = tier.partsRadius ?? 0;
     this.meshes = {};
     this.timer = 0;
@@ -144,6 +145,23 @@ export class FacadeParts {
       if (m.material === plaster || m.material === paint) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(m.instanceMatrix.count * 3).fill(1), 3);
     }
     this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.s = new THREE.Vector3(); this.p = new THREE.Vector3(); this.c = new THREE.Color();
+  }
+
+  /** Swap a part's simple geometry for a real model (parts from models.js, already in metres). */
+  useModel(type, parts, fit) {
+    const old = this.meshes[type];
+    if (!old) return;
+    const cap = old[0].instanceMatrix.count;
+    this.meshes[type] = parts.map(({ geometry, material }) => {
+      const g = geometry.clone();
+      fit?.(g);
+      const m = new THREE.InstancedMesh(g, material, cap);
+      m.count = 0; m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
+      this.scene.add(m);
+      return m;
+    });
+    for (const m of old) this.scene.remove(m);
+    this.version = -1; // rebuild instances next frame
   }
 
   update(dt, player, tiles, night = 0) {
