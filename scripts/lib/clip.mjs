@@ -21,16 +21,16 @@ export function mpToPaths(mp) {
 }
 
 /**
- * Buffer polylines into one merged surface. groups: [{ delta: halfWidthMetres, lines: [[[x,z],...], ...] }]
- * Round joins and round ends, then a union of everything.
+ * Buffer polylines into one merged surface. groups: [{ delta: halfWidthMetres, lines: [[[x,z],...], ...], butt? }]
+ * Round joins and round ends (square-cut ends with butt: true), then a union of everything.
  */
 export function bufferLines(groups, arcTolerance = 0.08) {
   const c = new Clipper();
   let any = false;
-  for (const { delta, lines } of groups) {
+  for (const { delta, lines, butt } of groups) {
     if (!lines.length || delta <= 0) continue;
     const co = new ClipperOffset(2, arcTolerance * SCALE);
-    co.AddPaths(lines.map(toPath), JoinType.jtRound, EndType.etOpenRound);
+    co.AddPaths(lines.map(toPath), JoinType.jtRound, butt ? EndType.etOpenButt : EndType.etOpenRound);
     const sol = new Paths();
     co.Execute(sol, delta * SCALE);
     if (sol.length) { c.AddPaths(sol, PolyType.ptSubject, true); any = true; }

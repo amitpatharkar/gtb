@@ -1,43 +1,38 @@
-import { decodeTile, AREA, ROAD, ROAD_FLAG } from '../world/tileFormat.js';
-
 // Full-screen city map (Tab, or tap the radar), GTA style: pan and zoom over the whole map,
 // tap to drop a waypoint, and the GPS draws the shortest legal route (one-ways respected)
 // on the map and on the radar. The game pauses while the map is open.
+// The map and the route finding use one small overview file, loaded the first time they are
+// needed and handled by a Web Worker (src/ui/mapWorker.js): roads, rails, land, water, parks.
+// Buildings come from the tiles already loaded around the player.
 
 const LABELS = [
   ['Colaba', 18.9105, 72.8165], ['Cuffe Parade', 18.9145, 72.8205], ['Apollo Bunder', 18.9225, 72.8335], ['Nariman Point', 18.9255, 72.8225],
   ['Fort', 18.9345, 72.8355], ['Ballard Estate', 18.9395, 72.8425], ['Churchgate', 18.9335, 72.8265], ['Marine Drive', 18.9440, 72.8230],
   ['Azad Maidan', 18.9395, 72.8325], ['Kalbadevi', 18.9485, 72.8290], ['Girgaon', 18.9545, 72.8180], ['Malabar Hill', 18.9560, 72.8040],
   ['Dongri', 18.9580, 72.8370], ['Grant Road', 18.9630, 72.8160], ['Mazgaon', 18.9660, 72.8450], ['Back Bay', 18.9300, 72.8150],
+  // The island city north of Byculla and the suburbs.
+  ['Byculla', 18.9770, 72.8330], ['Haji Ali', 18.9800, 72.8130], ['Mahalaxmi', 18.9850, 72.8230], ['Lower Parel', 18.9980, 72.8280],
+  ['Worli', 19.0080, 72.8160], ['Worli Sea Face', 19.0200, 72.8150], ['Parel', 19.0010, 72.8410], ['Prabhadevi', 19.0160, 72.8290],
+  ['Dadar', 19.0190, 72.8430], ['Shivaji Park', 19.0270, 72.8385], ['Wadala', 19.0170, 72.8580], ['Matunga', 19.0270, 72.8550],
+  ['Mahim', 19.0390, 72.8420], ['Dharavi', 19.0440, 72.8555], ['Sion', 19.0430, 72.8650], ['Bandra', 19.0560, 72.8330],
+  ['Bandstand', 19.0505, 72.8215], ['BKC', 19.0650, 72.8650], ['Khar', 19.0710, 72.8350], ['Santacruz', 19.0830, 72.8390],
+  ['Juhu', 19.1030, 72.8270], ['Vile Parle', 19.1000, 72.8440], ['Airport', 19.0920, 72.8660], ['Kurla', 19.0700, 72.8830],
+  ['Andheri', 19.1190, 72.8460], ['Chembur', 19.0560, 72.9000], ['Ghatkopar', 19.0860, 72.9080], ['Saki Naka', 19.1040, 72.8870],
+  ['Powai', 19.1240, 72.8990], ['Hiranandani', 19.1170, 72.9100],
 ];
-const nodeKey = (x, z) => `${Math.round(x * 2)},${Math.round(z * 2)}`;
-const isVehicle = (cls) => cls !== ROAD.PEDESTRIAN && cls !== ROAD.FOOTWAY && cls !== ROAD.PIER;
-
-class Heap {
-  constructor() { this.a = []; }
-  push(k, v) { const a = this.a; a.push([k, v]); let i = a.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (a[p][0] <= a[i][0]) break; [a[p], a[i]] = [a[i], a[p]]; i = p; } }
-  pop() {
-    const a = this.a, top = a[0], last = a.pop();
-    if (a.length) { a[0] = last; let i = 0; for (;;) { const l = i * 2 + 1, r = l + 1; let m = i; if (l < a.length && a[l][0] < a[m][0]) m = l; if (r < a.length && a[r][0] < a[m][0]) m = r; if (m === i) break; [a[m], a[i]] = [a[i], a[m]]; i = m; } }
-    return top[1];
-  }
-  get size() { return this.a.length; }
-}
-
-async function gunzipIfNeeded(buf) {
-  const u8 = new Uint8Array(buf);
-  if (u8[0] !== 0x1f || u8[1] !== 0x8b) return u8;
-  const stream = new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
-}
 
 export class CityMap {
-  constructor({ index, baseUrl, fuel, hud }) {
-    Object.assign(this, { index, baseUrl, fuel, hud });
+  constructor({ index, baseUrl, fuel, hud, tiles = null }) {
+    Object.assign(this, { index, baseUrl, fuel, hud, tiles });
     this.open = false;
     this.waypoint = null;
     this.route = null;
     this.routeT = 0;
+    this.routeSeq = 0;
+    this.routing = false;
+    this.calls = new Map();
+    this.nextCall = 1;
+    this.buildingPaths = new WeakMap(); // loaded tile → Path2D of its building footprints
     this.el = document.createElement('div');
     this.el.id = 'map-screen';
     this.el.hidden = true;
@@ -58,129 +53,54 @@ export class CityMap {
     addEventListener('resize', () => this.open && this.resize());
   }
 
-  // ------------------------------------------------------------------ data
+  // ------------------------------------------------------------------ data (in the worker)
+  /** Ask the map worker; resolves with its result. */
+  call(type, msg = {}) {
+    if (!this.worker) {
+      this.worker = new Worker(new URL('./mapWorker.js', import.meta.url), { type: 'module' });
+      this.worker.onmessage = (e) => {
+        const cb = this.calls.get(e.data.id);
+        this.calls.delete(e.data.id);
+        if (cb) (e.data.error ? cb.reject(new Error(e.data.error)) : cb.resolve(e.data.result));
+      };
+    }
+    const id = this.nextCall++;
+    return new Promise((resolve, reject) => {
+      this.calls.set(id, { resolve, reject });
+      this.worker.postMessage({ id, type, ...msg });
+    });
+  }
+
+  /** Download the overview and build the road graph (once). Resolves with the map chunks. */
   async load() {
     if (this.data) return this.data;
     if (this.loading) return this.loading;
     this.loading = (async () => {
-      const tiles = await Promise.all(this.index.tiles.map(async ([tx, tz]) => {
-        const res = await fetch(`${this.baseUrl}${tx}_${tz}.bin.gz`);
-        return decodeTile(await gunzipIfNeeded(await res.arrayBuffer()));
-      }));
-      const out = [];
-      const nodes = new Map();
-      const node = (x, z) => {
-        const k = nodeKey(x, z);
-        let n = nodes.get(k);
-        if (!n) { n = { x, z, adj: [] }; nodes.set(k, n); }
-        return n;
-      };
-      const names = new Map();
-      for (const t of tiles) {
-        const ox = (t.tx + 0.5) * t.size, oz = (t.tz + 0.5) * t.size;
-        const layer = { land: new Path2D(), green: new Path2D(), sand: new Path2D(), buildings: new Path2D(), rails: new Path2D(), roads: [new Path2D(), new Path2D(), new Path2D(), new Path2D()], bbox: [ox - t.size / 2, oz - t.size / 2, ox + t.size / 2, oz + t.size / 2] };
-        const ring = (p, r) => { for (let i = 0; i < r.length; i += 2) (i ? p.lineTo : p.moveTo).call(p, r[i] + ox, r[i + 1] + oz); p.closePath(); };
-        for (const a of t.areas) {
-          const p = a.kind === AREA.LAND ? layer.land : a.kind === AREA.GRASS || a.kind === AREA.PITCH || a.kind === AREA.WOOD ? layer.green : a.kind === AREA.SAND ? layer.sand : null;
-          if (p) for (const r of a.rings) ring(p, r);
-        }
-        for (const b of t.buildings) ring(layer.buildings, b.rings[0]);
-        for (const r of t.rails) { const l = r.line; for (let i = 0; i < l.length; i += 2) (i ? layer.rails.lineTo : layer.rails.moveTo).call(layer.rails, l[i] + ox, l[i + 1] + oz); }
-        for (const r of t.roads) {
-          const grp = r.cls <= ROAD.SECONDARY ? 0 : r.cls <= ROAD.LINK ? 1 : isVehicle(r.cls) ? 2 : 3;
-          const p = layer.roads[grp], l = r.line;
-          for (let i = 0; i < l.length; i += 2) (i ? p.lineTo : p.moveTo).call(p, l[i] + ox, l[i + 1] + oz);
-          // Labels: longest piece of each main road name.
-          if (r.name >= 0 && grp <= 1) {
-            const nm = t.names[r.name];
-            for (let i = 2; i < l.length; i += 2) {
-              const len = Math.hypot(l[i] - l[i - 2], l[i + 1] - l[i - 1]);
-              if (len > (names.get(nm)?.len || 60)) names.set(nm, { len, x: (l[i] + l[i - 2]) / 2 + ox, z: (l[i + 1] + l[i - 1]) / 2 + oz, a: Math.atan2(l[i + 1] - l[i - 1], l[i] - l[i - 2]) });
-            }
-          }
-          // GPS graph (one-ways are directed).
-          if (!isVehicle(r.cls)) continue;
-          const oneway = r.flags & ROAD_FLAG.ONEWAY;
-          for (let i = 2; i < l.length; i += 2) {
-            const a = node(l[i - 2] + ox, l[i - 1] + oz), b = node(l[i] + ox, l[i + 1] + oz);
-            if (a === b) continue;
-            const len = Math.hypot(b.x - a.x, b.z - a.z);
-            a.adj.push([b, len]);
-            if (!oneway) b.adj.push([a, len]);
-          }
-        }
-        out.push(layer);
-      }
-      // Join loose ends that nearly touch (as the traffic graph does).
-      const grid = new Map();
-      const cell = (x, z) => `${Math.floor(x / 5)},${Math.floor(z / 5)}`;
-      for (const n of nodes.values()) (grid.get(cell(n.x, n.z)) || grid.set(cell(n.x, n.z), []).get(cell(n.x, n.z))).push(n);
-      for (const n of nodes.values()) {
-        if (n.adj.length > 1) continue;
-        let best = null, bd = 6.25;
-        for (let gx = -1; gx <= 1; gx++) for (let gz = -1; gz <= 1; gz++) {
-          for (const m of grid.get(`${Math.floor(n.x / 5) + gx},${Math.floor(n.z / 5) + gz}`) || []) {
-            if (m === n || n.adj.some(([o]) => o === m)) continue;
-            const d = (m.x - n.x) ** 2 + (m.z - n.z) ** 2;
-            if (d < bd) { bd = d; best = m; }
-          }
-        }
-        if (best) { const len = Math.sqrt(bd); n.adj.push([best, len]); best.adj.push([n, len]); }
-      }
-      this.nodes = [...nodes.values()].filter((n) => n.adj.length);
-      this.grid = new Map();
-      for (const n of this.nodes) { const k = `${Math.floor(n.x / 40)},${Math.floor(n.z / 40)}`; (this.grid.get(k) || this.grid.set(k, []).get(k)).push(n); }
-      this.labels = [...names].map(([name, v]) => ({ name, ...v }));
-      this.data = out;
-      return out;
+      const file = this.index.overview?.file || 'overview.bin.gz';
+      const res = await this.call('load', { url: new URL(this.baseUrl + file, location.href).href });
+      this.labels = res.labels;
+      this.stats = res.stats;
+      this.data = res.chunks;
+      return this.data;
     })();
+    this.loading.catch((err) => { console.error('City map failed to load:', err); this.loading = null; });
     return this.loading;
   }
 
-  nearest(x, z, heading = null) {
-    let best = null, bs = Infinity;
-    for (let r = 40; r <= 320 && !best; r *= 2) {
-      for (let gx = Math.floor((x - r) / 40); gx <= Math.floor((x + r) / 40); gx++) for (let gz = Math.floor((z - r) / 40); gz <= Math.floor((z + r) / 40); gz++) {
-        for (const n of this.grid.get(`${gx},${gz}`) || []) {
-          const dx = n.x - x, dz = n.z - z, d = Math.hypot(dx, dz);
-          if (d > r) continue;
-          const behind = heading == null ? 0 : -((dx * Math.sin(heading) + dz * Math.cos(heading)) / (d || 1));
-          const score = d + Math.max(0, behind) * 18;
-          if (score < bs) { bs = score; best = n; }
-        }
-      }
-    }
-    return best;
-  }
-
-  path(from, to) {
-    if (!from || !to) return null;
-    const g = new Map([[from, 0]]), prev = new Map(), open = new Heap();
-    open.push(0, from);
-    let n = 0;
-    while (open.size && n++ < 60000) {
-      const cur = open.pop();
-      if (cur === to) break;
-      const gc = g.get(cur);
-      for (const [nb, len] of cur.adj) {
-        const ng = gc + len;
-        if (ng < (g.get(nb) ?? Infinity)) { g.set(nb, ng); prev.set(nb, cur); open.push(ng + Math.hypot(nb.x - to.x, nb.z - to.z), nb); }
-      }
-    }
-    if (from !== to && !prev.has(to)) return null;
-    const out = [];
-    for (let c = to; c; c = prev.get(c)) out.push([c.x, c.z]);
-    return out.reverse();
+  /** A random spot on the road network min..max metres from (x, z) (taxi fares): { x, z } or null. */
+  async randomPlace(x, z, min, max) {
+    try { await this.load(); } catch { return null; }
+    return this.call('random', { x, z, min, max });
   }
 
   setWaypoint(p) {
     this.waypoint = p;
     this.route = null;
     this.routeT = 0;
-    if (p) this.goal = this.nearest(p.x, p.z);
+    this.routeSeq++;
   }
 
-  /** Called every frame: keep the GPS route fresh while driving. */
+  /** Called every frame: keep the GPS route fresh while driving (the worker finds it). */
   update(dt, player) {
     if (!this.waypoint || !this.data) return;
     if (Math.hypot(player.pos.x - this.waypoint.x, player.pos.z - this.waypoint.z) < 25) {
@@ -189,18 +109,27 @@ export class CityMap {
       return;
     }
     this.routeT -= dt;
-    if (this.routeT > 0) return;
+    if (this.routeT > 0 || this.routing) return;
     this.routeT = 1.5;
-    const from = this.nearest(player.pos.x, player.pos.z, player.heading);
-    const r = this.path(from, this.goal);
-    // Drop route nodes right next to the player so the line starts cleanly ahead.
-    while (r && r.length > 2 && Math.hypot(r[0][0] - player.pos.x, r[0][1] - player.pos.z) < 8) r.shift();
-    this.route = r ? [[player.pos.x, player.pos.z], ...r, [this.waypoint.x, this.waypoint.z]] : null;
+    const wp = this.waypoint, seq = this.routeSeq;
+    this.routing = true;
+    this.call('route', { fx: player.pos.x, fz: player.pos.z, heading: player.heading ?? null, gx: wp.x, gz: wp.z }).then((res) => {
+      this.routing = false;
+      if (seq !== this.routeSeq) return; // the waypoint changed meanwhile
+      const r = [];
+      const p = res?.path;
+      if (p) for (let i = 0; i < p.length; i += 2) r.push([p[i], p[i + 1]]);
+      // Drop route nodes right next to the player so the line starts cleanly ahead.
+      const P = player.pos;
+      while (r.length > 2 && Math.hypot(r[0][0] - P.x, r[0][1] - P.z) < 8) r.shift();
+      this.route = p ? [[P.x, P.z], ...r, [wp.x, wp.z]] : null;
+      if (this.open) this.draw();
+    }, (err) => { this.routing = false; console.error('GPS route failed:', err); });
   }
 
   /** Route to a place from outside the map (phone apps, missions). */
   async routeTo(x, z, label) {
-    await this.load();
+    try { await this.load(); } catch { this.hud.message('GPS unavailable right now'); return; }
     this.setWaypoint({ x, z, label });
   }
 
@@ -214,7 +143,7 @@ export class CityMap {
     if (player) { this.view.x = player.pos.x; this.view.z = player.pos.z; this.view.scale = Math.max(this.view.scale, 0.35); }
     this.g.fillStyle = '#1f4a5c'; this.g.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.g.fillStyle = '#fff'; this.g.font = '20px sans-serif'; this.g.fillText('Loading map…', 30, 90);
-    await this.load();
+    try { await this.load(); } catch { this.g.fillText('Map unavailable — try again in a moment', 30, 120); return; }
     this.draw();
   }
 
@@ -274,6 +203,35 @@ export class CityMap {
     }, { passive: false });
   }
 
+  /** Path2D for one layer of a map chunk, built the first time it is drawn. */
+  path(chunk, layer) {
+    const cache = (chunk.paths ||= {});
+    if (cache[layer]) return cache[layer];
+    const { pts, starts } = chunk.layers[layer];
+    const closed = !layer.startsWith('road') && layer !== 'rails';
+    const p = new Path2D();
+    for (let i = 0; i + 1 < starts.length; i++) {
+      for (let k = starts[i]; k < starts[i + 1]; k++) (k === starts[i] ? p.moveTo : p.lineTo).call(p, pts[k * 2], pts[k * 2 + 1]);
+      if (closed) p.closePath();
+    }
+    return (cache[layer] = p);
+  }
+
+  /** Building footprints of a loaded tile (the overview has none), from its collision outlines. */
+  buildingsPath(t) {
+    let p = this.buildingPaths.get(t);
+    if (p) return p;
+    p = new Path2D();
+    const s = t.collide.solid, c = s.coords;
+    for (let r = 0; r + 1 < s.ringStart.length; r++) {
+      const a = s.ringStart[r], b = s.ringStart[r + 1];
+      for (let k = a; k < b; k++) (k === a ? p.moveTo : p.lineTo).call(p, c[k * 2], c[k * 2 + 1]);
+      p.closePath();
+    }
+    this.buildingPaths.set(t, p);
+    return p;
+  }
+
   draw() {
     if (!this.open) return;
     const g = this.g, dpr = this.dpr, { x, z, scale } = this.view;
@@ -284,18 +242,28 @@ export class CityMap {
     if (!this.data) return;
     g.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (W / 2 - x * scale), dpr * (H / 2 - z * scale));
     const vx0 = x - W / 2 / scale, vx1 = x + W / 2 / scale, vz0 = z - H / 2 / scale, vz1 = z + H / 2 / scale;
-    const vis = this.data.filter((l) => l.bbox[2] > vx0 && l.bbox[0] < vx1 && l.bbox[3] > vz0 && l.bbox[1] < vz1);
+    const vis = this.data.filter((c) => c.bbox[2] > vx0 && c.bbox[0] < vx1 && c.bbox[3] > vz0 && c.bbox[1] < vz1);
     const px = 1 / scale;
-    g.fillStyle = '#d6cfbf'; for (const l of vis) g.fill(l.land, 'evenodd');
-    g.fillStyle = '#9cc286'; for (const l of vis) g.fill(l.green);
-    g.fillStyle = '#ecdcae'; for (const l of vis) g.fill(l.sand);
-    if (scale > 0.18) { g.fillStyle = '#bdb4a3'; for (const l of vis) g.fill(l.buildings); }
+    const fill = (style, layer) => { g.fillStyle = style; for (const c of vis) if (c.layers[layer]) g.fill(this.path(c, layer)); };
+    fill('#d6cfbf', 'land');
+    fill('#1f4a5c', 'water');
+    fill('#9cc286', 'green');
+    fill('#ecdcae', 'sand');
+    fill('#c9c3b8', 'paved');
+    if (scale > 0.18 && this.tiles) {
+      g.fillStyle = '#bdb4a3';
+      for (const t of this.tiles.tiles.values()) if (t.clip[2] > vx0 && t.clip[0] < vx1 && t.clip[3] > vz0 && t.clip[1] < vz1) g.fill(this.buildingsPath(t));
+    }
     g.lineCap = 'round'; g.lineJoin = 'round';
-    const roadStyle = [['#ffffff', Math.max(12, 3 * px)], ['#f4efe4', Math.max(8, 2.4 * px)], ['#e9e3d6', Math.max(5, 1.6 * px)], ['#d9d2c4', Math.max(2, 0.8 * px)]];
+    // Main roads, tertiary roads and links, lanes (only when zoomed in far enough to read them).
+    const roadStyle = [['#ffffff', Math.max(12, 3 * px)], ['#f4efe4', Math.max(8, 2.4 * px)], ['#e9e3d6', Math.max(5, 1.6 * px)]];
+    const groups = scale < 0.1 ? [1, 0] : [2, 1, 0];
     g.strokeStyle = '#8f887a';
-    for (let k = 3; k >= 0; k--) { if (k === 3 && scale < 0.3) continue; g.lineWidth = roadStyle[k][1] + 1.5 * px; for (const l of vis) g.stroke(l.roads[k]); }
-    for (let k = 3; k >= 0; k--) { if (k === 3 && scale < 0.3) continue; g.strokeStyle = roadStyle[k][0]; g.lineWidth = roadStyle[k][1]; for (const l of vis) g.stroke(l.roads[k]); }
-    g.strokeStyle = '#6d6a66'; g.lineWidth = 2 * px; g.setLineDash([6 * px, 5 * px]); for (const l of vis) g.stroke(l.rails); g.setLineDash([]);
+    for (const k of groups) { g.lineWidth = roadStyle[k][1] + 1.5 * px; for (const c of vis) if (c.layers[`road${k}`]) g.stroke(this.path(c, `road${k}`)); }
+    for (const k of groups) { g.strokeStyle = roadStyle[k][0]; g.lineWidth = roadStyle[k][1]; for (const c of vis) if (c.layers[`road${k}`]) g.stroke(this.path(c, `road${k}`)); }
+    g.strokeStyle = '#6d6a66'; g.lineWidth = 2 * px; g.setLineDash([6 * px, 5 * px]);
+    for (const c of vis) if (c.layers.rails) g.stroke(this.path(c, 'rails'));
+    g.setLineDash([]);
     // GPS route
     if (this.route) {
       g.strokeStyle = '#c13bd9'; g.lineWidth = Math.max(6, 5 * px);
@@ -329,7 +297,14 @@ export class CityMap {
       if (scale > 0.15) { g.font = '700 12px system-ui, sans-serif'; g.lineWidth = 3; g.strokeStyle = '#fff'; g.strokeText(L.name, sx, sy + 16); g.fillStyle = '#5a3c00'; g.fillText(L.name, sx, sy + 16); }
     }
     g.font = '16px sans-serif';
-    for (const [fx, fz] of this.fuel) { const [sx, sy] = S(fx, fz); g.fillStyle = '#0e8a4a'; g.beginPath(); g.arc(sx, sy, 11, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillText('⛽', sx, sy + 1); }
+    // Petrol pumps: icons when zoomed in, small dots across the whole city.
+    const big = scale >= 0.1;
+    for (const [fx, fz] of this.fuel) {
+      const [sx, sy] = S(fx, fz);
+      if (sx < -12 || sx > W + 12 || sy < -12 || sy > H + 12) continue;
+      g.fillStyle = '#0e8a4a'; g.beginPath(); g.arc(sx, sy, big ? 11 : 4, 0, 7); g.fill();
+      if (big) { g.fillStyle = '#fff'; g.fillText('⛽', sx, sy + 1); }
+    }
     for (const m of this.markers?.() || []) {
       const [sx, sy] = S(m.x, m.z);
       g.fillStyle = m.color; g.beginPath(); g.arc(sx, sy, m.r || 8, 0, 7); g.fill();

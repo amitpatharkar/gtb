@@ -25,6 +25,7 @@ const GROUND = {
 const KERB_PAINT = 0.24;   // painted strip on top of the kerb (m)
 const PARAPET_H = 0.65, PARAPET_W = 0.5;
 
+/** ox, oz: the tile centre in texture (UV) space; geometry itself is tile-local. */
 export function buildGround(t, ox, oz) {
   const b = new Map();
   const get = (key) => b.get(key) || b.set(key, new MeshBuilder()).get(key);

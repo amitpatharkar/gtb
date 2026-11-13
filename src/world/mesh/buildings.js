@@ -63,6 +63,7 @@ function inset(ring, d) {
   return out;
 }
 
+/** ox, oz: the tile centre in texture (UV) space (roofs); toWorld: tile-local ring → world metres (collisions). */
 export function buildBuildings(t, ox, oz, toWorld) {
   const b = new Map();
   const walls = (style) => b.get(`walls${style}`) || b.set(`walls${style}`, new MeshBuilder(FACADE_FLOATS)).get(`walls${style}`);
