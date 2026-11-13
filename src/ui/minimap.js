@@ -56,6 +56,19 @@ export class Minimap {
         }
       }
     }
+    // GPS route and waypoint
+    const nav = this.nav;
+    if (nav?.route) {
+      g.strokeStyle = '#c13bd9'; g.lineWidth = 7 / scale; g.lineJoin = 'round';
+      g.beginPath(); nav.route.forEach(([x, z], i) => (i ? g.lineTo(x, z) : g.moveTo(x, z))); g.stroke();
+    }
+    if (nav?.waypoint) {
+      // Clamp the marker to the radar edge when it is far away.
+      const wx = nav.waypoint.x, wz = nav.waypoint.z, d = Math.hypot(wx - px, wz - pz), lim = (W * 0.45) / scale;
+      const k = d > lim ? lim / d : 1;
+      g.fillStyle = '#c13bd9'; g.strokeStyle = '#fff'; g.lineWidth = 2 / scale;
+      g.beginPath(); g.arc(px + (wx - px) * k, pz + (wz - pz) * k, 8 / scale, 0, 7); g.fill(); g.stroke();
+    }
     // Traffic dots and petrol pumps
     g.fillStyle = '#f7c600';
     for (const car of traffic?.cars || []) { g.beginPath(); g.arc(car.x, car.z, 3 / scale * 0.9, 0, 7); g.fill(); }

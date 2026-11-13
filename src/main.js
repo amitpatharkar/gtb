@@ -19,6 +19,7 @@ import { PeopleRenderer } from './sim/people.js';
 import { Bubbles } from './ui/bubbles.js';
 import { StreetLife } from './sim/street.js';
 import { Animals } from './sim/animals.js';
+import { CityMap } from './ui/cityMap.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
@@ -63,6 +64,9 @@ const people = new PeopleRenderer(scene, tier.name === 'Low' ? 150 : 400);
 const bubbles = new Bubbles(document.body);
 const audio = new CityAudio(lib);
 const minimap = new Minimap($('minimap'), tiles, index.fuel || []);
+const cityMap = new CityMap({ index, baseUrl: `${BASE}tiles/`, fuel: index.fuel || [], hud: { message: (t) => say(t, 4) } });
+minimap.nav = cityMap;
+$('minimap').addEventListener('click', () => cityMap.toggle(true, player));
 
 // The player drives a kaali-peeli taxi (auto-rickshaws aren't allowed in South Mumbai).
 const taxi = createTaxi();
@@ -132,6 +136,9 @@ const say = (text, seconds = 3) => { message = text; messageTimer = seconds; };
 addEventListener('keydown', (e) => {
   audio.start();
   if (e.repeat) return;
+  if (e.code === 'Tab') { e.preventDefault(); cityMap.toggle(!cityMap.open, player); return; }
+  if (e.code === 'Escape' && cityMap.open) { cityMap.toggle(false); return; }
+  if (cityMap.open) return;
   if (e.code === 'KeyQ') cycleTier(tierKey);
   if (e.code === 'KeyH') { audio.play('horn', 0.9); street.onHorn(); }
   if (e.code === 'KeyT') { clock.hour = (clock.hour + 1) % 24; say(`Time: ${clock.label}`, 1.5); }
@@ -163,12 +170,13 @@ function refuel() {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap };
 const timer = new THREE.Timer();
 let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 renderer.setAnimationLoop((time) => {
   timer.update(time);
   const dt = Math.min(timer.getDelta(), 0.05);
+  if (cityMap.open) return; // paused while the map is open
   if (input.reset) { input.reset = false; teleportHome(); }
   step(dt);
   post.render();
@@ -207,6 +215,7 @@ function step(dt) {
     if (d < 80 && Math.random() < 0.6) audio.play(Math.random() < 0.25 ? 'truckHorn' : 'horn', 0.5 / (1 + d / 15));
   }
   audio.update(seaFactor, clock.traffic, clock.daylight);
+  cityMap.update(dt, player);
   minimap.update(dt, player, traffic);
   hudTimer -= dt;
   messageTimer -= dt;

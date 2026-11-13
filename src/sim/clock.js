@@ -58,13 +58,15 @@ export class GameClock {
     return ['Severe', '#8e1b1b'];
   }
 
-  /** Traffic density 0..1: morning and evening rush, quiet after midnight. */
+  /** Traffic density 0..1 by hour: empty streets at 3 am, jams at 10 am and 7 pm. */
   get traffic() {
-    const h = this.hour;
-    const peak = Math.exp(-(((h - 9.75) / 1.5) ** 2)) + Math.exp(-(((h - 18.75) / 1.8) ** 2));
-    const day = h > 7 && h < 23 ? 0.45 : h > 5.5 ? 0.25 : 0.12;
-    return Math.min(1, day + peak * 0.55);
+    const T = [0.28, 0.16, 0.08, 0.05, 0.06, 0.12, 0.25, 0.5, 0.82, 1, 1, 0.85, 0.72, 0.7, 0.7, 0.72, 0.8, 0.92, 1, 1, 0.85, 0.65, 0.5, 0.38, 0.28];
+    const h = ((this.hour % 24) + 24) % 24, i = Math.floor(h);
+    return T[i] + (T[i + 1] - T[i]) * (h - i);
   }
+
+  /** 0 normal, 1 full rush-hour jam (slower cruising). */
+  get jam() { return Math.max(0, (this.traffic - 0.85) / 0.15); }
 
   get label() {
     const h = Math.floor(this.hour), m = Math.floor((this.hour - h) * 60);

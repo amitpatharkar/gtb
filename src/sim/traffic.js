@@ -65,7 +65,7 @@ export class Traffic {
   constructor(scene, tiles, tier) {
     this.scene = scene;
     this.tiles = tiles;
-    this.max = tier.name === 'High' ? 56 : tier.name === 'Medium' ? 36 : 20;
+    this.max = tier.name === 'High' ? 70 : tier.name === 'Medium' ? 44 : 24;
     this.types = vehicleTypes();
     this.typeNames = Object.keys(this.types);
     this.totalWeight = this.typeNames.reduce((s, n) => s + this.types[n].weight, 0);
@@ -140,9 +140,12 @@ export class Traffic {
     this.graphVersion = this.tiles.version;
   }
 
+  /** Vehicle mix by hour: goods tempos run at night, BEST buses and private cars by day. */
   pickType() {
-    let r = Math.random() * this.totalWeight;
-    for (const n of this.typeNames) { r -= this.types[n].weight; if (r <= 0) return n; }
+    const night = this.hour >= 22 || this.hour < 6;
+    const w = (n) => this.types[n].weight * (night ? { tempo: 3, bus: 0.3, taxi: 1.5, hatch: 0.6, sedan: 0.6 }[n] ?? 1 : 1);
+    let r = Math.random() * this.typeNames.reduce((s, n) => s + w(n), 0);
+    for (const n of this.typeNames) { r -= w(n); if (r <= 0) return n; }
     return 'hatch';
   }
 
@@ -192,6 +195,8 @@ export class Traffic {
 
   update(dt, player, clock) {
     this.night = clock.night;
+    this.hour = clock.hour;
+    const jam = clock.jam;
     if (this.graphVersion !== this.tiles.version) {
       this.rebuildGraph();
       // Drop cars whose road tile was unloaded.
@@ -233,7 +238,7 @@ export class Traffic {
         car.lastSig = sig ? sig.ap : null;
         car.lastDist = sig ? sig.dist : 0;
       }
-      const cruise = (s[5] & 4 ? type.speed : type.speed * 0.6) * (night > 0.5 ? 1.15 : 1) * (car.boost > 0 ? 1.45 : 1);
+      const cruise = (s[5] & 4 ? type.speed : type.speed * 0.6) * (night > 0.5 ? 1.15 : 1) * (car.boost > 0 ? 1.45 : 1) * (1 - 0.4 * jam);
       car.boost = Math.max(0, car.boost - dt);
       let want = gap < 2 ? 0 : Math.min(cruise, (gap - 2) * 0.8);
       let decel = 7;
