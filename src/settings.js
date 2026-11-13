@@ -12,7 +12,7 @@ export const TIERS = {
   },
   low: {
     name: 'Low', pixelRatio: 1, msaa: 0, ao: false, bloom: false, normalMaps: false,
-    shadowMapSize: 1024, shadowRange: 60, anisotropy: 2, trees: 0.5, detailRadius: 150, partsRadius: 0, loadRadius: 520,
+    shadowMapSize: 1024, shadowRange: 60, anisotropy: 8, trees: 0.5, detailRadius: 150, partsRadius: 0, loadRadius: 520,
   },
 };
 const ORDER = ['high', 'medium', 'low'];

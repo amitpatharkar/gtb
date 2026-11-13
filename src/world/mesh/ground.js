@@ -38,6 +38,22 @@ export function buildGround(t, ox, oz) {
   let seed = (t.tx * 73856093) ^ (t.tz * 19349663);
   const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
   const roads = t.areas.filter((a) => a.kind === AREA.ROAD);
+  // Main-road centre lines (flag 4) for deciding which kerbs get the black-and-yellow paint.
+  const mainSegs = [];
+  for (const r of t.roads || []) {
+    if (!(r.flags & 4)) continue;
+    for (let i = 0; i + 3 < r.line.length; i += 2) mainSegs.push(r.line[i], r.line[i + 1], r.line[i + 2], r.line[i + 3], r.width / 2 + 3);
+  }
+  const nearMain = (x, z) => {
+    for (let i = 0; i < mainSegs.length; i += 5) {
+      const ax = mainSegs[i], az = mainSegs[i + 1], dx = mainSegs[i + 2] - ax, dz = mainSegs[i + 3] - az;
+      const l2 = dx * dx + dz * dz || 1;
+      const k = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+      const ex = ax + k * dx - x, ez = az + k * dz - z, lim = mainSegs[i + 4];
+      if (ex * ex + ez * ez < lim * lim) return true;
+    }
+    return false;
+  };
 
   for (const a of t.areas) {
     const look = GROUND[a.kind];
@@ -45,8 +61,9 @@ export function buildGround(t, ox, oz) {
 
     if (a.kind === AREA.ROAD) {
       // Kerbs: every asphalt edge that is not a tile seam gets a vertical face up to
-      // footpath level, plus a painted strip on top. Faces point into the road.
-      const kerb = get('kerb');
+      // footpath level. Along main roads (and their medians) they are painted black and
+      // yellow with a strip on top; lanes and side streets get plain concrete kerbs.
+      const painted = get('kerb'), plain = get('kerbPlain');
       for (const ring of a.rings) {
         const n = ring.length / 2;
         let u = 0;
@@ -57,7 +74,10 @@ export function buildGround(t, ox, oz) {
           if (len < 0.02) continue;
           if (onClip(ax, az) & onClip(bx, bz)) { u += len; continue; }
           const ix = -(bz - az) / len, iz = (bx - ax) / len; // into the road (outer rings are positive area)
+          const main = nearMain((ax + bx) / 2, (az + bz) / 2);
+          const kerb = main ? painted : plain;
           wall(kerb, ax, az, bx, bz, Y.ROAD - 0.05, Y.KERB, ix, iz, u, u + len, 0, 0.25, WHITE);
+          if (!main) { u += len; continue; }
           // Painted top strip, on the footpath side.
           const px = -ix * KERB_PAINT, pz = -iz * KERB_PAINT, y = Y.KERB + 0.004;
           const v0 = kerb.v(ax, y, az, 0, 1, 0, u, 0.5, WHITE), v1 = kerb.v(bx, y, bz, 0, 1, 0, u + len, 0.5, WHITE);

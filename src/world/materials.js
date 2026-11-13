@@ -81,7 +81,7 @@ export function createMaterials(renderer, lib, tier) {
     // broken rough lanes (drawn over the main surface with a small depth offset).
     road: addMacroVariation(tex(std({ color: 0x4a4a4e, roughness: 0.85 }), 'tex-acg-asphalt025c', 2.6, { normalScale: 0.3, onLoad: (x) => x.color.set(0x7c7c80) }), { scale: 1 / 45, strength: 0.14 }),
     roadWorn: offset(addMacroVariation(tex(std({ color: 0x55555a }), 'tex-ph-asphalt-02', 3.2, { normalScale: 0.75, onLoad: (x) => x.color.set(0x9a9a9e) }), { scale: 1 / 30, strength: 0.3 }), -1),
-    roadPoor: offset(addMacroVariation(tex(std({ color: 0x6a645c }), 'tex-ph-road-damaged', 3.6, { normalScale: 1.0, onLoad: (x) => x.color.set(0xc4bcb0) }), { scale: 1 / 18, strength: 0.42 }), -1),
+    roadPoor: offset(addMacroVariation(tex(std({ color: 0x5e5e60 }), 'tex-ph-road-damaged', 3.6, { normalScale: 1.0, onLoad: (x) => x.color.set(0xa4a2a0) }), { scale: 1 / 22, strength: 0.28 }), -1), // grey broken asphalt, not mud
     footpath: addMacroVariation(tex(std({ color: 0x8f8c86 }), 'tex-ph-patterned-concrete-pavers', 1.8, { onLoad: (x) => x.color.set(0xd8d4cc) }), { strength: 0.25 }),
     plot: addMacroVariation(tex(std({ color: 0xa39c8e }), 'tex-ph-dirty-concrete', 3.0, { onLoad: (x) => x.color.set(0xe0d8c8) }), { strength: 0.3 }),
     paved: addMacroVariation(tex(std({ color: 0xb3ab9e }), 'tex-ph-concrete-pavement', 2.4, { onLoad: (x) => x.color.set(0xe8e2d8) })),
@@ -95,6 +95,8 @@ export function createMaterials(renderer, lib, tier) {
     pool: std({ color: 0x4fb3cf, roughness: 0.05 }),
     footway: offset(tex(std({ color: 0xa8a196 }), 'tex-ph-patterned-paving', 2, { onLoad: (x) => x.color.set(0xe0dbd2) }), -1),
     kerb: std({ map: kerbTexture(), roughness: 0.85 }),
+    // Lanes and side streets: plain weathered concrete kerbs (paint is for main roads).
+    kerbPlain: tex(std({ color: 0x8e8a84, roughness: 0.9 }), 'tex-ph-concrete-pavement', 1.5, { onLoad: (x) => x.color.set(0xb4aea6) }),
     seawall: tex(std({ color: 0x8a847a }), 'tex-ph-castle-brick-07', 2.5, { onLoad: (x) => x.color.set(0xb0aaa0) }),
     parapet: tex(std({ color: 0xb8b2a8 }), 'tex-ph-concrete-pavement', 1.8, { onLoad: (x) => x.color.set(0xe8e2d8) }),
     paint: offset(addMacroVariation(std({ color: 0xe9e7e0, roughness: 0.6, transparent: true, depthWrite: false, alphaMap: wornPaint() })), -2),
