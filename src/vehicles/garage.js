@@ -176,9 +176,15 @@ export class Garage {
     return ped;
   }
 
-  /** Each step while a rider vehicle is driven: lean the bike into corners. */
-  update() {
+  /** Each step: lean a bike into corners; autos are not allowed in the island city. */
+  update(dt = 0.016) {
     if (this.model && this.rider) this.model.body.rotation.z = THREE.MathUtils.clamp(-(this.player.yaw || 0) * Math.abs(this.player.speed) * 0.03, -0.5, 0.5);
+    if (this.type === 'auto' && !this.traffic.inSuburbs(this.player.pos.z)) {
+      // South of Bandra and Sion: a constable who sees the auto writes a challan (every so often).
+      if (!this.townWarned) { this.townWarned = true; this.hud.message('Autos are not allowed in town (south of Bandra and Sion) — a constable who sees you will write a challan'); }
+      this.townT = (this.townT || 0) - dt;
+      if (this.townT <= 0) { this.townT = 25; this.police.offence('autozone', this.player); }
+    } else { this.townWarned = false; this.townT = 0; }
   }
 
   /** Circles other things should avoid for the parked taxi (while the player drives something else). */

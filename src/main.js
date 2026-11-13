@@ -236,6 +236,7 @@ taxi.root.add(headlamp, headlamp.target);
 lowBeam.userData.reach = 7; headlamp.userData.reach = 20;
 // Any vehicle on the street can be taken and driven (F next to it, on foot).
 const garage = new Garage({ scene, player, taxi, traffic, street, police, bubbles, audio, hud, outfit, lamps: [lowBeam, headlamp] });
+jobs.garage = garage; // fares can also be taken in an auto-rickshaw
 
 // ------------------------------------------------------------------ on foot
 const walker = new Walker(tiles);
@@ -428,7 +429,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyH') honk();
   if (e.code === 'KeyP') { view.release(); phone.toggle(); }
   if (e.code === 'Escape' && phone.open) phone.toggle(false);
-  if (e.code === 'KeyJ') { if (garage.inTaxi || jobs.onDuty) jobs.toggleDuty(player); else say('Taxi duty needs your kaali-peeli', 2); }
+  if (e.code === 'KeyJ') { if (garage.inTaxi || garage.type === 'auto' || jobs.onDuty) jobs.toggleDuty(player); else say('Fare duty needs your kaali-peeli — or an auto-rickshaw in the suburbs', 2.5); }
   if (e.code === 'KeyF') toggleFoot();
   if (e.code === 'KeyN' && !onFoot) radio.next();
   if (e.code === 'KeyC' && onFoot) { pichkari.nextColour(e.shiftKey ? -1 : 1); if (combat.weapon !== 'pichkari') combat.setWeapon('pichkari'); }
@@ -594,7 +595,7 @@ function step(dt) {
     player.impact = 0;
   }
   damage.update(dt, garage.inTaxi ? player : garage.homeBody, camera);
-  garage.update();
+  garage.update(dt);
   traffic.taxi = police.taxi = garage.inTaxi ? player : garage.homeBody; // NPC cars and patrols avoid the parked taxi
   if (!onFoot) propPhysics.sweep(player);
   propPhysics.update(dt, onFoot ? null : player);

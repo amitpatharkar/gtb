@@ -119,7 +119,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   cows on lanes, gully cricket, push-starting a broken-down taxi), red-light hawkers, bump-and-argue drivers
 - `src/game/state.js` — saved player state (localStorage): money, hunger, energy, purchases, messages, rides; home
   address in Powai (`HOME`); `src/game/jobs.js` — taxi fares (J / Chalo app; meter, time, comfort → tips or cuts,
-  rating), delivery riders, snacks at thelas (E)
+  rating), delivery riders, snacks at thelas (E); `jobs.garage` → fares also in an auto (`AUTO_BASE`/`AUTO_KM`,
+  suburb destinations only; `garage.update(dt)` raises `police.offence('autozone')` for an auto in town)
 - `src/player/view.js` — GTA-style camera control: click to capture the mouse (pointer lock), orbit around the taxi
   (swings back behind it) or over the shoulder on foot, right mouse aims (zoom + crosshair), wheel = pichkari pressure;
   touch: drag to look, 🎯 aim button

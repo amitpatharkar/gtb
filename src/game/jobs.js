@@ -12,6 +12,7 @@ import { POINT } from '../world/tileFormat.js';
 // - Stop next to a thela and press E to buy a snack.
 
 const FARE_BASE = 33, FARE_KM = 22; // Mumbai kaali-peeli tariff (Sept 2026): ₹33 for the first 1.5 km
+const AUTO_BASE = 26, AUTO_KM = 17; // auto-rickshaw tariff: ₹26 for the first 1.5 km, then about ₹17 a km
 const rupees = (n) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
@@ -36,6 +37,14 @@ export class Jobs {
     this.panel = document.getElementById('job');
   }
 
+  /** Fares are taken in the kaali-peeli or, in the suburbs, in an auto-rickshaw. */
+  get inAuto() { return this.garage?.type === 'auto'; }
+  meter(r) {
+    const km = r.dist / 1000;
+    if (r.type.delivery) return 45 + km * 12;
+    return (r.auto ? AUTO_BASE : FARE_BASE) + Math.max(0, km - 1.5) * (r.auto ? AUTO_KM : FARE_KM);
+  }
+
   // ------------------------------------------------------------------ taxi duty
   toggleDuty(player, mode = 'taxi') {
     if (this.onDuty && this.mode !== mode) { this.onDuty = false; this.ride = null; this.cityMap.setWaypoint(null); }
@@ -49,7 +58,7 @@ export class Jobs {
     } else {
       this.onDuty = true;
       this.cooldown = 2;
-      this.hud.message(mode === 'delivery' ? 'Bhookh partner: online. Orders will come in soon.' : 'On duty: FOR HIRE. A fare will hail you soon.');
+      this.hud.message(mode === 'delivery' ? 'Bhookh partner: online. Orders will come in soon.' : this.inAuto ? 'Auto on duty: meter down. A fare will wave you down soon (suburbs only).' : 'On duty: FOR HIRE. A fare will hail you soon.');
     }
     this.renderPanel(player);
   }
@@ -75,8 +84,14 @@ export class Jobs {
 
   /** A destination far enough away, on the road graph, with a place name. */
   async findDestination(player) {
-    const n = await this.cityMap.randomPlace(player.pos.x, player.pos.z, 700, 2600);
-    return n ? { x: n.x, z: n.z, name: this.placeName(n.x, n.z) } : null;
+    // Autos may not enter the island city, so their fares stay north of the Bandra–Sion line.
+    for (let tries = 0; tries < 5; tries++) {
+      const n = await this.cityMap.randomPlace(player.pos.x, player.pos.z, 700, 2600);
+      if (!n) return null;
+      if (this.inAuto && !this.traffic.inSuburbs(n.z)) continue;
+      return { x: n.x, z: n.z, name: this.placeName(n.x, n.z) };
+    }
+    return null;
   }
 
   placeName(x, z) {
@@ -149,6 +164,7 @@ export class Jobs {
     const dest = await this.findDestination(player);
     if (!dest || this.ride !== r) return;
     r.stage = 'ride';
+    r.auto = this.inAuto;
     r.dest = dest;
     r.t = 0;
     r.dist = 0;
@@ -186,7 +202,7 @@ export class Jobs {
         r.person.pose = POSE.WALK;
         const dx = P.x - r.person.x, dz = P.z - r.person.z, l = Math.hypot(dx, dz);
         const s = Math.min(l, 1.4 * dt);
-        r.person.x += (dx / l) * s; r.person.z += (dz / l) * s; r.person.heading = Math.atan2(dx, dz);
+        if (l > 1.3) { r.person.x += (dx / l) * s; r.person.z += (dz / l) * s; r.person.heading = Math.atan2(dx, dz); } // stops at the door
         r.person.phase += dt * 5;
         if ((l < 1.6 || r.wait > 4) && !r.starting) { r.starting = true; this.startRide(player); }
       } else r.wait = 0;
@@ -195,6 +211,11 @@ export class Jobs {
       return;
     }
     if (r.stage !== 'ride' || !r.dest) return;
+    if (this.inAuto && !r.type.delivery) {
+      // In an auto you can see the passenger on the bench.
+      const pax = this.traffic.types.auto.pax, h = player.heading, sh = Math.sin(h), ch = Math.cos(h);
+      this.people.add({ ...r.person, noHero: true, keep: true, x: player.pos.x + sh * pax.z - ch * 0.22, y: player.pos.y + pax.seat - 0.42, z: player.pos.z + ch * pax.z + sh * 0.22, heading: h, phase: 0, pose: POSE.SIT });
+    }
     // Comfort: jerks, hard braking, sharp turns at speed, crashes, bumps, horn, police.
     const accel = (player.speed - r.last.speed) / Math.max(dt, 1e-3);
     let dh = player.heading - r.last.heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
@@ -228,8 +249,7 @@ export class Jobs {
       this.state.s.rides++; this.state.s.ratingSum += 1;
       return;
     }
-    const km = r.dist / 1000;
-    const meter = r.type.delivery ? 45 + km * 12 : FARE_BASE + Math.max(0, km - 1.5) * FARE_KM;
+    const meter = this.meter(r);
     const late = Math.max(0, r.t - r.eta) / r.eta;
     let stars = 5 - (100 - r.comfort) / 22 - late * 2 * r.type.hurry;
     stars = Math.max(1, Math.min(5, stars));
@@ -237,13 +257,13 @@ export class Jobs {
     if (stars >= 4.3) tip = Math.round(meter * 0.15 * r.type.tip + 10 * r.type.tip);
     if (r.comfort < 45) cut = Math.round(meter * 0.25);
     if (late > 0.5) cut += Math.round(meter * 0.1);
-    const bonus = r.type.delivery ? 0 : 40; // Kidhar pays drivers a per-ride incentive on top of the meter
+    const bonus = r.type.delivery ? 0 : r.auto ? 25 : 40; // Kidhar pays drivers a per-ride incentive on top of the meter
     const total = Math.max(0, Math.round(meter + tip - cut + bonus));
-    this.state.earn(total, r.type.delivery ? `Bhookh delivery to ${r.dest.name}` : `Taxi fare to ${r.dest.name}`);
+    this.state.earn(total, r.type.delivery ? `Bhookh delivery to ${r.dest.name}` : `${r.auto ? 'Auto' : 'Taxi'} fare to ${r.dest.name}`);
     this.state.s.rides++;
     this.state.s.ratingSum += stars;
     this.state.s.earned += total;
-    const line = stars >= 4 ? r.type.lines.good : stars >= 2.5 ? 'Theek hai.' : 'Kabhi nahi baithunga tumhari taxi mein!';
+    const line = stars >= 4 ? r.type.lines.good : stars >= 2.5 ? 'Theek hai.' : (r.auto ? 'Kabhi nahi baithunga tumhari auto mein!' : 'Kabhi nahi baithunga tumhari taxi mein!');
     this.bubbles.say(player.pos, line, 3, 'driver');
     this.hud.message(`${r.type.delivery ? `Delivery pay ${rupees(meter)}` : `Fare ${rupees(meter)} + Kidhar bonus ${rupees(bonus)}`}${tip ? ` + tip ${rupees(tip)}` : ''}${cut ? ` − ${rupees(cut)} (${r.type.delivery ? 'cold or spilled food' : 'unhappy'})` : ''} = ${rupees(total)} · ${'★'.repeat(Math.round(stars))}${'☆'.repeat(5 - Math.round(stars))}`);
     this.state.message('PayKaro', `Credited ${rupees(total)} for a ride to ${r.dest.name}. Rating ${stars.toFixed(1)}★.`);
@@ -339,7 +359,7 @@ export class Jobs {
     if (this.onDuty && !r) rows.push(this.mode === 'delivery' ? '<b class="hire">BHOOKH PARTNER</b> waiting for an order…' : '<b class="hire">FOR HIRE</b> waiting for a fare…');
     if (r?.stage === 'pickup') rows.push(`<b>Pick up:</b> ${r.type.who} · ${Math.round(Math.hypot(r.person.x - player.pos.x, r.person.z - player.pos.z))} m`);
     if (r?.stage === 'ride' && r.dest) {
-      const km = r.dist / 1000, meter = r.type.delivery ? 45 + km * 12 : FARE_BASE + Math.max(0, km - 1.5) * FARE_KM;
+      const meter = this.meter(r);
       const left = Math.round(Math.hypot(r.dest.x - player.pos.x, r.dest.z - player.pos.z));
       const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
       const late = r.t > r.eta;
