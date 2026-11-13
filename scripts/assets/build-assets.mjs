@@ -39,6 +39,7 @@ const CONVERT = {
   'vehicle-quaternius-public-transport': /\/(Bus|Ambulance|Train|TrafficLight|TrafficCone|Bicycle)\.fbx$/i,
   'tree-oga-exotic-palms': /\/ExoticPalm(Curve|Defalt|Old|Young)\.fbx$/i,
   'tree-quaternius-ultimate-nature': /\/FBX\/(CommonTree_[1-5]|Bush_[12]|BushBerries_1|PalmTree_[1-4])\.fbx$/i,
+  'prop-quaternius-street-pack': /\/FBX\/(Streetlight_(Single|Double)|TrafficLight(_2)?|Sign_(NoParking|Stop|Triangle))\.fbx$/i,
 };
 const blender = (() => { try { return spawnSync('blender', ['--version'], { encoding: 'utf8' }).status === 0; } catch { return false; } })();
 const UA = 'Mozilla/5.0 (compatible; asset-fetcher/1.0)'; // generic: no project details sent out
@@ -300,8 +301,13 @@ async function processModel(a) {
       fs.writeFileSync(full, Buffer.from(entries[n]));
       if (convert.test('/' + n)) jobs.push([full, full.replace(/\.fbx$/i, '.glb')]);
     }
-    const res = spawnSync('blender', ['-b', '-P', path.join(root, 'scripts/assets/fbx2glb.py'), '--', ...jobs.flat()], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    const res = spawnSync('blender', ['-b', '--factory-startup', '-P', path.join(root, 'scripts/assets/fbx2glb.py'), '--', ...jobs.flat()], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
     if (res.status !== 0) log(`  ${a.id}: blender exited ${res.status}: ${(res.stderr || '').slice(-300)}`);
+    // Keep Blender's report next to the pack so failures can be read from the assets branch.
+    const report = `jobs: ${jobs.length}\nstatus: ${res.status}\n--- stdout ---\n${(res.stdout || '').split('\n').filter((l) => /converted|FAILED|blender|ADDON|Error|error|Traceback/.test(l)).join('\n')}\n--- stderr (tail) ---\n${(res.stderr || '').slice(-4000)}`;
+    fs.mkdirSync(path.join(OUT, 'models', a.id), { recursive: true });
+    fs.writeFileSync(path.join(OUT, 'models', a.id, '_convert.log'), report);
+    log(`  ${a.id}: ${(res.stdout || '').split('\n').filter((l) => l.startsWith('converted')).length}/${jobs.length} FBX converted`);
     budget = MODEL_BUDGET * 2;
     for (const [, out] of jobs) {
       if (fs.existsSync(out) && put('converted/' + path.basename(out), fs.readFileSync(out))) count++;
@@ -309,6 +315,8 @@ async function processModel(a) {
     fs.rmSync(tmp, { recursive: true, force: true });
   } else if (convert) {
     log(`  ${a.id}: Blender not installed, FBX conversion skipped`);
+    fs.mkdirSync(path.join(OUT, 'models', a.id), { recursive: true });
+    fs.writeFileSync(path.join(OUT, 'models', a.id, '_convert.log'), 'Blender not found on this runner');
   }
   if (glbs.length) {
     for (const n of glbs.sort()) if (put(n, Buffer.from(entries[n]))) count++;
