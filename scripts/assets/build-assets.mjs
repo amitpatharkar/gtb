@@ -29,6 +29,8 @@ const CACHE = path.resolve(root, args.cache || '.asset-cache');
 const SIZE = Number(args.size || 1024);
 const ONLY = args.only ? new Set(args.only.split(',')) : null;
 const STAGE1 = new Set(['texture', 'hdri', 'sound', 'font']);
+const MODELS = new Set(['tree', 'vehicle', 'prop', 'character', 'animation']);
+const MODEL_BUDGET = 24 * 1024 * 1024; // per asset, so one big pack can't bloat the site
 const UA = 'Mozilla/5.0 (compatible; asset-fetcher/1.0)'; // generic: no project details sent out
 const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0).padStart(4)}s]`, ...a);
@@ -238,6 +240,61 @@ async function processFont(a) {
   return { files };
 }
 
+// ------------------------------------------------------------------ models (stage 2)
+const safeName = (n) => n.replace(/[^\w.\-/]+/g, '_').replace(/^\/+/, '');
+
+/**
+ * Models: Poly Haven glTF (with its .bin and textures), or a zip pack. Packs get a full
+ * contents listing (_contents.txt) and their .glb files (else .gltf + sibling files).
+ * FBX/OBJ-only packs are listed but not converted yet.
+ */
+async function processModel(a) {
+  const files = [];
+  let budget = MODEL_BUDGET, count = 0;
+  const put = (name, data) => {
+    if (budget - data.length < 0) return false;
+    const rel = `models/${a.id}/${safeName(name)}`;
+    fs.mkdirSync(path.dirname(path.join(OUT, rel)), { recursive: true });
+    fs.writeFileSync(path.join(OUT, rel), data);
+    files.push(rel);
+    budget -= data.length;
+    return true;
+  };
+  const ph = a.source_page.match(/polyhaven\.com\/a\/([\w-]+)/);
+  if (ph && a.format === 'gltf') {
+    const info = await fetchJson(`https://api.polyhaven.com/files/${ph[1]}`);
+    const g = info?.gltf?.['1k']?.gltf;
+    if (!g) throw new Error('Poly Haven file list has no 1k glTF');
+    put(path.basename(new URL(g.url).pathname), fs.readFileSync(await download(g.url, a.id)));
+    for (const [rel, inc] of Object.entries(g.include || {})) put(rel, fs.readFileSync(await download(inc.url, a.id)));
+    return { files, meta: { models: 1 } };
+  }
+  const file = await download(a.download_url, a.id);
+  if (!/\.zip$/i.test(file) && a.format !== 'zip') {
+    put(path.basename(file), fs.readFileSync(file));
+    return { files, meta: { models: 1 } };
+  }
+  const entries = unzipSync(new Uint8Array(fs.readFileSync(file)));
+  const names = Object.keys(entries).filter((n) => !n.startsWith('__MACOSX') && !n.endsWith('/'));
+  const listing = names.map((n) => `${entries[n].length}\t${n}`);
+  const glbs = names.filter((n) => /\.glb$/i.test(n));
+  const gltfs = names.filter((n) => /\.gltf$/i.test(n));
+  if (glbs.length) {
+    for (const n of glbs.sort()) if (put(n, Buffer.from(entries[n]))) count++;
+  } else {
+    for (const n of gltfs.sort()) {
+      const dir = path.dirname(n);
+      const sib = names.filter((m) => path.dirname(m) === dir && /\.(bin|png|jpe?g|webp)$/i.test(m));
+      if (put(n, Buffer.from(entries[n]))) { count++; for (const m of sib) if (!files.includes(`models/${a.id}/${safeName(m)}`)) put(m, Buffer.from(entries[m])); }
+    }
+  }
+  const listPath = `models/${a.id}/_contents.txt`;
+  fs.mkdirSync(path.join(OUT, 'models', a.id), { recursive: true });
+  fs.writeFileSync(path.join(OUT, listPath), listing.join('\n'));
+  files.push(listPath);
+  return { files, meta: { models: count, packFiles: names.length, formats: [...new Set(names.map((n) => path.extname(n).toLowerCase()))].filter(Boolean) } };
+}
+
 // ------------------------------------------------------------------ main
 const list = JSON.parse(fs.readFileSync(LIST, 'utf8'));
 const selected = [], skipped = [];
@@ -246,7 +303,7 @@ for (const a of list) {
     : a.login_required ? 'needs a login'
     : a.fallback ? 'fallback entry'
     : a.heavy ? 'heavy source model'
-    : !STAGE1.has(a.category) ? 'models come in stage 2'
+    : !STAGE1.has(a.category) && !MODELS.has(a.category) ? 'unknown category'
     : '';
   if (why === null) continue;
   if (why) skipped.push({ id: a.id, reason: why });
@@ -261,7 +318,7 @@ const enc = new Encoder(threads);
 const built = [], failed = [];
 await pool(selected, threads + 2, async (a) => {
   try {
-    const fn = { texture: (x) => processTexture(x, enc), hdri: processHdri, sound: processSound, font: processFont }[a.category];
+    const fn = MODELS.has(a.category) ? processModel : { texture: (x) => processTexture(x, enc), hdri: processHdri, sound: processSound, font: processFont }[a.category];
     const r = await fn(a);
     const kb = r.files.reduce((s, f) => s + fs.statSync(path.join(OUT, f)).size, 0) / 1024;
     log(`ok   ${a.id} (${kb.toFixed(0)} KB)`);

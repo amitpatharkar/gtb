@@ -91,7 +91,8 @@ export function makeFacadeMaterial(signAtlas) {
                 // Signboard from the generated atlas (8 × 16 boards).
                 float idx = floor(su * 128.0);
                 vec2 cell = vec2(mod(idx, 8.0), floor(idx / 8.0));
-                vec2 suv = vec2((lx - 0.06) / 0.88, (y - signBot) / (signTop - signBot));
+                // Walls run right-to-left when seen from outside, so read the sign backwards.
+                vec2 suv = vec2(1.0 - (lx - 0.06) / 0.88, (y - signBot) / (signTop - signBot));
                 vec4 sc = texture2D(tSigns, (cell + suv) / vec2(8.0, 16.0));
                 diffuseColor.rgb = sc.rgb * 0.9;
                 roughnessFactor = 0.45;
