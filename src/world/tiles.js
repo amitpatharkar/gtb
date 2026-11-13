@@ -1,19 +1,22 @@
 import * as THREE from 'three';
+import { createProps, buildProps } from './props.js';
+import { Y } from './levels.js';
 
 // Streams map tiles around the player and answers collision questions.
 // Tiles are built by tileWorker.js (download, unzip, decode, mesh) off the main thread.
 
 const LOAD_RADIUS = 700;    // metres from the player to a tile's edge
 const UNLOAD_RADIUS = 950;
-const DETAIL_RADIUS = 300;  // small props (roof tanks, rails) only drawn on nearby tiles
 const MAX_IN_FLIGHT = 3;
-const DETAIL_MESHES = new Set(['railSteel']);
-
-const SHADOWS = { walls: [true, true], roofs: [true, true], ground: [false, true], roadsPlain: [false, true], roadsMarked: [false, true], railBed: [false, true], railSteel: [false, false] };
+const DETAIL_MESHES = new Set(['railSteel', 'paint']);
+// [cast shadow, receive shadow] by mesh key (walls and roofs cast; ground only receives).
+const shadowsFor = (key) => (key.startsWith('walls') || key.startsWith('roof') || key === 'parapet' ? [true, true] : [false, true]);
+const SEG = 6; // floats per road segment: x0 z0 x1 z1 halfWidth vehicle
 
 export class TileManager {
-  constructor(scene, materials) {
+  constructor(scene, materials, tier) {
     this.scene = scene;
+    this.tier = tier;
     this.materials = materials;
     this.tiles = new Map();    // key → loaded tile
     this.pending = new Map();  // key → request id
@@ -22,6 +25,8 @@ export class TileManager {
     this.nextId = 1;
     this.tankGeo = new THREE.CylinderGeometry(0.7, 0.7, 1.5, 10);
     this.tankGeo.translate(0, 0.75, 0);
+    this.props = createProps();
+    this.detailRadius = tier?.detailRadius ?? 300;
   }
 
   async init(baseUrl) {
@@ -65,7 +70,7 @@ export class TileManager {
     for (const [key, tile] of this.tiles) {
       const d = this.tileDistance(tile.tx, tile.tz, x, z);
       if (d > UNLOAD_RADIUS) this.unload(key);
-      else tile.detail.visible = d < DETAIL_RADIUS;
+      else tile.detail.visible = d < this.detailRadius;
     }
   }
 
@@ -96,18 +101,30 @@ export class TileManager {
     group.add(detail);
     for (const [name, data] of Object.entries(t.meshes)) {
       if (!data) continue;
+      const mat = name.startsWith('walls') ? this.materials.walls[Number(name.slice(5))] : this.materials[name];
+      if (!mat) { console.warn('No material for', name); continue; }
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(data.position, 3));
       geo.setAttribute('normal', new THREE.BufferAttribute(data.normal, 3));
       geo.setAttribute('uv', new THREE.BufferAttribute(data.uv, 2));
       geo.setAttribute('color', new THREE.BufferAttribute(data.color, 3, true));
+      if (data.facade) {
+        // Facade data, 6 floats per vertex: bay, style, seed, storey, roof height, shop flag.
+        const ib = new THREE.InterleavedBuffer(data.facade, 6);
+        geo.setAttribute('facadeBay', new THREE.InterleavedBufferAttribute(ib, 1, 0));
+        geo.setAttribute('facadeA', new THREE.InterleavedBufferAttribute(ib, 4, 1));
+        geo.setAttribute('facadeShop', new THREE.InterleavedBufferAttribute(ib, 1, 5));
+      }
       geo.setIndex(new THREE.BufferAttribute(data.index, 1));
       geo.computeBoundingSphere();
-      const mesh = new THREE.Mesh(geo, this.materials[name]);
-      [mesh.castShadow, mesh.receiveShadow] = SHADOWS[name];
+      const mesh = new THREE.Mesh(geo, mat);
+      [mesh.castShadow, mesh.receiveShadow] = shadowsFor(name);
       mesh.matrixAutoUpdate = false;
       (DETAIL_MESHES.has(name) ? detail : group).add(mesh);
     }
+    const props = buildProps(this.props, t.points, this.tier?.trees ?? 1);
+    // Trees and lights stay visible far away; small clutter only near the player.
+    for (const m of [...props.children]) (m.userData.kind >= 7 && m.userData.kind <= 10 ? detail : group).add(m);
     const n = t.tanks.length / 4;
     if (n) {
       const tanks = new THREE.InstancedMesh(this.tankGeo, this.materials.tank, n);
@@ -130,8 +147,11 @@ export class TileManager {
     const tile = this.tiles.get(key);
     if (!tile) return;
     this.scene.remove(tile.group);
-    tile.group.traverse((o) => { if (o.geometry && o.geometry !== this.tankGeo) o.geometry.dispose(); });
-    tile.detail.children.forEach((o) => o.isInstancedMesh && o.dispose());
+    // Shared geometry (tanks, props) stays; tile geometry and instance buffers go.
+    tile.group.traverse((o) => {
+      if (o.isInstancedMesh) o.dispose();
+      else if (o.geometry && o.geometry !== this.tankGeo) o.geometry.dispose();
+    });
     this.tiles.delete(key);
   }
 
@@ -189,14 +209,15 @@ export class TileManager {
   }
 
   /** Nearest road segment within its own half-width + slack: { tile, index, dist }. */
-  roadAt(x, z, slack) {
+  roadAt(x, z, slack, vehicleOnly = false) {
     let best = null;
     for (const t of this.nearTiles(x, z, 20)) {
       const rd = t.collide.roads;
       gridAny(rd, x, z, slack, (i) => {
-        const s = rd.segs;
-        const d = segDist(x, z, s[i * 5], s[i * 5 + 1], s[i * 5 + 2], s[i * 5 + 3]);
-        if (d <= s[i * 5 + 4] + slack && (!best || d < best.dist)) best = { tile: t, index: i, dist: d };
+        const s = rd.segs, o = i * SEG;
+        if (vehicleOnly && !s[o + 5]) return false;
+        const d = segDist(x, z, s[o], s[o + 1], s[o + 2], s[o + 3]);
+        if (d <= s[o + 4] + slack && (!best || d < best.dist)) best = { tile: t, index: i, dist: d };
         return false;
       });
     }
@@ -211,14 +232,22 @@ export class TileManager {
       gridAny(rd, x, z, 6, (i) => {
         const n = rd.names[i];
         if (n < 0) return false;
-        const s = rd.segs;
-        const d = segDist(x, z, s[i * 5], s[i * 5 + 1], s[i * 5 + 2], s[i * 5 + 3]) - s[i * 5 + 4];
+        const s = rd.segs, o = i * SEG;
+        const d = segDist(x, z, s[o], s[o + 1], s[o + 2], s[o + 3]) - s[o + 4];
         if (d < 6 && (!best || d < best.d)) best = { d, name: t.names[n] };
         return false;
       });
     }
     return best ? best.name : '';
   }
+
+  /** Ground height under (x, z): asphalt on carriageways, kerb level elsewhere. */
+  groundHeight(x, z) {
+    return this.roadAt(x, z, -0.15, true) ? Y.ROAD : Y.KERB;
+  }
+
+  /** Segment geometry helper for tools and traffic: [x0, z0, x1, z1, halfWidth, vehicle]. */
+  segment(tile, i) { return tile.collide.roads.segs.subarray(i * SEG, i * SEG + SEG); }
 
   get loadedCount() { return this.tiles.size; }
 }

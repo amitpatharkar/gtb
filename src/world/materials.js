@@ -1,21 +1,17 @@
 import * as THREE from 'three';
+import { addMacroVariation } from './textures.js';
+import { makeFacadeMaterial, makeSignAtlas } from './facade.js';
 
-// Procedural textures drawn on canvases: no image downloads, nothing to license.
+// Materials for tile meshes, keyed like the worker's mesh keys. Each starts with a flat
+// colour and switches to a real photo-scanned texture set when it has loaded.
 
 function canvas(w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   return [c, c.getContext('2d')];
 }
-
-function seeded(seed) {
-  return () => {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
-    return seed / 4294967296;
-  };
-}
-
-function texture(c, { srgb = true, aniso = 1 } = {}) {
+const seeded = (seed) => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+function canvasTexture(c, { srgb = true, aniso = 4 } = {}) {
   const t = new THREE.CanvasTexture(c);
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -23,144 +19,93 @@ function texture(c, { srgb = true, aniso = 1 } = {}) {
   return t;
 }
 
-/**
- * Facade: 4 × 4 windows (one window per bay and storey). White wall so the
- * per-building vertex colour tints it. Returns colour and roughness maps.
- */
-function facadeTextures(aniso) {
-  const S = 512, cell = S / 4;
-  const [c, g] = canvas(S, S);
-  const [rc, rg] = canvas(S, S);
-  const rnd = seeded(42);
-  g.fillStyle = '#f2f2f0';
-  g.fillRect(0, 0, S, S);
-  rg.fillStyle = '#e6e6e6'; // rough plaster
-  rg.fillRect(0, 0, S, S);
-  // Monsoon stains: faint vertical streaks.
-  for (let i = 0; i < 70; i++) {
-    const x = rnd() * S, w = 2 + rnd() * 10, h = 20 + rnd() * 200;
-    g.fillStyle = `rgba(70,65,55,${0.03 + rnd() * 0.06})`;
-    g.fillRect(x, rnd() * S, w, h);
+/** Kerb paint: alternating black and yellow, 0.6 m each, a bit dirty. u = metres along the kerb. */
+function kerbTexture() {
+  const [c, g] = canvas(128, 64);
+  const rnd = seeded(5);
+  g.fillStyle = '#1b1b1b'; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#e8b800'; g.fillRect(64, 0, 64, 64);
+  for (let i = 0; i < 900; i++) {
+    g.fillStyle = `rgba(${rnd() < 0.5 ? '40,35,30' : '200,190,170'},${rnd() * 0.25})`;
+    g.fillRect(rnd() * 128, rnd() * 64, 1 + rnd() * 3, 1 + rnd() * 3);
   }
-  const curtains = ['#c9a46b', '#b8625a', '#6b8fb3', '#d8c9a8', '#7a9c6b', '#e0d6c8'];
-  for (let row = 0; row < 4; row++) {
-    for (let col = 0; col < 4; col++) {
-      const x = col * cell, y = row * cell;
-      // Floor slab band
-      g.fillStyle = 'rgba(0,0,0,0.10)';
-      g.fillRect(x, y + cell - 7, cell, 7);
-      const wx = x + cell * 0.27, wy = y + cell * 0.24, ww = cell * 0.46, wh = cell * 0.44;
-      // Window frame + sunshade (chajja) above it
-      g.fillStyle = 'rgba(0,0,0,0.18)';
-      g.fillRect(wx - 6, wy - 12, ww + 12, 7);
-      g.fillStyle = '#d9d6cf';
-      g.fillRect(wx - 3, wy - 3, ww + 6, wh + 6);
-      // Glass, sometimes with curtains
-      const grad = g.createLinearGradient(wx, wy, wx + ww, wy + wh);
-      grad.addColorStop(0, '#6f8796');
-      grad.addColorStop(1, '#34414b');
-      g.fillStyle = grad;
-      g.fillRect(wx, wy, ww, wh);
-      rg.fillStyle = '#262626'; // glossy glass reflects the sky
-      rg.fillRect(wx, wy, ww, wh);
-      if (rnd() < 0.45) {
-        g.fillStyle = curtains[Math.floor(rnd() * curtains.length)];
-        const cw = ww * (0.3 + rnd() * 0.5);
-        g.fillRect(rnd() < 0.5 ? wx : wx + ww - cw, wy, cw, wh);
-        rg.fillStyle = '#b0b0b0';
-        rg.fillRect(wx, wy, ww, wh);
-      }
-      // Window bars
-      g.fillStyle = '#e8e4dc';
-      g.fillRect(wx + ww / 2 - 1.5, wy, 3, wh);
-      if (rnd() < 0.5) {
-        g.fillStyle = 'rgba(30,30,30,0.55)';
-        for (let k = 1; k < 6; k++) g.fillRect(wx + (ww * k) / 6, wy, 1.5, wh);
-      }
-      // Air-conditioner box below some windows
-      if (rnd() < 0.35) {
-        const ax = wx + rnd() * (ww - 34);
-        g.fillStyle = '#d0d0cc';
-        g.fillRect(ax, wy + wh + 6, 34, 18);
-        g.fillStyle = '#9a9a96';
-        for (let k = 0; k < 4; k++) g.fillRect(ax + 3, wy + wh + 9 + k * 4, 28, 1.5);
-      }
-    }
-  }
-  return { map: texture(c, { aniso }), roughnessMap: texture(rc, { srgb: false, aniso }) };
+  const t = canvasTexture(c);
+  t.repeat.set(1 / 1.2, 4);
+  return t;
 }
 
-/** Asphalt with white edge lines and a dashed centre line. v runs along the road. */
-function roadTexture(aniso) {
-  const [c, g] = canvas(128, 256);
-  const rnd = seeded(7);
-  g.fillStyle = '#3c3c3e';
-  g.fillRect(0, 0, 128, 256);
-  for (let i = 0; i < 2500; i++) {
-    const v = 40 + rnd() * 40;
-    g.fillStyle = `rgba(${v},${v},${v + 2},0.5)`;
-    g.fillRect(rnd() * 128, rnd() * 256, 1.5, 1.5);
-  }
-  g.fillStyle = 'rgba(30,30,30,0.35)'; // tyre wear
-  g.fillRect(22, 0, 16, 256); g.fillRect(90, 0, 16, 256);
-  g.fillStyle = '#e8e6df';
-  g.fillRect(4, 0, 3, 256); g.fillRect(121, 0, 3, 256);
-  g.fillStyle = '#f2f0ea';
-  g.fillRect(62, 0, 4, 128);
-  return texture(c, { aniso });
-}
-
-/** Small greyscale grain that breaks up flat ground colours. */
-function grainTexture(aniso) {
-  const [c, g] = canvas(128, 128);
-  const rnd = seeded(3);
-  g.fillStyle = '#e6e6e6';
-  g.fillRect(0, 0, 128, 128);
-  for (let i = 0; i < 4000; i++) {
-    const v = 190 + rnd() * 65;
+/** Speckled alpha for worn road paint. */
+function wornPaint() {
+  const [c, g] = canvas(256, 256);
+  const rnd = seeded(9);
+  g.fillStyle = '#e0e0e0'; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 2600; i++) {
+    const v = Math.floor(rnd() * 140);
     g.fillStyle = `rgb(${v},${v},${v})`;
-    g.fillRect(rnd() * 128, rnd() * 128, 1 + rnd() * 2, 1 + rnd() * 2);
+    g.beginPath(); g.arc(rnd() * 256, rnd() * 256, 0.5 + rnd() * 3.5, 0, 7); g.fill();
   }
-  return texture(c, { aniso });
+  const t = canvasTexture(c, { srgb: false });
+  t.repeat.set(1 / 3, 1 / 3);
+  return t;
 }
 
 /** Ballast with one concrete sleeper; v repeats every 0.65 m along the track. */
-function sleeperTexture(aniso) {
+function sleeperTexture() {
   const [c, g] = canvas(64, 64);
   const rnd = seeded(11);
-  g.fillStyle = '#8a8070';
-  g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#8a8070'; g.fillRect(0, 0, 64, 64);
   for (let i = 0; i < 600; i++) {
     const v = 90 + rnd() * 90;
     g.fillStyle = `rgb(${v},${v - 8},${v - 20})`;
     g.fillRect(rnd() * 64, rnd() * 64, 2, 2);
   }
-  g.fillStyle = '#b4afa6';
-  g.fillRect(8, 22, 48, 20);
-  return texture(c, { aniso });
+  g.fillStyle = '#b4afa6'; g.fillRect(8, 22, 48, 20);
+  return canvasTexture(c);
 }
 
-export function createMaterials(renderer) {
-  const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-  const facade = facadeTextures(aniso);
-  const grain = grainTexture(aniso);
-  return {
-    walls: new THREE.MeshStandardMaterial({ vertexColors: true, map: facade.map, roughnessMap: facade.roughnessMap, roughness: 1, metalness: 0 }),
-    roofs: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }),
-    ground: new THREE.MeshStandardMaterial({
-      vertexColors: true, map: grain, roughness: 1,
-      polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2,
-    }),
-    roadsPlain: new THREE.MeshStandardMaterial({
-      vertexColors: true, map: grain, roughness: 0.92,
-      polygonOffset: true, polygonOffsetFactor: 0.5, polygonOffsetUnits: 1,
-    }),
-    roadsMarked: new THREE.MeshStandardMaterial({ map: roadTexture(aniso), roughness: 0.88 }),
-    railBed: new THREE.MeshStandardMaterial({
-      map: sleeperTexture(aniso), roughness: 1,
-      polygonOffset: true, polygonOffsetFactor: 0.5, polygonOffsetUnits: 1,
-    }),
-    railSteel: new THREE.MeshStandardMaterial({ color: 0xa6abb0, metalness: 0.85, roughness: 0.3 }),
+// Wall texture for each building style (see src/world/mesh/buildings.js STYLES).
+const WALL_TEXTURES = [
+  ['tex-ph-painted-plaster-wall', 2.2], ['tex-ph-peeling-painted-wall', 2.4], ['tex-ph-beige-wall-001', 3],
+  ['tex-ph-sandstone-blocks-08', 3], ['tex-ph-stone-block-wall', 2.4], ['tex-ph-concrete-wall-008', 2.7],
+  ['tex-ph-concrete-tile-facade', 2.1], ['tex-ph-rusty-corrugated-iron', 2], ['tex-ph-red-brick', 1.4],
+];
+
+export function createMaterials(renderer, lib, tier) {
+  const std = (o = {}) => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, ...o });
+  const tex = (mat, id, size, opts = {}) => { lib.apply(mat, id, { size, ...opts }); return mat; };
+  const offset = (mat, f) => Object.assign(mat, { polygonOffset: true, polygonOffsetFactor: f, polygonOffsetUnits: f * 2 });
+
+  const signs = makeSignAtlas();
+  const m = {
+    road: addMacroVariation(tex(std({ color: 0x55555a }), 'tex-ph-asphalt-02', 3.2, { normalScale: 0.8, onLoad: (x) => x.color.set(0x9a9a9e) }), { scale: 1 / 35, strength: 0.28 }),
+    footpath: addMacroVariation(tex(std({ color: 0x8f8c86 }), 'tex-ph-patterned-concrete-pavers', 1.8, { onLoad: (x) => x.color.set(0xd8d4cc) }), { strength: 0.25 }),
+    plot: addMacroVariation(tex(std({ color: 0xa39c8e }), 'tex-ph-dirty-concrete', 3.0, { onLoad: (x) => x.color.set(0xe0d8c8) }), { strength: 0.3 }),
+    paved: addMacroVariation(tex(std({ color: 0xb3ab9e }), 'tex-ph-concrete-pavement', 2.4, { onLoad: (x) => x.color.set(0xe8e2d8) })),
+    grass: addMacroVariation(tex(std({ color: 0x6c9a46 }), 'tex-ph-grass-path-2', 1.6, { onLoad: (x) => x.color.set(0xd8e6c0) }), { scale: 1 / 30, strength: 0.35 }),
+    wood: addMacroVariation(tex(std({ color: 0x4b7838 }), 'tex-acg-grass004', 1.5, { onLoad: (x) => x.color.set(0xa8c090) }), { strength: 0.3 }),
+    pitch: offset(addMacroVariation(tex(std({ color: 0x8fae5a }), 'tex-ph-grass-path-2', 2.2, { onLoad: (x) => x.color.set(0xe6e0b0) }), { strength: 0.3 }), -1),
+    sand: addMacroVariation(tex(std({ color: 0xd8c491 }), 'tex-ph-coast-sand-01', 6, { onLoad: (x) => x.color.set(0xf0e6d0) })),
+    dirt: addMacroVariation(tex(std({ color: 0xa48b68 }), 'tex-ph-brown-mud-dry', 2.2, { onLoad: (x) => x.color.set(0xe8dcc8) })),
+    railyard: tex(std({ color: 0x8c8478 }), 'tex-ph-gravel-floor-02', 2.0, { onLoad: (x) => x.color.set(0xd0c8bc) }),
+    pier: tex(std({ color: 0x9a948a }), 'tex-ph-concrete-pavement', 2.4, { onLoad: (x) => x.color.set(0xcfc8bc) }),
+    pool: std({ color: 0x4fb3cf, roughness: 0.05 }),
+    footway: offset(tex(std({ color: 0xa8a196 }), 'tex-ph-patterned-paving', 2, { onLoad: (x) => x.color.set(0xe0dbd2) }), -1),
+    kerb: std({ map: kerbTexture(), roughness: 0.85 }),
+    seawall: tex(std({ color: 0x8a847a }), 'tex-ph-castle-brick-07', 2.5, { onLoad: (x) => x.color.set(0xb0aaa0) }),
+    parapet: tex(std({ color: 0xb8b2a8 }), 'tex-ph-concrete-pavement', 1.8, { onLoad: (x) => x.color.set(0xe8e2d8) }),
+    paint: offset(addMacroVariation(std({ color: 0xe9e7e0, roughness: 0.6, transparent: true, depthWrite: false, alphaMap: wornPaint() })), -2),
+    railBed: offset(std({ map: sleeperTexture() }), -0.5),
+    railSteel: std({ color: 0xa6abb0, metalness: 0.85, roughness: 0.3 }),
+    roof: addMacroVariation(tex(std({ color: 0x9a948c }), 'tex-ph-dirty-concrete', 3, { onLoad: (x) => x.color.set(0xd8d2c8) }), { scale: 1 / 12, strength: 0.3 }),
+    roofTarp: tex(std({ color: 0x3d6ea8, roughness: 0.6 }), 'tex-texturecan-plastic-0019', 2.5, { onLoad: (x) => x.color.set(0xffffff) }),
+    roofRust: tex(std({ color: 0x8a5a44 }), 'tex-ph-rusty-corrugated-iron', 2, { onLoad: (x) => x.color.set(0xffffff) }),
     tank: new THREE.MeshStandardMaterial({ color: 0x1d1d1f, roughness: 0.55 }),
+    walls: WALL_TEXTURES.map(([id, size]) => {
+      const w = makeFacadeMaterial(signs.texture);
+      lib.apply(w, id, { size, normalScale: 0.9, aoIntensity: 0.5 });
+      return w;
+    }),
   };
+  m.signs = signs;
+  return m;
 }

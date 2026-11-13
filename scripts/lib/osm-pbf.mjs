@@ -12,7 +12,8 @@ const MEMBER_TYPES = ['node', 'way', 'relation'];
  * Read every data block of an .osm.pbf file and call the handlers.
  * Leave a handler out to skip decoding that element type (much faster).
  * @param {string} file
- * @param {{ node?: (id:number, lat:number, lon:number) => void,
+ * Set `nodeTags: true` to also receive node tags (4th argument, null when untagged).
+ * @param {{ node?: (id:number, lat:number, lon:number, tags?:object|null) => void,
  *           way?: (id:number, tags:object, refs:number[]) => void,
  *           relation?: (id:number, tags:object, members:{type:string, ref:number, role:string}[]) => void }} h
  */
@@ -65,7 +66,7 @@ function readPrimitiveBlock(data, h) {
     const g = new PbfReader(data);
     g.pos = start;
     g.readMessage((tag, _, p) => {
-      if (tag === 2 && h.node) readDense(p, block, h.node);
+      if (tag === 2 && h.node) readDense(p, block, h.node, h.nodeTags ? strings : null);
       else if (tag === 1 && h.node) readNode(p, block, h.node);
       else if (tag === 3 && h.way) readWay(p, strings(), h.way);
       else if (tag === 4 && h.relation) readRelation(p, strings(), h.relation);
@@ -73,9 +74,10 @@ function readPrimitiveBlock(data, h) {
   }
 }
 
-function readDense(pbf, block, cb) {
+/** Dense nodes. With `strings`, tags are decoded too (null for untagged nodes). */
+function readDense(pbf, block, cb, strings) {
   const end = pbf.readVarint() + pbf.pos;
-  let ids = [], lats = [], lons = [];
+  let ids = [], lats = [], lons = [], kv = [];
   while (pbf.pos < end) {
     const tag = pbf.readVarint();
     const field = tag >>> 3;
@@ -83,13 +85,20 @@ function readDense(pbf, block, cb) {
     if (field === 1) ids = pbf.readPackedSVarint();
     else if (field === 8) lats = pbf.readPackedSVarint();
     else if (field === 9) lons = pbf.readPackedSVarint();
+    else if (field === 10 && strings) kv = pbf.readPackedVarint();
     else pbf.skip(tag);
   }
   const { granularity: g, latOff, lonOff } = block;
-  let id = 0, lat = 0, lon = 0;
+  const st = strings ? strings() : null;
+  let id = 0, lat = 0, lon = 0, k = 0;
   for (let i = 0; i < ids.length; i++) {
     id += ids[i]; lat += lats[i]; lon += lons[i];
-    cb(id, 1e-9 * (latOff + g * lat), 1e-9 * (lonOff + g * lon));
+    let tags = null;
+    if (st && k < kv.length) {
+      while (kv[k] !== 0 && k < kv.length) { (tags ||= {})[st[kv[k]]] = st[kv[k + 1]]; k += 2; }
+      k++;
+    }
+    cb(id, 1e-9 * (latOff + g * lat), 1e-9 * (lonOff + g * lon), tags);
   }
 }
 

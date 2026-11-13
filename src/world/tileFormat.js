@@ -5,22 +5,26 @@
 // Coordinates are decimetres relative to the tile centre; each ring/line stores
 // its first point relative to (0,0) and every next point as a delta.
 //
-// Layout:
+// Layout (version 2):
 //   "GTB1" magic, version, tx, tz, tileSize (m), clip rect x0 z0 x1 z1 (dm)
 //   names[]                                   (road names, referenced by index)
-//   buildings[]: height dm, minHeight dm, r g b (sRGB bytes), flags, rings[]
+//   buildings[]: height dm, minHeight dm, r g b (sRGB bytes), flags, style, levels,
+//                rings[], then a bitset over the outer ring's edges: 1 = faces a street
 //   areas[]:     kind, rings[]                (first ring outer, others holes)
 //   roads[]:     class, width dm, flags, name index + 1 (0 = none), layer, line
 //   rails[]:     class, flags, line
+//   markings[]:  width cm, line               (white road paint)
+//   points[]:    kind, x dm, z dm, angle (0–255 = full turn), size (0–255 → 0.5–2.0)
 
-export const TILE_VERSION = 1;
+export const TILE_VERSION = 2;
 export const MAGIC = [0x47, 0x54, 0x42, 0x31]; // "GTB1"
 export const DM = 10; // units per metre
 
-// Ground area kinds. LAND is everything above sea level that is not water.
+// Ground area kinds. LAND (above sea level, minus inland water) is used for collisions
+// and sea walls; PLOT is the visible ground between streets (land minus roads and footpaths).
 export const AREA = {
   LAND: 0, PAVED: 1, GRASS: 2, PITCH: 3, WOOD: 4, SAND: 5, POOL: 6,
-  PIER: 7, PLATFORM: 8, DIRT: 9, RAILYARD: 10,
+  PIER: 7, PLATFORM: 8, DIRT: 9, RAILYARD: 10, PLOT: 11, ROAD: 12, FOOTPATH: 13,
 };
 
 // Road classes, ordered roughly by importance.
@@ -31,7 +35,11 @@ export const ROAD = {
 export const ROAD_FLAG = { BRIDGE: 1, ONEWAY: 2 };
 export const RAIL = { MAIN: 0, SERVICE: 1 };
 export const RAIL_FLAG = { BRIDGE: 1 };
-export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2 };
+export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2, SHOPS: 4 };
+export const POINT = {
+  RAIN_TREE: 0, GULMOHAR: 1, PEEPAL: 2, PALM: 3, LIGHT: 4, SIGNAL: 5, BUS_STOP: 6,
+  POTHOLE: 7, PUDDLE: 8, GARBAGE: 9, STALL: 10, FUEL: 11,
+};
 
 export class ByteReader {
   constructor(u8) { this.b = u8; this.p = 0; }
@@ -81,8 +89,15 @@ export function decodeTile(u8) {
   for (let i = r.uvar(); i > 0; i--) {
     const height = r.uvar() / DM, minHeight = r.uvar() / DM;
     const color = [r.u8(), r.u8(), r.u8()];
-    const flags = r.u8();
-    tile.buildings.push({ height, minHeight, color, flags, rings: r.rings() });
+    const flags = r.u8(), style = r.u8(), levels = r.u8();
+    const rings = r.rings();
+    const n = rings.length ? rings[0].length / 2 : 0;
+    const front = new Uint8Array(n);
+    for (let b = 0; b < Math.ceil(n / 8); b++) {
+      const byte = r.u8();
+      for (let k = 0; k < 8 && b * 8 + k < n; k++) front[b * 8 + k] = (byte >> k) & 1;
+    }
+    tile.buildings.push({ height, minHeight, color, flags, style, levels, rings, front });
   }
   tile.areas = [];
   for (let i = r.uvar(); i > 0; i--) tile.areas.push({ kind: r.u8(), rings: r.rings() });
@@ -92,5 +107,11 @@ export function decodeTile(u8) {
   }
   tile.rails = [];
   for (let i = r.uvar(); i > 0; i--) tile.rails.push({ cls: r.u8(), flags: r.u8(), line: r.points() });
+  tile.markings = [];
+  for (let i = r.uvar(); i > 0; i--) tile.markings.push({ width: r.uvar() / 100, line: r.points() });
+  tile.points = [];
+  for (let i = r.uvar(); i > 0; i--) {
+    tile.points.push({ kind: r.u8(), x: r.svar() / DM, z: r.svar() / DM, angle: (r.u8() / 256) * Math.PI * 2, size: 0.5 + (r.u8() / 255) * 1.5 });
+  }
   return tile;
 }

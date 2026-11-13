@@ -19,7 +19,10 @@ import { clipPolyline } from 'lineclip';
 import { readOsmPbf } from './lib/osm-pbf.mjs';
 import { ByteWriter, quantize } from './lib/byte-writer.mjs';
 import * as G from './lib/geometry.mjs';
-import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, MAGIC, TILE_VERSION, DM } from '../src/world/tileFormat.js';
+import * as C from './lib/clip.mjs';
+import { FOOTPATH, isVehicle, junctions, markings, streetFurniture, treeKind } from './lib/streets.mjs';
+import { districtAt, pickStyle, STYLE } from './lib/districts.mjs';
+import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, POINT, MAGIC, TILE_VERSION, DM } from '../src/world/tileFormat.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(
@@ -49,6 +52,8 @@ const rad = Math.PI / 180;
 const M_LAT = 111132.92 - 559.82 * Math.cos(2 * lat0 * rad) + 1.175 * Math.cos(4 * lat0 * rad);
 const M_LON = 111412.84 * Math.cos(lat0 * rad) - 93.5 * Math.cos(3 * lat0 * rad);
 const project = (lat, lon) => [(lon - lon0) * M_LON, -(lat - lat0) * M_LAT];
+const unproject = (x, z) => [lat0 - z / M_LAT, lon0 + x / M_LON];
+const districtXZ = (x, z) => { const [la, lo] = unproject(x, z); return districtAt(la, lo); };
 const r1 = (v) => Math.round(v * DM) / DM;
 const [bx0, bz0] = project(N, W);
 const [bx1, bz1] = project(S, E);
@@ -187,7 +192,39 @@ function buildingHeights(t, id, area) {
   let flags = 0;
   if (canopy || minH >= 2.5) flags |= BUILDING_FLAG.NO_COLLIDE;
   if (t.heritage || t.historic) flags |= BUILDING_FLAG.HERITAGE;
-  return { h, minH, flags };
+  return { h, minH, flags, type };
+}
+
+/** Style (wall material + window type), wall colour, storeys and shop likelihood. */
+const STYLE_COLOURS = {
+  [STYLE.STONE]: ['#F3EEE4', '#EFE6D6', '#E8DECC', '#F6F2EA'],   // tint over buff sandstone texture
+  [STYLE.BASALT]: ['#C9C5BF', '#BDB8B1', '#D3CFC8'],             // tint over dark stone texture
+  [STYLE.CONCRETE]: ['#D6D2C8', '#C9C4B8', '#B9B4A9', '#DDD8CE', '#CFC7B8'],
+  [STYLE.GLASS]: ['#7B8C99', '#5C6C78', '#8FA7A0', '#6F8796', '#9AA7AE'],
+  [STYLE.SHED]: ['#B9B1A6', '#A8A39A', '#C2B6A2'],
+  [STYLE.BRICK]: ['#F1EBE2', '#E8DED2'],
+};
+const hex = (c) => parseInt(c.slice(1), 16);
+function buildingLook(b, type, h, area, c) {
+  const t = b.tags, r = hash01(b.id, 3), d = districtXZ(c[0], c[1]);
+  let style;
+  if (type === 'construction') style = STYLE.BRICK;
+  else if (SMALL.has(type) || BIG_SHED.has(type) && type !== 'train_station') style = r < 0.6 ? STYLE.SHED : STYLE.PLASTER;
+  else if (type === 'church' || type === 'cathedral' || type === 'chapel') style = STYLE.STONE;
+  else if (h > 60) style = r < 0.4 ? STYLE.GLASS : r < 0.7 ? STYLE.CONCRETE : STYLE.PLASTER;
+  else if ((t.heritage || t.historic) && h < 40) style = r < 0.8 ? STYLE.STONE : STYLE.BASALT;
+  else if (h > 32) style = pickStyle({ CONCRETE: 4, PLASTER: 4, GLASS: d.styles.GLASS ? 3 : 1 }, r);
+  else style = pickStyle(d.styles, r);
+  let color;
+  const named = (t['building:colour'] || t.colour || '').toLowerCase().trim();
+  if (/^#[0-9a-f]{6}$/.test(named) && style !== STYLE.STONE && style !== STYLE.GLASS) color = hex(named);
+  else {
+    const pal = STYLE_COLOURS[style] || d.colours;
+    color = hex(pal[Math.floor(hash01(b.id, 7) * pal.length)]);
+  }
+  const levels = Math.max(1, Math.min(250, Math.round(parseFloat(t['building:levels']) || (h - 0.8) / LEVEL)));
+  const shopType = ['commercial', 'retail', 'yes', 'apartments', 'residential', 'mixed', 'hotel'].includes(type);
+  return { style, color, levels, shops: shopType && h < 60 && hash01(b.id, 11) < d.shops };
 }
 
 // ---------------------------------------------------------------- read OpenStreetMap
@@ -218,12 +255,20 @@ const areasRaw = [];     // { id, kind, polys }
 const roadsRaw = [];     // { id, tags, info, pts }
 const railsRaw = [];
 const coastWays = [];
+const treeNodes = [], signalNodes = [], signalIds = new Set(), crossingIds = new Set(), busStops = [], fuel = [];
 readOsmPbf(CFG.input, {
-  node(id, lat, lon) {
+  nodeTags: true,
+  node(id, lat, lon, tags) {
     if (lat < S - M || lat > N + M || lon < W - M || lon > E + M) return;
     const [x, z] = project(lat, lon);
     nodeX.set(id, x);
     nodeZ.set(id, z);
+    if (!tags || !inBox([x, z])) return;
+    if (tags.natural === 'tree') treeNodes.push([x, z, id]);
+    else if (tags.highway === 'traffic_signals') { signalNodes.push([x, z]); signalIds.add(id); }
+    else if (tags.highway === 'crossing') crossingIds.add(id);
+    else if (tags.highway === 'bus_stop') busStops.push([x, z]);
+    if (tags.amenity === 'fuel') fuel.push([x, z]);
   },
   way(id, tags, refs) {
     if (relWays.has(id)) wayRefs.set(id, refs);
@@ -232,6 +277,7 @@ readOsmPbf(CFG.input, {
     if (!any) return;
     const closed = refs.length >= 4 && refs[0] === refs[refs.length - 1];
     if (tags.natural === 'coastline') { coastWays.push(refs); return; }
+    if (tags.amenity === 'fuel') { const r = resolveRing(refs, false); if (r) fuel.push(G.centroid(r)); }
     if (closed) {
       const b = classifyBuilding(tags);
       if (b) {
@@ -248,7 +294,7 @@ readOsmPbf(CFG.input, {
     }
     const road = classifyRoad(tags);
     if (road) {
-      for (const pts of resolveLine(refs)) roadsRaw.push({ id, tags, info: road, pts });
+      for (const { pts, ids } of resolveLine(refs, true)) roadsRaw.push({ id, tags, info: road, pts, ids, hw: road.width / 2 });
       return;
     }
     const rail = classifyRail(tags);
@@ -256,6 +302,7 @@ readOsmPbf(CFG.input, {
   },
 });
 log(`pass 2: ${nodeX.size} nodes, ${buildingsRaw.length} building ways, ${areasRaw.length} areas, ${roadsRaw.length} roads, ${railsRaw.length} rails, ${coastWays.length} coastline ways`);
+log(`points: ${treeNodes.length} trees, ${signalNodes.length} traffic signals, ${crossingIds.size} crossings, ${busStops.length} bus stops`);
 
 /** Node ids → open ring of [x, z]; strict = give up if any node is missing. */
 function resolveRing(refs, strict) {
@@ -267,16 +314,18 @@ function resolveRing(refs, strict) {
   }
   return out.length >= 3 ? out : null;
 }
-/** Node ids → polylines, split wherever nodes are missing (outside the margin). */
-function resolveLine(refs) {
+/** Node ids → polylines, split wherever nodes are missing (outside the margin). withIds: { pts, ids }. */
+function resolveLine(refs, withIds = false) {
   const lines = [];
-  let cur = [];
+  let cur = [], ids = [];
+  const flush = () => { if (cur.length > 1) lines.push(withIds ? { pts: cur, ids } : cur); cur = []; ids = []; };
   for (const r of refs) {
     const x = nodeX.get(r);
-    if (x === undefined) { if (cur.length > 1) lines.push(cur); cur = []; continue; }
+    if (x === undefined) { flush(); continue; }
     cur.push([x, nodeZ.get(r)]);
+    ids.push(r);
   }
-  if (cur.length > 1) lines.push(cur);
+  flush();
   return lines;
 }
 
@@ -379,21 +428,165 @@ for (let tx = tileRange.x0; tx <= tileRange.x1; tx++) {
 }
 log('land clipped to tiles');
 
-// Ground areas, clipped to each tile's land (piers stay over the sea).
-let areaCount = 0;
-for (const a of areasRaw) {
-  if (a.kind === 'water') continue;
-  const polys = round2(a.polys);
-  const bb = G.bboxOf(polys.flatMap((p) => p[0]));
-  for (const tile of tilesOverlapping(bb)) {
-    const mask = a.kind === AREA.PIER ? rectPoly(tile.clip) : tile.land;
-    if (!mask.length) continue;
-    const parts = safe(() => polygonClipping.intersection(polys, mask), `area ${a.id}`);
-    for (const p of parts) { tile.areas.push({ kind: a.kind, poly: p }); areaCount++; }
+// ---------------------------------------------------------------- streets
+// Vehicle roads become one merged asphalt surface per tile, with raised footpaths
+// (paver blocks) on both sides; everything else on land is a raised "plot".
+// Dual carriageways leave a raised median between them automatically.
+
+/** Uniform grid for nearest-segment and point-in-footprint queries. */
+class Grid {
+  constructor(cell) { this.cell = cell; this.map = new Map(); }
+  key(i, j) { return i * 100003 + j; }
+  add(bb, item) {
+    const c = this.cell;
+    for (let i = Math.floor(bb[0] / c); i <= Math.floor(bb[2] / c); i++)
+      for (let j = Math.floor(bb[1] / c); j <= Math.floor(bb[3] / c); j++) {
+        const k = this.key(i, j);
+        (this.map.get(k) || this.map.set(k, []).get(k)).push(item);
+      }
+  }
+  near(x, z, r, fn) {
+    const c = this.cell, seen = new Set();
+    for (let i = Math.floor((x - r) / c); i <= Math.floor((x + r) / c); i++)
+      for (let j = Math.floor((z - r) / c); j <= Math.floor((z + r) / c); j++)
+        for (const it of this.map.get(this.key(i, j)) || []) {
+          if (seen.has(it)) continue;
+          seen.add(it);
+          if (fn(it)) return true;
+        }
+    return false;
   }
 }
-for (const tile of tiles.values()) for (const p of tile.land) tile.areas.unshift({ kind: AREA.LAND, poly: p });
-log(`areas: ${areaCount} pieces`);
+
+const vparts = roadsRaw.filter((r) => isVehicle(r.info.cls));
+for (const p of vparts) { p.fw = FOOTPATH[p.info.cls] || 0; p.bbox = G.bboxOf(p.pts); }
+const segGrid = new Grid(25);
+for (const p of vparts) {
+  for (let i = 1; i < p.pts.length; i++) {
+    const a = p.pts[i - 1], b = p.pts[i];
+    segGrid.add([Math.min(a[0], b[0]) - p.hw, Math.min(a[1], b[1]) - p.hw, Math.max(a[0], b[0]) + p.hw, Math.max(a[1], b[1]) + p.hw], { a, b, p });
+  }
+}
+/** Is (x, z) on a carriageway (within margin metres of its edge)? */
+const onRoad = (x, z, margin = 0) => segGrid.near(x, z, 12, ({ a, b, p }) => G.segDist2([x, z], a, b) < (p.hw + margin) ** 2);
+
+const buildingGrid = new Grid(30);
+for (const b of buildingsRaw) for (const poly of b.polys) buildingGrid.add(G.bboxOf(poly[0]), poly[0]);
+const inBuilding = (x, z, pad = 0) => buildingGrid.near(x, z, pad + 1, (ring) => {
+  if (G.pointInRing(x, z, ring)) return true;
+  if (!pad) return false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) if (G.segDist2([x, z], ring[j], ring[i]) < pad * pad) return true;
+  return false;
+});
+const inMP = (mp, x, z) => mp.some((poly) => poly.reduce((inside, ring) => (G.pointInRing(x, z, ring) ? !inside : inside), false));
+const onLand = (x, z) => {
+  const t = tiles.get(`${Math.floor(x / T)},${Math.floor(z / T)}`);
+  return !!t && inMP(t.land, x, z);
+};
+
+const streetMs = Date.now();
+const areaPaths = areasRaw.filter((a) => a.kind !== 'water').map((a) => ({ kind: a.kind, bb: G.bboxOf(a.polys.flatMap((p) => p[0])), paths: C.mpToPaths(a.polys) }));
+let areaCount = 0;
+for (const tile of tiles.values()) {
+  const R = [tile.clip[0] - 40, tile.clip[1] - 40, tile.clip[2] + 40, tile.clip[3] + 40];
+  const near = vparts.filter((p) => G.bboxOverlap(p.bbox, R));
+  const byWidth = (w) => {
+    const groups = new Map();
+    for (const p of near) {
+      const d = Math.round(w(p) * 10) / 10;
+      if (d > 0) (groups.get(d) || groups.set(d, []).get(d)).push(p.pts);
+    }
+    return [...groups].map(([delta, lines]) => ({ delta, lines }));
+  };
+  const carriage = C.bufferLines(byWidth((p) => p.hw));
+  const outer = C.union(C.bufferLines(byWidth((p) => (p.fw ? p.hw + p.fw : 0))), carriage);
+  const clipRect = [C.rectPath(tile.clip)];
+  const land = C.mpToPaths(tile.land);
+  const road = C.intersect(carriage, clipRect);
+  const footpath = C.intersect(C.difference(outer, carriage), land);
+  const plot = C.difference(land, outer);
+
+  // Parks, maidans, beaches…: only on the plot (never over roads or footpaths). Piers sit over the sea.
+  const pieces = [];
+  let covered = [];
+  for (const a of areaPaths) {
+    if (!G.bboxOverlap(a.bb, tile.clip)) continue;
+    const mask = a.kind === AREA.PIER ? C.difference(clipRect, carriage) : plot;
+    const part = C.intersect(a.paths, mask);
+    if (!part.length) continue;
+    if (a.kind !== AREA.PIER) covered = C.union(covered, part);
+    for (const p of C.toPolygons(part, 1)) { pieces.push({ kind: a.kind, poly: p }); areaCount++; }
+  }
+  // LAND first (collisions and sea walls, not drawn), then the visible ground layers.
+  for (const p of tile.land) tile.areas.push({ kind: AREA.LAND, poly: p });
+  for (const p of C.toPolygons(C.difference(plot, covered), 1)) tile.areas.push({ kind: AREA.PLOT, poly: p });
+  for (const p of C.toPolygons(footpath, 0.5)) tile.areas.push({ kind: AREA.FOOTPATH, poly: p });
+  for (const p of C.toPolygons(road, 0.5)) tile.areas.push({ kind: AREA.ROAD, poly: p });
+  tile.areas.push(...pieces);
+}
+log(`streets and areas: ${areaCount} area pieces (${((Date.now() - streetMs) / 1000).toFixed(1)}s)`);
+
+// Junctions, lane markings and zebra crossings (signals within 25 m of a junction).
+const junc = junctions(vparts);
+const signalGrid = new Grid(50);
+for (const [x, z] of signalNodes) signalGrid.add([x, z, x, z], [x, z]);
+const signalNear = ([x, z]) => signalGrid.near(x, z, 25, ([sx, sz]) => (sx - x) ** 2 + (sz - z) ** 2 < 625);
+const paint = markings(vparts, junc, signalNear, crossingIds);
+log(`markings: ${paint.length} painted lines`);
+
+// Street trees, lights and real tree positions from OpenStreetMap.
+const rand = (seed) => hash01(Math.floor(Math.abs(seed) * 1000) % 2147483647, 99);
+const blocked = (x, z) => !inBox([x, z]) || onRoad(x, z, 0.3) || inBuilding(x, z, 0.8) || !onLand(x, z);
+const { trees, lights, clutter } = streetFurniture(vparts, { district: districtXZ, blocked, junc, rand });
+const treeGrid = new Grid(10);
+const points = [];
+const addTree = (t) => {
+  if (treeGrid.near(t.x, t.z, 5, ([x, z]) => (x - t.x) ** 2 + (z - t.z) ** 2 < 25)) return;
+  treeGrid.add([t.x, t.z, t.x, t.z], [t.x, t.z]);
+  points.push(t);
+};
+for (const [x, z, id] of treeNodes) {
+  if (onRoad(x, z, 0.2) || inBuilding(x, z, 0.5)) continue;
+  const d = districtXZ(x, z);
+  addTree({ kind: d.palms && rand(id) < 0.6 ? POINT.PALM : treeKind(rand(id * 3)), x, z, angle: rand(id * 5) * Math.PI * 2, size: 0.8 + rand(id * 7) * 0.6 });
+}
+trees.forEach(addTree);
+// Trees scattered in parks and gardens (maidans keep their open centres: pitches are excluded by blocked()).
+for (const a of areasRaw) {
+  if (a.kind !== AREA.GRASS && a.kind !== AREA.WOOD) continue;
+  for (const poly of a.polys) {
+    const bb = G.bboxOf(poly[0]);
+    const ar = Math.abs(G.signedArea(poly[0]));
+    const count = Math.min(400, Math.floor(ar / (a.kind === AREA.WOOD ? 70 : 320)));
+    for (let k = 0, placed = 0; k < count * 3 && placed < count; k++) {
+      const x = bb[0] + rand(a.id * 13 + k * 2) * (bb[2] - bb[0]), z = bb[1] + rand(a.id * 17 + k * 2 + 1) * (bb[3] - bb[1]);
+      if (!inMP([poly], x, z) || blocked(x, z) || inPitch(x, z)) continue;
+      addTree({ kind: treeKind(rand(x * 7 + z)), x, z, angle: rand(x + z) * Math.PI * 2, size: 0.85 + rand(x * 3 - z) * 0.6 });
+      placed++;
+    }
+  }
+}
+function inPitch(x, z) {
+  return areasRaw.some((a) => a.kind === AREA.PITCH && a.polys.some((poly) => {
+    const bb = a.bb || (a.bb = G.bboxOf(a.polys.flatMap((p) => p[0])));
+    return x >= bb[0] - 3 && x <= bb[2] + 3 && z >= bb[1] - 3 && z <= bb[3] + 3 && inMP([poly], x, z);
+  }));
+}
+points.push(...lights);
+for (const c of clutter) {
+  if (c.kind === POINT.STALL && treeGrid.near(c.x, c.z, 3, ([x, z]) => (x - c.x) ** 2 + (z - c.z) ** 2 < 6)) continue;
+  points.push(c);
+}
+for (const [x, z] of fuel) points.push({ kind: POINT.FUEL, x, z, angle: 0, size: 1 });
+for (const [x, z] of signalNodes) points.push({ kind: POINT.SIGNAL, x, z, angle: 0, size: 1 });
+for (const [x, z] of busStops) if (!onRoad(x, z, 0.5) && !inBuilding(x, z, 0.5)) points.push({ kind: POINT.BUS_STOP, x, z, angle: 0, size: 1 });
+for (const pt of points) {
+  if (!inBox([pt.x, pt.z])) continue;
+  (getTile(Math.floor(pt.x / T), Math.floor(pt.z / T)).points ||= []).push(pt);
+}
+const count = (k) => points.filter((p) => p.kind === k).length;
+log(`points: ${count(POINT.RAIN_TREE) + count(POINT.GULMOHAR) + count(POINT.PEEPAL) + count(POINT.PALM)} trees, ${lights.length} lights, ${count(POINT.STALL)} stalls, ${count(POINT.GARBAGE)} garbage piles, ${count(POINT.POTHOLE)} potholes, ${count(POINT.PUDDLE)} puddles, ${fuel.length} petrol pumps`);
+const fuelStations = fuel.map(([x, z]) => [r1(x), r1(z)]);
 
 // Buildings: whole footprints, assigned to the tile holding their centre.
 // Simple 3D Buildings rule: if an outline contains building:part pieces, draw the parts instead.
@@ -410,9 +603,10 @@ for (const b of buildingsRaw) {
     }
     const area = Math.abs(G.signedArea(outer));
     if (area < 4) continue;
-    const { h, minH, flags } = buildingHeights(b.tags, b.id, area);
+    const { h, minH, flags, type } = buildingHeights(b.tags, b.id, area);
     if (b.tags.height || b.tags['building:levels']) bWithHeight++;
     const tile = getTile(Math.floor(c[0] / T), Math.floor(c[1] / T));
+    const look = buildingLook(b, type, h, area, c);
     const rings = poly.map((ring, i) => {
       let r = quantize(G.simplifyRing(ring, 0.15), tile.cx, tile.cz, true);
       // Outer rings positive signed area in (x, z), holes negative (the worker relies on this).
@@ -420,20 +614,36 @@ for (const b of buildingsRaw) {
       return r;
     }).filter((r) => r.length >= 3);
     if (!rings.length || rings[0].length < 3) continue;
-    tile.buildings.push({ h, minH, color: wallColour(b.tags, b.id), flags, rings });
+    // Which outer walls face a street (for shopfronts and signboards).
+    const front = rings[0].map((p, k) => {
+      const q = rings[0][(k + 1) % rings[0].length];
+      const ax = p[0] + tile.cx, az = p[1] + tile.cz, bx = q[0] + tile.cx, bz = q[1] + tile.cz;
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 3) return 0;
+      const mx = (ax + bx) / 2, mz = (az + bz) / 2, ex = (bx - ax) / len, ez = (bz - az) / len;
+      return segGrid.near(mx, mz, 16, ({ a, b: e, p: rp }) => {
+        if (rp.info.cls > ROAD.SERVICE) return false;
+        const sl = Math.hypot(e[0] - a[0], e[1] - a[1]) || 1;
+        const par = Math.abs(((e[0] - a[0]) * ex + (e[1] - a[1]) * ez) / sl);
+        return par > 0.75 && G.segDist2([mx, mz], a, e) < (rp.hw + rp.fw + 7) ** 2;
+      }) ? 1 : 0;
+    });
+    let f2 = flags;
+    if (look.shops && front.some(Boolean) && minH < 1) f2 |= BUILDING_FLAG.SHOPS;
+    tile.buildings.push({ h, minH, color: look.color, flags: f2, style: look.style, levels: look.levels, rings, front });
     bCount++;
   }
 }
 log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts)`);
 
 // Roads and rails: polylines clipped to each tile.
-function addLines(list, put) {
+function addLines(list, put, tolerance = 0.2) {
   let n = 0;
   for (const item of list) {
     const bb = G.bboxOf(item.pts);
     for (const tile of tilesOverlapping(bb)) {
       for (const part of clipPolyline(item.pts, tile.clip)) {
-        const q = quantize(G.simplifyLine(part, 0.2), tile.cx, tile.cz, false);
+        const q = quantize(tolerance ? G.simplifyLine(part, tolerance) : part, tile.cx, tile.cz, false);
         if (q.length >= 2) { put(tile, item, q); n++; }
       }
     }
@@ -451,7 +661,8 @@ const nRoads = addLines(roadsRaw, (tile, r, line) => {
   tile.roads.push({ ...r.info, name: idx, layer: r.id % 5, line });
 });
 const nRails = addLines(railsRaw, (tile, r, line) => tile.rails.push({ ...r.info, line }));
-log(`roads: ${nRoads} pieces, rails: ${nRails} pieces`);
+const nPaint = addLines(paint, (tile, m, line) => (tile.markings ||= []).push({ width: m.width, line }), 0);
+log(`roads: ${nRoads} pieces, rails: ${nRails} pieces, paint: ${nPaint} pieces`);
 
 // ---------------------------------------------------------------- spawn point
 function findSpawn() {
@@ -485,7 +696,7 @@ const index = [];
 let total = 0;
 const ordered = [...tiles.values()].sort((a, b) => a.tz - b.tz || a.tx - b.tx);
 for (const t of ordered) {
-  if (!t.areas.length && !t.buildings.length && !t.roads.length && !t.rails.length) continue;
+  if (!t.areas.length && !t.buildings.length && !t.roads.length && !t.rails.length && !t.points?.length) continue;
   const w = new ByteWriter();
   MAGIC.forEach((m) => w.u8(m));
   w.uvar(TILE_VERSION);
@@ -499,14 +710,20 @@ for (const t of ordered) {
   for (const b of t.buildings) {
     w.uvar(Math.round(b.h * DM)); w.uvar(Math.round(b.minH * DM));
     w.u8(b.color >> 16); w.u8(b.color >> 8); w.u8(b.color);
-    w.u8(b.flags);
+    w.u8(b.flags); w.u8(b.style); w.u8(b.levels);
     w.rings(b.rings);
+    for (let k = 0; k < b.front.length; k += 8) {
+      let byte = 0;
+      for (let j = 0; j < 8 && k + j < b.front.length; j++) byte |= b.front[k + j] << j;
+      w.u8(byte);
+    }
   }
 
   const areas = [];
   for (const a of t.areas) {
     const rings = a.poly.map((ring, i) => {
-      let r = quantize(G.simplifyRing(G.openRing(ring), 0.3), t.cx, t.cz, true);
+      const tol = a.kind === AREA.ROAD || a.kind === AREA.FOOTPATH || a.kind === AREA.PLOT ? 0.06 : 0.3;
+      let r = quantize(G.simplifyRing(G.openRing(ring), tol), t.cx, t.cz, true);
       if ((G.signedArea(r) > 0) !== (i === 0)) r = r.reverse();
       return r;
     }).filter((r) => r.length >= 3);
@@ -522,6 +739,16 @@ for (const t of ordered) {
   }
   w.uvar(t.rails.length);
   for (const r of t.rails) { w.u8(r.cls); w.u8(r.flags); w.points(r.line); }
+  const marks = t.markings || [];
+  w.uvar(marks.length);
+  for (const m of marks) { w.uvar(Math.round(m.width * 100)); w.points(m.line); }
+  const pts = t.points || [];
+  w.uvar(pts.length);
+  for (const p of pts) {
+    w.u8(p.kind); w.svar(Math.round((p.x - t.cx) * DM)); w.svar(Math.round((p.z - t.cz) * DM));
+    w.u8(Math.round((((p.angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / (2 * Math.PI) * 256) % 256);
+    w.u8(Math.max(0, Math.min(255, Math.round(((p.size - 0.5) / 1.5) * 255))));
+  }
 
   const gz = zlib.gzipSync(w.result(), { level: 9 });
   fs.writeFileSync(path.join(CFG.out, `${t.tx}_${t.tz}.bin.gz`), gz);
@@ -541,6 +768,7 @@ const meta = {
   tileSize: T,
   bounds: { minX: BOX[0], minZ: BOX[1], maxX: BOX[2], maxZ: BOX[3] },
   spawn,
+  fuel: fuelStations,
   tiles: index,
 };
 fs.writeFileSync(path.join(CFG.out, 'index.json'), JSON.stringify(meta));

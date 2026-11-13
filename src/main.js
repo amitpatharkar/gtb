@@ -5,15 +5,23 @@ import { TileManager } from './world/tiles.js';
 import { createMaterials } from './world/materials.js';
 import { createEnvironment } from './world/environment.js';
 import { setupCredits } from './credits.js';
+import { TIERS, pickTier, cycleTier, query } from './settings.js';
+import { TextureLibrary } from './world/textures.js';
+import { createPost } from './render/post.js';
+import { facadeDebug } from './world/facade.js';
+
+const BASE = import.meta.env.BASE_URL;
+const tierKey = TIERS[query.get('quality')] ? query.get('quality') : pickTier();
+const tier = TIERS[tierKey];
 
 // Renderer
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ antialias: !tier.ao && !tier.bloom, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, tier.pixelRatio));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.9;
+renderer.toneMappingExposure = 0.62;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -24,13 +32,20 @@ const speedEl = document.getElementById('speed');
 const roadEl = document.getElementById('road');
 const fadeEl = document.getElementById('fade');
 
-setupCredits(import.meta.env.BASE_URL);
-const tiles = new TileManager(scene, createMaterials(renderer));
-const index = await tiles.init(`${import.meta.env.BASE_URL}tiles/`).catch((err) => {
+setupCredits(BASE);
+const qualityEl = document.getElementById('quality');
+qualityEl.textContent = `Graphics: ${tier.name}`;
+qualityEl.addEventListener('click', () => cycleTier(tierKey));
+addEventListener('keydown', (e) => { if (e.code === 'KeyQ') cycleTier(tierKey); });
+
+const lib = await new TextureLibrary(renderer, BASE, tier).init();
+const tiles = new TileManager(scene, createMaterials(renderer, lib, tier), tier);
+const index = await tiles.init(`${BASE}tiles/`).catch((err) => {
   loadingEl.textContent = String(err.message || err);
   throw err;
 });
-const env = createEnvironment(renderer, scene, index.bounds);
+const env = await createEnvironment(renderer, scene, index.bounds, tier, lib);
+const post = createPost(renderer, scene, camera, tier);
 
 const rickshaw = createRickshaw();
 scene.add(rickshaw.root);
@@ -79,7 +94,7 @@ async function teleportHome() {
   fadeEl.classList.remove('on');
   teleporting = false;
 }
-window.__gtb = { tiles, player, scene, camera, renderer }; // handy for debugging in the console
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug }; // handy for debugging in the console
 
 const timer = new THREE.Timer();
 let hudTimer = 0;
@@ -88,9 +103,12 @@ renderer.setAnimationLoop((time) => {
   const dt = Math.min(timer.getDelta(), 0.05);
   if (input.reset) { input.reset = false; teleportHome(); }
   player.update(dt, input, tiles);
+  // Follow the ground: asphalt on the road, up the kerb onto footpaths.
+  player.pos.y += (tiles.groundHeight(player.pos.x, player.pos.z) - player.pos.y) * Math.min(1, dt * 14);
+  player.mesh.root.position.y = player.pos.y;
   tiles.update(player.pos.x, player.pos.z);
   placeCamera(dt);
-  env.update(dt, player.pos, camera);
+  env.update(dt, player.pos);
 
   hudTimer -= dt;
   if (hudTimer <= 0) {
@@ -98,11 +116,13 @@ renderer.setAnimationLoop((time) => {
     speedEl.textContent = `${Math.round(Math.abs(player.speed) * 3.6)} km/h`;
     roadEl.textContent = tiles.roadNameAt(player.pos.x, player.pos.z);
   }
-  renderer.render(scene, camera);
+  post.render();
 });
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  post.setSize(size.x, size.y);
 });
