@@ -9,3 +9,6 @@ public/media/
 .asset-cache/
 out/
 public/basis/
+
+# Agent worktrees (local only)
+.claude/worktrees/
