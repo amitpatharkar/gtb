@@ -20,11 +20,62 @@ canvas { display: block; }
 }
 #title { font-weight: 800; font-size: 20px; letter-spacing: 1px; }
 #speed { font-size: 28px; font-weight: 700; margin-top: 4px; }
+#road { font-size: 15px; font-weight: 600; margin-top: 2px; min-height: 18px; }
 #help { font-size: 12px; opacity: 0.85; margin-top: 4px; }
+
+#loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1d2a33;
+  color: #f5c400;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  z-index: 10;
+}
+
+#fade {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+  z-index: 8;
+}
+#fade.on { opacity: 1; }
+
+#credit {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: #222;
+  background: #fffc;
+  border-top-left-radius: 6px;
+  z-index: 5;
+}
+#credit a { color: #1b5fa8; text-decoration: none; }
 
 #touch { display: none; }
 @media (pointer: coarse) {
   #help { display: none; }
+  #fade {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+  z-index: 8;
+}
+#fade.on { opacity: 1; }
+
+#credit { top: 0; bottom: auto; border-radius: 0 0 0 6px; }
   #touch {
     display: flex;
     justify-content: space-between;

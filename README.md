@@ -6,10 +6,18 @@ Built with [Three.js](https://threejs.org) and [Vite](https://vite.dev). Free fr
 
 ## How testing works
 - Every push to `main` builds and deploys automatically (GitHub Actions → GitHub Pages). Open the link above about a minute later.
-- To run it yourself: open the repository in GitHub Codespaces (or locally) and run `npm install` then `npm run dev`.
+- To run it yourself: open the repository in GitHub Codespaces (or locally) and run `npm install` then `npm run dev`
+  (this first converts the OpenStreetMap data into map tiles, about 3 seconds).
 
 ## Controls
-W A S D / arrow keys to drive, Space to brake. On-screen buttons on phones.
+W A S D / arrow keys to drive, Space to brake, R to go back to the start. On-screen buttons on phones.
+
+## Map
+South Mumbai (Colaba, Gateway of India, Fort, CST, Churchgate, Marine Drive, Malabar Hill) built from
+OpenStreetMap: real streets, buildings, coastline, maidans and railway lines.
+`npm run tiles` turns `data/raw/mumbai-region.osm.pbf` into small compressed map tiles in `public/tiles/`.
+
+Map data © OpenStreetMap contributors, available under the Open Database License.
 
 ## Free stack
 | Need | Tool |
@@ -22,7 +30,9 @@ W A S D / arrow keys to drive, Space to brake. On-screen buttons on phones.
 | 3D models | Blender, Quaternius, Kenney, Poly Haven (free) |
 
 ## Structure
-- `src/main.js` — renderer, lights, camera, game loop
-- `src/world.js` — city blocks, roads, sea front
+- `src/main.js` — renderer, camera, game loop
+- `src/world/` — sky and sea, tile streaming and collisions, tile worker, materials, tile format
 - `src/rickshaw.js` — placeholder auto-rickshaw and driving physics
 - `src/input.js` — keyboard and touch controls
+- `scripts/build-tiles.mjs` — map converter (OpenStreetMap → tiles)
+- `docs/gta-v-development-analysis.md` — how GTA V was made, and what GTB borrows from it

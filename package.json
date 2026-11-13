@@ -1,10 +1,13 @@
 {
   "name": "gtb",
   "version": "1.0.0",
-  "description": "",
+  "description": "GTB: a fun, toned-down open-world browser game set in the real Mumbai",
   "scripts": {
+    "tiles": "node scripts/build-tiles.mjs",
+    "tiles:preview": "node scripts/preview-tiles.mjs",
+    "predev": "npm run tiles",
     "dev": "vite --host",
-    "build": "vite build",
+    "build": "npm run tiles && vite build",
     "preview": "vite preview --host"
   },
   "repository": {
@@ -19,9 +22,13 @@
   },
   "homepage": "https://github.com/amitpatharkar/gtb#readme",
   "dependencies": {
+    "earcut": "^3.0.2",
     "three": "^0.187.0"
   },
   "devDependencies": {
+    "lineclip": "^2.0.0",
+    "pbf": "^5.1.2",
+    "polygon-clipping": "^0.15.7",
     "vite": "^8.3.8"
   },
   "private": true,

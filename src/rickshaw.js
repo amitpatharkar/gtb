@@ -46,10 +46,11 @@ export class Vehicle {
     this.pos = new THREE.Vector3(0, 0, 0);
     this.heading = 0;   // radians, 0 = +Z
     this.speed = 0;     // metres per second
-    this.radius = 1.2;
+    this.radius = 1.0;   // collision circle; narrow Mumbai lanes need a snug fit
   }
 
-  update(dt, input, colliders) {
+  /** world.hits(x, z, radius) → true if that spot is blocked (buildings, sea, map edge). */
+  update(dt, input, world) {
     const MAX = 18, REVERSE = -6, ACCEL = 9, BRAKE = 20, DRAG = 0.6;
 
     if (input.fwd) this.speed += ACCEL * dt;
@@ -66,10 +67,13 @@ export class Vehicle {
     const nx = this.pos.x + Math.sin(this.heading) * this.speed * dt;
     const nz = this.pos.z + Math.cos(this.heading) * this.speed * dt;
 
-    // Resolve each axis separately so we slide along walls.
-    if (!this.hits(nx, this.pos.z, colliders)) this.pos.x = nx;
+    // Resolve each axis separately so we slide along walls. If we are already
+    // stuck inside something (e.g. a tile loaded around us), let the player drive out.
+    const r = this.radius;
+    const stuck = world.hits(this.pos.x, this.pos.z, r);
+    if (stuck || !world.hits(nx, this.pos.z, r)) this.pos.x = nx;
     else this.speed *= -0.3;
-    if (!this.hits(this.pos.x, nz, colliders)) this.pos.z = nz;
+    if (stuck || !world.hits(this.pos.x, nz, r)) this.pos.z = nz;
     else this.speed *= -0.3;
 
     this.mesh.root.position.copy(this.pos);
@@ -78,15 +82,5 @@ export class Vehicle {
     this.mesh.root.rotation.z = -steer * Math.min(Math.abs(this.speed) / MAX, 1) * 0.08;
     for (const w of this.mesh.wheels) w.rotation.x += (this.speed * dt) / 0.3;
     this.mesh.wheels[0].rotation.y = steer * 0.4;
-  }
-
-  hits(x, z, colliders) {
-    const r = this.radius;
-    for (const c of colliders) {
-      const cx = Math.max(c.minX, Math.min(x, c.maxX));
-      const cz = Math.max(c.minZ, Math.min(z, c.maxZ));
-      if ((x - cx) ** 2 + (z - cz) ** 2 < r * r) return true;
-    }
-    return false;
   }
 }

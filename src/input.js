@@ -1,5 +1,5 @@
 // Keyboard + touch input, exposed as simple booleans.
-export const input = { fwd: false, back: false, left: false, right: false, brake: false };
+export const input = { fwd: false, back: false, left: false, right: false, brake: false, reset: false };
 
 const keyMap = {
   KeyW: 'fwd', ArrowUp: 'fwd',
@@ -7,6 +7,7 @@ const keyMap = {
   KeyA: 'left', ArrowLeft: 'left',
   KeyD: 'right', ArrowRight: 'right',
   Space: 'brake',
+  KeyR: 'reset',
 };
 
 addEventListener('keydown', (e) => {
@@ -15,7 +16,7 @@ addEventListener('keydown', (e) => {
 });
 addEventListener('keyup', (e) => {
   const k = keyMap[e.code];
-  if (k) input[k] = false;
+  if (k && k !== 'reset') input[k] = false; // reset is cleared by the game once handled
 });
 
 for (const btn of document.querySelectorAll('#touch button')) {
