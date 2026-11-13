@@ -127,7 +127,7 @@ function bake(clip, names, k) {
   return c;
 }
 const GUARD_AT = 0.3; // fraction of the punch clip held as the guard stance
-const SLOT = { other: 0, skin: 1, shirt: 2, pants: 3, hair: 4, face: 5 };
+const SLOT = { other: 0, skin: 1, shirt: 2, pants: 3, hair: 4, face: 5, leg: 6, shoe: 7 };
 // Limbs whose swing is amplified when running: [bone name pattern, extra factor at a full run].
 const RUN_BONES = [[/^upperleg/i, 0.55], [/^lowerleg/i, 0.35], [/^upperarm/i, 0.7], [/^lowerarm/i, 0.5]];
 
@@ -139,7 +139,7 @@ const slotOf = (name) => {
 /** One material per character: the same program, different part colours. */
 function characterMaterial() {
   const m = new THREE.MeshStandardMaterial({ roughness: 0.82, metalness: 0 });
-  const u = { uSkin: { value: new THREE.Color() }, uShirt: { value: new THREE.Color() }, uPants: { value: new THREE.Color() }, uHair: { value: new THREE.Color() } };
+  const u = { uSkin: { value: new THREE.Color() }, uShirt: { value: new THREE.Color() }, uPants: { value: new THREE.Color() }, uHair: { value: new THREE.Color() }, uLeg: { value: new THREE.Color() }, uShoe: { value: new THREE.Color() } };
   m.userData.u = u;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);
@@ -147,10 +147,10 @@ function characterMaterial() {
       .replace('#include <common>', '#include <common>\nattribute float aSlot; attribute vec3 aBase; varying float vSlot; varying vec3 vBase;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSlot = aSlot; vBase = aBase;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vSlot; varying vec3 vBase; uniform vec3 uSkin; uniform vec3 uShirt; uniform vec3 uPants; uniform vec3 uHair;')
-      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = vSlot < 0.5 ? vBase : vSlot < 1.5 ? uSkin : vSlot < 2.5 ? uShirt : vSlot < 3.5 ? uPants : vSlot < 4.5 ? uHair : vec3(0.05, 0.04, 0.03);');
+      .replace('#include <common>', '#include <common>\nvarying float vSlot; varying vec3 vBase; uniform vec3 uSkin; uniform vec3 uShirt; uniform vec3 uPants; uniform vec3 uHair; uniform vec3 uLeg; uniform vec3 uShoe;')
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = vSlot < 0.5 ? vBase : vSlot < 1.5 ? uSkin : vSlot < 2.5 ? uShirt : vSlot < 3.5 ? uPants : vSlot < 4.5 ? uHair : vSlot < 5.5 ? vec3(0.05, 0.04, 0.03) : vSlot < 6.5 ? uLeg : uShoe;');
   };
-  m.customProgramCacheKey = () => 'gtb-character';
+  m.customProgramCacheKey = () => 'gtb-character2';
   return m;
 }
 
@@ -211,6 +211,19 @@ export class Characters {
     }
     const merged = geos.length > 1 ? mergeGeometries(geos) : geos[0];
     if (!merged) throw new Error('merge failed');
+    // The pack's people wear shorts and no shoes. Bare skin on the legs becomes its own slot
+    // (trouser legs for adults, skin for children) and the feet become footwear.
+    {
+      const si = merged.attributes.skinIndex, sw = merged.attributes.skinWeight, sl = merged.attributes.aSlot;
+      const kind = skeleton.bones.map((b) => (/^(upperleg|lowerleg)/i.test(b.name) ? 1 : /^(foot|toe)/i.test(b.name) ? 2 : 0));
+      for (let i = 0; i < sl.count; i++) {
+        let best = 0, bw = -1;
+        for (let k = 0; k < 4; k++) { const w = sw.getComponent(i, k); if (w > bw) { bw = w; best = si.getComponent(i, k); } }
+        const s0 = sl.getX(i);
+        if (kind[best] === 2 && (s0 === SLOT.skin || s0 === SLOT.other)) sl.setX(i, SLOT.shoe);
+        else if (kind[best] === 1 && s0 === SLOT.skin) sl.setX(i, SLOT.leg);
+      }
+    }
     const mesh = new THREE.SkinnedMesh(merged, new THREE.MeshStandardMaterial());
     mesh.name = 'body';
     meshes[0].parent.add(mesh);
@@ -309,6 +322,10 @@ export class Characters {
     c.u.uSkin.value.copy(p.skin);
     tint(c.u.uShirt.value, p.shirt);
     tint(c.u.uPants.value, p.pants);
+    // Full-length trousers (or salwar / leggings) on adults; children keep their shorts.
+    c.u.uLeg.value.copy(p.build === 'kid' ? p.skin : c.u.uPants.value);
+    p.shoe ??= new THREE.Color([0x1a1a1a, 0x2b1d14, 0x3a2a1e, 0x6b4a32, 0xd8d4cc, 0x20242c][Math.floor(Math.random() * 6)]);
+    c.u.uShoe.value.copy(p.shoe);
     // Black to dark-brown hair, a little grey on some.
     p.hair ??= new THREE.Color().setHSL(0.07, 0.35, Math.random() < 0.1 ? 0.2 : 0.03 + Math.random() * 0.04);
     c.u.uHair.value.copy(p.hair);

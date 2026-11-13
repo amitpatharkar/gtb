@@ -173,6 +173,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   the manifest; Low loads 2+2 models, Medium 4+4, High all) for the player and everyone near the camera (pool
   11/20/30 within 34–46 m); people.js draws in two phases (`beforeEnd` picks heroes). Each character is ONE skinned
   mesh / draw call (merged in `prepare()`, `aSlot`/`aBase` attributes, per-character colour uniforms; "Face" = eyes).
+  The pack's models wear shorts and no shoes: bare leg skin gets slot `leg` (trouser colour for adults, skin for
+  the `kid` build) and feet slot `shoe`, by dominant skin bone.
   **Adult bodies:** the pack has a child's proportions, so `rig()` + `shapeBody()` scale bones along/across their
   own axes (`ADULT` male/female: legs ×1.45, head ×0.56, shorter torso, wider shoulders, longer arms) and every
   child bone cancels its parent's scale (`compensate()` overrides `updateMatrix`) so joints never shear. The feet are
