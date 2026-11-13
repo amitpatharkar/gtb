@@ -21,6 +21,7 @@ import { StreetLife } from './sim/street.js';
 import { Animals } from './sim/animals.js';
 import { CityMap } from './ui/cityMap.js';
 import { Navigator } from './ui/navigator.js';
+import { Landmarks } from './world/landmarks.js';
 import { GameState } from './game/state.js';
 import { Jobs } from './game/jobs.js';
 import { Phone } from './ui/phone.js';
@@ -85,6 +86,7 @@ const index = await tiles.init(`${BASE}tiles/`).catch((err) => { $('loading').te
 loader.progress(0.2, 'Lighting the sky…');
 const env = await createEnvironment(renderer, scene, index.bounds, tier, lib);
 const post = createPost(renderer, scene, camera, tier);
+const landmarks = new Landmarks(scene, index.landmarks || [], lib);
 const startHour = Number(query.get('hour'));
 const clock = new GameClock(query.has('hour') && Number.isFinite(startHour) ? startHour : 17.25);
 const traffic = new Traffic(scene, tiles, tier);
@@ -395,7 +397,7 @@ function choice(title, options) {
 }
 
 // ------------------------------------------------------------------ loop
-window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
+window.__gtb = { tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 const timer = new THREE.Timer();
 // Shadows: redraw the shadow map every frame on High, every other frame below.
 renderer.shadowMap.autoUpdate = false;
@@ -475,6 +477,7 @@ function step(dt) {
   // Night: lit windows and signs, glowing lamps, real lights on the nearest lamp posts.
   const night = clock.night;
   facadeNight.value = night;
+  landmarks.update(night);
   facadeParts.update(dt, player, tiles, night);
   tiles.props.lampMat.emissiveIntensity = night * 9;
   const lamps = damage.headlampFactor(player.condition);

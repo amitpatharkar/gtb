@@ -71,6 +71,8 @@ export function buildBuildings(t, ox, oz, toWorld) {
   const parts = Object.fromEntries(PART_TYPES.map((k) => [k, []]));
 
   t.buildings.forEach((bd, bi) => {
+    // Landmark outlines: collide, but a hand-built model is drawn instead.
+    if (bd.flags & BUILDING_FLAG.HIDDEN) { if (!(bd.flags & BUILDING_FLAG.NO_COLLIDE)) solid.push(bd.rings.map(toWorld)); return; }
     const style = Math.min(bd.style, STYLES.length - 1);
     const outer = bd.rings[0];
     const area = Math.abs(signedArea(outer));

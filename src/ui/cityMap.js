@@ -321,6 +321,13 @@ export class CityMap {
       g.lineWidth = 4; g.strokeStyle = 'rgba(255,255,255,0.85)'; g.strokeText(name.toUpperCase(), sx, sy);
       g.fillStyle = '#2b2925'; g.fillText(name.toUpperCase(), sx, sy);
     }
+    // Landmarks: a star and the (parody) name.
+    for (const L of this.index.landmarks || []) {
+      const [sx, sy] = S(L.x, L.z);
+      g.fillStyle = '#f7c600'; g.strokeStyle = '#000'; g.lineWidth = 2;
+      g.font = '18px sans-serif'; g.strokeText('★', sx, sy); g.fillText('★', sx, sy);
+      if (scale > 0.15) { g.font = '700 12px system-ui, sans-serif'; g.lineWidth = 3; g.strokeStyle = '#fff'; g.strokeText(L.name, sx, sy + 16); g.fillStyle = '#5a3c00'; g.fillText(L.name, sx, sy + 16); }
+    }
     g.font = '16px sans-serif';
     for (const [fx, fz] of this.fuel) { const [sx, sy] = S(fx, fz); g.fillStyle = '#0e8a4a'; g.beginPath(); g.arc(sx, sy, 11, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillText('⛽', sx, sy + 1); }
     for (const m of this.markers?.() || []) {

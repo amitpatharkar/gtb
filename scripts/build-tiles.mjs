@@ -597,6 +597,56 @@ const count = (k) => points.filter((p) => p.kind === k).length;
 log(`points: ${count(POINT.RAIN_TREE) + count(POINT.GULMOHAR) + count(POINT.PEEPAL) + count(POINT.PALM)} trees, ${lights.length} lights, ${count(POINT.STALL)} stalls, ${count(POINT.GARBAGE)} garbage piles, ${count(POINT.POTHOLE)} potholes, ${count(POINT.PUDDLE)} puddles, ${fuel.length} petrol pumps`);
 const fuelStations = fuel.map(([x, z]) => [r1(x), r1(z)]);
 
+// Landmarks: hand-built models replace these OpenStreetMap outlines (names are parodies).
+// The outline stays for collisions; the model is fitted to its oriented bounding box.
+const LANDMARKS = [
+  { id: 'gateway', name: 'Gateway of Indiyaa', match: /gateway of india/i, at: [18.9220, 72.8347], hide: true },
+  { id: 'palace', name: 'Royal Chaj Mahal Palace', match: /taj mahal palace|taj mahal hotel/i, at: [18.9217, 72.8330], hide: true },
+  { id: 'terminus', name: 'Chhatrapati Chai Terminus', match: /chhatrapati shivaji (maharaj )?terminus|victoria terminus|^cs[m]?t$/i, at: [18.9400, 72.8355], hide: true },
+  { id: 'bmc', name: 'Big Mumbai Council HQ', match: /municipal corporation (building|head)|bmc (building|head)/i, at: [18.9405, 72.8344], hide: true },
+  { id: 'clocktower', name: 'Rajabhai Tick-Tock Tower', match: /rajabai/i, at: [18.9297, 72.8305], hide: false, size: [16, 16] },
+];
+function orientedBox(ring) {
+  // Minimum-area rectangle over the outline's edge directions.
+  let best = null;
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], b = ring[(i + 1) % ring.length];
+    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), c = Math.cos(ang), s = Math.sin(ang);
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (const [x, z] of ring) { const u = x * c + z * s, v = -x * s + z * c; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+    const area = (u1 - u0) * (v1 - v0);
+    if (!best || area < best.area) {
+      const um = (u0 + u1) / 2, vm = (v0 + v1) / 2;
+      best = { area, x: um * c - vm * s, z: um * s + vm * c, angle: ang, w: u1 - u0, d: v1 - v0 };
+    }
+  }
+  return best;
+}
+const landmarks = [];
+for (const L of LANDMARKS) {
+  const [px, pz] = project(L.at[0], L.at[1]);
+  const named = buildingsRaw.filter((b) => L.match.test(b.tags.name || '') || L.match.test(b.tags['name:en'] || ''));
+  const containing = buildingsRaw.filter((b) => !b.part && b.polys.some((p) => G.pointInRing(px, pz, p[0])));
+  const pickBig = (list) => list.sort((a, b) => Math.abs(G.signedArea(b.polys[0][0])) - Math.abs(G.signedArea(a.polys[0][0])))[0];
+  const b = pickBig(named.filter((x) => !x.part)) || pickBig(named) || pickBig(containing);
+  if (!b || L.size) {
+    landmarks.push({ id: L.id, name: L.name, x: Math.round(px * 10) / 10, z: Math.round(pz * 10) / 10, angle: 0, w: L.size?.[0] ?? 20, d: L.size?.[1] ?? 20 });
+    log(`landmark ${L.id}: placed at its map point${b ? '' : ' (no outline found)'}`);
+    continue;
+  }
+  const ring = b.polys[0][0];
+  const box = orientedBox(ring);
+  landmarks.push({ id: L.id, name: L.name, x: Math.round(box.x * 10) / 10, z: Math.round(box.z * 10) / 10, angle: Math.round(box.angle * 1000) / 1000, w: Math.round(box.w * 10) / 10, d: Math.round(box.d * 10) / 10 });
+  if (L.hide) {
+    // Hide the outline and any building parts standing inside it.
+    for (const o of buildingsRaw) {
+      const c = G.centroid(o.polys[0][0]);
+      if (o === b || G.pointInRing(c[0], c[1], ring)) o.hidden = true;
+    }
+  }
+  log(`landmark ${L.id}: ${b.tags.name || 'outline'} ${box.w.toFixed(0)} × ${box.d.toFixed(0)} m`);
+}
+
 // Buildings: whole footprints, assigned to the tile holding their centre.
 // Simple 3D Buildings rule: if an outline contains building:part pieces, draw the parts instead.
 const parts = buildingsRaw.filter((b) => b.part).map((b) => G.centroid(b.polys[0][0]));
@@ -639,6 +689,7 @@ for (const b of buildingsRaw) {
     });
     let f2 = flags;
     if (look.shops && front.some(Boolean) && minH < 1) f2 |= BUILDING_FLAG.SHOPS;
+    if (b.hidden) f2 |= BUILDING_FLAG.HIDDEN;
     tile.buildings.push({ h, minH, color: look.color, flags: f2, style: look.style, levels: look.levels, rings, front });
     bCount++;
   }
@@ -849,6 +900,7 @@ const meta = {
   bounds: { minX: BOX[0], minZ: BOX[1], maxX: BOX[2], maxZ: BOX[3] },
   spawn,
   fuel: fuelStations,
+  landmarks,
   tiles: index,
 };
 fs.writeFileSync(path.join(CFG.out, 'index.json'), JSON.stringify(meta));

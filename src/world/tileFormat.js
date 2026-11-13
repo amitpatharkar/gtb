@@ -36,7 +36,7 @@ export const ROAD = {
 export const ROAD_FLAG = { BRIDGE: 1, ONEWAY: 2 };
 export const RAIL = { MAIN: 0, SERVICE: 1 };
 export const RAIL_FLAG = { BRIDGE: 1 };
-export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2, SHOPS: 4 };
+export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2, SHOPS: 4, HIDDEN: 8 }; // HIDDEN: collide only (a hand-built landmark stands there)
 export const POINT = {
   RAIN_TREE: 0, GULMOHAR: 1, PEEPAL: 2, PALM: 3, LIGHT: 4, SIGNAL: 5, BUS_STOP: 6,
   POTHOLE: 7, PUDDLE: 8, GARBAGE: 9, STALL: 10, FUEL: 11, TETRAPOD: 12,
