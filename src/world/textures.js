@@ -13,6 +13,14 @@ export class TextureLibrary {
     this.cache = new Map();
     this.pending = 0;
     this.available = false;
+    // Texture downloads wait at this gate until the sky and the map around the player are
+    // in, so they don't compete for bandwidth with what is needed to start playing.
+    this.gate = new Promise((r) => { this.openGate = r; });
+  }
+
+  /** Resolves when no texture download is pending. */
+  idle() {
+    return new Promise((resolve) => { const check = () => (this.pending ? setTimeout(check, 100) : resolve()); check(); });
   }
 
   async init() {
@@ -41,7 +49,7 @@ export class TextureLibrary {
   load(path) {
     if (!this.cache.has(path)) {
       this.pending++;
-      const p = this.ktx2.loadAsync(`${this.base}media/${path}`).then((t) => {
+      const p = this.gate.then(() => this.ktx2.loadAsync(`${this.base}media/${path}`)).then((t) => {
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
         t.anisotropy = this.tier.anisotropy;
         return t;

@@ -35,7 +35,7 @@ const CLIP = {
 };
 
 export class Characters {
-  constructor(scene, base, tier, lib = null) {
+  constructor(scene, base, tier, lib = null, started = Promise.resolve()) {
     this.scene = scene;
     this.poolSize = tier.name === 'High' ? 12 : tier.name === 'Medium' ? 7 : 3;
     this.templates = [];
@@ -49,13 +49,13 @@ export class Characters {
     const per = tier.name === 'High' ? 9 : tier.name === 'Medium' ? 4 : 2;
     const names = [...MODELS.male.slice(0, per), ...MODELS.female.slice(0, per)].filter((n) => files.has(`models/character-quaternius-animated-pack/converted/${n}.glb`));
     if (!names.length) return;
-    Promise.allSettled(names.map((n) => loader.loadAsync(`${dir}${n}.glb`).then((g) => ({ name: n, gltf: g, female: MODELS.female.includes(n) }))))
+    started.then(() => Promise.allSettled(names.map((n) => loader.loadAsync(`${dir}${n}.glb`).then((g) => ({ name: n, gltf: g, female: MODELS.female.includes(n) }))))
       .then((res) => {
         this.templates = res.filter((r) => r.status === 'fulfilled').map((r) => r.value);
         if (!this.templates.length) return;
         for (const t of this.templates) this.prepare(t);
         this.ready = true;
-      });
+      }));
   }
 
   /** Measure the model (scale to 1.72 m) and sort its materials into clothes slots. */

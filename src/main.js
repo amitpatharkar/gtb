@@ -52,6 +52,15 @@ try { resume = JSON.parse(sessionStorage.getItem(RESUME_KEY) || 'null'); session
 let settings = loadSettings();
 let newGame = false;
 const skipMenu = resume || query.has('play') || query.has('quality') || query.has('hour');
+// Warm the HTTP cache while the title screen is up: map index, asset manifest, the sky.
+for (const u of ['tiles/index.json', 'media/manifest.json']) fetch(`${BASE}${u}`, { priority: 'high' }).catch(() => {});
+fetch(`${BASE}media/manifest.json`).then((r) => r.json()).then((m) => {
+  const sky = m.assets.find((a) => a.id === 'hdri-qwantani-late-afternoon-puresky');
+  if (sky) fetch(`${BASE}media/${sky.files[0]}`, { priority: 'high' }).catch(() => {});
+}).catch(() => {});
+// Extras (characters, street-prop models, sign fonts) start downloading once play begins.
+let markStarted;
+const started = new Promise((r) => { markStarted = r; });
 if (!skipMenu) {
   let save = null;
   try { const raw = JSON.parse(localStorage.getItem('gtb.save.v1') || 'null'); if (raw) save = { money: raw.money ?? 0, day: raw.day ?? 1, rides: raw.rides ?? 0 }; } catch { /* ignore */ }
@@ -84,7 +93,7 @@ $('quality').addEventListener('click', (e) => { e.preventDefault(); changeQualit
 // ------------------------------------------------------------------ world
 const lib = await new TextureLibrary(renderer, BASE, tier).init();
 const materials = createMaterials(renderer, lib, tier);
-loadSignFonts(lib, materials.signs);
+started.then(() => loadSignFonts(lib, materials.signs));
 const tiles = new TileManager(scene, materials, tier);
 loader.progress(0.1, 'Loading textures and the map…');
 const index = await tiles.init(`${BASE}tiles/`).catch((err) => { $('loading').textContent = String(err.message || err); loader.progress(0, String(err.message || err)); throw err; });
@@ -92,13 +101,9 @@ loader.progress(0.2, 'Lighting the sky…');
 const env = await createEnvironment(renderer, scene, index.bounds, tier, lib);
 const post = createPost(renderer, scene, camera, tier);
 const landmarks = new Landmarks(scene, index.landmarks || [], lib);
-const streetProps = new StreetProps(scene, tiles, BASE, tier);
-if (tier.partsRadius) {
-  // Real outdoor AC units on the facades (Poly Haven), hung with their back on the wall.
-  import('./world/models.js').then(({ loadParts }) => loadParts(`${BASE}media/models/prop-ph-exterior-aircon-unit/exterior_aircon_unit_1k.gltf`, { size: 0.82, axis: 'width', node: 0 }))
-    .then((parts) => facadeParts.useModel('ac', parts, (g) => { g.computeBoundingBox(); const b = g.boundingBox; g.translate(0, -(b.max.y - b.min.y) / 2 - 0.18, -b.min.z); }))
-    .catch(() => {});
-}
+const streetProps = new StreetProps(scene, tiles, BASE, tier, started);
+// (The Poly Haven AC model was 9k triangles and 7 MB of textures per copy; facade AC units
+// stay procedural.)
 const startHour = Number(query.get('hour'));
 const clock = new GameClock(query.has('hour') && Number.isFinite(startHour) ? startHour : 17.25);
 const traffic = new Traffic(scene, tiles, tier);
@@ -106,7 +111,7 @@ const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
 const signals = new Signals(scene);
 traffic.signals = signals;
 const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
-const characters = new Characters(scene, BASE, tier, lib);
+const characters = new Characters(scene, BASE, tier, lib, started);
 let frameDt = 0;
 people.beforeEnd = (list) => characters.update(frameDt, camera.position, list, onFoot ? walker.person : null);
 const bubbles = new Bubbles(document.body);
@@ -274,8 +279,17 @@ await tiles.whenReady(player.pos.x, player.pos.z, 350, (done, total) => {
   $('loading').textContent = `Loading ${index.name}… ${done}/${total}`;
   loader.progress(0.3 + 0.7 * (done / Math.max(1, total)), `Building ${index.name}… ${done}/${total}`);
 });
+// Map and sky are in: let the textures download, and give the street materials a moment.
+lib.openGate();
+loader.progress(0.97, 'Painting the streets…');
+await Promise.race([lib.idle(), new Promise((r) => setTimeout(r, 2000))]);
+// Compile the shaders now (in parallel where the browser can) rather than stalling the first frames.
+placeCamera(0);
+await renderer.compileAsync(scene, camera).catch(() => {});
 $('loading').remove();
 loader.done();
+performance.mark('gtb-playable');
+markStarted();
 
 // ------------------------------------------------------------------ controls
 let teleporting = false;

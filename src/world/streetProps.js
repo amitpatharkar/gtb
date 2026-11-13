@@ -11,7 +11,7 @@ import { loadParts, Instancer } from './models.js';
 const rand = (a, b) => { const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s - Math.floor(s); };
 
 export class StreetProps {
-  constructor(scene, tiles, base, tier) {
+  constructor(scene, tiles, base, tier, started = Promise.resolve()) {
     this.scene = scene;
     this.tiles = tiles;
     this.radius = tier.name === 'High' ? 160 : 120;
@@ -19,8 +19,8 @@ export class StreetProps {
     this.timer = 0;
     this.last = new THREE.Vector3(1e9, 0, 0);
     const url = (dir, file) => `${base}media/models/${dir}/${file}`;
-    const load = (key, dir, file, opts, max) => loadParts(url(dir, file), opts).then((parts) => { this.ready[key] = new Instancer(scene, parts, max); this.version = -1; }).catch(() => {});
-    // Lighter set on Low; the big aircon model is used by the facade parts instead (Medium/High).
+    const load = (key, dir, file, opts, max) => started.then(() => loadParts(url(dir, file), opts)).then((parts) => { this.ready[key] = new Instancer(scene, parts, max); this.version = -1; }).catch(() => {});
+    // Lighter set on Low. Loads only once play has started (after the loading screen).
     load('chair', 'prop-ph-plastic-monobloc-chair-01', 'plastic_monobloc_chair_01_1k.gltf', { size: 0.82 }, 260);
     load('crate', 'prop-ph-plastic-crate-02', 'plastic_crate_02_1k.gltf', { size: 0.3 }, 260);
     load('bag', 'prop-ph-trashbag', 'trashbag_1k.gltf', { size: 0.55 }, 400);
