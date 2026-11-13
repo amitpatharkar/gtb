@@ -116,6 +116,19 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   knocked down then limp away); ~4.5 % of passers-by start it; kids and animals never targets; police: brawl/assault
 - `src/world/propPhysics.js` — solid trees/lamp posts/bus shelters/thelas, tree shake, bent poles, flying fruit,
   scattering garbage (simple rigid bits)
+- `src/ui/menu.js` — title screen (Continue/New/Settings/Guide/Credits), GTA-style loading screens (original SVG art,
+  tips), Esc pause menu; settings in localStorage (`gtb.settings`: tier — Low by default —, volume, mouse sensitivity,
+  invert Y, hints, spoken GPS, radio). Graphics changes reload via `gtb.resume` (sessionStorage) back into the game.
+  Tests skip the title with `?quality=`, `?hour=` or `?play`.
+- `src/ui/navigator.js` — turn-by-turn: next-turn panel, chevrons on the road, spoken Hinglish prompts (speechSynthesis)
+- `src/radio.js` — taxi radio (N): synthesised stations + RJ speech (traffic, AQI, fake ads, police gossip)
+- `src/world/landmarks.js` — hand-built Gateway of Indiyaa, Royal Chaj Mahal Palace (generic, not the trademarked
+  facade), Chhatrapati Chai Terminus, BMC HQ, Rajabhai clock tower, fitted to OSM footprints (converter `LANDMARKS`:
+  outline found by name, flagged `BUILDING_FLAG.HIDDEN` = collide only, `index.landmarks` = x, z, angle, w, d)
+- `src/world/models.js` — glTF/GLB → instanced meshes (metres, base on ground); `src/world/streetProps.js` — Poly Haven
+  chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
+- `src/sim/characters.js` — Quaternius rigged characters (from the pipeline's `converted/` GLBs, only if listed in
+  the manifest) for the player and the nearest people; people.js draws in two phases (`beforeEnd` picks heroes)
 - `src/ui/minimap.js` — rotating radar (land, roads, traffic, petrol pumps, GPS route); `src/ui/cityMap.js` — full map
   (Tab / tap radar; pan, zoom, tap for a waypoint; GPS A* on all tiles, one-ways respected; game pauses);
   `src/ui/phone.js` — phone (P): Maps, Chalo Driver, Bhookh (food), JhatPat (quick commerce), Dukaan (shopping to
@@ -124,8 +137,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   tyre squeal, crash, spray, musical horn; starts on first key/tap
 - `src/rickshaw.js` — old auto-rickshaw (unused in South Mumbai; keep for the suburbs, where autos are allowed)
 - `src/input.js` — keyboard and touch (Shift = run, fire/aim touch buttons); keys in main.js: H horn, E interact
-  (refuel/snack), F out/in of the taxi, Tab map, P phone, J taxi duty, on foot 1 fists / 2 pichkari, V kick, G insult,
-  C colour, [ ] pressure; T +1 hour, M mute, Q graphics, R reset
+  (refuel + repair menu / snack), F out/in of the taxi, Tab map, P phone, J taxi duty, N radio, Esc pause, ? key list,
+  on foot 1 fists / 2 pichkari, V kick, G insult, C colour, [ ] pressure; T +1 hour, M mute, Q graphics, R reset
 - `scripts/build-tiles.mjs` — converter (`npm run tiles`, ~7 s): v1 steps plus streets via Clipper (`lib/clip.mjs`:
   road surface union, footpaths by class, plots, parks cut out of plots), markings/crossings/trees/lights/stalls/
   garbage/potholes/puddles (`lib/streets.mjs`), building style + colour by district (`lib/districts.mjs`, from the
@@ -168,6 +181,13 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   hunger/energy, Powai home address; taxi fare side job; delivery riders; on foot with the Holi pichkari; new traffic
   fleet with bikes; tyre marks, engine/squeal/crash sounds; taxi damage; solid street props with simple physics.
   ~350 draw calls, ~1M triangles on High; simulation ≈1.3 ms per step.
+- Done (2026-11-13, playtest pass): title/loading/pause screens, Low default, resume after quality change, money floor
+  (purchases need money; fines can cause debt), priced repair menu, no wear on straights, faster taxi, small bonnet smoke,
+  camera-occluding people hidden, one name per road (converter merges variants), comfort reasons, brighter nights and
+  headlights, hint line auto-hide; denser traffic (squeeze past, honking) and crowds; turn-by-turn with Hinglish speech;
+  tier load radius and shadow throttling; landmarks; Poly Haven props; radio; Bhookh delivery job; wardrobe; hawaldar
+  pay/argue/run; baraat and cricket-window events. Asset pipeline: Blender on Ubuntu needs `python3-numpy`;
+  `_convert.log` next to each pack on the `assets` branch shows conversion results.
 - Next (ideas, owner's goal: "GTA V Mumbai edition, maximised for a browser"):
   1. **More missions**: Bhookh delivery-partner job (pick up at a stall, deliver on time, food condition), dabbawala
      relay at lunchtime, tourist tours (Gateway → Marine Drive), police chase challenges, races on Marine Drive at night.
