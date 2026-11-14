@@ -26,7 +26,9 @@ stop and ask before using its output.
    `- models/vada-pav-cart.glb — picture: FLUX.1 [schnell] (Apache-2.0); 3D: TRELLIS (MIT) — 2026-11-14` → commit.
 4. The site redeploys by itself in about two minutes.
 
-Keep each file under 8 MB (in TRELLIS: simplify 0.95, texture size 1024; use 512 if bigger).
+Keep each file under 8 MB (in TRELLIS: simplify 0.95, texture size 1024; use 512 if bigger). The build
+makes a light copy of every upload by itself (about 5,000 triangles for carts and the shelter, 900 for small
+props, 512-pixel texture, smooth normals), so there is no need to simplify further by hand.
 Browser extensions usually cannot open the computer's file picker: if the upload page asks
 for a file, drag the downloaded `.glb` onto it yourself.
 
