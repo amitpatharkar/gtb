@@ -10,7 +10,8 @@
     "predev": "npm run tiles && node scripts/art-index.mjs",
     "dev": "vite --host",
     "build": "npm run tiles && node scripts/art-index.mjs && vite build",
-    "preview": "vite preview --host"
+    "preview": "vite preview --host",
+    "test": "node tests/smoke.mjs"
   },
   "repository": {
     "type": "git",

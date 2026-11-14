@@ -324,6 +324,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 
 ## Testing in the session
 - `npm run build` must pass (it runs the converter first).
+- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,night`,
+  `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
+  wrong-side traffic, a broken carjack, any mission that cannot be finished, or a too-dark night. It also runs in
+  GitHub Actions after every push (`.github/workflows/smoke.yml`). Add a check there for every new system.
 - Visual check: `npx vite preview --port 4173`, then headless Chrome via Playwright with
   `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`, open `http://localhost:4173/gtb/`,
   hold keys, take a screenshot, and check console errors. Headless frame rate is very low, so for driving tests call

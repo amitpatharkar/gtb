@@ -1,0 +1,42 @@
+name: Smoke tests
+
+# Builds the game like the deploy does and plays it headless (tests/smoke.mjs): boots without
+# console errors, drives across tiles without stutter, traffic keeps left, stealing a car works,
+# every mission plays through, nights are visible. Runs after every push to main and on demand.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Add built assets from the assets branch
+        run: |
+          if git ls-remote --exit-code --heads origin assets > /dev/null; then
+            git fetch -q --depth 1 origin assets
+            mkdir -p public/media
+            git archive FETCH_HEAD | tar -x -C public/media
+          fi
+      - run: npm run build
+      - name: Install Playwright with Chromium
+        run: |
+          npm i -g playwright@1.63.0
+          npx -y playwright@1.63.0 install --with-deps chromium
+      - name: Play the game headless
+        run: NODE_PATH="$(npm root -g)" node tests/smoke.mjs
