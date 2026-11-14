@@ -283,7 +283,7 @@ export function buildProps(props, data, treeShare = 1) {
     if (!keep.length) continue;
     for (const [pi, [geo, mat, shadow, y]] of gparts.entries()) {
       const mesh = new THREE.InstancedMesh(geo, mat, keep.length);
-      mesh.userData.part = pi; // 0 = trunk for trees (heroTrees.js swaps palms near the player)
+      mesh.userData.part = pi; // 0 = trunk for trees, base for stalls (art.js swaps owner-made models in by part 0)
       keep.forEach((i, k) => {
         const s = arr[i * 5 + 4];
         _q.setFromAxisAngle(_up, arr[i * 5 + 3]);

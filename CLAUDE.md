@@ -65,13 +65,17 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   Apple-silicon graphics, Low elsewhere; main.js lowers the resolution on the fly when the frame rate drops
   (`dynRes`, off under automation). Q key / Graphics link cycles and reloads.
 - `src/render/post.js` — composer: scene (MSAA, half-float) → GTAO ambient occlusion from depth only → bloom →
-  ACES tone mapping → colour grade/vignette
+  Neutral tone mapping (renderer, main.js) → colour grade/vignette
 - `src/world/environment.js` — HDRI sky (rotated so its sun follows the clock), sun-free copy for lighting, sun +
   moon lights, haze colour/density from daylight and AQI, sea shader (3 scrolling ripple layers, no visible tiling)
 - `src/world/textures.js` — `TextureLibrary` (KTX2 from `media/`, progressive: flat colour until loaded; real-world
   texture size from the manifest), `addMacroVariation()` world-space anti-tiling noise
 - `src/world/materials.js` — one material per worker mesh key (asphalt, pavers, plot concrete, grass, sand, kerb
   stripes, worn paint, sea wall, parapet, roofs incl. tarpaulin/rust) + one facade material per building style
+- `src/world/facadeRules.js` — facade rules shared by the tile worker (3D parts) and the facade shader (styles, bays,
+  window rectangles, 32-bit integer hash identical in JavaScript and GLSL); `src/world/facadeParts.js` — real 3D facade
+  parts near the player (frames, sills, chajjas, grille cages, AC units, balconies, signboards, shutter boxes), one
+  instanced mesh per part type for the whole city
 - `src/world/facade.js` — facade shader (windows/glass reflections, curtains, grilles, balconies with clothes, AC units,
   sunshades, monsoon streaks, floor bands, parapet coping, ground-floor shops with shutters and signboards, lit windows
   at night) and the shop-sign atlas (128 boards, Marathi in Devanagari over English, BMC style; fonts from `media/`).
@@ -186,8 +190,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/game/cheats.js` — developer cheat console (` key or double-tap the clock; `window.__gtb.cheat(code)`):
   PAISAHIPAISA, CHALANMAAF, MAAMUCHUTTI, PETROLBHARO, AMRUT, SHAKTIMAAN, DHOOMMACHALE, JADOO (teleport to waypoint),
   SUBAHHOGAYI, DOPEHER, RAATHOGAYI, TRAFFICJAM, DARSHAN (stars step out), CHAIPILO (chai spots on the map), DEBUGKARO (stats line); listed in the Guide
-- `src/ui/menu.js` — title screen (Continue/New/Settings/Guide/Credits), GTA-style loading screens (original SVG art,
-  tips), Esc pause menu; settings in localStorage (`gtb.settings`: tier — Low by default —, volume, mouse sensitivity,
+- `src/ui/menu.js` — title screen (Continue/New/Settings/Guide/Credits), illustrated loading screens (original SVG
+  art, tips), Esc pause menu; settings in localStorage (`gtb.settings`: tier — `pickTier()`: saved choice, else detected —, volume, mouse sensitivity,
   invert Y, hints, spoken GPS, radio). Graphics changes reload via `gtb.resume` (sessionStorage) back into the game.
   Tests skip the title with `?quality=`, `?hour=` or `?play`.
 - `src/ui/navigator.js` — turn-by-turn: next-turn panel, chevrons on the road, spoken Hinglish prompts (speechSynthesis)
@@ -260,7 +264,6 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `src/ui/bubbles.js` — speech bubbles; `src/audio.js` — ambience, horns, synthesised whistle, siren, bark, engine
   (`engineKind` car/auto/bike/big/cycle and `hornKind` peep/bell, set by `garage.shape()`),
   tyre squeal, crash, spray, musical horn; starts on first key/tap
-- `src/rickshaw.js` — old auto-rickshaw (unused in South Mumbai; keep for the suburbs, where autos are allowed)
 - `src/input.js` — keyboard and touch (Shift = run, fire/aim touch buttons); keys in main.js: H horn, E interact
   (refuel + repair menu / snack), F out/in of the taxi, Tab map, P phone, J taxi duty, N radio, Esc pause, ? key list,
   on foot 1 fists / 2 pichkari, V kick, G insult, C colour, [ ] pressure, X light a cracker, Z cracker type,
