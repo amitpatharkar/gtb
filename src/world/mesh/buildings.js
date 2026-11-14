@@ -166,7 +166,7 @@ export function buildBuildings(t, ox, oz, toWorld) {
     const roofKey = area < 400 && r0 < 0.12 ? 'roofTarp' : area < 400 && r0 < 0.2 ? 'roofRust' : 'roof';
     const roofTint = linear(roofKey === 'roof' ? 0xd6d0c6 : 0xffffff, 0.8 + rand(bi, 3) * 0.3);
     flatPolygon(get(roofKey), bd.rings, h, roofTint, ox, oz);
-    if (canopy) flatPolygon(get('roof'), bd.rings, y0 - 0.01, linear(0x9a948c), ox, oz);
+    if (canopy) flatPolygon(get('roof'), bd.rings, y0 - 0.01, linear(0xf2eee6), ox, oz, true); // underside, seen from below (lit only by the sky's bounce)
 
     let inner = null;
     if (parapet) {
