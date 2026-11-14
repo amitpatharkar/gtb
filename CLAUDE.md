@@ -75,6 +75,11 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   at night) and the shop-sign atlas (128 boards, Marathi in Devanagari over English, BMC style; fonts from `media/`).
   Per-building attributes MUST stay `flat` varyings (interpolation noise + hashing = speckle). Debug:
   `window.__gtb.facadeDebug.value = 1..4` (albedo, roughness, normal, window grid).
+- `src/world/nightLights.js` — night light without real lights: `addNightLight(material)` patches the ground and
+  wall materials (materials.js) with sodium pools under the nearest street lamps (mapped lamps + one every 30 m
+  along every other street, `gatherLamps` in main.js) and headlight cones on the road ahead of nearby traffic and
+  the player's car (entry 0, `uOwnCar`); `updateNightLights()` refreshes the uniforms every 0.12 s at night.
+  environment.js switches the sky to a night texture (city glow, stars) after dusk — the sky photo has a sun.
 - `src/world/skyline.js` — far skyline: tall buildings of the whole map as boxes (`tiles/skyline.bin.gz` from
   `scripts/lib/skyline.mjs`: 11 bytes per box, top 6 per 200 m cell + everything over 45 m), one InstancedMesh
   refreshed when the player moves 120 m or tiles change; boxes are skipped where a tile is loaded; fog is the

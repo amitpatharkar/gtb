@@ -15,6 +15,7 @@ import { Traffic } from './sim/traffic.js';
 import { FacadeParts } from './world/facadeParts.js';
 import { Skyline } from './world/skyline.js';
 import { Birds } from './sim/birds.js';
+import { updateNightLights } from './world/nightLights.js';
 import { Signals } from './sim/signals.js';
 import { Police } from './sim/police.js';
 import { PeopleRenderer, POSE, FLAG, HOLI, outfit } from './sim/people.js';
@@ -233,13 +234,13 @@ const lampLights = Array.from({ length: tier.name === 'Low' ? 3 : 6 }, () => {
   scene.add(l);
   return l;
 });
-const headlamp = new THREE.SpotLight(0xfff1d6, 0, 95, 0.5, 0.55, 1.3);
+const headlamp = new THREE.SpotLight(0xfff1d6, 0, 130, 0.42, 0.5, 1.3);
 const lowBeam = new THREE.SpotLight(0xfff1d6, 0, 30, 0.95, 0.8, 1.2); // wide light on the road just ahead
 lowBeam.position.set(0, 0.7, 1.9);
 lowBeam.target.position.set(0, 0, 9);
 taxi.root.add(lowBeam, lowBeam.target);
 headlamp.position.set(0, 0.7, 1.9);
-headlamp.target.position.set(0, 0, 22);
+headlamp.target.position.set(0, 0, 30);
 taxi.root.add(headlamp, headlamp.target);
 lowBeam.userData.reach = 7; headlamp.userData.reach = 20;
 // Any vehicle on the street can be taken and driven (F next to it, on foot).
@@ -740,11 +741,11 @@ function step(dt) {
   tiles.props.lampMat.emissiveIntensity = night * 9;
   const lamps = damage.headlampFactor(player.condition);
   taxi.lights.headMat.emissiveIntensity = (0.2 + night * 5) * lamps;
-  headlamp.intensity = night * 140 * lamps;
-  lowBeam.intensity = night * 60 * lamps;
+  headlamp.intensity = night * 420 * lamps;
+  lowBeam.intensity = night * 150 * lamps;
   lampTimer -= dt;
   if (lampTimer <= 0) {
-    lampTimer = 0.4;
+    lampTimer = night > 0.05 ? 0.12 : 0.4; // headlight cones follow the traffic
     placeLampLights(night);
     seaFactor = nearSea();
   }
@@ -772,8 +773,25 @@ function step(dt) {
 window.__gtb.step = step;
 
 function placeLampLights(night) {
-  if (night < 0.05) { lampLights.forEach((l) => (l.intensity = 0)); return; }
-  const near = [];
+  if (night < 0.05) { lampLights.forEach((l) => (l.intensity = 0)); updateNightLights(0); return; }
+  const focus = interiors?.inside ? interiors.anchor.pos : onFoot ? walker.pos : player.pos;
+  // Lamp heads near the player: the mapped street lights, plus (every half second) a light every
+  // 30 m along the other streets, where the map has none — every road in Mumbai is lit at night.
+  lampScan -= 1;
+  if (lampScan <= 0 || !lampCache) { lampScan = 4; lampCache = gatherLamps(focus); }
+  const near = lampCache.map(([x, z]) => [(x - player.pos.x) ** 2 + (z - player.pos.z) ** 2, x, z]).sort((a, b) => a[0] - b[0]);
+  updateNightLights(night, focus, near.map(([, x, z]) => [x, z, 1]), traffic.cars, tier, onFoot || damage.headlampFactor(player.condition) < 0.3 ? null : player);
+  lampLights.forEach((l, i) => {
+    const n = near[i];
+    if (!n || n[0] > 120 * 120) { l.intensity = 0; return; }
+    l.position.set(n[1], 8.6, n[2]);
+    l.intensity = night * 30; // street lamps light a pool, not the whole facade
+  });
+}
+let lampScan = 0, lampCache = null;
+function gatherLamps(focus) {
+  const out = [], R = 170;
+  const cell = new Set(), ck = (x, z) => `${Math.floor(x / 14)},${Math.floor(z / 14)}`;
   for (const t of tiles.tiles.values()) {
     const arr = t.points[POINT.LIGHT];
     if (!arr) continue;
@@ -781,17 +799,25 @@ function placeLampLights(night) {
       const ang = arr[i + 3];
       // The lamp head hangs 1.9 m out over the road.
       const x = arr[i] + t.origin[0] + Math.sin(ang) * 1.9, z = arr[i + 2] + t.origin[1] + Math.cos(ang) * 1.9;
-      const d = (x - player.pos.x) ** 2 + (z - player.pos.z) ** 2;
-      if (d < 120 * 120) near.push([d, x, z]);
+      if (Math.abs(x - focus.x) > R || Math.abs(z - focus.z) > R) continue;
+      out.push([x, z]); cell.add(ck(x, z));
     }
   }
-  near.sort((a, b) => a[0] - b[0]);
-  lampLights.forEach((l, i) => {
-    const n = near[i];
-    if (!n) { l.intensity = 0; return; }
-    l.position.set(n[1], 8.6, n[2]);
-    l.intensity = night * 30; // street lamps light a pool, not the whole facade
-  });
+  for (const seg of traffic.segList || []) {
+    const s = seg.s;
+    if (s[4] < 2.5 || seg.len < 12) continue;
+    const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
+    if (Math.abs(mx - focus.x) > R + seg.len / 2 || Math.abs(mz - focus.z) > R + seg.len / 2) continue;
+    const fx = (s[2] - s[0]) / seg.len, fz = (s[3] - s[1]) / seg.len;
+    // Same spacing phase for a road everywhere, so lights don't jump as the player moves.
+    for (let d = 6 + (Math.abs(Math.round(s[0] + s[1])) % 30); d < seg.len - 3; d += 30) {
+      const side = Math.round(d / 30) % 2 ? 1 : -1, o = Math.max(0, s[4] - 1.4) * side;
+      const x = s[0] + fx * d + fz * o, z = s[1] + fz * d - fx * o;
+      if (Math.abs(x - focus.x) > R || Math.abs(z - focus.z) > R || cell.has(ck(x, z))) continue;
+      out.push([x, z]); cell.add(ck(x, z));
+    }
+  }
+  return out;
 }
 
 /** 0..1: how much open sea is around the player (for wave sounds). */

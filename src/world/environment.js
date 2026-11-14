@@ -76,7 +76,9 @@ export async function createEnvironment(renderer, scene, bounds, tier, lib) {
   scene.add(sea);
 
   const snap = new THREE.Vector3();
-  const dayHaze = haze.clone(), nightHaze = new THREE.Color(0.05, 0.05, 0.07), duskTint = new THREE.Color(1.0, 0.62, 0.38);
+  const dayBackground = scene.background?.isTexture ? scene.background : null;
+  const nightHaze = new THREE.Color(0.1, 0.085, 0.08), nightSky = nightSkyTexture(nightHaze);
+  const dayHaze = haze.clone(); const duskTint = new THREE.Color(1.0, 0.62, 0.38);
   const smogTint = new THREE.Color(0.62, 0.52, 0.4);
   const tmp = new THREE.Color(), warm = new THREE.Color(1, 0.55, 0.3), white = new THREE.Color(1, 0.9, 0.8);
   const up = new THREE.Vector3(0, 1, 0);
@@ -98,17 +100,24 @@ export async function createEnvironment(renderer, scene, bounds, tier, lib) {
         const d = clock.daylight, n = clock.night, tw = clock.twilight;
         const elevDeg = THREE.MathUtils.radToDeg(clock.elevation);
         const smog = THREE.MathUtils.clamp((clock.aqi - 50) / 350, 0, 1);
-        scene.backgroundIntensity = 0.03 + 0.97 * d;
+        // Night: the sky photo would still show its (fixed-elevation) sun, so switch to a night
+        // sky — dark blue overhead, the orange glow of the city at the horizon, a few stars.
+        if (dayBackground) {
+          const nightNow = d < 0.12;
+          if (nightNow && scene.background !== nightSky) scene.background = nightSky;
+          if (!nightNow && scene.background !== dayBackground) scene.background = dayBackground;
+        }
+        scene.backgroundIntensity = scene.background === nightSky ? 1 : 0.05 + 0.95 * d;
         scene.environmentIntensity = 0.05 + 0.95 * d;
         sun.intensity = 3.2 * THREE.MathUtils.smoothstep(elevDeg, -1, 7) * (1 - 0.45 * smog);
         sun.color.copy(warm).lerp(white, THREE.MathUtils.smoothstep(elevDeg, 2, 30));
-        hemi.intensity = 0.22 + 0.16 * n;   // shade fill by day; a little city glow at night — walls away from lamps go dark
-        moon.intensity = 0.35 * n;
+        hemi.intensity = 0.22 + 0.34 * n;   // shade fill by day; a little city glow at night — walls away from lamps go dark
+        moon.intensity = 0.5 * n;
         // Haze: browner and thicker with worse air; dark at night with a dusk glow.
         tmp.copy(dayHaze).lerp(smogTint, smog * 0.35).lerp(duskTint.clone().multiplyScalar(dayHaze.r), tw * 0.35);
         scene.fog.color.copy(nightHaze).lerp(tmp, d);
         scene.fog.density = 0.0007 + clock.aqi * 0.0000072 + n * 0.00012;
-        renderer.toneMappingExposure = THREE.MathUtils.lerp(1.15, 0.62, d) * (renderer.exposureScale || 1);
+        renderer.toneMappingExposure = THREE.MathUtils.lerp(1.4, 0.62, d) * (renderer.exposureScale || 1);
         seaMat.color.setRGB(0.17, 0.31, 0.34).multiplyScalar(0.25 + 0.75 * d);
       }
       // Shadow box follows the player; snap to whole texels so shadows don't shimmer.
@@ -118,6 +127,29 @@ export async function createEnvironment(renderer, scene, bounds, tier, lib) {
       seaMat.userData.time.value += dt;
     },
   };
+}
+
+/**
+ * Night sky (equirectangular canvas): deep blue overhead, the orange-grey glow of a big city
+ * towards the horizon (matching the night haze, so fogged buildings melt into it), faint stars.
+ */
+function nightSkyTexture(horizon) {
+  const W = 512, H = 256, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const hz = horizon.clone().convertLinearToSRGB(), top = new THREE.Color(0.012, 0.016, 0.035).convertLinearToSRGB();
+  const css = (col, k = 1) => `rgb(${Math.round(col.r * 255 * k)},${Math.round(col.g * 255 * k)},${Math.round(col.b * 255 * k)})`;
+  const grad = g.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, css(top)); grad.addColorStop(0.32, css(top.clone().lerp(hz, 0.3)));
+  grad.addColorStop(0.47, css(hz.clone().lerp(top, 0.15))); grad.addColorStop(0.5, css(hz)); grad.addColorStop(1, css(hz, 0.7));
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+  let seed = 3;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 160; i++) { const y = rnd() * H * 0.36, a = 0.25 + rnd() * 0.5 * (1 - y / (H * 0.36)); g.fillStyle = `rgba(255,250,235,${a})`; g.fillRect(rnd() * W, y, 1, 1); }
+  const t = new THREE.CanvasTexture(c);
+  t.mapping = THREE.EquirectangularReflectionMapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 /** Find the sun (brightest pixel), a sun-free copy for lighting, and the horizon colour. */

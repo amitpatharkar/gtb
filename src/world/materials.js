@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { addMacroVariation } from './textures.js';
 import { makeFacadeMaterial, makeSignAtlas } from './facade.js';
 import { makeHoardingAtlas, makeHoardingMaterial } from './hoardings.js';
+import { addNightLight } from './nightLights.js';
 
 // Materials for tile meshes, keyed like the worker's mesh keys. Each starts with a flat
 // colour and switches to a real photo-scanned texture set when it has loaded.
@@ -113,6 +114,9 @@ export function createMaterials(renderer, lib, tier) {
       return w;
     }),
   };
+  // Street lamps and headlights light the ground and the walls at night (nightLights.js).
+  for (const k of ['road', 'roadWorn', 'roadPoor', 'footpath', 'plot', 'paved', 'grass', 'wood', 'pitch', 'sand', 'dirt', 'railyard', 'pier', 'footway', 'kerb', 'kerbPlain', 'seawall', 'parapet', 'paint']) if (m[k]) addNightLight(m[k]);
+  for (const w of m.walls) addNightLight(w);
   // Rooftop hoardings share the sign fonts: redrawing the shop signs redraws the ads too.
   const ads = makeHoardingAtlas();
   m.hoarding = makeHoardingMaterial(ads.texture);
