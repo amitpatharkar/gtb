@@ -125,7 +125,7 @@ const traffic = new Traffic(scene, tiles, tier);
 const vehicleArt = loadVehicleArt(BASE, traffic, started).catch(() => []);
 setStreetProfiles(index.profiles); // street library: parking and life by street type
 const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
-const skyline = new Skyline(scene, tiles, tier); // distant tall buildings beyond the loaded tiles
+const skyline = new Skyline(scene, tiles, tier, camera.far); // distant tall buildings beyond the loaded tiles (up to the far plane)
 const signals = new Signals(scene);
 traffic.signals = signals;
 const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);

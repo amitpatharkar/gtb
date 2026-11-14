@@ -20,11 +20,12 @@ export class Skyline {
    * @param {THREE.Scene} scene
    * @param {object} tiles TileManager (index.skyline names the file; tiles + size say what is loaded)
    * @param {object} tier quality tier (name)
+   * @param {number} [far] camera far plane: boxes beyond it could never draw
    */
-  constructor(scene, tiles, tier) {
+  constructor(scene, tiles, tier, far = Infinity) {
     this.scene = scene;
     this.tiles = tiles;
-    this.range = tier.name === 'High' ? 4200 : tier.name === 'Medium' ? 3300 : 2600;
+    this.range = Math.min(tier.name === 'High' ? 4200 : tier.name === 'Medium' ? 3300 : 2600, far - 50);
     this.max = tier.name === 'High' ? 4500 : tier.name === 'Medium' ? 3200 : 2200;
     this.knee = tier.loadRadius || 520;
     this.at = { x: 1e9, z: 1e9, v: -1 };

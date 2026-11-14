@@ -36,6 +36,10 @@ export function createPost(renderer, scene, camera, tier) {
   if (tier.ao) opts.depthTexture = new THREE.DepthTexture(size.x, size.y);
   const target = new THREE.WebGLRenderTarget(size.x, size.y, opts);
   const composer = new EffectComposer(renderer, target);
+  // Sizes given to the composer are already drawing-buffer pixels (main.js passes
+  // getDrawingBufferSize). Left at the renderer's pixel ratio (1.5 on High) it would multiply
+  // again: up to 2.25× the pixels for every pass. Set before the first addPass (which sizes it).
+  composer.setPixelRatio(1);
   composer.addPass(new RenderPass(scene, camera));
 
   let gtao = null;
