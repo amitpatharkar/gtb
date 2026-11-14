@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { handlingFor, MASS } from './handling.js';
 
 // Any vehicle on the street can be taken and driven, GTA-style (F next to it on foot).
 // The player's Car object stays the same; the Garage swaps what it is: model, size,
@@ -10,20 +11,9 @@ import * as THREE from 'three';
 const OWNER_SAYS = ['Arre! Meri gaadi!', 'Chor! Chor! Pakdo!', 'Oye! Gaadi chhod!', 'Police! Police!', 'EMI abhi baaki hai!'];
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
-/** Handling by type: top speed (m/s) and acceleration; everything else comes from its size. */
-const DRIVE = {
-  alto: [27, 5.6], wagonr: [28, 5.8], taxi: [28, 5.8], taxiI10: [29, 6], i10: [30, 6.2], swift: [34, 7.2], dzire: [33, 6.8], cabDzire: [33, 6.8],
-  city: [38, 7.8], ertiga: [31, 6], cabErtiga: [31, 6], coolcab: [31, 6], innova: [34, 6.4], bolero: [29, 5.4], creta: [36, 7], eeco: [25, 5],
-  padmini: [26, 6.2], bus: [18, 2.6], decker: [16, 2.3], ace: [20, 3.6], tempo: [21, 3.2],
-  scooter: [22, 6.5], delivery: [22, 6.5], bike: [27, 8], bullet: [30, 7.2],
-  auto: [17, 4.2], cycle: [8, 3.2], dabba: [8, 3], ambulance: [30, 6], school: [17, 2.5], tanker: [19, 2.8], compactor: [17, 2.6],
-};
-/** Rough kerb weights (kg) for collisions. */
-export const MASS = {
-  alto: 760, wagonr: 850, taxi: 850, taxiI10: 900, i10: 900, swift: 900, dzire: 950, cabDzire: 950, city: 1150, ertiga: 1200, cabErtiga: 1200, coolcab: 1200,
-  innova: 1800, bolero: 1650, creta: 1300, eeco: 950, padmini: 900, bus: 11000, decker: 15000, ace: 1100, tempo: 3200, scooter: 110, delivery: 120, bike: 115, bullet: 195,
-  auto: 380, cycle: 20, dabba: 40, ambulance: 1000, school: 9000, tanker: 7500, compactor: 8000,
-};
+/** The player's own kaali-peeli (a different thing from a fleet 'taxi' taken from the street). */
+const OWN = 'kaali';
+export { MASS };
 
 export class Garage {
   /**
@@ -32,16 +22,16 @@ export class Garage {
    */
   constructor(o) {
     Object.assign(this, o);
-    this.type = 'taxi';            // what the player Car currently is ('taxi' = the kaali-peeli)
+    this.type = OWN;               // what the player Car currently is (OWN = the player's own kaali-peeli)
     this.model = null;             // borrowed vehicle model (null in the taxi)
     this.tint = null;
     this.home = null;              // where the taxi is parked while the player drives something else
-    this.taxiShape = { radius: this.player.radius, halfLength: this.player.halfLength, maxSpeed: this.player.maxSpeed, accel: this.player.accel, circles: this.player.circles };
+    this.taxiShape = { radius: this.player.radius, halfLength: this.player.halfLength, circles: this.player.circles };
     this.paintMats = new Map();
   }
 
-  get inTaxi() { return this.type === 'taxi'; }
-  get spec() { return this.traffic.types[this.type === 'taxi' ? 'padmini' : this.type]; }
+  get inTaxi() { return this.type === OWN; }
+  get spec() { return this.traffic.types[this.type === OWN ? 'padmini' : this.type]; }
   get name() { return this.inTaxi ? 'your kaali-peeli' : this.spec.name; }
   get rider() { return !this.inTaxi && !!this.spec.rider; }
   /** The player can be seen driving: two-wheelers and open autos. */
@@ -64,22 +54,24 @@ export class Garage {
     return { root, body, wheels: [], steerers: [], lights: { tailMat: {} }, wheelRadius: 0.3, wheelBase: Math.max(1.2, T.len * 0.62) };
   }
 
-  /** Give the player Car the size and handling of a fleet type (and the engine and horn that go with it). */
+  /**
+   * Give the player Car the size and handling of a fleet type (handling.js: mass, drive, grip,
+   * suspension…) and the engine and horn that go with it.
+   */
   shape(type) {
-    const p = this.player, S = type === 'taxi' ? null : this.traffic.types[type];
+    const p = this.player, S = type === OWN ? null : this.traffic.types[type];
     if (this.audio) {
       this.audio.engineKind = !S ? 'car' : S.pedal ? 'cycle' : S.rider ? 'bike' : S.open ? 'auto' : S.big ? 'big' : 'car';
       this.audio.hornKind = !S ? null : S.pedal ? 'bell' : S.rider || S.open ? 'peep' : null;
     }
-    if (type === 'taxi') { Object.assign(p, this.taxiShape); p.mass = MASS.padmini; return; }
-    const T = this.traffic.types[type], [top, accel] = DRIVE[type] || DRIVE[T.base] || [28, 6];
+    if (type === OWN) { Object.assign(p, this.taxiShape); p.setHandling(handlingFor(OWN)); return; }
+    const T = this.traffic.types[type];
     p.radius = Math.max(0.35, T.wid / 2);
     p.halfLength = Math.max(0, T.len / 2 - p.radius);
     // Long vehicles get extra collision circles between the two ends.
     const n = Math.max(2, Math.ceil((2 * p.halfLength) / (1.6 * p.radius)) + 1);
     p.circles = Array.from({ length: n }, (_, i) => -p.halfLength + (2 * p.halfLength * i) / (n - 1 || 1));
-    p.maxSpeed = top; p.accel = accel;
-    p.mass = MASS[type] || MASS[T.base] || 1000;
+    p.setHandling(handlingFor(type, T));
   }
 
   /**
@@ -107,10 +99,10 @@ export class Garage {
   park() {
     const p = this.player;
     if (this.inTaxi) {
-      this.home = { x: p.pos.x, z: p.pos.z, heading: p.heading, fuel: p.fuel, condition: p.condition };
+      this.home = { x: p.pos.x, z: p.pos.z, heading: p.heading, fuel: p.fuel, condition: p.condition, flat: p.flat };
       this.homeBody = { pos: new THREE.Vector3(p.pos.x, p.pos.y, p.pos.z), heading: p.heading, condition: p.condition, speed: 0 };
     } else {
-      this.traffic.left.push({ type: this.type, x: p.pos.x, z: p.pos.z, heading: p.heading, tint: this.tint, fuel: p.fuel, condition: p.condition, taken: true });
+      this.traffic.left.push({ type: this.type, x: p.pos.x, z: p.pos.z, heading: p.heading, tint: this.tint, fuel: p.fuel, condition: p.condition, taken: true, flat: p.flat, roll: p.fallen ? p.fallen * 1.45 : 0 });
       this.scene.remove(this.model.root);
       this.model = null;
     }
@@ -133,7 +125,8 @@ export class Garage {
     this.scene.add(this.model.root);
     p.model = this.model;
     this.shape(v.type);
-    p.pos.set(v.x, p.pos.y, v.z); p.heading = v.heading; p.speed = 0; p.vx = p.vz = 0; p.lastSpeed = 0; p.steer = 0;
+    p.pos.set(v.x, p.pos.y, v.z); p.heading = v.heading; p.speed = 0; p.vx = p.vz = 0; p.lastSpeed = 0; p.steer = 0; p.yaw = 0;
+    p.fallen = 0; p.flat = v.flat ?? -1;
     p.fuel = v.fuel ?? 0.35 + Math.random() * 0.55;
     p.condition = v.condition ?? 0.9 + Math.random() * 0.1;
     this.moveLamps(this.model.root, this.spec);
@@ -147,11 +140,11 @@ export class Garage {
     if (this.inTaxi) return;
     const p = this.player, h = this.home;
     this.park();
-    this.type = 'taxi'; this.tint = null;
+    this.type = OWN; this.tint = null;
     p.model = this.taxi;
-    this.shape('taxi');
-    p.pos.set(h.x, p.pos.y, h.z); p.heading = h.heading; p.speed = 0; p.vx = p.vz = 0; p.lastSpeed = 0;
-    p.fuel = h.fuel; p.condition = h.condition;
+    this.shape(OWN);
+    p.pos.set(h.x, p.pos.y, h.z); p.heading = h.heading; p.speed = 0; p.vx = p.vz = 0; p.lastSpeed = 0; p.yaw = 0;
+    p.fuel = h.fuel; p.condition = h.condition; p.flat = h.flat ?? -1; p.fallen = 0;
     this.home = null;
     this.moveLamps(this.taxi.root, null);
   }
@@ -180,9 +173,8 @@ export class Garage {
     return ped;
   }
 
-  /** Each step: lean a bike into corners; autos are not allowed in the island city. */
+  /** Each step: autos are not allowed in the island city (bikes lean by themselves: car.js). */
   update(dt = 0.016) {
-    if (this.model && this.rider) this.model.body.rotation.z = THREE.MathUtils.clamp(-(this.player.yaw || 0) * Math.abs(this.player.speed) * 0.03, -0.5, 0.5);
     if (this.type === 'auto' && !this.traffic.inSuburbs(this.player.pos.z)) {
       // South of Bandra and Sion: a constable who sees the auto writes a challan (every so often).
       if (!this.townWarned) { this.townWarned = true; this.hud.message('Autos are not allowed in town (south of Bandra and Sion) — a constable who sees you will write a challan'); }

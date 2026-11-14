@@ -6,6 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 // Holi colour patches per person (blotchy splats that move with the limbs), so a few
 // hundred people cost one draw call.
 
+const X_AXIS = new THREE.Vector3(1, 0, 0);
 export const POSE = { WALK: 0, STAND: 1, WAVE: 2, POINT: 3, ARGUE: 4, BAT: 5, SIT: 6, CROUCH: 7, FALLEN: 8, KICK: 9, PUSH: 10, PUNCH: 11, FIGHT: 12, THROW: 13, PEDAL: 14 };
 export const FLAG = { CAP: 1, SARI: 2, BERET: 4 };
 
@@ -188,7 +189,7 @@ export class PeopleRenderer {
     this.mesh.frustumCulled = false;
     scene.add(this.mesh);
     this.n = 0;
-    this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.p = new THREE.Vector3(); this.s = new THREE.Vector3();
+    this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.q2 = new THREE.Quaternion(); this.p = new THREE.Vector3(); this.s = new THREE.Vector3();
   }
 
   begin() { this.n = 0; this.pending = []; }
@@ -216,7 +217,13 @@ export class PeopleRenderer {
     const i = this.n++;
     this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, p.heading);
     const sc = p.scale ?? 1;
-    this.m.compose(this.p.set(p.x, p.y, p.z), this.q, this.s.set(sc, sc, sc));
+    const tilt = p.tilt && p.pose !== POSE.FALLEN ? p.tilt : 0;
+    if (tilt) {
+      // Thrown or staggering (ragdoll.js): tilted back about the hips.
+      this.q.multiply(this.q2.setFromAxisAngle(X_AXIS, -tilt));
+      const hip = 0.9 * sc, back = hip * Math.sin(tilt);
+      this.m.compose(this.p.set(p.x + Math.sin(p.heading) * back, p.y + hip * (1 - Math.cos(tilt)), p.z + Math.cos(p.heading) * back), this.q, this.s.set(sc, sc, sc));
+    } else this.m.compose(this.p.set(p.x, p.y, p.z), this.q, this.s.set(sc, sc, sc));
     this.mesh.setMatrixAt(i, this.m);
     this.anim.setXYZW(i, p.phase ?? 0, p.pose ?? 0, p.amp ?? 1, p.flags ?? 0);
     this.colA.setXYZ(i, p.shirt.r, p.shirt.g, p.shirt.b);

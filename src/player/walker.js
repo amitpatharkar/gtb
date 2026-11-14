@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { POSE } from '../sim/people.js';
+import { REACT } from '../sim/ragdoll.js';
 
 // The player on foot: walk (W/S, A/D to turn), run with Shift (uses stamina, which bad air
 // and low energy shrink), bump into walls, get knocked over by careless drivers.
@@ -20,6 +21,7 @@ export class Walker {
       shirt: new THREE.Color(0x1f8a8a), pants: new THREE.Color(0x24324a), skin: new THREE.Color(0x8d5a3b),
     };
     this.h = 2.2;
+    this.rag = null; this.tilt = 0; this.ragPose = 0; this.ragdoll = null; // ragdoll.js reactions
   }
 
   get x() { return this.pos.x; }
@@ -28,6 +30,7 @@ export class Walker {
 
   /** Move relative to the camera (GTA style): W away from the camera, A/D sideways. */
   update(dt, input, world, energy = 1, aqi = 100, view = null) {
+    if (this.rag) { this.down = Math.max(this.down, 0.15); this.speed = 0; this.vx = this.vz = 0; return; } // thrown or staggering: ragdoll.js moves us
     if (this.down > 0) {
       this.down -= dt;
       this.speed = 0;
@@ -51,7 +54,10 @@ export class Walker {
     const canRun = this.stamina > 0.05 && moving && !aiming;
     const run = input.run && canRun;
     const top = !moving ? 0 : aiming ? 1.4 : run ? 5.2 * (0.7 + 0.3 * energy) : 1.9;
-    this.speed += Math.max(-8 * dt, Math.min(6 * dt, top - this.speed));
+    // Momentum on foot: quick to start, a short skid to stop from a sprint, and a sharp turn
+    // at a run costs speed (GTA's on-foot inertia, toned down).
+    const turnCost = Math.abs(d) > 1.2 && this.speed > 3 ? 0.55 : 1;
+    this.speed += Math.max((this.speed > 3.5 && !moving ? -5.5 : -8) * dt, Math.min(6 * dt, top * turnCost - this.speed));
     // Stamina: running drains it (faster in bad air), walking and standing restore it.
     const drain = (0.11 + aqi / 2500) * (1.3 - energy * 0.3);
     this.stamina = Math.max(0, Math.min(1, this.stamina + (run ? -drain : 0.12) * dt));
@@ -80,11 +86,23 @@ export class Walker {
     this.calm = 0;
   }
 
-  knock(amount) {
-    if (this.down > 0) return;
+  /** Knocked over: by a shove (vx, vz: m/s), a car or a train; ragdoll.js does the fall if it is there. */
+  knock(amount, vx = 0, vz = 0) {
+    if (this.down > 0 || this.rag) return;
     this.down = 1.6;
     this.health = Math.max(0, this.health - amount);
     this.calm = 0;
+    if (this.ragdoll) this.ragdoll.hit(this, vx, vz, { mass: 80, react: REACT.STUMBLE, down: 1.1 });
+  }
+
+  /** Hit by a vehicle at (vx, vz) with its mass: a reaction picked from the impact (ragdoll.js). */
+  struck(vx, vz, mass, amount) {
+    if (this.rag || this.down > 0) return null;
+    this.health = Math.max(0, this.health - amount);
+    this.calm = 0;
+    this.hurt = 0.3;
+    if (!this.ragdoll) { this.down = 1.6; return null; }
+    return this.ragdoll.hit(this, vx, vz, { mass, agile: true, down: 1.2 + Math.random() });
   }
 
   draw(people, weapon = 'fists') {
@@ -94,9 +112,11 @@ export class Walker {
     else if (this.spraying || (this.aiming && weapon === 'pichkari')) pose = POSE.POINT;
     else if (this.aiming) pose = POSE.FIGHT;
     if (this.down > 0) pose = POSE.FALLEN;
+    if (this.rag) pose = this.ragPose ?? POSE.FALLEN;
     // One persistent object, so the real character model keeps following the same person.
     const p = (this.person ||= { isPlayer: true, flags: 0, scale: 1, model: 0, hair: new THREE.Color(0x17110c) });
     p.hitT = this.hurt > 0 ? this.hurt : 0; p.swingN = this.action?.n || p.swingN || 0;
+    p.tilt = this.rag ? this.tilt || 0 : 0;
     Object.assign(p, { x: this.pos.x, y: this.pos.y, z: this.pos.z, heading: this.heading, phase: this.action?.t > 0 ? this.action.phase : this.phase, pose, amp: Math.min(1.7, Math.abs(this.speed) / 1.3 + 0.2), speed: Math.abs(this.speed), shirt: this.look.shirt, pants: this.look.pants, skin: this.look.skin, patches: this.patches });
     people.add(p);
   }

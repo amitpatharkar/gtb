@@ -533,13 +533,18 @@ export class Characters {
       c.root.scale.setScalar(sc);
       c.holder.rotation.set(0, p.heading, 0);
       c.root.rotation.x = fallen ? -Math.PI / 2 : 0; // knocked down: flat on the back
+      // Thrown, tumbling or staggering (ragdoll.js): tilted back about the hips.
+      const tilt = !fallen && p.tilt ? p.tilt : 0;
+      if (tilt) { const hip = 0.9 * s; c.root.rotation.x = -tilt; c.root.position.set(0, hip * (1 - Math.cos(tilt)), hip * Math.sin(tilt)); }
+      else if (c.tilted) c.root.position.set(0, 0, 0);
+      c.tilted = !!tilt;
       let y = (p.y || 0) + c.lift * s;
       if (sitting) y = (p.y || 0) + 0.42 + (t.sitLift - t.sitHip) * s; // callers give the seat height minus 0.42 (the procedural pelvis)
       if (fallen) y = (p.y || 0) + 0.16;
       y += 0.025 * run;
       if (run > 0 && c.current) y += Math.abs(Math.sin((c.current.time * Math.PI * 2) / c.current.getClip().duration)) * 0.045 * run;
       c.holder.position.set(p.x, y, p.z);
-      if (c.sari) { c.sari.visible = c.wearSari && !fallen && !sitting; c.sari.scale.setScalar(s * (c.t.female ? 1 : 1.08)); }
+      if (c.sari) { c.sari.visible = c.wearSari && !fallen && !sitting && Math.abs(tilt) < 0.5; c.sari.scale.setScalar(s * (c.t.female ? 1 : 1.08)); }
       // Far characters animate at half rate.
       const far = (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2 > 24 * 24 && !p.isPlayer;
       if (!far || (this.frame & 1) === 0) {

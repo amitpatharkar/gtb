@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { POSE, addPatch } from '../sim/people.js';
+import { REACT } from '../sim/ragdoll.js';
 
 // Street fights, Bollywood-comedy style (no weapons, no blood): on foot the player can
 // punch (left mouse with fists), kick (V) and hurl insults (G, bleeped). People react:
@@ -44,7 +45,7 @@ export class Combat {
     const w = this.walker, fx = Math.sin(w.heading), fz = Math.cos(w.heading);
     const out = [];
     const test = (o, kind) => {
-      if (!o || o.combat?.mode === 'down' || o.downT > 0) return;
+      if (!o || o.combat?.mode === 'down' || o.downT > 0 || o.rag) return;
       const dx = o.x - w.pos.x, dz = o.z - w.pos.z, d = Math.hypot(dx, dz);
       if (d > range || (dx * fx + dz * fz) / (d || 1) < 0.45) return;
       out.push({ o, kind, d });
@@ -141,19 +142,27 @@ export class Combat {
     if (t.kind === 'npc') {
       // People standing at a thela or bus stop: knocked over, then back up, swearing.
       o.basePose ??= o.pose;
-      if (o.hp <= 0 || Math.random() < knockChance) { o.pose = POSE.FALLEN; o.downT = 4; this.knocked.push(o); }
-      else o.pose = POSE.ARGUE;
+      if (o.hp <= 0 || Math.random() < knockChance) {
+        o.pose = POSE.FALLEN; o.downT = 4; this.knocked.push(o);
+        this.ragdoll?.hit(o, (dx / l) * push * 1.3, (dz / l) * push * 1.3, { mass: 80, react: heavy && push > 3 ? REACT.FLING : REACT.STUMBLE, down: 3, done: (q) => { q.downT = 0.01; } });
+      } else {
+        o.pose = POSE.ARGUE;
+        if (heavy) this.ragdoll?.hit(o, (dx / l) * push, (dz / l) * push, { mass: 80, react: REACT.STAGGER, done: (q) => { q.pose = POSE.ARGUE; } });
+      }
       this.say(o, Math.random() < 0.5 ? HURT : INSULTS);
       this.crime('brawl');
       return;
     }
-    // Pedestrians fight back, flee, or go down.
-    o.x += (dx / l) * push * 0.4; o.z += (dz / l) * push * 0.4;
+    // Pedestrians fight back, flee, or go down. A heavy blow staggers them back (Euphoria-lite).
+    if (heavy && this.ragdoll) this.ragdoll.hit(o, (dx / l) * push, (dz / l) * push, { mass: 80, react: REACT.STAGGER });
+    else { o.x += (dx / l) * push * 0.4; o.z += (dz / l) * push * 0.4; }
     this.crime('brawl');
     if (o.hp <= 0 || Math.random() < knockChance) {
       const ko = o.hp <= 0;
       this.free(o, 'down');
       o.combat.t = ko ? 6 + Math.random() * 2 : 3 + Math.random() * 1.5;
+      // Down they go: a kick finisher sends them flying a little, a punch drops them backwards.
+      this.ragdoll?.hit(o, (dx / l) * push * 1.4, (dz / l) * push * 1.4, { mass: 80, react: push > 3.2 ? REACT.FLING : REACT.STUMBLE, down: o.combat.t, done: (q) => { if (q.combat) q.combat.t = 0; } });
       this.say(o, ko ? ['💫 …', 'Bas… bas…', 'Maa…!'] : HURT);
       if (ko) { this.hud.message('Knockout! 💫'); this.kos = (this.kos || 0) + 1; }
       return;
@@ -196,6 +205,7 @@ export class Combat {
   updateFighter(p, dt) {
     const c = p.combat, w = this.walker;
     c.life += dt; c.t -= dt; c.cool -= dt;
+    if (p.rag) return; // thrown, staggering or lying: ragdoll.js moves them
     // Distances from where the player really is: the walker on foot, the vehicle while driving.
     const me = !this.onFoot && this.car ? this.car.pos : w.pos;
     const dx = me.x - p.x, dz = me.z - p.z, d = Math.hypot(dx, dz);
@@ -204,8 +214,8 @@ export class Combat {
     const far = d > 16 || !this.onFoot;
     switch (c.mode) {
       case 'down':
+        if (c.t <= 0) { c.mode = 'flee'; c.t = 6; p.hp = 0.6; this.say(p, SORRY); break; }
         p.pose = POSE.FALLEN;
-        if (c.t <= 0) { c.mode = 'flee'; c.t = 6; p.hp = 0.6; this.say(p, SORRY); }
         break;
       case 'flee': {
         p.pose = POSE.WALK; p.amp = 1.5;
@@ -239,7 +249,7 @@ export class Combat {
                 if (Math.random() < 0.4) this.say(w, ['Block!', 'Bas itna hi?', 'Aur zor se!']);
               } else {
                 w.hitBy(c.push ? 0.03 : 0.06, dx / l, dz / l, c.push ? 4.5 : 1.6);
-                if (c.push && Math.random() < 0.2) w.knock(0.02);
+                if (c.push && Math.random() < 0.2) w.knock(0.02, (dx / l) * 2.5, (dz / l) * 2.5);
                 this.audio.punch?.(0.8);
                 if (Math.random() < 0.35) this.say(p, c.push ? ['Hatt!', 'Chal nikal!', 'Dhakka!'] : FIGHT);
               }
@@ -326,7 +336,7 @@ export class Combat {
     if (sp < 1.2) return;
     const fx = Math.sin(car.heading), fz = Math.cos(car.heading), HL = car.halfLength, R = car.radius + 0.28;
     const test = (o, kind) => {
-      if (!o || o.combat?.mode === 'down' || o.downT > 0) return;
+      if (!o || o.combat?.mode === 'down' || o.downT > 0 || o.rag) return;
       const dx = o.x - car.pos.x, dz = o.z - car.pos.z;
       if (Math.abs(dx) > 9 || Math.abs(dz) > 9 || car.vx * dx + car.vz * dz <= 0) return;
       const along = Math.max(-HL, Math.min(HL, dx * fx + dz * fz));
@@ -336,23 +346,30 @@ export class Combat {
       if (d < 0.05) { ex = -fz; ez = fx; } else { ex /= d; ez /= d; }
       const hard = sp > 4.2 && this.adult(o) && kind !== 'npcKid';
       if (!hard) {
-        // Jump clear, sideways out of the car's path.
+        // Jump clear, sideways out of the car's path (or get bumped and stagger, arms going).
         const nx = o.x + ex * (R - d + 0.25), nz = o.z + ez * (R - d + 0.25);
-        if (!this.tiles.hits(nx, nz, 0.2)) { o.x = nx; o.z = nz; }
+        if (sp > 2.2 && kind !== 'npcKid' && this.adult(o) && this.ragdoll && Math.random() < 0.6) this.ragdoll.hit(o, car.vx * 0.5 + ex * 1.2, car.vz * 0.5 + ez * 1.2, { mass: car.mass || 900, react: REACT.STAGGER });
+        else if (!this.tiles.hits(nx, nz, 0.2)) { o.x = nx; o.z = nz; }
         if (!o.yelledAt || performance.now() - o.yelledAt > 2500) { o.yelledAt = performance.now(); this.say(o, kind === 'cop' ? 'Ae! Gaadi peeche lo!' : ['Arre! Dekh ke!', 'Oye! Marega kya?!', 'Footpath pe chadha dega kya?!'], kind === 'cop' ? 'cop' : ''); }
         if (kind === 'ped' && !o.combat) { o.state = 'angry'; o.timer = 2; }
         return;
       }
-      // Knocked off their feet, thrown a little along the car's way.
-      const ux = car.vx / sp, uz = car.vz / sp, throwD = Math.min(3, 0.6 + sp * 0.18);
-      const nx = o.x + ux * throwD + ex * 0.6, nz = o.z + uz * throwD + ez * 0.6;
-      if (!this.tiles.hits(nx, nz, 0.2)) { o.x = nx; o.z = nz; }
-      car.vx *= 0.86; car.vz *= 0.86; car.lastSpeed = NaN; // the car loses some speed
+      // Knocked off their feet: a reaction picked from the impact (stagger, stumble, thrown,
+      // up over the bonnet, or a last-moment dive), carried by momentum. The car loses what it gave.
+      const side = ex * Math.cos(car.heading) - ez * Math.sin(car.heading) > 0 ? 1 : -1;
+      const done = kind === 'ped' ? (q) => { if (q.combat) q.combat.t = 0; } : kind === 'cop' ? null : (q) => { q.downT = 0.01; };
+      const down = 2.5 + Math.random() * 2.5;
+      if (this.ragdoll) this.ragdoll.hit(o, car.vx, car.vz, { mass: car.mass || 900, agile: Math.random() < 0.5, side, down, done });
+      else { const nx = o.x + (car.vx / sp) * 1.5, nz = o.z + (car.vz / sp) * 1.5; if (!this.tiles.hits(nx, nz, 0.2)) { o.x = nx; o.z = nz; } }
+      const keep = 1 - Math.min(0.6, (70 * 1.4) / ((car.mass || 900) + 70));
+      car.vx *= keep; car.vz *= keep; car.lastSpeed = NaN;
+      // On a two-wheeler that is a crash for the rider too.
+      if (car.h?.twoWheeler && sp > 7 && !car.fallen) { car.crash = 'thrown'; car.fallen = side; }
       this.audio.punch?.(1);
       this.say(o, HURT);
       if (kind === 'cop') { o.task = null; this.police.offence('assault', car); return; }
-      if (kind === 'ped') { this.free(o, 'down'); o.combat.t = 3.5 + Math.random() * 2.5; o.hp = 0.5; }
-      else { o.basePose ??= o.pose; o.pose = POSE.FALLEN; o.downT = 4 + Math.random() * 2; this.knocked.push(o); }
+      if (kind === 'ped') { this.free(o, 'down'); o.combat.t = down + 3; o.hp = 0.5; }
+      else { o.basePose ??= o.pose; o.pose = POSE.FALLEN; o.downT = down + 3; this.knocked.push(o); }
       this.police.offence('hitrun', car);
     };
     for (const p of this.street.peds) test(p, 'ped');
@@ -413,7 +430,7 @@ export class Combat {
     for (const p of this.street.peds) if (p.free && p.combat) this.updateFighter(p, dt);
     this.pichkari.drawNpcGuns(this.sprayers);
     // Knocked-over bystanders get back up.
-    this.knocked = this.knocked.filter((o) => { o.downT -= dt; if (o.downT <= 0) { o.pose = POSE.ARGUE; setTimeout(() => { o.pose = o.basePose ?? POSE.STAND; }, 2500); this.say(o, INSULTS); return false; } return true; });
+    this.knocked = this.knocked.filter((o) => { if (o.rag) return true; o.downT -= dt; if (o.downT <= 0) { o.pose = POSE.ARGUE; setTimeout(() => { o.pose = o.basePose ?? POSE.STAND; }, 2500); this.say(o, INSULTS); return false; } return true; });
     this.updateProjectiles(dt);
   }
 }

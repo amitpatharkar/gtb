@@ -2,6 +2,9 @@
 // mesh arrays plus collision data, so the main thread only creates GPU buffers.
 import { decodeTile, AREA, ROAD, ROAD_FLAG, POINT } from './tileFormat.js';
 import { Y } from './levels.js';
+
+// Area kind → surface (index into handling.js SURFACE: 4 grass, 5 sand, 6 dirt).
+const SOFT = { [AREA.GRASS]: 4, [AREA.PITCH]: 4, [AREA.WOOD]: 4, [AREA.SAND]: 5, [AREA.DIRT]: 6, [AREA.RAILYARD]: 6 };
 import { buildGround } from './mesh/ground.js';
 import { buildBuildings } from './mesh/buildings.js';
 
@@ -89,6 +92,11 @@ function buildTile(t) {
 
   // Walkable ground: land and piers (roads over water are checked separately).
   const walkable = t.areas.filter((a) => a.kind === AREA.LAND || a.kind === AREA.PIER).map((a) => a.rings.map(toWorld));
+  // Loose ground for tyre grip (surface materials, handling.js SURFACE): grass, sand, dirt.
+  const softAreas = t.areas.filter((a) => SOFT[a.kind] !== undefined);
+  const soft = packPolys(softAreas.map((a) => a.rings.map(toWorld)), transfer);
+  soft.kinds = Uint8Array.from(softAreas, (a) => SOFT[a.kind]);
+  transfer.push(soft.kinds.buffer);
 
   // Road centre segments for collisions over water, road names and ground height.
   const segs = [], segName = [], segBox = [];
@@ -117,6 +125,7 @@ function buildTile(t) {
       collide: {
         solid: packPolys(solid, transfer),
         walkable: packPolys(walkable, transfer),
+        soft,
         roads: { segs: segArr, names: segNameArr, count: segName.length, grid: buildGrid(new Float32Array(segBox), segName.length, transfer) },
       },
       stats: { buildings: t.buildings.length, roads: t.roads.length },

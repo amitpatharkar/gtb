@@ -20,6 +20,7 @@ canvas { display: block; }
 }
 #title { font-weight: 800; font-size: 20px; letter-spacing: 1px; }
 #speed { font-size: 28px; font-weight: 700; margin-top: 4px; }
+#speed small { font-size: 15px; font-weight: 600; opacity: 0.7; margin-left: 6px; } /* gear (car.js gearbox) */
 #road { font-size: 15px; font-weight: 600; margin-top: 2px; min-height: 18px; }
 #help { font-size: 12px; opacity: 0.85; margin-top: 4px; }
 

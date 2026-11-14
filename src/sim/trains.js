@@ -584,7 +584,7 @@ export class Trains {
         const hit = out(w.pos.x, w.pos.z, 0.35);
         if (hit) {
           w.pos.x += hit[0] * (hit[2] + 0.5); w.pos.z += hit[1] * (hit[2] + 0.5);
-          w.knock(0.12 + tr.v * 0.012);
+          w.knock(0.12 + tr.v * 0.012, hit[0] * (2 + tr.v * 0.3), hit[1] * (2 + tr.v * 0.3)); // shoved clear, sideways
           this.audio.punch?.(1);
           this.shout(tr);
         }

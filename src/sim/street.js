@@ -142,6 +142,7 @@ export class StreetLife {
         x: mx, z: mz, y: Y.KERB, heading: 0, phase: Math.random() * 6, pose: POSE.WALK, state: 'walk', timer: 0, ox: 0, oz: 0,
         h: kind === 'kid' ? 1.5 : 2.1,
         vx: 0, vz: 0, crossTo: 0, watch: null, dead: false, // set later; here so that people share one shape (cheaper per-frame loops)
+        rag: null, ragged: false, tilt: 0, hitT: 0, // ragdoll.js reactions
       });
       return;
     }
@@ -175,6 +176,7 @@ export class StreetLife {
     const pfx = Math.sin(player.heading), pfz = Math.cos(player.heading);
     for (const p of this.peds) {
       if (p.free) continue; // fighting, fleeing or knocked down: driven by the combat system
+      if (p.rag) { p.ragged = true; continue; } // bumped and staggering (ragdoll.js) moves them meanwhile
       p.timer -= dt;
       if (p.state === 'walk' || p.state === 'cross') {
         if (p.state === 'walk') {
@@ -210,6 +212,8 @@ export class StreetLife {
       const s = p.seg.s, len = p.seg.len, tt = Math.min(p.t, 1), u = p.dir > 0 ? tt : 1 - tt;
       const gx = ((s[2] - s[0]) / len) * p.dir, gz = ((s[3] - s[1]) / len) * p.dir;
       const bx = s[0] + (s[2] - s[0]) * u + gz * p.side * p.off, bz = s[1] + (s[3] - s[1]) * u - gx * p.side * p.off;
+      // Back on their feet after a stagger: carry on from where they ended up (drifting back to the path).
+      if (p.ragged) { p.ragged = false; p.ox = p.x - bx; p.oz = p.z - bz; }
       p.ox *= Math.exp(-dt * 0.8); p.oz *= Math.exp(-dt * 0.8);
       if (p.state === 'dodge') { p.ox += p.vx * dt; p.oz += p.vz * dt; }
       p.x = bx + p.ox; p.z = bz + p.oz;

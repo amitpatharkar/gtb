@@ -350,24 +350,57 @@ export class TileManager {
   }
 
   /** Ground height felt by the player's wheels: rough lanes undulate, potholes dip. */
-  wheelHeight(x, z) {
-    this.inPothole = false;
-    if (!this.roadHit(x, z, -0.15, true)) return Y.KERB;
-    const f = this.roadTile.collide.roads.segs[this.roadIndex * SEG + 5];
-    let y = Y.ROAD;
-    if (f & 16) y += 0.028 * Math.sin(x * 1.7 + Math.sin(z * 0.6) * 2.2) * Math.sin(z * 2.1 + x * 0.35) + 0.012 * Math.sin(x * 5.3 - z * 4.1);
-    else if (f & 8) y += 0.01 * Math.sin(x * 1.2 + z * 0.9) * Math.sin(z * 1.6);
+  wheelHeight(x, z) { return this.wheelProbe(x, z); }
+
+  /**
+   * What a wheel stands on (a raycast wheel, GTA style): returns the ground height and leaves
+   * the surface material in this.surface (index into handling.js SURFACE: 0 asphalt, 1 worn,
+   * 2 rough, 3 paved, 4 grass, 5 sand, 6 dirt, 7 wet), this.inPothole and this.inPuddle.
+   * Allocates nothing.
+   */
+  wheelProbe(x, z) {
+    this.inPothole = false; this.inPuddle = false;
+    let y;
+    if (this.roadHit(x, z, -0.15, true)) {
+      const f = this.roadTile.collide.roads.segs[this.roadIndex * SEG + 5];
+      y = Y.ROAD;
+      if (f & 16) { y += 0.028 * Math.sin(x * 1.7 + Math.sin(z * 0.6) * 2.2) * Math.sin(z * 2.1 + x * 0.35) + 0.012 * Math.sin(x * 5.3 - z * 4.1); this.surface = 2; }
+      else if (f & 8) { y += 0.01 * Math.sin(x * 1.2 + z * 0.9) * Math.sin(z * 1.6); this.surface = 1; }
+      else this.surface = 0;
+    } else {
+      y = Y.KERB;
+      this.surface = this.softAt(x, z);
+    }
     const near = this.near, count = this.nearInto(x, z, 2);
     for (let n = 0; n < count; n++) {
-      const t = near[n], arr = t.points[POINT.POTHOLE];
-      if (!arr) continue;
-      for (let i = 0; i < arr.length; i += 5) {
-        const dx = x - arr[i] - t.origin[0], dz = z - arr[i + 2] - t.origin[1], rad = arr[i + 4] * 0.45;
+      const t = near[n], ox = t.origin[0], oz = t.origin[1];
+      let arr = t.points[POINT.POTHOLE];
+      if (arr) for (let i = 0; i < arr.length; i += 5) {
+        const dx = x - arr[i] - ox, dz = z - arr[i + 2] - oz, rad = arr[i + 4] * 0.45;
         const d2 = dx * dx + dz * dz;
         if (d2 < rad * rad) { y -= 0.09 * (1 - Math.sqrt(d2) / rad); this.inPothole = true; }
       }
+      arr = t.points[POINT.PUDDLE];
+      if (arr) for (let i = 0; i < arr.length; i += 5) {
+        const dx = x - arr[i] - ox, dz = z - arr[i + 2] - oz, rad = arr[i + 4] * 0.5;
+        if (dx * dx + dz * dz < rad * rad) { this.inPuddle = true; this.surface = 7; }
+      }
     }
     return y;
+  }
+
+  /** Surface off the carriageway: grass, sand or dirt where the map has them, else paving. */
+  softAt(x, z) {
+    const near = this.near, count = this.nearInto(x, z, 0);
+    for (let n = 0; n < count; n++) {
+      const p = near[n].collide.soft;
+      if (!p || !p.count) continue;
+      const g = p.grid, ga = Math.floor((x - g.x0) / g.cell), gb = Math.floor((z - g.z0) / g.cell);
+      if (ga < 0 || ga >= g.nx || gb < 0 || gb >= g.nz) continue;
+      const c = gb * g.nx + ga;
+      for (let i = g.start[c]; i < g.start[c + 1]; i++) if (polyContains(p, g.items[i], x, z)) return p.kinds[g.items[i]];
+    }
+    return 3;
   }
 
   /** Segment geometry helper for tools and traffic: [x0, z0, x1, z1, halfWidth, vehicle]. */

@@ -159,7 +159,7 @@ await check('steal', async () => {
   const fails = noErrors(errors);
   if (!info.car) fails.push('no car to steal');
   else if (info.wrongTarget) fails.push('F would take ' + info.wrongTarget);
-  else { if (!info.took) fails.push('did not get into the car'); if (info.driverOut < 1) fails.push('driver was not pulled out'); if (info.speed < 3) fails.push('stolen car did not drive'); }
+  else { if (!info.took) fails.push('did not get into the car'); if (info.driverOut < 1) fails.push('driver was not pulled out'); if (!(info.speed >= 3)) fails.push('stolen car did not drive'); }
   return { info, fails };
 });
 
@@ -303,6 +303,163 @@ await check('night', async () => {
   await page.close();
   const fails = noErrors(errors);
   if (info.mean < 30) fails.push(`night frame too dark (mean ${info.mean} of 255)`);
+  return { info, fails };
+});
+
+await check('physics', async () => {
+  // GTA-style physics in the real game: gears, a wall crash, shoving a parked car (rigid body),
+  // a pedestrian bowled over (ragdoll reaction, then back up), a lamp post giving way, a
+  // motorbike crash throwing the rider (F picks the bike up), traffic knocking you over.
+  const { page, errors } = await game('hour=11');
+  const info = await page.evaluate(() => {
+    const g = window.__gtb, P = g.player, T = g.traffic, POINT_LIGHT = 4;
+    g.story.s.done = g.story.missions.map((m) => m.id); // no mission markers (cutscenes)
+    for (let i = 0; i < 40; i++) g.step(0.05);
+    const out = {}, fin = () => Number.isFinite(P.pos.x + P.pos.z + P.vx + P.vz + P.yaw + P.heading);
+    const place = (x, z, h, v = 0) => { P.pos.set(x, P.pos.y, z); P.heading = h; P.speed = v; P.vx = Math.sin(h) * v; P.vz = Math.cos(h) * v; P.lastSpeed = v; P.yaw = 0; P.fallen = 0; };
+    const clearNear = (x, z, r, keep) => { for (const list of [T.cars, T.parked, T.left]) for (let i = list.length - 1; i >= 0; i--) if (list[i] !== keep && Math.hypot(list[i].x - x, list[i].z - z) < r) list.splice(i, 1); };
+    const free = (x, z, r) => !g.tiles.hits(x, z, r) && !g.propPhysics.hits(x, z, r);
+    // A wall straight ahead with a clear run-up: from the spawn, look round for one.
+    function wallRun(x0, z0) {
+      for (let k = 0; k < 32; k++) {
+        const h = (k / 32) * Math.PI * 2, fx = Math.sin(h), fz = Math.cos(h);
+        for (let d = 6; d < 60; d += 1) {
+          if (g.tiles.hits(x0 + fx * d, z0 + fz * d, 0.9)) {
+            if (d < 14) break;
+            let ok = true; for (let e = 0; e < d - 2; e += 1) if (!free(x0 + fx * e, z0 + fz * e, 1.0)) { ok = false; break; }
+            if (ok) return { h, d };
+            break;
+          }
+        }
+      }
+      return null;
+    }
+    const sx = P.pos.x, sz = P.pos.z;
+    // 1. Straight-line acceleration on the spawn road (traffic moved away).
+    T.max = 0; clearNear(sx, sz, 400);
+    {
+      const rd = g.tiles.roadAt(sx, sz, 30, true), s = g.tiles.segment(rd.tile, rd.index);
+      const h = Math.atan2(s[2] - s[0], s[3] - s[1]);
+      place(sx, sz, h, 0); g.input.fwd = true;
+      let t = 0; while (t < 3) { g.step(0.05); t += 0.05; }
+      g.input.fwd = false;
+      out.accel3s = +P.speed.toFixed(1); out.gear = P.gear;
+      for (let i = 0; i < 60; i++) g.step(0.05);
+    }
+    // 2. Into a wall at 12 m/s: stops, takes damage, does not go through.
+    {
+      const w = wallRun(sx, sz);
+      if (w) {
+        place(sx, sz, w.h + 0.25, 12); const c0 = P.condition;
+        for (let i = 0; i < 60; i++) g.step(0.05);
+        const along = (P.pos.x - sx) * Math.sin(w.h) + (P.pos.z - sz) * Math.cos(w.h);
+        out.wall = { dist: w.d, condLost: +(c0 - P.condition).toFixed(3), stoppedBefore: along < w.d, finite: fin() };
+      } else out.wall = 'no wall found';
+    }
+    // 3. Shove a parked car: it slides into `left` and moves.
+    {
+      T.max = 0;
+      for (let i = 0; i < 4; i++) g.step(0.05);
+      const pick = () => T.parked.find((c) => !T.types[c.type].rider && !T.types[c.type].big && free(c.x - Math.sin(c.heading) * 9, c.z - Math.cos(c.heading) * 9, 1.1));
+      let v = null;
+      for (let k = 0; k < 12 && !v; k++) { place(sx + Math.sin(k) * 60 * (k % 4), sz + Math.cos(k) * 60 * (k % 4), 0, 0); for (let i = 0; i < 3; i++) g.step(0.05); v = pick(); }
+      if (v) {
+        place(v.x - Math.sin(v.heading) * 9, v.z - Math.cos(v.heading) * 9, v.heading, 0); g.step(0.05);
+        v = T.parked.find((c) => Math.hypot(c.x - v.x, c.z - v.z) < 0.5) || v;
+        const x0 = v.x, z0 = v.z, h = v.heading;
+        clearNear(v.x, v.z, 12, v);
+        place(v.x - Math.sin(h) * 9, v.z - Math.cos(h) * 9, h, 9);
+        for (let i = 0; i < 50; i++) g.step(0.05);
+        out.shove = { type: v.type, moved: +Math.hypot(v.x - x0, v.z - z0).toFixed(2), nowLeft: T.left.includes(v), finite: fin() };
+      } else out.shove = 'no parked car';
+    }
+    // 4. A pedestrian in the way at 11 m/s: a ragdoll reaction, then back on their feet.
+    {
+      const p = g.street.peds.find((q) => q.kind !== 'kid' && (q.scale ?? 1) > 0.85 && !q.combat);
+      if (p) {
+        // Room for the run-up: put the person on open ground ahead of the car.
+        let x = sx, z = sz, hh = 0;
+        for (let k = 0; k < 16; k++) { hh = (k / 16) * 6.28; let ok = true; for (let e = 0; e < 14; e++) if (!free(sx + Math.sin(hh) * e, sz + Math.cos(hh) * e, 1)) { ok = false; break; } if (ok) break; }
+        p.x = sx + Math.sin(hh) * 9; p.z = sz + Math.cos(hh) * 9; p.state = 'stand';
+        g.combat.free(p, 'flee'); p.combat.t = 60;
+        place(sx, sz, hh, 11);
+        let rag = null; for (let i = 0; i < 30 && !rag; i++) { g.step(0.05); if (p.rag) rag = p.rag.r; }
+        let maxY = 0; for (let i = 0; i < 40; i++) { g.step(0.05); maxY = Math.max(maxY, p.y); }
+        for (let i = 0; i < 160 && p.rag; i++) g.step(0.05);
+        out.ped = { reaction: rag, maxY: +maxY.toFixed(2), upAgain: !p.rag, finite: Number.isFinite(p.x + p.z) };
+      } else out.ped = 'no ped';
+    }
+    // 5. A lamp post hit at 14 m/s gives way; the car carries on.
+    {
+      let lamp = null;
+      for (const t of g.tiles.tiles.values()) {
+        const arr = t.points?.[POINT_LIGHT]; if (!arr) continue;
+        for (let i = 0; i < arr.length && !lamp; i += 5) {
+          const x = arr[i] + t.origin[0], z = arr[i + 2] + t.origin[1];
+          if (Math.hypot(x - sx, z - sz) > 300) continue;
+          for (let k = 0; k < 8 && !lamp; k++) {
+            const h = (k / 8) * 6.28, fx = Math.sin(h), fz = Math.cos(h);
+            let ok = true; for (let e = 1.6; e < 16; e += 0.8) if (g.tiles.hits(x - fx * e, z - fz * e, 1.0)) { ok = false; break; }
+            if (ok && !g.tiles.hits(x + fx * 4, z + fz * 4, 1.0)) lamp = { x, z, h, t, i: i / 5 };
+          }
+        }
+        if (lamp) break;
+      }
+      if (lamp) {
+        clearNear(lamp.x, lamp.z, 40);
+        place(lamp.x - Math.sin(lamp.h) * 14, lamp.z - Math.cos(lamp.h) * 14, lamp.h, 14);
+        let broke = false; for (let i = 0; i < 30; i++) { g.step(0.05); if (lamp.t.broken?.has(4 * 1048576 + lamp.i)) broke = true; }
+        out.lamp = { broke, speedAfter: +Math.hypot(P.vx, P.vz).toFixed(1), finite: fin() };
+      } else out.lamp = 'no lamp found';
+    }
+    // 6. A motorbike into a wall at 12 m/s: the rider is thrown, F picks the bike up.
+    {
+      const w = wallRun(sx, sz);
+      if (w) {
+        if (!g.onFoot) { place(sx + 40, sz + 40, w.h, 0); g.step(0.05); g.toggleFoot(); }
+        const bike = { type: 'bike', x: sx - Math.sin(w.h) * 1, z: sz - Math.cos(w.h) * 1, heading: w.h, tint: new g.THREE.Color(0x222222), taken: true, pvx: 0, pvz: 0, spin: 0, roll: 0 };
+        T.left.push(bike);
+        g.walker.pos.set(bike.x - Math.cos(w.h) * 1.2, 0.2, bike.z + Math.sin(w.h) * 1.2);
+        g.step(0.05); g.toggleFoot(); for (let i = 0; i < 40 && g.onFoot; i++) g.step(0.05);
+        const onBike = g.garage.type === 'bike' && !g.onFoot;
+        place(sx, sz, w.h, 12); g.input.fwd = true;
+        let thrown = false, airborne = 0; for (let i = 0; i < 60; i++) { g.step(0.05); if (g.onFoot && g.walker.rag) { thrown = true; airborne = Math.max(airborne, g.walker.pos.y); } }
+        g.input.fwd = false;
+        let upAfter = -1; for (let i = 0; i < 200; i++) { g.step(0.05); if (!g.walker.rag && upAfter < 0) upAfter = i; }
+        const fallen = P.fallen;
+        g.walker.pos.set(P.pos.x + 1, 0.2, P.pos.z); g.step(0.05); g.toggleFoot(); for (let i = 0; i < 20; i++) g.step(0.05);
+        out.bike = { onBike, thrown, airborne: +airborne.toFixed(2), bikeLying: !!fallen, upAfter: +(upAfter * 0.05).toFixed(1), backOn: !g.onFoot && !P.fallen, finite: fin() };
+      } else out.bike = 'no wall';
+    }
+    // 7. On foot in front of a moving traffic car: knocked over.
+    {
+      if (!g.onFoot) g.toggleFoot();
+      for (let i = 0; i < 4; i++) g.step(0.05);
+      T.max = 30; for (let i = 0; i < 80 && !T.cars.length; i++) g.step(0.05);
+      const c = T.cars[0];
+      if (c) {
+        c.speed = 8;
+        g.walker.pos.set(c.x + Math.sin(c.heading) * 1, 0.2, c.z + Math.cos(c.heading) * 1); g.walker.down = 0; g.walker.rag = null;
+        let r = null; for (let i = 0; i < 3 && !r; i++) { g.step(0.05); r = g.walker.rag?.r ?? null; }
+        for (let i = 0; i < 160 && g.walker.rag; i++) g.step(0.05);
+        out.walker = { reaction: r, upAgain: !g.walker.rag, health: +g.walker.health.toFixed(2) };
+      } else out.walker = 'no traffic';
+    }
+    out.stepMs = +g.stepMs.toFixed(2);
+    return out;
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  const want = (ok, msg) => { if (!ok) fails.push(msg); };
+  want(info.accel3s > 11 && info.accel3s < 20, `0–3 s acceleration ${info.accel3s} m/s`);
+  want(info.gear >= 2, 'the gearbox did not change up');
+  if (typeof info.wall === 'object') { want(info.wall.stoppedBefore, 'drove through a wall'); want(info.wall.condLost > 0, 'a 12 m/s wall crash did no damage'); want(info.wall.finite, 'NaN after a wall crash'); }
+  if (typeof info.shove === 'object') want(info.shove.moved > 0.5 && info.shove.nowLeft, 'a parked car hit at 9 m/s did not move');
+  if (typeof info.ped === 'object') { want(!!info.ped.reaction, 'a pedestrian hit at 11 m/s had no reaction'); want(info.ped.upAgain, 'a knocked-down pedestrian never got up'); }
+  if (typeof info.lamp === 'object') { want(info.lamp.broke, 'a lamp post hit at 14 m/s did not give way'); want(info.lamp.speedAfter > 2, 'the car stopped dead at a broken lamp post'); }
+  if (typeof info.bike === 'object') { want(info.bike.onBike, 'could not get on the bike'); want(info.bike.thrown, 'a 12 m/s bike crash did not throw the rider'); want(info.bike.backOn, 'F did not pick the dropped bike up'); }
+  if (typeof info.walker === 'object') { want(!!info.walker.reaction, 'a car hitting the player on foot had no effect'); want(info.walker.upAgain, 'the player never got up'); }
+  want(info.stepMs < 12, `mean step ${info.stepMs} ms`);
   return { info, fails };
 });
 

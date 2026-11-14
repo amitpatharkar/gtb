@@ -201,7 +201,7 @@ export class CityAudio {
    * the garage) changes its voice: 'car' (the old taxi), 'auto' (a two-stroke putt-putt),
    * 'bike', 'big' (bus, truck) or 'cycle' (silent).
    */
-  engine(speed, throttle, on = true) {
+  engine(speed, throttle, on = true, revs = null, shifting = false) {
     if (!this.ctx) return;
     if (!this.engineNode) {
       const a = this.ctx.createOscillator(), b = this.ctx.createOscillator(), lp = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
@@ -218,7 +218,9 @@ export class CityAudio {
     }
     const K = ENGINES[this.engineKind] || ENGINES.car;
     const v = Math.abs(speed), gear = Math.min(K.gears - 1, Math.floor(v / K.span));
-    const rpm = 0.22 + Math.min(1, (v - gear * K.span) / K.span) * 0.7 + throttle * 0.08;
+    // The car's own gearbox (car.js) when it says where the revs are; else fake gears by speed.
+    const rpm = revs !== null && Number.isFinite(revs) ? 0.15 + Math.min(1.05, revs) * 0.75 + throttle * (shifting ? -0.05 : 0.06)
+      : 0.22 + Math.min(1, (v - gear * K.span) / K.span) * 0.7 + throttle * 0.08;
     const f = K.base + rpm * K.range, t = this.ctx.currentTime;
     const n = this.engineNode;
     n.a.frequency.setTargetAtTime(f, t, 0.08); n.b.frequency.setTargetAtTime(f, t, 0.08);
@@ -226,6 +228,19 @@ export class CityAudio {
     n.putt.frequency.setTargetAtTime(8 + rpm * 16, t, 0.1);
     n.depth.gain.setTargetAtTime(K.putt, t, 0.2);
     n.g.gain.setTargetAtTime(on ? (0.035 + throttle * 0.03 + rpm * 0.02) * K.gain : 0, t, 0.15);
+  }
+
+  /** A misfire: a bang out of the exhaust of a battered engine (also a tyre bursting). */
+  backfire(v = 1) {
+    if (!this.ctx) return;
+    const t0 = this.ctx.currentTime, src = this.ctx.createBufferSource(), lp = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+    src.buffer = this.noiseBuf(); lp.type = 'lowpass'; lp.frequency.value = 900;
+    g.gain.setValueAtTime(0.55 * v, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.18);
+    src.connect(lp).connect(g).connect(this.master); src.start(t0, Math.random() * 0.2, 0.2);
+    const o = this.ctx.createOscillator(), og = this.ctx.createGain();
+    o.type = 'square'; o.frequency.setValueAtTime(110, t0); o.frequency.exponentialRampToValueAtTime(40, t0 + 0.1);
+    og.gain.setValueAtTime(0.25 * v, t0); og.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
+    o.connect(og).connect(this.master); o.start(t0); o.stop(t0 + 0.13);
   }
 
   /** Tyre squeal, level 0..1. */

@@ -202,6 +202,7 @@ export class Police {
   }
 
   updateCop(cop, dt, player) {
+    if (cop.rag) return; // knocked down (ragdoll.js): back to work once up
     cop.phase += dt * (cop.pose === POSE.WALK ? 7.5 : 3);
     const task = cop.task;
     const face = (x, z) => {
@@ -521,7 +522,7 @@ export class Police {
       car.pos.set(x, Y.ROAD, z);
       const next = node.adj[0][0];
       car.heading = Math.atan2(next.x - x, next.z - z);
-      this.patrols.push({ car, model, mode: 'chase', route: null, routeT: 0, stuck: 0, reverse: 0, flash: 0, gone: 0 });
+      this.patrols.push({ car, model, mode: 'chase', route: null, routeT: 0, stuck: 0, reverse: 0, flash: 0, gone: 0, input: null });
       this.hud.message('Police patrol on the way!');
       return;
     }
@@ -559,11 +560,13 @@ export class Police {
     let a = Math.atan2(tx - pos.x, tz - pos.z) - car.heading;
     a = Math.atan2(Math.sin(a), Math.cos(a));
     const want = cruise * THREE.MathUtils.lerp(1, 0.35, Math.min(1, Math.abs(a) / 1.2));
-    const input = { steer: THREE.MathUtils.clamp(a * 2.2, -1, 1), fwd: car.speed < want, brake: car.speed > want + 1.5 };
+    // Slowing down is the foot brake (S): Space would be the handbrake and spin the patrol round.
+    const input = p.input || (p.input = { steer: 0, fwd: false, back: false, brake: false });
+    input.steer = THREE.MathUtils.clamp(a * 2.2, -1, 1); input.fwd = car.speed < want; input.back = car.speed > want + 1.5; input.brake = false;
     // Unstick: reverse with opposite lock for a moment.
     if (p.reverse > 0) {
       p.reverse -= dt;
-      Object.assign(input, { fwd: false, brake: false, back: true, steer: -input.steer });
+      input.fwd = false; input.brake = false; input.back = true; input.steer = -input.steer;
     } else if (want > 2 && Math.abs(car.speed) < 0.7) {
       p.stuck += dt;
       if (p.stuck > 1.8) { p.reverse = 1.3; p.stuck = 0; p.stuckCount = (p.stuckCount || 0) + 1; }

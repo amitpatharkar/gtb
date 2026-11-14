@@ -213,7 +213,7 @@ export class Eggs {
   waxTaxi(e, ctx) {
     if (!this.state.canAfford(50)) { this.hud.message('A wax taxi costs ₹50. Even blessings have a price.'); return false; }
     this.state.pay(50, 'Wax taxi offering');
-    ctx.player.condition = 1; this.damage?.repair();
+    ctx.player.condition = 1; ctx.player.flat = -1; this.damage?.repair();
     this.bubbles.say(e.person, 'God bless your gaadi, son.', 3);
     this.hud.message('You offered a wax taxi at the hilltop church: the taxi feels brand new. (Once a day.)');
     this.chime();

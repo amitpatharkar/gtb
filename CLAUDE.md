@@ -106,7 +106,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/tiles.js` — `TileManager`: streams tiles, builds meshes/props, collisions (`hits`), `walkable`,
   `groundHeight` (asphalt 0.02 m, kerb level 0.2 m), `roadAt`, `roadNameAt`, `segment()`; `version` bumps on load/unload.
   Collision queries allocate nothing: numeric `tileKey` maps (`byKey`, `availableKeys`), `nearInto()` fills `tiles.near`;
-  `roadHit(x, z, slack, vehicleOnly)` leaves its answer in `roadTile`/`roadIndex`/`roadDist` (`roadAt` wraps it)
+  `roadHit(x, z, slack, vehicleOnly)` leaves its answer in `roadTile`/`roadIndex`/`roadDist` (`roadAt` wraps it);
+  `wheelProbe(x, z)` = a raycast wheel: height + `surface` (index into handling.js `SURFACE`: asphalt, worn, rough,
+  paved, grass, sand, dirt, wet over a puddle) + `inPothole`/`inPuddle`; grass/sand/dirt from `collide.soft` (worker)
 - `src/world/tileWorker.js` + `src/world/mesh/` — worker: `ground.js` (ground layers, kerbs with paint strip, sea walls,
   parapet, tetrapods, markings, footways, rails), `buildings.js` (per-style walls with facade data, parapets, stair
   rooms, roof types, water tanks), `builder.js` (mesh helpers). Road segments: 6 floats `x0 z0 x1 z1 halfWidth flags`
@@ -119,10 +121,24 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/tileFormat.js` — binary tile format v3 (buildings with style/levels/street-facing walls and flags incl.
   `NETTING`, areas incl. PLOT/ROAD/FOOTPATH, roads with kerb/median flags and a street-profile byte, rails, markings,
   points); `src/world/levels.js` — ground heights
-- `src/vehicles/taxi.js` + `car.js` — procedural kaali-peeli taxi (Premier Padmini proportions, clear-coat paint) and car
-  handling (bicycle steering, two collision circles, kerb bumps, body roll/pitch, fuel ~40 km per tank, condition);
-  kerb and pothole jolts fire once per wheel event (`prevGF`/`prevGR`: kerb 7 % per axle, pothole 3 % per wheel +
-  damage above 9 m/s), so the loss is the same at any frame rate
+- `src/vehicles/taxi.js` + `car.js` — procedural kaali-peeli taxi (Premier Padmini proportions, clear-coat paint) and the
+  vehicle physics (GTA V style, `docs/plan.md` R10): a 2D rigid body (velocity, heading, yaw rate) integrated in fixed
+  1/120 s sub-steps; per-axle tyres on a grip curve (peaks at `slipPeak`, falls to `gripMin`), friction circle,
+  four raycast-style suspension springs (`probe` → `world.wheel`; heave/pitch/roll, anti-roll bars) giving the wheel
+  loads (weight transfer, kerb hops, a lifted wheel has no grip); automatic gearbox (flat torque to 80 % of the revs,
+  60 % at the limiter; `gear`, `rpm`, `shiftT`); Space = handbrake turn when steering at speed, else a hard stop;
+  assists: grip-aware steering lock, stability (yaw + sideslip, off with the handbrake, `handT` ramp), traction help,
+  tip assist (`tipStep`: autos up on two wheels, rarely over); collisions are impulses at the contact point
+  (restitution, friction, spin; `world.bodyAt` exchanges momentum by mass, `world.breakable` lets props give way);
+  two-wheelers lean (`lean`), wheelie with Shift (`wheelieStep`, can loop over), and `crash` = 'thrown'/'tip'/'loop'
+  makes main.js `throwRider()`; `fallen` (±1) = lying on its side (slides, sparks; F rights it: `rightUp()`); potholes
+  can puncture (`flat` wheel: pulls, slower; fixed at a pump), a battered engine misfires (`backfire`). Kerb and pothole
+  jolts fire once per wheel event (kerb 3.5 % per wheel, pothole 1.5 %), the same at any frame rate. Keep the public
+  fields (`pos heading speed vx vz yaw lastSpeed`: a lone change to `speed` re-syncs the velocity) — police, tests and
+  missions write them. `src/vehicles/handling.js` — the handling table (like handling.meta): `CLASS` defaults +
+  `HANDLING[type]` (mass, centre of mass, drag, drive force, gears, top speed, brake bias, steering lock, grip curve,
+  suspension, anti-roll, assists, damage multipliers, wheelie); `handlingFor(type, fleetType)`, `MASS`, `SURFACE`.
+  The player's own Padmini is type `'kaali'` (the fleet's `'taxi'` is today's WagonR kaali-peeli).
 - `src/sim/clock.js` — 24-hour clock (1 real s = 1 game min, T = +1 h), real sun path for Mumbai in December,
   daylight/night/twilight, AQI by hour (CPCB scale), traffic density table by hour (≈5 % at 3 am, 100 % 9–11 and
   18–20) and `jam` (slower cruising at peaks)
@@ -131,6 +147,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   (look-ahead), `gatherBlockers` (player at real length, the vehicle left while on foot = `traffic.car`, parked taxi,
   `left`, patrols via `traffic.police`, obstacles); `lanesOf` cached per segment (`seg.lanes`); vehicle mix cached per
   quarter hour (`pickType`); kerb parking forms kaali-peeli taxi ranks where the profile has `taxis` (`TAXI_RANK`).
+  Physics level of detail like GTA's real/dummy/super-dummy (`car.lod`: < 60 m, < 170 m, beyond; super-dummies look
+  ahead every 0.2 s, `gapC`); shoved vehicles are rigid bodies in `slide()` (roll along, scrub sideways, spin down,
+  bounce off walls, knock into others via `vehicleNear` → `shoveQ`, applied after the loops; `onPileUp`).
 - `src/sim/traffic.js` (continued) — ambient traffic near the player (fleet from `src/vehicles/fleet.js`: taxis, hatchbacks,
   sedans, SUVs, BEST buses on main roads, tempos (more at night), motorbikes with riders), keeps LEFT, follows the
   road graph (loose ends within 2.5 m joined; per-tile segment data cached on `tile.graph`, numeric junction keys
@@ -178,16 +197,24 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/player/view.js` — GTA-style camera control: click to capture the mouse (pointer lock), orbit around the taxi
   (swings back behind it) or over the shoulder on foot, right mouse aims (zoom + crosshair), wheel = pichkari pressure;
   touch: drag to look, 🎯 aim button
-- `src/player/walker.js` — on foot (F out/in; camera-relative WASD, Shift run with stamina, health, pushed/knocked
-  over); `src/player/pichkari.js` — gun-shaped Holi pichkari (left mouse/Space spray where the camera aims, C colour
+- `src/player/walker.js` — on foot (F out/in; camera-relative WASD, Shift run with stamina, momentum: a skid to stop
+  from a sprint, sharp turns at a run cost speed; health; `knock(amount, vx, vz)`, `struck(vx, vz, mass, amount)` hand
+  the fall to ragdoll.js); `src/sim/ragdoll.js` — "Euphoria-lite" reactions: `ragdolls.hit(person, vx, vz, { mass,
+  react, agile, y, down, done })` picks STAGGER / STUMBLE / FLING / BONNET (up over the car) / DIVE from the impact
+  with randomness, then a ballistic tumble (`tilt`), bounces, a slide, lying, a get-up; while `person.rag` is set the
+  owner skips its own movement (combat `updateFighter`, police `updateCop`, walker); characters.js and people.js draw
+  `tilt` about the hips. Used by car hits (`combat.carVsPeople`), fights (heavy blows stagger, knockdowns), traffic
+  hitting the player, bike crashes (`throwRider`), trains and cracker blasts (`crackers.blast`); `src/player/pichkari.js` — gun-shaped Holi pichkari (left mouse/Space spray where the camera aims, C colour
   ×12, [ ] or wheel pressure 1–5, tank), drops, splats, colour patches on people (`addPatch` in people.js, 6 per
   person, shader splats in rest-pose space), NPC sprayers; `src/player/combat.js` — fists (punch), V kick, G insult
   (bleeped); NPC reactions (insult back, fight with punches/pushes, throw tomatoes/chappals, spray back ~1.5 %, flee,
   knocked down then limp away); ~4.5 % of passers-by start it; kids and animals never targets; police: brawl/assault
 - `src/world/propPhysics.js` — solid trees/lamp posts/bus shelters/thelas, tree shake, bent poles, flying fruit,
-  scattering garbage (simple rigid bits)
+  scattering garbage (simple rigid bits); fragment objects: `breakable()` (`BREAK` strengths: lamp posts, thelas, bus
+  shelters fall over — `fall()` — and stop colliding: `tile.broken`, numeric keys); `sparks()` (one additive point
+  cloud) for wall scrapes and dropped bikes, `debris()` (glass shards, plastic) from crashes, `blast()` impulses
 - `src/vehicles/garage.js` — take and drive any vehicle (F on foot next to a traffic, parked or left vehicle):
-  swaps the player Car's model, size (collision `circles`), handling (`DRIVE`) and weight (`MASS`); the taxi stays
+  swaps the player Car's model, size (collision `circles`) and handling (`handlingFor(type, fleetType)`); the taxi stays
   parked (`garage.home`, `homeBody`), borrowed vehicles left behind go to `traffic.left`; ejected drivers become
   peds driven by combat.js; `police.offence('theft')`. Collisions: car.js asks `world.bodyAt()` (traffic.js) and
   exchanges momentum by mass; `traffic.shove()` slides/spins vehicles (`knock`/`recover` for driven cars, parked →
@@ -375,6 +402,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   mapping and night lighting; recessed windows; kerb paint only on main roads; real characters for everyone nearby
   (one draw call each, feet/run fixed); fist-fight combos/block/knockouts; firecrackers; the map from Colaba to
   Bandra, Juhu, Andheri, Kurla and Powai with an overview file and GPS in a worker. 979 tiles, 9.2 MB; site ~191 MB.
+- Done (2026-11-14, physics pass, `docs/plan.md` R10): GTA-style vehicle physics (handling table, tyres on a grip curve,
+  weight transfer on raycast suspension, gearbox, handbrake turns, assists, impulses with spin), surfaces (grass, sand,
+  puddles), punctures and misfires, bike leans/wheelies/crashes that throw the rider, autos on two wheels, traffic
+  physics LOD and pile-ups, breakable lamp posts/thelas/bus shelters, sparks and debris, Euphoria-lite ragdoll reactions.
 - Next (owner's goal: "GTA V Mumbai edition, maximised for a browser"; the live list with status is `docs/plan.md`):
   1. **Flyovers and bridges** (3.3): Sea Link, Coastal Road, JJ, Kemps Corner — all roads are flat today.
   2. **Monsoon and festivals** (4.5, 4.6): rain, wet roads, waterlogging; Ganesh visarjan, Navratri, Diwali lanterns.
@@ -391,9 +422,11 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `manifest.shipped.version`). Site about 80 MB.
 - Allocation per step: the browser's sampling heap profiler (`HeapProfiler.startSampling` with
   `includeObjectsCollectedByMajorGC`/`MinorGC` true) through Playwright's CDP session.
-- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night`,
+- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night,physics`,
   `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
-  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, or a too-dark night. In GitHub Actions
+  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, a too-dark night,
+  or broken physics (gears, wall crash, parked-car shove, pedestrian ragdoll, lamp post, bike crash, traffic hitting you).
+  Car handling can be tuned offline: `Car` runs in Node with a stub model and a flat world (`hits: () => false`). In GitHub Actions
   `deploy.yml` runs build → smoke (on the Pages artifact) → deploy, so a failing check stops the deploy (Playwright
   1.63.0 is a devDependency). Add a check there for every new system.
 - Visual check: `npx vite preview --port 4173`, then headless Chrome via Playwright with

@@ -6,7 +6,7 @@ export const CHEATS = [
   { code: 'PAISAHIPAISA', what: '+₹1,00,000', run: (g) => { g.state.earn(100000, 'Paisa hi paisa (cheat)'); return 'Paisa hi paisa! +₹1,00,000'; } },
   { code: 'CHALANMAAF', what: 'clear wanted stars and fines', run: (g) => { clearWanted(g.police); return 'Challan maaf. Hawaldar ne aankh band kar li.'; } },
   { code: 'MAAMUCHUTTI', what: 'police on holiday (toggle)', toggle: 'noPolice', run: (g, on) => { if (on) clearWanted(g.police); g.police.off = on; return on ? 'Maamu chhutti pe hai — no challans' : 'Maamu wapas duty pe'; } },
-  { code: 'PETROLBHARO', what: 'full tank + taxi repaired', run: (g) => { g.player.fuel = 1; g.player.condition = 1; g.damage.repair(); return 'Tanki full, gaadi chakachak'; } },
+  { code: 'PETROLBHARO', what: 'full tank + taxi repaired', run: (g) => { g.player.fuel = 1; g.player.condition = 1; g.player.flat = -1; g.damage.repair(); return 'Tanki full, gaadi chakachak'; } },
   { code: 'AMRUT', what: 'health, stamina, food, energy full', run: (g) => { g.walker.health = 1; g.walker.stamina = 1; g.state.s.hunger = 1; g.state.s.energy = 1; g.state.save?.(); return 'Amrut pi liya — full power'; } },
   { code: 'SHAKTIMAAN', what: 'god mode (toggle)', toggle: 'god', run: (g, on) => (on ? 'Shaktimaan mode — nothing hurts' : 'Wapas aam aadmi') },
   { code: 'DHOOMMACHALE', what: 'turbo taxi (toggle)', toggle: 'turbo', run: (g, on) => { g.player.maxSpeed = on ? 44 : 26; g.player.accel = on ? 11 : 6.2; return on ? 'Dhoom machale! Turbo taxi' : 'Turbo off'; } },

@@ -270,6 +270,7 @@ export class Crackers {
         this.spark(x, y + 0.4, z, 0, 0, 0, 0.14, 9, [1, 0.95, 0.85], 0, 0, 0);
         this.bang(vol * 1.5, d / 343, 1.2);
         this.startle(x, z, 16, it.by);
+        this.blast?.(x, z, 2.6);
         if (walker && Math.hypot(walker.pos.x - x, walker.pos.z - z) < 1.6) { walker.hitBy?.(0.03, (walker.pos.x - x) || 0.1, (walker.pos.z - z) || 0.1, 3); this.bubbles.say(walker, 'Arre! Door se, door se!', 2); }
         glowI = 2; glowAt = it;
         it.done = true;

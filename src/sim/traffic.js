@@ -1,12 +1,16 @@
 import * as THREE from 'three';
 import { LIGHT } from './signals.js';
 import { buildFleet } from '../vehicles/fleet.js';
-import { MASS } from '../vehicles/garage.js';
+import { MASS } from '../vehicles/handling.js';
 import { endKey, keyXZ } from './roadKeys.js';
 
 // Ambient traffic, Rockstar style: a few dozen vehicles live only near the player,
 // driving on the LEFT along the real road network, slowing behind each other and for
 // the player. Density follows the clock (rush hours). One instanced mesh per type.
+// Physics level of detail, like GTA's three traffic modes: within ~60 m a car is "real"
+// (a shove makes it a rigid body that slides, spins, bounces off walls and knocks into other
+// vehicles: pile-ups), the rest are "dummies" following road nodes, and beyond ~170 m
+// "super-dummies" that look ahead only every few frames and skip the lane-change chatter.
 
 const FORWARD = new THREE.Vector3(0, 0, 1);
 const PARTS = ['paint', 'glass', 'trim', 'lamps']; // one BatchedMesh each
@@ -140,6 +144,8 @@ export class Traffic {
     this.extras = [];      // broken-down vehicles drawn with the traffic meshes
     this.parked = [];      // parked cars and two-wheelers along wide streets near the player
     this.left = [];        // vehicles the player took and left somewhere, or shoved out of their parking spot
+    this.shoveQ = [];      // chain-reaction shoves waiting for the end of the frame
+    this.nearKind = null;  // vehicleNear's answer: 'traffic' | 'parked' | 'left'
     this.movedKeys = new Set(); // parking spots whose vehicle was taken or shoved (not re-created)
     this.parkAt = { x: 1e9, z: 1e9, v: -1 };
     this.night = 0;
@@ -290,6 +296,7 @@ export class Traffic {
         // a position allocate — hundreds of kilobytes per frame).
         knock: 0, recover: 0, held: 0, blockedT: 0, keepLeftT: 0, overtake: 0, yield: 0,
         decideAp: null, gamble: false, pvx: 0, pvz: 0, spin: 0, roll: 0, h: 2.2, pedal: 0, // h: speech bubble height (bubbles.js default)
+        lod: 1, gapC: 40, slowC: false, lookT: Math.random() * 0.2, // physics level of detail and the cached look-ahead (super-dummies)
       };
       this.cars.push(car);
       return;
@@ -370,10 +377,18 @@ export class Traffic {
 
     const night = clock.night;
     const nBlock = this.gatherBlockers(player);
-    for (const v of this.parked) if (v.pvx || v.pvz) this.slide(v, dt);
-    for (const v of this.left) if (v.pvx || v.pvz || v.spin) this.slide(v, dt);
+    {
+      // Physics level of detail by distance (real < 60 m < dummy < 170 m < super-dummy).
+      const cars = this.cars, px = player.pos.x, pz = player.pos.z;
+      for (let i = 0; i < cars.length; i++) { const c = cars[i], d2 = (c.x - px) ** 2 + (c.z - pz) ** 2; c.lod = d2 < 3600 ? 0 : d2 < 28900 ? 1 : 2; }
+    }
+    for (let i = 0; i < this.parked.length; i++) { const v = this.parked[i]; if (v.pvx || v.pvz || v.spin) this.slide(v, dt); }
+    for (let i = 0; i < this.left.length; i++) { const v = this.left[i]; if (v.pvx || v.pvz || v.spin) this.slide(v, dt); }
     this.jam = jam;
     for (let i = 0; i < this.cars.length; i++) this.driveCar(this.cars[i], dt, night, nBlock);
+    // Knock-ons found while sliding (a shoved car hitting the next one): applied after the
+    // loops, which they would otherwise disturb (a shoved parked car moves to `left`).
+    if (this.shoveQ.length) { const q = this.shoveQ.splice(0); for (const [o, kind, dvx, dvz, cx, cz] of q) if (this.listOf(kind).includes(o)) this.shove(o, kind, dvx, dvz, cx, cz); }
 
     // Write instances: near geometry within ~90 m of the player, the coarse version beyond.
     this.riders.length = 0;
@@ -470,8 +485,11 @@ export class Traffic {
     if (car.recover > 0) car.recover -= dt;
     const fx = ((s[2] - s[0]) / car.seg.len) * car.dir, fz = ((s[3] - s[1]) / car.seg.len) * car.dir;
     // Look ahead for other vehicles, the player (and whatever they left standing) in our lane.
-    let gap = this.gapAhead(car, fx, fz, type, nBlock);
-    const slowAhead = this.slowAhead;
+    // Super-dummies far away look only every 0.2 s and assume the gap closes meanwhile.
+    let gap, slowAhead;
+    car.lookT -= dt;
+    if (car.lod < 2 || car.lookT <= 0) { gap = car.gapC = this.gapAhead(car, fx, fz, type, nBlock); slowAhead = car.slowC = this.slowAhead; car.lookT = 0.2; }
+    else { gap = car.gapC = car.gapC - car.speed * dt; slowAhead = car.slowC; }
     // Signals: stop at red (and at amber if there is room); jumpers just go.
     let atRed = false;
     if (this.signals && !car.pulled) {
@@ -520,7 +538,7 @@ export class Traffic {
       const L = lanesOf(car.seg, car.dir);
       if (car.laneIdx > Math.max(L.lo, Math.min(car.pref, L.hi)) && this.laneFree(car, fx, fz, laneOffset(car.seg, L, car.laneIdx - 1))) car.laneIdx--;
     }
-    if (Math.random() < dt * 0.015 * (0.3 + jam)) this.honks.push([car.x, car.z]);
+    if (car.lod < 2 && Math.random() < dt * 0.015 * (0.3 + jam)) this.honks.push([car.x, car.z]);
     car.t += (car.speed * dt) / car.seg.len;
     while (car.t >= 1) { car.t -= 1; this.advance(car); }
     const s2 = car.seg.s;
@@ -626,14 +644,80 @@ export class Traffic {
     this.left = this.left.filter((v) => Math.hypot(v.x - player.pos.x, v.z - player.pos.z) < 350);
   }
 
-  /** A pushed vehicle slides and spins to a stop (friction), and stops dead against buildings. */
+  /**
+   * A shoved vehicle as a rigid body ("real" mode): it rolls easily along its length (the
+   * driver or the handbrake slows it) but its tyres scrub hard sideways, so a side hit stops
+   * quickly and a nudge from behind rolls on; it spins down, bounces off walls and knocks
+   * into other vehicles, which exchange momentum by mass (pile-ups).
+   */
   slide(v, dt) {
-    const nx = v.x + (v.pvx || 0) * dt, nz = v.z + (v.pvz || 0) * dt;
-    if (this.tiles.hits(nx, nz, this.types[v.type].wid / 2)) { v.pvx = v.pvz = 0; } else { v.x = nx; v.z = nz; }
-    v.heading += (v.spin || 0) * dt;
-    const f = Math.exp(-2.6 * dt);
-    v.pvx = (v.pvx || 0) * f; v.pvz = (v.pvz || 0) * f; v.spin = (v.spin || 0) * f;
-    if (Math.hypot(v.pvx, v.pvz) < 0.15 && Math.abs(v.spin) < 0.05) { v.pvx = v.pvz = v.spin = 0; }
+    const T = this.types[v.type];
+    if (!T) { v.pvx = v.pvz = v.spin = 0; return; }
+    const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
+    let along = v.pvx * fx + v.pvz * fz, lat = v.pvx * fz - v.pvz * fx;
+    const lying = !!v.roll, dA = (lying ? 4.5 : v.knock > 0 ? 5.5 : 3.5) * dt, dL = (lying ? 4.5 : 8) * dt;
+    along = along > dA ? along - dA : along < -dA ? along + dA : 0;
+    lat = lat > dL ? lat - dL : lat < -dL ? lat + dL : 0;
+    v.pvx = fx * along + fz * lat; v.pvz = fz * along - fx * lat;
+    const dS = 2.5 * dt;
+    v.spin = (v.spin > dS ? v.spin - dS : v.spin < -dS ? v.spin + dS : 0) * Math.exp(-1.2 * dt);
+    const r = T.wid / 2, nx = v.x + v.pvx * dt, nz = v.z + v.pvz * dt;
+    if (this.tiles.hits(nx, nz, r)) {
+      // A wall: bounce off what is in the way (normal found by probing free space).
+      let ax = 0, az = 0;
+      for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2, cx = Math.cos(a), cz = Math.sin(a); if (!this.tiles.hits(v.x + cx * r * 0.8, v.z + cz * r * 0.8, r * 0.5)) { ax += cx; az += cz; } }
+      const l = Math.hypot(ax, az);
+      if (l > 1e-3) {
+        ax /= l; az /= l;
+        const vn = v.pvx * ax + v.pvz * az;
+        if (vn < 0) { v.pvx -= 1.25 * vn * ax; v.pvz -= 1.25 * vn * az; v.spin *= 0.5; if (vn < -3) this.honks.push([v.x, v.z]); }
+      } else { v.pvx = v.pvz = 0; }
+    } else { v.x = nx; v.z = nz; }
+    v.heading += v.spin * dt;
+    // Knocking into the next vehicle along (only while moving with some speed).
+    const sp = Math.hypot(v.pvx, v.pvz);
+    if (sp > 1.2) {
+      const o = this.vehicleNear(v, v.x, v.z, r + 0.15);
+      if (o) {
+        const kind = this.nearKind, To = this.types[o.type];
+        let ux = o.x - v.x, uz = o.z - v.z;
+        const l = Math.hypot(ux, uz) || 1; ux /= l; uz /= l;
+        const moving = kind === 'traffic' && !(o.knock > 0);
+        const ovx = moving ? Math.sin(o.heading) * o.speed : o.pvx || 0, ovz = moving ? Math.cos(o.heading) * o.speed : o.pvz || 0;
+        const rel = (v.pvx - ovx) * ux + (v.pvz - ovz) * uz;
+        if (rel > 0 && To) {
+          const m = MASS[v.type] || 1000, M = MASS[o.type] || MASS[To.base] || 1000, j = (1.25 * rel) / (1 / m + 1 / M);
+          v.pvx -= (j / m) * ux; v.pvz -= (j / m) * uz;
+          this.shoveQ.push([o, kind, (j / M) * ux, (j / M) * uz, (v.x + o.x) / 2, (v.z + o.z) / 2]);
+          if (rel > 2.5) this.onPileUp?.(v, o, rel);
+        }
+      }
+    }
+    if (sp < 0.15 && Math.abs(v.spin) < 0.05) { v.pvx = v.pvz = v.spin = 0; }
+  }
+
+  /** The list a vehicle of `kind` lives in. */
+  listOf(kind) { return kind === 'traffic' ? this.cars : kind === 'parked' ? this.parked : this.left; }
+
+  /** Another vehicle (not v) touching a circle at (x, z, r); its list's kind in this.nearKind. */
+  vehicleNear(v, x, z, r) {
+    for (let k = 0; k < 3; k++) {
+      const list = k === 0 ? this.cars : k === 1 ? this.parked : this.left;
+      for (let i = 0; i < list.length; i++) {
+        const o = list[i];
+        if (o === v) continue;
+        const dx = x - o.x, dz = z - o.z;
+        if (dx > 8 || dx < -8 || dz > 8 || dz < -8) continue;
+        const T = this.types[o.type];
+        if (!T) continue;
+        const fx = Math.sin(o.heading), fz = Math.cos(o.heading), end = T.len / 2 - T.wid / 2;
+        let along = dx * fx + dz * fz;
+        along = along < -end ? -end : along > end ? end : along;
+        const ex = dx - fx * along, ez = dz - fz * along, rr = r + T.wid / 2;
+        if (ex * ex + ez * ez < rr * rr) { this.nearKind = k === 0 ? 'traffic' : k === 1 ? 'parked' : 'left'; return o; }
+      }
+    }
+    return null;
   }
 
   /**

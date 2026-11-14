@@ -51,6 +51,8 @@ import { ViewControl } from './player/view.js';
 import { Combat } from './player/combat.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
+import { Ragdolls, REACT } from './sim/ragdoll.js';
+import { MASS } from './vehicles/handling.js';
 import { POINT } from './world/tileFormat.js';
 import { titleScreen, loadingScreen, pauseMenu, loadSettings } from './ui/menu.js';
 import { registerServiceWorker } from './serviceWorker.js';
@@ -186,6 +188,11 @@ const world = {
   hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || garage.taxiHits(x, z, r) || stars.hits(x, z, r),
   bodyAt: (x, z, r) => traffic.bodyAt(x, z, r), // other vehicles are pushed by mass rather than acting as walls
   groundHeight: (x, z) => { const y = tiles.wheelHeight(x, z); if (tiles.inPothole) world.pothole = true; return y; },
+  // A raycast wheel: ground height, surface material (grip) and potholes under it.
+  wheel: (x, z) => { const y = tiles.wheelProbe(x, z); world.surface = tiles.surface; world.pothole = tiles.inPothole; return y; },
+  surface: 0,
+  // Lamp posts, thelas and bus shelters give way to a hard enough hit (GTA's fragment objects).
+  breakable: (x, z, r, speed, mass, vx, vz) => propPhysics.breakable(x, z, r, speed, mass, vx, vz),
 };
 const spawn = index.spawn;
 function respawn() {
@@ -267,6 +274,9 @@ jobs.garage = garage; // fares can also be taken in an auto-rickshaw
 
 // ------------------------------------------------------------------ on foot
 const walker = new Walker(tiles);
+// Euphoria-lite: people (and the player) thrown, staggered or bowled over by what hits them.
+const ragdolls = new Ragdolls({ tiles, audio, bubbles });
+walker.ragdoll = ragdolls;
 state.listeners.add(applyOutfit);
 applyOutfit();
 const skids = new SkidMarks(scene);
@@ -301,7 +311,7 @@ function toggleFoot() {
   } else {
     const c = vehicleChoice();
     if (!c) { say('Walk up to a vehicle to get in (F within a few metres)', 1.5); return; }
-    if (c.own) { if (c.taxi && !garage.inTaxi) garage.toTaxi(); }
+    if (c.own) { if (c.taxi && !garage.inTaxi) garage.toTaxi(); if (player.fallen) player.rightUp(); }
     else if (c.other.d > 1.2) { startJack(c.other); return; } // run to the driver's door first
     else takeVehicle(c.other);
     onFoot = false;
@@ -418,6 +428,7 @@ function placeCamera(dt) {
 }
 placeCamera(0);
 combat = new Combat({ scene, street, police, bubbles, audio, hud, tiles, walker, pichkari, view });
+combat.ragdoll = ragdolls;
 pichkari.ctx.combat = combat;
 garage.combat = combat;
 // Phatake: firecrackers the player can light on foot (X; Z changes type); the city lights its own on evenings.
@@ -435,8 +446,23 @@ cityMap.markers = () => [...taxiMarker(), ...stars.markers(), ...story.markers()
 // Missions can reach into these systems (vehicle requirements, cracker counts, calling a star out, clearing challans).
 Object.assign(story.world, { stars, garage, crackers, police });
 crackers.onLit = (kind) => story.event('cracker', kind);
+// A sutli bomb's blast pushes things outward: loose bits fly, people close by stagger or fall.
+crackers.blast = (x, z, r) => {
+  propPhysics.blast(x, z, r * 2.5, 1);
+  for (const p of street.peds) {
+    const d = Math.hypot(p.x - x, p.z - z);
+    if (d > r || p.rag || p.kind === 'kid') continue;
+    const k = (r - d) / r, ux = (p.x - x) / (d || 1), uz = (p.z - z) / (d || 1);
+    ragdolls.hit(p, ux * (2 + k * 4), uz * (2 + k * 4), { mass: 80, react: k > 0.55 && !p.combat ? REACT.STUMBLE : REACT.STAGGER, down: 1.5 });
+  }
+};
 // Collisions with other vehicles: riders come off their bikes, drivers shout, hard hits are hit-and-run.
 traffic.onRiderDown = (bike) => { garage.eject(bike, null, 'down'); if (!onFoot) police.offence('hitrun', player); };
+traffic.onPileUp = (v, o, rel) => {
+  const d = Math.hypot(v.x - player.pos.x, v.z - player.pos.z);
+  if (d < 70) audio.crash(Math.min(1, rel / 12) / (1 + d / 25));
+  if (rel > 3.5 && d < 40 && Math.random() < 0.6) bubbles.say(o, ['Arre! Peeche se kaun thoka?!', 'Yeh kya ho raha hai?!', 'Insurance waale ko bulao!', 'Mera naya bumper!'][Math.floor(Math.random() * 4)], 2.5, 'driver');
+};
 traffic.onShunt = (car, dv) => { if (dv > 1.5) bubbles.say(car, ['Arre! Andha hai kya?!', 'Gaadi thok di!', 'Dekh ke chala!', 'Mera bumper!'][Math.floor(Math.random() * 4)], 2.5, 'driver'); };
 
 await tiles.whenReady(player.pos.x, player.pos.z, 350, (done, total) => {
@@ -580,7 +606,26 @@ function interact() {
 }
 
 /** Knocked out on foot: wake up at the spawn, minus the hospital bill. */
+/**
+ * GTA's bike crash: a hard hit, a loop-the-loop wheelie or a tipped auto throws the rider off.
+ * The vehicle lies on its side, sliding to a stop (sparks); F next to it picks it up again.
+ */
+function throwRider(kind) {
+  const h = player.heading, sp = Math.hypot(player.vx, player.vz);
+  if (jobs.onDuty && !jobs.ride) jobs.toggleDuty(player);
+  onFoot = true; walker.spraying = false; jack = null;
+  const seat = garage.spec?.seat ?? 0.9;
+  walker.pos.set(player.pos.x + Math.sin(h) * 0.4, player.pos.y + seat, player.pos.z + Math.cos(h) * 0.4);
+  walker.heading = h; walker.speed = 0; walker.down = 0;
+  const fling = kind === 'loop' ? 0.5 : kind === 'tip' ? 0.7 : 1.05;
+  ragdolls.hit(walker, player.vx * fling, player.vz * fling, { mass: 400, react: sp > 2.5 ? REACT.FLING : REACT.STUMBLE, y: player.pos.y + seat, down: 1.4 + Math.random() });
+  walker.health = Math.max(0.05, walker.health - Math.min(0.35, 0.05 + sp * 0.012));
+  audio.crash(Math.min(1, 0.4 + sp / 20));
+  say(kind === 'loop' ? 'Wheelie went too far — dhadaam! (F by the bike picks it up)' : kind === 'tip' ? 'The auto tipped over! (F next to it puts it back on its wheels)' : 'Thrown off! (F by the bike picks it up)', 3.5);
+}
+
 function hospital() {
+  ragdolls.release(walker); walker.down = 0;
   state.pay(1500, 'Hospital bill');
   walker.health = 1;
   onFoot = false; walker.spraying = false;
@@ -634,16 +679,18 @@ function refuel() {
   const litres = Math.min(want, afford);
   if (litres > 0) { state.pay(litres * 103, `Petrol ${litres} L`); player.fuel = Math.min(1, player.fuel + litres / 35); }
   say(want === 0 ? 'Tank already full' : litres < want ? (litres ? `Filled ${litres} L — that's all your money covers` : 'Not enough money for petrol — earn some with taxi fares (J)') : `Filled ${litres} L · ₹${litres * 103}`);
-  if (player.condition < 0.9) repairMenu();
+  if (player.condition < 0.9 || player.flat >= 0) repairMenu();
 }
 
 /** The pump mechanic: a cheap patch-up or a full repair, priced before you pay. */
 function repairMenu() {
   const full = Math.round((1 - player.condition) * 1800 / 10) * 10 + 150;
   const patch = 350;
-  choice('Pump mechanic: "Gaadi ka haal kharab hai, saheb."', [
-    [`Patch-up · ₹${patch} · +30% (dents stay)`, () => { if (!state.canAfford(patch)) return say('Not enough money for the patch-up'); state.pay(patch, 'Patch-up at the pump'); player.condition = Math.min(1, player.condition + 0.3); say('Patched up. Runs better, still looks rough.'); }],
-    [`Full repair · ₹${full} · like new`, () => { if (!state.canAfford(full)) return say('Not enough money for a full repair'); state.pay(full, 'Full repair at the pump'); player.condition = 1; damage.repair(); say('Good as new — dents out, lamps fixed.'); }],
+  const tyre = player.flat >= 0 ? [[`Puncture fix · ₹80 · the tyre-wala patches it`, () => { if (!state.canAfford(80)) return say('Not enough money for the puncture-wala'); state.pay(80, 'Puncture fixed'); player.flat = -1; say('Tyre patched. "Bas, ab seedha chalegi!"'); }]] : [];
+  choice(player.condition >= 0.9 ? 'Puncture-wala: "Tyre baith gaya, saheb."' : 'Pump mechanic: "Gaadi ka haal kharab hai, saheb."', [
+    ...tyre,
+    [`Patch-up · ₹${patch} · +30% (dents stay)`, () => { if (!state.canAfford(patch)) return say('Not enough money for the patch-up'); state.pay(patch, 'Patch-up at the pump'); player.condition = Math.min(1, player.condition + 0.3); player.flat = -1; say('Patched up. Runs better, still looks rough.'); }],
+    [`Full repair · ₹${full} · like new`, () => { if (!state.canAfford(full)) return say('Not enough money for a full repair'); state.pay(full, 'Full repair at the pump'); player.condition = 1; player.flat = -1; damage.repair(); say('Good as new — dents out, lamps fixed.'); }],
     ['No thanks', () => {}],
   ]);
 }
@@ -742,17 +789,22 @@ function step(dt) {
   const cutscene = !!story.camera;
   player.update(dt, onFoot ? PARKED : cutscene ? NO_INPUT : input, world); // left on foot, the vehicle stands with its handbrake on
   // Tyre marks and car sounds.
-  skids.track(player, player.slip || 0, player.braking);
+  skids.track(player, player.slip || 0, player.braking, player.h.track || 0.1, player.h.wheelBase);
   audio.squeal(onFoot ? 0 : player.slip || 0);
-  audio.engine(player.speed, onFoot ? 0 : player.throttle || 0, !onFoot);
+  audio.engine(player.speed, onFoot ? 0 : player.throttle || 0, !onFoot, player.rpm, player.shiftT > 0);
+  if (player.backfire && !onFoot) audio.backfire?.();
+  if (player.puncture) { audio.backfire?.(0.6); say(player.h.twoWheeler ? 'Puncture! The bike wobbles — get it fixed at a petrol pump (⛽)' : 'Puncture! That pothole took a tyre — it pulls to one side. Fix it at a petrol pump (⛽)', 4); }
+  if (player.scrape > 3) propPhysics.sparks(player.scrapeX, player.pos.y + 0.35, player.scrapeZ, player.vx, player.vz, Math.min(1, player.scrape / 12), dt);
   if (player.impact) {
     if (player.impact > 2.5) {
       audio.crash(Math.min(1, player.impact / 14));
-      if (garage.inTaxi) damage.impact(player.impactLocal[0], player.impactLocal[1], player.impact);
+      if (garage.inTaxi) damage.impact(player.impactLocal[0], player.impactLocal[1], player.impact * player.h.deformation);
       propPhysics.impact(player.impact, Math.sin(player.heading), Math.cos(player.heading));
+      if (player.impact > 6) propPhysics.debris(player.pos.x + Math.sin(player.heading) * player.impactLocal[1] * player.halfLength, player.pos.y + 0.5, player.pos.z + Math.cos(player.heading) * player.impactLocal[1] * player.halfLength, player.vx, player.vz, player.impact);
     }
     player.impact = 0;
   }
+  if (player.crash && !onFoot && !cutscene) throwRider(player.crash);
   damage.update(dt, garage.inTaxi ? player : garage.homeBody, camera);
   garage.update(dt);
   traffic.taxi = police.taxi = garage.inTaxi ? player : garage.homeBody; // NPC cars and patrols avoid the parked taxi
@@ -762,10 +814,12 @@ function step(dt) {
   if (onFoot && jack) updateJack(dt);
   if (onFoot && !jack) {
     walker.update(dt, cutscene ? NO_INPUT : input, indoors ? interiors.world : footWorld, state.s.energy, clock.aqi, view);
-    // Careless drivers knock you over.
+    // Careless drivers knock you over: how far you go depends on their speed and weight.
     for (const c of traffic.cars) {
-      if (c.speed > 2 && Math.hypot(c.x - walker.pos.x, c.z - walker.pos.z) < 1.5 && walker.down <= 0) {
-        walker.knock(0.08 + c.speed * 0.02);
+      if (c.speed > 2 && Math.hypot(c.x - walker.pos.x, c.z - walker.pos.z) < 1.5 && walker.down <= 0 && !walker.rag) {
+        const m = MASS[c.type] || 900;
+        walker.struck(Math.sin(c.heading) * c.speed, Math.cos(c.heading) * c.speed, m, Math.min(0.5, (0.08 + c.speed * 0.02) * (0.6 + Math.min(1, m / 1500) * 0.6)));
+        c.speed *= 0.6;
         bubbles.say(c, 'Arre! Dekh ke chal!', 2, 'driver');
       }
     }
@@ -783,6 +837,7 @@ function step(dt) {
   street.update(dt, active, clock);
   const fire = (input.fire || input.brake) && !indoors && !cutscene; // holstered indoors; Space skips cutscenes, it doesn't shoot
   combat.update(dt, { fire }, onFoot);
+  ragdolls.update(dt); // after street life and fights: thrown people go where physics sends them
   if (!onFoot && !cutscene) combat.carVsPeople(player);
   crackers.update(dt, clock, active.pos, camera.position, onFoot ? walker : null);
   stars.update(dt, clock, active, clock.night);
@@ -856,6 +911,8 @@ function step(dt) {
   window.__gtb.stepMs = window.__gtb.stepMs * 0.9 + (performance.now() - t0) * 0.1 || 0;
 }
 window.__gtb.step = step;
+window.__gtb.ragdolls = ragdolls;
+window.__gtb.throwRider = throwRider;
 
 // ------------------------------------------------------------------ local trains
 // Loaded once play has started (not part of the first load). Trains are solid and far heavier
@@ -931,8 +988,10 @@ function nearSea(at) {
   return Math.min(1, wet / 3);
 }
 
+let hudSpeed = '';
 function updateHud() {
-  $('speed').textContent = `${Math.round(Math.abs((onFoot ? walker : player).speed) * 3.6)} km/h`;
+  const speedHtml = onFoot ? `${Math.round(Math.abs(walker.speed) * 3.6)} km/h` : `${Math.round(Math.abs(player.speed) * 3.6)} km/h <small>${player.fallen ? '—' : player.speed < -0.5 ? 'R' : player.h.gears > 1 ? player.gear : ''}</small>`;
+  if (speedHtml !== hudSpeed) $('speed').innerHTML = hudSpeed = speedHtml; // gear from the car's gearbox
   $('fuel-label').textContent = onFoot ? 'Stamina' : 'Fuel';
   $('cond-label').textContent = onFoot ? 'Health' : 'Car';
   const here = onFoot ? walker : player;
