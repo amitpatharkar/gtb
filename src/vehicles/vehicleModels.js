@@ -61,9 +61,21 @@ export const FILE_TYPES = [
   [/punto/i, 'punto'], [/linea/i, 'linea'], [/fiat_uno/i, 'uno'], [/getz/i, 'getz'], [/sx4/i, 'sx4'], [/triber/i, 'triber'],
   [/s-presso/i, 'spresso'], [/jimny/i, 'jimny'],
 ];
+/**
+ * Uploaded files checked by eye after the conversion (scripts/art-vehicles.mjs): only these are
+ * used. Many detailed models come out with missing panels or open doors; add a file here once
+ * its close-up looks right (`node scripts/art-index.mjs --preview`, then look at it in the game).
+ */
+export const VERIFIED = new Set([
+  '1993_fiat_punto', 'suzuki_sx4_sportback', '2011_suzuki_wagon_r_rr', '2013_suzuki_jimny', 'maruti_suzuki_alto_800_only_body_very_basic',
+  'basic_old_hindustan_ambassador_car_only_body', 'fiat__linea_2006', 'fiat_uno_2001', 'hyundai_verna', 'hyundai_creta', 'hyundai_getz_2006',
+  'hyundai_santro_xing', 'new_kia_seltos_2026', 'mahindra_-_thar_roxx', 'mahindra_scorpio', 'mahindra_xuv_7x0', 'maruti_800_ac',
+  'maruti_suzuki_ciaz', 'maruti_suzuki_eeco_modified', 'maruti_suzuki_gypsy', 'maruti_zen_car_3d_model_free_to_use', 'tata_safari', 'tata_sierra',
+]);
 /** The game type for an uploaded file name: an exact type id, an alias match, or null (not used). */
 export function typeForFile(name, fleetIds = []) {
   const base = name.replace(/\.glb$/i, '').toLowerCase();
+  if (!VERIFIED.has(base) && !fleetIds.includes(base) && !VEHICLE_ART[base]) return null; // not checked yet
   if (fleetIds.includes(base) || VEHICLE_ART[base]) return base;
   for (const [re, id] of FILE_TYPES) if (re.test(base)) return id;
   return null;

@@ -127,7 +127,7 @@ const startHour = Number(query.get('hour'));
 const clock = new GameClock(query.has('hour') && Number.isFinite(startHour) ? startHour : 17.25);
 const traffic = new Traffic(scene, tiles, tier);
 // Owner-uploaded vehicle models (public/art/vehicles) join the fleet once play has started.
-const vehicleArt = loadVehicleArt(BASE, traffic, started).catch(() => []);
+const vehicleArt = loadVehicleArt(BASE, traffic, started, tier).catch(() => []);
 setStreetProfiles(index.profiles); // street library: parking and life by street type
 const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
 const skyline = new Skyline(scene, tiles, tier, camera.far); // distant tall buildings beyond the loaded tiles (up to the far plane)

@@ -104,6 +104,9 @@ export class Traffic {
       trim: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.15 }),
       lamps: new THREE.MeshBasicMaterial({ vertexColors: true }),
     };
+    // Uploaded car models are often single sheets meant to be seen from both sides (doors,
+    // panels): drawn one-sided, they looked exploded. The procedural fleet doesn't mind.
+    for (const m of Object.values(this.mats)) m.side = THREE.DoubleSide;
     this.parkMax = tier.name === 'High' ? 140 : tier.name === 'Medium' ? 100 : 60;
     this.cap = this.max + 24 + this.parkMax; // traffic, extras (broken-down taxis) and parked vehicles
     this.batches = {};

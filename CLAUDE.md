@@ -236,6 +236,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   logos; colours kept as vertex colours; oriented, scaled to the real length, near ~6.5k + far ~800 triangles) →
   `art/opt/vehicles/`; at runtime `traffic.useModel(id, near, far, info)` grows the batches (`setGeometrySize`) and
   replaces a fleet type's body or adds a new type (`VEHICLE_ART`: parody name, `base` type for handling/mass, `flip`).
+  Only files with a credit line in `public/art/CREDITS.md` under CC0/CC BY are used; files named as downloaded map to
+  types via `FILE_TYPES`, and only files in `VERIFIED` (checked by eye: many detailed models lose panels) are used —
+  `node scripts/art-index.mjs --preview` ignores the credit gate for a local look. Loaded after play starts, most
+  common first, Low 12 / Medium 24 types. Traffic car materials are double-sided (single-sheet panels).
 - `src/world/models.js` — glTF/GLB → instanced meshes (metres, base on ground); `src/world/streetProps.js` — Poly Haven
   chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
 - `src/sim/characters.js` — Quaternius rigged characters (from the pipeline's `converted/` GLBs, only if listed in
