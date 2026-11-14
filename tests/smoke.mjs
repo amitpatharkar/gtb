@@ -135,7 +135,9 @@ await check('steal', async () => {
     g.story.s.done = g.story.missions.map((m) => m.id); // no mission marker by the spawn (driving into it starts a cutscene)
     for (let i = 0; i < 200; i++) g.step(0.05);
     g.toggleFoot(); for (let i = 0; i < 3; i++) g.step(0.05);
-    const car = g.traffic.cars.filter((c) => !g.traffic.types[c.type].rider && Math.hypot(c.x - g.player.pos.x, c.z - g.player.pos.z) > 12).sort((a, b) => Math.hypot(a.x - g.walker.pos.x, a.z - g.walker.pos.z) - Math.hypot(b.x - g.walker.pos.x, b.z - g.walker.pos.z))[0];
+    // A car with open road ahead, not pointing at the player's parked taxi (it would drive into it).
+    const clearAhead = (c) => { const fx = Math.sin(c.heading), fz = Math.cos(c.heading); for (let d = 4; d <= 24; d += 2) if (g.tiles.hits(c.x + fx * d, c.z + fz * d, 1.2)) return false; return fx * (c.x - g.player.pos.x) + fz * (c.z - g.player.pos.z) > 0; };
+    const car = g.traffic.cars.filter((c) => !g.traffic.types[c.type].rider && Math.hypot(c.x - g.player.pos.x, c.z - g.player.pos.z) > 12 && clearAhead(c)).sort((a, b) => Math.hypot(a.x - g.walker.pos.x, a.z - g.walker.pos.z) - Math.hypot(b.x - g.walker.pos.x, b.z - g.walker.pos.z))[0];
     if (!car) return { car: null };
     const T = g.traffic.types[car.type], h = car.heading;
     g.walker.pos.set(car.x - Math.cos(h) * (T.wid / 2 + 3.5), 0.2, car.z + Math.sin(h) * (T.wid / 2 + 3.5));
