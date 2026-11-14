@@ -4,7 +4,7 @@ import { TileManager } from './world/tiles.js';
 import { createMaterials } from './world/materials.js';
 import { createEnvironment } from './world/environment.js';
 import { setupCredits } from './credits.js';
-import { TIERS, pickTier, query } from './settings.js';
+import { TIERS, pickTier, query, TierProbe, markTierChosen } from './settings.js';
 import { TextureLibrary, mediaVersion } from './world/textures.js';
 import { createPost } from './render/post.js';
 import { creditedPhoto } from './render/photo.js';
@@ -227,8 +227,9 @@ if (resume) {
 
 /** Graphics changes rebuild every buffer, so save where we are and reload straight back in. */
 function nextTier(t) { return { low: 'medium', medium: 'high', high: 'low' }[t] || 'low'; }
-function changeQuality(next) {
+function changeQuality(next, auto = false) {
   if (jobs.ride?.stage === 'ride') { say('Finish the ride before changing graphics', 3); return; }
+  if (!auto) markTierChosen(); // the player's own choice: no automatic fallback from now on
   state.save();
   try {
     sessionStorage.setItem(RESUME_KEY, JSON.stringify({ x: player.pos.x, z: player.pos.z, heading: player.heading, hour: clock.hour, fuel: player.fuel, condition: player.condition }));
@@ -645,6 +646,7 @@ let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 // Dynamic resolution: when the graphics chip struggles, render fewer pixels rather than drop
 // frames (and give them back when there is room). Off in automated tests (fixed screenshots).
 const dynRes = { base: Math.min(devicePixelRatio, tier.pixelRatio), scale: 1, acc: 0, frames: 0, on: !navigator.webdriver && !query.has('fixedres') };
+const tierProbe = new TierProbe(tierKey);
 function setResolutionScale(k) {
   dynRes.scale = k;
   renderer.setPixelRatio(dynRes.base * k);
@@ -663,6 +665,8 @@ renderer.setAnimationLoop((time) => {
       if (fps < 34 && dynRes.scale > 0.6) setResolutionScale(Math.max(0.6, dynRes.scale - 0.1));
       else if (fps > 56 && dynRes.scale < 1) setResolutionScale(Math.min(1, dynRes.scale + 0.05));
     }
+    // Still under 40 fps at the lowest resolution: an automatically picked tier drops to Low.
+    if (tierProbe.update(raw, dynRes.scale)) { say('Graphics: switching to Low for a smoother game (Q changes it)', 3); setTimeout(() => changeQuality('low', true), 2500); }
   }
   if (helpTimer > 0) { helpTimer -= dt; if (helpTimer <= 0) $('help').classList.remove('show'); }
   crosshair.hidden = !(onFoot && (view.aim || (combat.weapon === 'pichkari' && view.locked)));
