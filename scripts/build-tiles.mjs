@@ -812,7 +812,7 @@ for (const L of LANDMARKS) {
 const partGrid = new Grid(50);
 for (const b of buildingsRaw) if (b.part) { const [x, z] = G.centroid(b.polys[0][0]); partGrid.add([x, z, x, z], [x, z]); }
 const skylineList = []; // tall buildings for the far skyline (lib/skyline.mjs)
-let bCount = 0, bSkipped = 0, bWithHeight = 0, bProfiled = 0, bNetting = 0;
+let bCount = 0, bSkipped = 0, bWithHeight = 0, bProfiled = 0, bNetting = 0, bArcade = 0;
 for (const b of buildingsRaw) {
   for (const poly of b.polys) {
     const outer = poly[0];
@@ -879,13 +879,15 @@ for (const b of buildingsRaw) {
     if (look.shops && front.some(Boolean) && minH < 1) f2 |= BUILDING_FLAG.SHOPS;
     if (b.hidden) f2 |= BUILDING_FLAG.HIDDEN;
     // About one building in ten under repair wears green netting and scaffolding (survey).
+    // Arcaded streets (street library): the ground floor steps back behind piers along the street walls.
+    if (sp?.arcade && !b.hidden && !overTrack.has(b) && minH < 1 && h >= 8 && area >= 120 && look.style !== STYLE.GLASS && look.style !== STYLE.SHED && front.some(Boolean)) { f2 |= BUILDING_FLAG.ARCADE; bArcade++; }
     if (sp?.netting && !b.hidden && !overTrack.has(b) && !(f2 & BUILDING_FLAG.HERITAGE) && h > 8 && h < 70 && hash01(b.id, 21) < sp.netting) { f2 |= BUILDING_FLAG.NETTING; bNetting++; }
     tile.buildings.push({ h, minH, color: look.color, flags: f2, style: look.style, levels: look.levels, rings, front });
     bCount++;
     if (h >= 15 && !b.hidden && minH < 1) skylineList.push({ ring: outer, area, h, color: look.color });
   }
 }
-log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts; ${bProfiled} dressed by their street's profile, ${bNetting} under netting)`);
+log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts; ${bProfiled} dressed by their street's profile, ${bNetting} under netting, ${bArcade} arcaded)`);
 
 // Roads and rails: polylines clipped to each tile. Junction points shared by two or more
 // roads are never simplified away, so the road graph stays connected.

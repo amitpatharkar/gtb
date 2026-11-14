@@ -38,7 +38,7 @@ export const ROAD = {
 export const ROAD_FLAG = { BRIDGE: 1, ONEWAY: 2, KERB_BW: 4, KERB_BY: 8, KERB_PLAIN: 16, MEDIAN_BW: 32 };
 export const RAIL = { MAIN: 0, SERVICE: 1 };
 export const RAIL_FLAG = { BRIDGE: 1 };
-export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2, SHOPS: 4, HIDDEN: 8, NETTING: 16 }; // NETTING: under repair (green netting + scaffolding); // HIDDEN: collide only (a hand-built landmark stands there)
+export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2, SHOPS: 4, HIDDEN: 8, NETTING: 16, ARCADE: 32 }; // ARCADE: ground floor set back behind piers on street-facing walls (Fort, Causeway); // NETTING: under repair (green netting + scaffolding); // HIDDEN: collide only (a hand-built landmark stands there)
 export const POINT = {
   RAIN_TREE: 0, GULMOHAR: 1, PEEPAL: 2, PALM: 3, LIGHT: 4, SIGNAL: 5, BUS_STOP: 6,
   POTHOLE: 7, PUDDLE: 8, GARBAGE: 9, STALL: 10, FUEL: 11, TETRAPOD: 12,

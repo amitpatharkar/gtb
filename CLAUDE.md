@@ -106,7 +106,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   rooms, roof types, water tanks), `builder.js` (mesh helpers). Road segments: 6 floats `x0 z0 x1 z1 halfWidth flags`
   (flags 1 vehicle, 2 one-way, 4 main road, bits 8–15 street profile). Kerb paint: the street profile's
   (`ROAD_FLAG.KERB_BW/BY/PLAIN`), else black-yellow near main roads (`kerbPlain` elsewhere); median kerbs (another
-  carriageway within 6.5 m beyond the kerb) black-white (`kerbBW`). Netting buildings get a green mesh wall (`netting`).
+  carriageway within 6.5 m beyond the kerb) black-white (`kerbBW`). Netting buildings get a green mesh wall (`netting`);
+  `BUILDING_FLAG.ARCADE` (street library `arcade`) street walls: upper floors on the line, shops 2.8 m back behind
+  piers under a ceiling (`arcadeWall` in buildings.js; the footprint still collides). Every building gets a
+  contact-shade band on the ground along its walls (mesh key `contact`).
 - `src/world/tileFormat.js` — binary tile format v3 (buildings with style/levels/street-facing walls and flags incl.
   `NETTING`, areas incl. PLOT/ROAD/FOOTPATH, roads with kerb/median flags and a street-profile byte, rails, markings,
   points); `src/world/levels.js` — ground heights

@@ -10,6 +10,7 @@ import { addHoarding, HOARDING } from './hoardingMesh.js';
 export const PART_TYPES = ['frame', 'sill', 'chajja', 'grille', 'ac', 'balcony', 'sign', 'shutterBox'];
 const PARTS_MAX_Y = 27;   // real geometry on the lower ~8 floors; higher up the shader carries the detail
 const CHAJJA_STYLES = new Set([0, 1, 2, 5]);
+const ARCADE_DEPTH = 2.8; // m from the street wall back to the shopfronts
 const CORNICE_STYLES = new Set([0, 2, 3, 4, 5]);
 
 /** Horizontal strip sticking out of a wall (cornice/band): front, top and bottom faces, blank facade. */
@@ -106,8 +107,10 @@ export function buildBuildings(t, ox, oz, toWorld) {
         m.cur[5] = bays < 1 || canopy ? 2 : shop ? 1 : 0;
         m.cur[6] = len / Math.max(1, bays);
         const nx = (bz - az) / len, nz = -(bx - ax) / len;
-        facadeWall(m, ax, az, bx, bz, y0, top, nx, nz, u, u + len, 0, Math.max(1, bays), low, base);
-        if (ri === 0 && !canopy && bays >= 1 && style < 7) addParts(ax, az, bx, bz, nx, nz, len, bays, shop, u, bd.front[i]);
+        const arcade = ri === 0 && (bd.flags & BUILDING_FLAG.ARCADE) && bd.front[i] && len > 5 && bays >= 2 && !canopy && h > 8;
+        if (arcade) arcadeWall(ax, az, bx, bz, nx, nz, len, bays, u);
+        else facadeWall(m, ax, az, bx, bz, y0, top, nx, nz, u, u + len, 0, Math.max(1, bays), low, base);
+        if (ri === 0 && !canopy && bays >= 1 && style < 7) addParts(ax, az, bx, bz, nx, nz, len, bays, shop || arcade, u, bd.front[i], arcade);
         u += len;
       }
     });
@@ -128,7 +131,34 @@ export function buildBuildings(t, ox, oz, toWorld) {
       }
     }
 
-    function addParts(ax, az, bx, bz, nx, nz, len, bays, shop, u0, front) {
+    /**
+     * Arcaded street wall (Fort, Colaba Causeway): the upper floors stay on the street line, the
+     * ground floor (shops) steps back ARCADE_DEPTH behind piers at the bay lines, under a ceiling.
+     */
+    function arcadeWall(ax, az, bx, bz, nx, nz, len, bays, u) {
+      const G = Y.KERB + Math.max(storey, SHOP_STOREY), ix = -nx * ARCADE_DEPTH, iz = -nz * ARCADE_DEPTH;
+      const dx = (bx - ax) / len, dz = (bz - az) / len;
+      m.cur[5] = 0; m.cur[6] = len / bays;
+      facadeWall(m, ax, az, bx, bz, G, top, nx, nz, u, u + len, 0, bays, low, base);
+      m.cur[5] = 1; // shops on the back wall of the walkway
+      facadeWall(m, ax + ix, az + iz, bx + ix, bz + iz, y0, G, nx, nz, u, u + len, 0, bays, low, low);
+      m.cur[5] = 2; m.cur[0] = 0; // piers, ends: plain wall
+      const pw = 0.32, pd = 0.62;
+      for (let c = 0; c <= bays; c++) {
+        const along = Math.min(len - pw, Math.max(pw, (c * len) / bays));
+        const px = ax + dx * along, pz = az + dz * along, qx = px - nx * pd, qz = pz - nz * pd;
+        wall(m, px - dx * pw, pz - dz * pw, px + dx * pw, pz + dz * pw, y0, G, nx, nz, 0, 2 * pw, y0, G, low, base);
+        wall(m, qx + dx * pw, qz + dz * pw, qx - dx * pw, qz - dz * pw, y0, G, -nx, -nz, 0, 2 * pw, y0, G, low, low);
+        wall(m, px + dx * pw, pz + dz * pw, qx + dx * pw, qz + dz * pw, y0, G, dx, dz, 0, pd, y0, G, low, base);
+        wall(m, qx - dx * pw, qz - dz * pw, px - dx * pw, pz - dz * pw, y0, G, -dx, -dz, 0, pd, y0, G, low, base);
+      }
+      // Closed ends of the walkway, and its ceiling.
+      wall(m, ax, az, ax + ix, az + iz, y0, G, dx, dz, 0, ARCADE_DEPTH, y0, G, low, low);
+      wall(m, bx + ix, bz + iz, bx, bz, y0, G, -dx, -dz, 0, ARCADE_DEPTH, y0, G, low, low);
+      flatPolygon(get('roof'), [[ax, az, bx, bz, bx + ix, bz + iz, ax + ix, az + iz]], G - 0.01, linear(0xe9e3d6), ox, oz, true);
+    }
+
+    function addParts(ax, az, bx, bz, nx, nz, len, bays, shop, u0, front, arcade = false) {
       const dx = (bx - ax) / len, dz = (bz - az) / len, bw = len / bays;
       const yaw = Math.atan2(nx, nz), Yb = Y.KERB;
       const seedInt = Math.floor(seed * 997);
@@ -158,7 +188,7 @@ export function buildBuildings(t, ox, oz, toWorld) {
         if (shop) {
           const signBot = gf - 1.15;
           push('sign', (c + 0.5) * bw, Yb + gf - 0.675, 0.88 * bw, 0.95, Math.floor(cellHash(c, -1, seedInt, K.SIGN) * 128));
-          push('shutterBox', (c + 0.5) * bw, Yb + signBot - 0.17, 0.88 * bw, 0.28, 0x6b6e70);
+          if (!arcade) push('shutterBox', (c + 0.5) * bw, Yb + signBot - 0.17, 0.88 * bw, 0.28, 0x6b6e70); // arcades: the sign hangs in the opening
         }
         for (let row = 0; ; row++) {
           const yTop = Yb + gf + (row + r[3]) * storey;

@@ -25,6 +25,7 @@ function normalise(p, index) {
     : has(gf, /shop|store|stall|eater|restaurant|khanaval|showroom|godown|bazaar|market|cafe|caf[eé]|bank|office|workshop/i) ? 0.85 : null;
   const details = [...(b.details || []), ...(p.clutter || [])].join(' · ');
   const netting = has(details, /netting|scaffold/i) ? 0.1 : 0;
+  const arcade = has(`${details} · ${gf}`, /arcade/i); // Fort and Causeway: shops behind a pillared walkway
   const clutter = (p.clutter || []).join(' · ');
   const lights = String(p.lights || '');
   const lamp = has(lights, /triple|lantern|heritage/i) ? LAMP.HERITAGE : has(lights, /globe/i) ? LAMP.GLOBE : has(lights, /tall|galvanised|necklace|curve/i) ? LAMP.TALL : LAMP.STANDARD;
@@ -36,7 +37,7 @@ function normalise(p, index) {
   // Parking pressure at the kerb: 0 none … 1 nose-to-tail on both sides (+ double parking).
   const parking = has(clutter, /few parked|no parking/i) ? 0.15 : has(clutter, /double park/i) ? 1 : has(clutter, /nose-to-tail|both kerbs|rows of|parked cars|taxi stand|taxis parked/i) ? 0.8 : has(clutter, /parked/i) ? 0.55 : 0.45;
   return {
-    id: p.id, index, label: p.label, styles, storeys, colours, shops, netting,
+    id: p.id, index, label: p.label, styles, storeys, colours, shops, netting, arcade,
     treesPer100: typeof tr.per_100m === 'number' ? tr.per_100m : null, treeMix: tr.game_points && Object.keys(tr.game_points).length ? tr.game_points : null,
     lamp, medianLamp, kerb, median, planted, parking,
     stalls: has(clutter, /stall|thela|vendor|hawker|seller|cart/i) ? 1 : 0.4,
