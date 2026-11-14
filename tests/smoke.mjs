@@ -282,6 +282,60 @@ await check('trains', async () => {
   return { info, fails };
 });
 
+await check('ride', async () => {
+  // Board a local at Dadar with a ticket, ride it, skip ahead, get off; tickets and checkers work.
+  const { page, errors } = await game('hour=9');
+  await page.waitForFunction(() => window.__gtb.trains?.ride, null, { timeout: 60000 });
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, T = g.trains, R = T.ride;
+    const st = T.stops.find((s) => s.name === 'Dadar' && s.line.route === 'W' && !s.line.fast && s.line.dir === 'up');
+    if (!st) return { station: null };
+    g.player.pos.set(st.x + st.fz * 30, 0.02, st.z - st.fx * 30);
+    await g.tiles.whenReady(st.x, st.z, 250);
+    g.toggleFoot();
+    g.walker.pos.set(st.x, 0.3, st.z);
+    g.state.s.money = 5000;
+    // Wait for a train of this line standing at Dadar.
+    let tr = null;
+    for (let i = 0; i < 6000 && !tr; i++) {
+      g.step(0.05);
+      for (const t of T.trains.values()) if (t.line === st.line && t.leg?.station === st.i && t.n === 12 && t.leg.T - t.left > 3 && t.left > 6 && (!t.ac || t.doors > 0.9)) tr = t;
+    }
+    if (!tr) return { station: st.name, train: false };
+    const bought = g.tickets.buy(g.tickets.local('Dadar', 'Churchgate', 10600, 'II', 'single'));
+    // Stand at a door on the platform side and board.
+    const i = 5, up = tr.line.dir === 'up', tx = up ? tr.sn[i] : -tr.sn[i], tz = up ? tr.cs[i] : -tr.cs[i], l = st.side === 2 || !st.side ? 1 : st.side;
+    // st.side is right (1) / left (-1) of travel; the ride frame's right is that of the town-ward direction (the same for an up line).
+    g.walker.pos.set(tr.cx[i] + tx * 6.6 - tz * l * 2.4, 1.3, tr.cz[i] + tz * 6.6 + tx * l * 2.4);
+    const boarded = R.tryBoard() && R.active;
+    const p0 = [g.walker.pos.x, g.walker.pos.z];
+    for (let k = 0; k < 900 && R.active; k++) g.step(0.05);
+    const moved = Math.hypot(g.walker.pos.x - p0[0], g.walker.pos.z - p0[1]);
+    const target = R.target()?.name;
+    await R.skip();
+    for (let k = 0; k < 20; k++) g.step(0.05);
+    const at = R.active ? R.stopOf(R.r.tr)?.name : null;
+    const off = R.active && R.alight();
+    let worst = 0;
+    for (let k = 0; k < 100; k++) { const t0 = performance.now(); g.step(0.05); worst = Math.max(worst, performance.now() - t0); }
+    return { station: st.name, train: true, ac: tr.ac, bought, boarded, moved: Math.round(moved), target, at, off, riding: R.active, tickets: g.tickets.list.length, money: g.state.s.money, worstMs: +worst.toFixed(1) };
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (!info.station) fails.push('no Dadar stop');
+  else if (!info.train) fails.push('no train stopped at Dadar');
+  else {
+    if (!info.bought) fails.push('could not buy a ticket');
+    if (!info.boarded) fails.push('could not board');
+    if (info.moved < 30) fails.push('the rider did not move with the train');
+    if (!info.at || info.at !== info.target) fails.push(`skip ended at ${info.at}, wanted ${info.target}`);
+    if (!info.off || info.riding) fails.push('could not get off');
+    if (info.money !== 4990) fails.push(`wallet ${info.money}, expected 4990 (₹10 ticket, no fine)`);
+    if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms`);
+  }
+  return { info, fails };
+});
+
 await check('night', async () => {
   // At 10 pm the road ahead must be visible (lamp pools, headlights).
   const { page, errors } = await game('hour=22');

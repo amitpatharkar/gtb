@@ -10,7 +10,7 @@
 import { clipPolyline } from 'lineclip';
 import * as G from './geometry.mjs';
 
-const TRAIN = 245;       // a 12-coach train (m): how far from the buffers its middle stands
+const TRAIN = 252;       // a 12-coach train (m, 21 m per coach over the couplers): how far from the buffers its middle stands
 const CLEAR = 3.9;       // least distance between the centres of neighbouring tracks (a coach is 3.66 m wide)
 const PLATFORM = 4.9;    // a platform edge this close to the track centre serves that track (m)
 const ROUTES = { W: 'Western line', C: 'Central line', H: 'Harbour line' };

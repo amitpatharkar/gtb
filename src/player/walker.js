@@ -60,11 +60,12 @@ export class Walker {
     this.vx = (this.vx || 0) * Math.exp(-dt * 5); this.vz = (this.vz || 0) * Math.exp(-dt * 5);
     const dx = mvx * this.speed * dt + this.vx * dt, dz = mvz * this.speed * dt + this.vz * dt;
     // Slide along walls instead of stopping dead.
-    if (!world.hits(this.pos.x + dx, this.pos.z, 0.3)) this.pos.x += dx;
-    if (!world.hits(this.pos.x, this.pos.z + dz, 0.3)) this.pos.z += dz;
+    if (!world.hits(this.pos.x + dx, this.pos.z, 0.3, this.pos.y)) this.pos.x += dx;
+    if (!world.hits(this.pos.x, this.pos.z + dz, 0.3, this.pos.y)) this.pos.z += dz;
     // The floor: the street, or the room's own (stairs included) when the world provides it.
-    const ground = world.groundHeight ? world.groundHeight(this.pos.x, this.pos.z) : this.tiles.groundHeight(this.pos.x, this.pos.z);
-    this.pos.y += (ground - this.pos.y) * Math.min(1, dt * 15);
+    const ground = world.groundHeight ? world.groundHeight(this.pos.x, this.pos.z, this.pos.y) : this.tiles.groundHeight(this.pos.x, this.pos.z);
+    // Up a step at once (stairs, a platform edge); down quickly, as a short drop.
+    this.pos.y += (ground - this.pos.y) * Math.min(1, dt * (ground > this.pos.y ? 15 : 9));
     this.phase += dt * Math.abs(this.speed) * 4.3;
     this.attacking = Math.max(0, (this.attacking || 0) - dt);
     // Bruises heal: after 6 s without a blow, health creeps back up to 60 % (food and rest do the rest).
