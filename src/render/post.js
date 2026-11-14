@@ -27,9 +27,32 @@ const GradeShader = {
     }`,
 };
 
+// Low tier: no post-processing, so the grade is done by the browser's compositor instead —
+// no extra render pass: a backdrop colour filter (saturation), a faint warm wash (lifts the
+// shadows towards orange like the GradeShader's `warmth`) and a vignette, on one overlay.
+// Tuned against Medium's GradeShader with screenshots.
+const LOW_FILTER = 'saturate(1.12) sepia(0.04)';
+const LOW_TINT = 'rgba(255, 150, 70, 0.04)';
+// Medium's vignette darkens by 0.22 · 2.2 · d² (d = distance from the centre in screen
+// units): about 12 % at the edge midpoints and 24 % in the corners. The same curve as stops.
+const LOW_VIGNETTE = [[0, 0], [0.25, 0.015], [0.5, 0.06], [0.75, 0.135], [1, 0.24]];
+
+function cssGrade() {
+  const v = document.createElement('div');
+  v.id = 'grade';
+  // First in the page and positioned: painted over the canvas (which is not positioned) and
+  // under every heads-up display element that comes later in the page. A filter on the
+  // canvas itself would lift it over the HUD elements that have no z-index (clock, radar).
+  const vignette = `radial-gradient(ellipse farthest-corner at 50% 50%, ${LOW_VIGNETTE.map(([at, a]) => `rgba(0,0,0,${a}) ${at * 100}%`).join(', ')})`;
+  v.style.cssText = `position:fixed;inset:0;pointer-events:none;background:${vignette}, linear-gradient(${LOW_TINT}, ${LOW_TINT});-webkit-backdrop-filter:${LOW_FILTER};backdrop-filter:${LOW_FILTER}`;
+  document.body.prepend(v);
+  return { filter: LOW_FILTER, tint: LOW_TINT, vignette: LOW_VIGNETTE };
+}
+
 export function createPost(renderer, scene, camera, tier) {
   if (!tier.ao && !tier.bloom) {
-    return { render: () => renderer.render(scene, camera), setSize() {} };
+    // `grade` lets photo mode apply the same look to saved pictures (render/photo.js).
+    return { render: () => renderer.render(scene, camera), setSize() {}, grade: cssGrade() };
   }
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
   const opts = { type: THREE.HalfFloatType, samples: tier.msaa };
