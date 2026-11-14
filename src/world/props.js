@@ -174,6 +174,8 @@ export function createProps() {
   const palm = palmGeometry(rnd);
   const leafRain = leafMat(leafTexture(1, greens));
   const leafGul = leafMat(leafTexture(2, greens, ['#e63b1f', '#f0541e', '#d92b17', '#ff7a2e']));
+  // The game's clock is December: gulmohars bloom in April–June, so most are plain feathery green.
+  const leafGulGreen = leafMat(leafTexture(2, ['#3f7a25', '#4e8a2c', '#5c9634', '#47802a', '#36662a']));
   const leafPeepal = leafMat(leafTexture(3, ['#3c6e22', '#4f8a2a', '#5f9a35', '#2f5a1e']));
   const frondMat = new THREE.MeshStandardMaterial({ map: frondTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.75 });
 
@@ -276,8 +278,18 @@ export function createProps() {
     // Planted medians: a clipped hedge 0.95 m wide and 0.8 m tall on the median; the point's size stretches it along the road.
     [POINT.HEDGE]: [[new THREE.BoxGeometry(0.95, 0.8, 1, 1, 1, 1).translate(0, Y.KERB + 0.4, 0), new THREE.MeshStandardMaterial({ map: hedgeTexture(), roughness: 0.95 }), true]],
   };
-  return { KINDS, LIGHTS, lampMat };
+  // Gulmohar points (scripts/lib/streets.mjs treeKind: a quarter of the trees) by a hash of
+  // the position: ~5 % in late bloom, 30 % drawn as rain trees (the shade tree that lines
+  // most Mumbai streets), the rest green gulmohars.
+  const GUL = {
+    bloom: KINDS[POINT.GULMOHAR],
+    rain: KINDS[POINT.RAIN_TREE],
+    green: [[gul.trunk, bark, true], [gul.leaves, leafGulGreen, true]],
+  };
+  return { KINDS, LIGHTS, GUL, lampMat };
 }
+
+const hash2 = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); };
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
 
@@ -294,7 +306,10 @@ export function buildProps(props, data, treeShare = 1) {
     for (let i = 0; i < n; i++) if (!tree || (i * 0.618) % 1 < treeShare) all.push(i);
     if (!all.length) continue;
     // Street lamps come in types (point size 1, 1.25, 1.5, 1.75): one set of meshes per type.
-    const groups = kind == POINT.LIGHT && props.LIGHTS ? props.LIGHTS.map((ps, v) => [ps, all.filter((i) => Math.round((arr[i * 5 + 4] - 1) * 4) === v)]) : [[parts, all]];
+    const look = (i) => { const h = hash2(arr[i * 5], arr[i * 5 + 2]); return h < 0.05 ? 'bloom' : h < 0.35 ? 'rain' : 'green'; };
+    const groups = kind == POINT.LIGHT && props.LIGHTS ? props.LIGHTS.map((ps, v) => [ps, all.filter((i) => Math.round((arr[i * 5 + 4] - 1) * 4) === v)])
+      : kind == POINT.GULMOHAR && props.GUL ? Object.entries(props.GUL).map(([k, ps]) => [ps, all.filter((i) => look(i) === k)])
+      : [[parts, all]];
     for (const [gparts, keep] of groups) {
     if (!keep.length) continue;
     for (const [pi, [geo, mat, shadow, y]] of gparts.entries()) {

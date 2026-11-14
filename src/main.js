@@ -4,9 +4,10 @@ import { TileManager } from './world/tiles.js';
 import { createMaterials } from './world/materials.js';
 import { createEnvironment } from './world/environment.js';
 import { setupCredits } from './credits.js';
-import { TIERS, pickTier, query } from './settings.js';
-import { TextureLibrary } from './world/textures.js';
+import { TIERS, pickTier, query, TierProbe, markTierChosen } from './settings.js';
+import { TextureLibrary, mediaVersion } from './world/textures.js';
 import { createPost } from './render/post.js';
+import { creditedPhoto } from './render/photo.js';
 import { facadeDebug, facadeNight } from './world/facade.js';
 import { createTaxi } from './vehicles/taxi.js';
 import { Car } from './vehicles/car.js';
@@ -28,6 +29,7 @@ import { CityMap } from './ui/cityMap.js';
 import { Navigator } from './ui/navigator.js';
 import { Landmarks } from './world/landmarks.js';
 import { StreetProps } from './world/streetProps.js';
+import { setPrecompile } from './world/models.js';
 import { Radio } from './radio.js';
 import { Characters } from './sim/characters.js';
 import { Cheats } from './game/cheats.js';
@@ -51,9 +53,11 @@ import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
 import { titleScreen, loadingScreen, pauseMenu, loadSettings } from './ui/menu.js';
+import { registerServiceWorker } from './serviceWorker.js';
 
 const BASE = import.meta.env.BASE_URL;
 const TOUCH = matchMedia('(pointer: coarse)').matches; // a touch screen: no keyboard hints
+registerServiceWorker(BASE); // cached map and media on repeat visits (built game only)
 
 // ------------------------------------------------------------------ title screen
 // A quality change mid-game saves where you are and reloads straight back into the game.
@@ -64,10 +68,10 @@ let settings = loadSettings();
 let newGame = false;
 const skipMenu = resume || query.has('play') || query.has('quality') || query.has('hour');
 // Warm the HTTP cache while the title screen is up: map index, asset manifest, the sky.
-for (const u of ['tiles/index.json', 'media/manifest.json']) fetch(`${BASE}${u}`, { priority: 'high' }).catch(() => {});
-fetch(`${BASE}media/manifest.json`).then((r) => r.json()).then((m) => {
+fetch(`${BASE}tiles/index.json`, { priority: 'high', cache: 'no-cache' }).catch(() => {});
+fetch(`${BASE}media/manifest.json`, { priority: 'high', cache: 'no-cache' }).then((r) => r.json()).then((m) => {
   const sky = m.assets.find((a) => a.id === 'hdri-qwantani-late-afternoon-puresky');
-  if (sky) fetch(`${BASE}media/${sky.files[0]}`, { priority: 'high' }).catch(() => {});
+  if (sky) fetch(`${BASE}media/${sky.files[0]}?v=${mediaVersion(m)}`, { priority: 'high' }).catch(() => {}); // same URL as lib.url()
 }).catch(() => {});
 // Extras (characters, street-prop models, sign fonts) start downloading once play begins.
 let markStarted;
@@ -126,7 +130,7 @@ const traffic = new Traffic(scene, tiles, tier);
 const vehicleArt = loadVehicleArt(BASE, traffic, started).catch(() => []);
 setStreetProfiles(index.profiles); // street library: parking and life by street type
 const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
-const skyline = new Skyline(scene, tiles, tier); // distant tall buildings beyond the loaded tiles
+const skyline = new Skyline(scene, tiles, tier, camera.far); // distant tall buildings beyond the loaded tiles (up to the far plane)
 const signals = new Signals(scene);
 traffic.signals = signals;
 const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
@@ -230,8 +234,9 @@ if (resume) {
 
 /** Graphics changes rebuild every buffer, so save where we are and reload straight back in. */
 function nextTier(t) { return { low: 'medium', medium: 'high', high: 'low' }[t] || 'low'; }
-function changeQuality(next) {
+function changeQuality(next, auto = false) {
   if (jobs.ride?.stage === 'ride') { say('Finish the ride before changing graphics', 3); return; }
+  if (!auto) markTierChosen(); // the player's own choice: no automatic fallback from now on
   state.save();
   try {
     sessionStorage.setItem(RESUME_KEY, JSON.stringify({ x: player.pos.x, z: player.pos.z, heading: player.heading, hour: clock.hour, fuel: player.fuel, condition: player.condition }));
@@ -444,7 +449,9 @@ loader.progress(0.97, 'Painting the streets…');
 await Promise.race([lib.idle(), new Promise((r) => setTimeout(r, 2000))]);
 // Compile the shaders now (in parallel where the browser can) rather than stalling the first frames.
 placeCamera(0);
-await renderer.compileAsync(scene, camera).catch(() => {});
+await post.compile(scene, camera).catch(() => {}); // the variants the post-processing pipeline draws
+setPrecompile((obj) => post.compile(obj, camera, scene)); // models loaded during play
+post.render(); // warm-up frame behind the loading screen: shadow-map and post-processing shaders
 $('loading').remove();
 loader.done();
 performance.mark('gtb-playable');
@@ -598,12 +605,12 @@ $('btn-phone').addEventListener('click', (e) => { e.preventDefault(); audio.star
 function takePhoto() {
   document.body.classList.add('photo');
   post.render();
-  renderer.domElement.toBlob((blob) => {
+  creditedPhoto(renderer.domElement, post.grade).then((blob) => { // with the OpenStreetMap credit burnt in
     document.body.classList.remove('photo');
     if (!blob) return;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `gtb-mumbai-${Date.now()}.png`;
+    a.download = `bombay-bawaal-${Date.now()}.png`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     say('Photo saved', 2);
@@ -685,6 +692,7 @@ let hudTimer = 0, lampTimer = 0, seaFactor = 0;
 // Dynamic resolution: when the graphics chip struggles, render fewer pixels rather than drop
 // frames (and give them back when there is room). Off in automated tests (fixed screenshots).
 const dynRes = { base: Math.min(devicePixelRatio, tier.pixelRatio), scale: 1, acc: 0, frames: 0, on: !navigator.webdriver && !query.has('fixedres') };
+const tierProbe = new TierProbe(tierKey);
 function setResolutionScale(k) {
   dynRes.scale = k;
   renderer.setPixelRatio(dynRes.base * k);
@@ -693,7 +701,7 @@ function setResolutionScale(k) {
 }
 renderer.setAnimationLoop((time) => {
   timer.update(time);
-  const raw = timer.getDelta(), dt = Math.min(raw, 0.05);
+  const raw = Math.max(0, timer.getDelta()), dt = Math.min(raw, 0.05); // a frame stamped before a long task ended can give a negative delta
   if (cityMap.open || paused) return; // paused while the map or the pause menu is open
   if (dynRes.on && raw < 0.5) {
     dynRes.acc += raw; dynRes.frames++;
@@ -703,6 +711,8 @@ renderer.setAnimationLoop((time) => {
       if (fps < 34 && dynRes.scale > 0.6) setResolutionScale(Math.max(0.6, dynRes.scale - 0.1));
       else if (fps > 56 && dynRes.scale < 1) setResolutionScale(Math.min(1, dynRes.scale + 0.05));
     }
+    // Still under 40 fps at the lowest resolution: an automatically picked tier drops to Low.
+    if (tierProbe.update(raw, dynRes.scale)) { say('Graphics: switching to Low for a smoother game (Q changes it)', 3); setTimeout(() => changeQuality('low', true), 2500); }
   }
   if (helpTimer > 0) { helpTimer -= dt; if (helpTimer <= 0) $('help').classList.remove('show'); }
   crosshair.hidden = !(onFoot && (view.aim || (combat.weapon === 'pichkari' && view.locked)));
@@ -852,7 +862,7 @@ window.__gtb.step = step;
 // than any car; their stations show on the map; E on foot at a station sells tickets.
 let trains = null;
 started.then(() => import('./sim/trains.js'))
-  .then(({ Trains }) => Trains.create({ base: BASE, scene, renderer, camera, tiles, traffic, street, people, bubbles, audio, hud, state, clock, walker, player, view, snap: () => placeCamera(0) }))
+  .then(({ Trains }) => Trains.create({ base: BASE, scene, renderer, camera, compile: (o) => post.compile(o, camera, scene), tiles, traffic, street, people, bubbles, audio, hud, state, clock, walker, player, view, snap: () => placeCamera(0) }))
   .then((t) => { trains = window.__gtb.trains = t; })
   .catch((err) => console.warn('Local trains are not available:', err));
 for (const w of [world, footWorld]) { const hits = w.hits; w.hits = (x, z, r) => hits(x, z, r) || !!trains?.hits(x, z, r); }

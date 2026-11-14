@@ -261,13 +261,14 @@ function coachGeometry() {
 export class Trains {
   /** Loads tiles/trains.json; resolves to null when the map has no train lines. */
   static async create(ctx) {
-    const res = await fetch(`${ctx.base}tiles/trains.json`).catch(() => null);
+    const res = await fetch(ctx.tiles?.fileUrl ? ctx.tiles.fileUrl('trains.json') : `${ctx.base}tiles/trains.json`).catch(() => null);
     if (!res?.ok) return null;
     const json = await res.json();
     if (!json.lines?.length) return null;
     const t = new Trains(ctx, json);
     // Compile the coach shader before the first train comes into view (no hitch then).
-    await ctx.renderer?.compileAsync?.(t.mesh, ctx.camera, ctx.scene).catch(() => {});
+    // ctx.compile (post.compile) picks the variant the post-processing pipeline draws.
+    await (ctx.compile ? ctx.compile(t.mesh) : ctx.renderer?.compileAsync?.(t.mesh, ctx.camera, ctx.scene))?.catch(() => {});
     return t;
   }
 

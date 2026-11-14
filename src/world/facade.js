@@ -76,13 +76,20 @@ const GLSL = `
     vec3 h = hit.xyz;
     vec3 c;
     if (hit.w < 1.5) {
-      // Shelves of goods on the back and side walls.
+      // Shelves of goods on the back and side walls: packets 8–12 cm wide (one width per
+      // shelf), of different heights, in muted printed colours, against a dark shelf back.
       float along = hit.w < 0.5 ? h.x : h.z;
+      int row = int(floor(h.y / 0.48));
       float shelf = fract(h.y / 0.48);
-      vec3 goods = vec3(cellHash(int(floor(along / 0.22)), int(floor(h.y / 0.48)), seed + unit, 11),
-                        cellHash(int(floor(along / 0.22)), int(floor(h.y / 0.48)), seed + unit, 12),
-                        cellHash(int(floor(along / 0.22)), int(floor(h.y / 0.48)), seed + unit, 13));
-      c = shelf < 0.1 ? vec3(0.5, 0.42, 0.32) : mix(goods * 0.9 + 0.1, vec3(0.75), 0.25) * step(0.18, fract(along / 0.22) + 0.2);
+      float gw = 0.08 + 0.04 * cellHash(row, -3, seed + unit, 14);
+      int gi = int(floor(along / gw));
+      vec3 goods = vec3(cellHash(gi, row, seed + unit, 11), cellHash(gi, row, seed + unit, 12), cellHash(gi, row, seed + unit, 13));
+      goods = mix(vec3(dot(goods, vec3(0.3, 0.59, 0.11))), goods, 0.45) * 0.62 + 0.1;
+      float top = 0.5 + 0.42 * cellHash(gi, row, seed + unit, 15);
+      bool packet = fract(along / gw) > 0.1 && shelf > 0.1 && shelf < top;
+      c = shelf < 0.1 ? vec3(0.46, 0.39, 0.3) : packet ? goods : vec3(0.24, 0.22, 0.2);
+      // Packets smaller than a pixel shimmer: further than ~15–35 m, their average instead.
+      c = mix(c, vec3(0.36, 0.34, 0.31), smoothstep(15.0, 35.0, length(vViewPosition)));
       if (h.y > 2.3) c = vec3(0.85, 0.83, 0.78);
     } else if (hit.w < 2.5) {
       c = mix(vec3(0.6, 0.58, 0.55), vec3(0.5, 0.48, 0.45), mod(floor(h.x / 0.5) + floor(h.z / 0.5), 2.0));
@@ -123,6 +130,8 @@ export function makeFacadeMaterial(signAtlas) {
           float roofY = vFacadeA.w;
           float shop = vFacadeB.x;
           float bw = vFacadeB.y;
+          // Screen-space size of the facade grid (here, outside any branch, where derivatives are defined).
+          vec2 fwF = vec2(fwidth(vBay), fwidth(vFacadeP.y));
           float y = vFacadeP.y - ${Y.KERB.toFixed(2)};
           // Painted walls take the building's paint colour; the photo texture keeps its grain.
           if (st <= 2 || st == 5) {
@@ -174,7 +183,7 @@ export function makeFacadeMaterial(signAtlas) {
                   diffuseColor.rgb = vec3(0.0);
                   roughnessFactor = 1.0;
                   flatNormal = 1.0;
-                  facadeEmissive = c * (0.32 + 0.5 * uNight);
+                  facadeEmissive = c * (0.12 + 0.5 * uNight); // by day a shop is dimmer than the street outside
                 } else {
                   float sh = cellHash(unit, -1, seed, ${K.SHUTTER});
                   vec3 shc = sh < 0.4 ? vec3(0.42, 0.44, 0.45) : sh < 0.7 ? vec3(0.22, 0.38, 0.30) : vec3(0.24, 0.32, 0.48);
@@ -194,6 +203,12 @@ export function makeFacadeMaterial(signAtlas) {
             float ly = fract(fy);
             int col = int(floor(vBay));
             float lx = fract(vBay);
+            // How big a window cell is on screen (cells per pixel): fine patterns (grille bars,
+            // railings, AC fins, streaks) fade to their average under ~1 px per bar, and the
+            // whole cell to its average under ~5 px per window — no crawling edges far away.
+            float cellPx = max(fwF.x, fwF.y / storey);
+            float hf = smoothstep(0.02, 0.06, cellPx);
+            float far = smoothstep(0.12, 0.3, cellPx);
             vec4 r = windowRect(st);
             float inWin = fBox(vec2(lx, ly), r);
             if ((st == 3 || st == 4) && ly > 0.68) inWin *= step(abs(lx - 0.5), 0.2 * sqrt(max(0.0, (r.w - ly) / (r.w - 0.68))));
@@ -222,8 +237,8 @@ export function makeFacadeMaterial(signAtlas) {
                 vec3 c = wallC * (hit.w < 0.5 ? 0.55 : 0.4);
                 if (hit.w < 0.5 && hit.x > 0.84 * bw * 0.35 && hit.x < 0.84 * bw * 0.6 && hit.y < 2.1) c = vec3(0.28, 0.18, 0.11);
                 diffuseColor.rgb = c;
-                float rail = step(ly, 0.42) * (step(0.75, fract(lx * 24.0)) + fBand(ly, 0.38, 0.42));
-                if (rail > 0.5) diffuseColor.rgb = vec3(0.12);
+                float rail = step(ly, 0.42) * min(1.0, mix(step(0.75, fract(lx * 24.0)) + fBand(ly, 0.38, 0.42), 0.32, hf));
+                diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12), rail);
                 float cloth = fBand(ly, 0.48, 0.74) * step(0.45, cellHash(col, row, seed, ${K.CURTAIN})) * step(0.35, fract(lx * 5.0));
                 if (cloth > 0.5) diffuseColor.rgb = vec3(cellHash(col, int(lx * 5.0), seed, 21), cellHash(col, int(lx * 5.0), seed, 22), cellHash(col, int(lx * 5.0), seed, 23)) * 0.75 + 0.1;
                 roughnessFactor = 0.9;
@@ -264,10 +279,11 @@ export function makeFacadeMaterial(signAtlas) {
                 roughnessFactor = 0.05;
                 flatNormal = 1.0;
                 facadeEmissive = room * (0.1 + uNight * lit * 0.75);
-                if (hasGrille(st, col, row, seed) && step(0.82, fract(lx * 18.0)) + fBand(fract(ly * 4.0), 0.0, 0.08) > 0.5) {
-                  diffuseColor.rgb = vec3(0.16, 0.1, 0.07);
-                  roughnessFactor = 0.8;
-                  facadeEmissive *= 0.2;
+                if (hasGrille(st, col, row, seed)) {
+                  float bars = min(1.0, mix(step(0.82, fract(lx * 18.0)) + fBand(fract(ly * 4.0), 0.0, 0.08), 0.26, hf));
+                  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.1, 0.07), bars);
+                  roughnessFactor = mix(roughnessFactor, 0.8, bars);
+                  facadeEmissive *= 1.0 - 0.8 * bars;
                 }
               }
               }
@@ -276,13 +292,22 @@ export function makeFacadeMaterial(signAtlas) {
               if (st <= 2 || st >= 5) {
                 if (fBand(ly, r.w + 0.015, r.w + 0.07) * fBand(lx, r.x - 0.06, r.y + 0.06) > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.7, 0.68, 0.64), 0.6);
               }
-              float streak = fBand(lx, r.x, r.y) * step(ly, r.z) * smoothstep(0.0, r.z, ly) * cellHash(int(floor(lx * 23.0)), col, seed, 40);
+              float streak = fBand(lx, r.x, r.y) * step(ly, r.z) * smoothstep(0.0, r.z, ly) * mix(cellHash(int(floor(lx * 23.0)), col, seed, 40), 0.5, hf);
               diffuseColor.rgb *= 1.0 - 0.35 * streak * (st == 1 ? 1.0 : 0.5);
               if (hasAC(st, col, row, seed)) {
                 float ac = fBox(vec2(lx, ly), vec4(r.y + 0.03, r.y + 0.24, 0.33, 0.52));
-                if (ac > 0.5) { diffuseColor.rgb = vec3(0.78, 0.78, 0.76) * (0.85 + 0.15 * step(0.5, fract(ly * 40.0))); roughnessFactor = 0.5; flatNormal = 1.0; }
+                if (ac > 0.5) { diffuseColor.rgb = vec3(0.78, 0.78, 0.76) * (0.85 + 0.15 * mix(step(0.5, fract(ly * 40.0)), 0.5, hf)); roughnessFactor = 0.5; flatNormal = 1.0; }
                 diffuseColor.rgb *= 1.0 - 0.35 * fBox(vec2(lx, ly), vec4(r.y + 0.03, r.y + 0.24, 0.26, 0.33));
               }
+            }
+            if (far > 0.0 && st != 6 && !balcony) {
+              // A few pixels per window: the cell's average colour and gloss (wall and dark
+              // glass by area) instead of window edges and glints that shimmer. The glow of lit
+              // windows stays per pixel: at night small bright windows read better than an
+              // averaged grey block.
+              float A = (r.y - r.x) * (r.w - r.z) * 0.8;
+              diffuseColor.rgb = mix(diffuseColor.rgb, mix(wallC * 0.9, vec3(0.03), A), far);
+              roughnessFactor = mix(roughnessFactor, mix(0.9, 0.3, A), far);
             }
           }
         }`)

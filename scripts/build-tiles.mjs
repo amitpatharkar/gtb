@@ -11,10 +11,15 @@
  * writes public/tiles/<tx>_<tz>.bin.gz plus public/tiles/index.json, overview.bin.gz (full map
  * and GPS) and trains.json (local train lines and stations, see scripts/lib/trains.mjs).
  * Tile format: src/world/tileFormat.js.
+ *
+ * Skipped when nothing it reads has changed (~55 s saved per build): index.json keeps a hash
+ * of the inputs (the .osm.pbf, this script, scripts/lib, the tile and overview formats, the
+ * street library, the converter's npm packages and the options). --force rebuilds anyway.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import polygonClipping from 'polygon-clipping';
 import { clipPolyline } from 'lineclip';
@@ -58,6 +63,30 @@ const CFG = {
 const LEVEL = 3.2; // metres per storey
 const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1)}s]`, ...a);
+
+// ---------------------------------------------------------------- unchanged inputs: skip
+const INPUTS = (() => {
+  const files = [CFG.input, fileURLToPath(import.meta.url), 'src/world/tileFormat.js', 'src/world/overviewFormat.js'].map((f) => path.resolve(root, f));
+  const walk = (d) => (fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)])) : []);
+  files.push(...walk(path.join(root, 'scripts/lib')), ...walk(path.join(root, 'docs/research/street-library')));
+  const h = crypto.createHash('sha1').update(JSON.stringify(CFG, (k, v) => (k === 'input' || k === 'out' ? path.relative(root, v) : v)));
+  for (const f of files.sort()) h.update(path.relative(root, f)).update(fs.readFileSync(f));
+  try { // the npm packages the converter runs on
+    const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8')).packages || {};
+    for (const p of ['polygon-clipping', 'lineclip', 'pbf', 'clipper-lib']) h.update(`${p}@${lock[`node_modules/${p}`]?.version}`);
+  } catch { /* no lock file */ }
+  return h.digest('hex').slice(0, 16);
+})();
+if (!('force' in args)) {
+  try {
+    const old = JSON.parse(fs.readFileSync(path.join(CFG.out, 'index.json'), 'utf8'));
+    const files = [...old.tiles.map(([tx, tz]) => `${tx}_${tz}.bin.gz`), old.overview?.file, old.skyline?.file, old.trains?.file].filter(Boolean);
+    if (old.inputs === INPUTS && files.every((f) => fs.existsSync(path.join(CFG.out, f)))) {
+      log(`inputs unchanged (${INPUTS}): keeping the ${old.tiles.length} tiles in ${path.relative(root, CFG.out)} (--force rebuilds)`);
+      process.exit(0);
+    }
+  } catch { /* no previous build */ }
+}
 
 // ---------------------------------------------------------------- projection
 // Flat (equirectangular) projection with metres per degree taken at the origin: under 0.1 %
@@ -1194,6 +1223,7 @@ const meta = {
   attribution: 'Map data © OpenStreetMap contributors (Open Database License)',
   source: path.basename(CFG.input),
   generated: new Date().toISOString(),
+  inputs: INPUTS, // hash of everything the converter read (a rerun with the same inputs is skipped)
   bbox: { south: S, west: W, north: N, east: E },
   origin: { lat: lat0, lon: lon0 },
   metresPerDegree: { lat: M_LAT, lon: M_LON },

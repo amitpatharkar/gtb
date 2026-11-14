@@ -24,7 +24,9 @@ export class TileManager {
     this.tiles = new Map();    // key "tx,tz" → loaded tile
     this.byKey = new Map();    // numeric tileKey → loaded tile (collision queries)
     this.pending = new Map();  // key → request id
-    this.failed = new Set();
+    this.failed = new Set();   // keys that failed to download (blocked while failed)
+    this.tries = new Map();    // key → failed attempts (retried after 5, 10, 20 s; given up after 4)
+    this.retryAt = new Map();  // key → time (performance.now) of the next attempt
     this.callbacks = new Map();
     this.nextId = 1;
     this.tankGeo = new THREE.CylinderGeometry(0.7, 0.7, 1.5, 10);
@@ -39,9 +41,12 @@ export class TileManager {
 
   async init(baseUrl) {
     this.baseUrl = new URL(baseUrl, location.href).href;
-    const res = await fetch(this.baseUrl + 'index.json');
+    // GitHub Pages lets browsers keep files for 10 minutes: always revalidate the index, and
+    // version every other map file by it, so a deploy never mixes old and new tiles.
+    const res = await fetch(this.baseUrl + 'index.json', { cache: 'no-cache' });
     if (!res.ok) throw new Error(`Map index missing (${res.status}). Run "npm run tiles" first.`);
     this.index = await res.json();
+    this.fileTag = encodeURIComponent(this.index.generated || '');
     this.size = this.index.tileSize;
     this.bounds = this.index.bounds;
     this.available = new Map(this.index.tiles.map(([tx, tz, bytes]) => [`${tx},${tz}`, bytes]));
@@ -50,6 +55,9 @@ export class TileManager {
     this.worker.onmessage = (e) => this.callbacks.get(e.data.id)?.(e.data);
     return this.index;
   }
+
+  /** URL of a map file next to index.json (tiles, overview, skyline, trains), versioned. */
+  fileUrl(name) { return `${this.baseUrl}${name}${this.fileTag ? `?v=${this.fileTag}` : ''}`; }
 
   /** Distance from (x, z) to the nearest point of a tile. */
   tileDistance(tx, tz, x, z) {
@@ -68,7 +76,11 @@ export class TileManager {
         const k = tileKey(tx, tz);
         if (!this.availableKeys.has(k) || this.byKey.has(k)) continue; // most tiles: no string key needed
         const key = `${tx},${tz}`;
-        if (this.pending.has(key) || this.failed.has(key)) continue;
+        if (this.pending.has(key)) continue;
+        if (this.failed.has(key)) {
+          if (!(performance.now() >= this.retryAt.get(key))) continue; // waiting, or given up
+          this.failed.delete(key); // try again
+        }
         const d = this.tileDistance(tx, tz, x, z);
         if (d <= this.loadRadius) wanted.push([d, tx, tz, key]);
       }
@@ -83,6 +95,11 @@ export class TileManager {
       if (d > this.loadRadius + (UNLOAD_RADIUS - LOAD_RADIUS)) this.unload(tile.key);
       else tile.detail.visible = d < this.detailRadius;
     }
+    // A tile that failed far away gets a fresh set of tries when the player comes back.
+    for (const key of this.failed) {
+      const [tx, tz] = key.split(',').map(Number);
+      if (this.tileDistance(tx, tz, x, z) > this.loadRadius + (UNLOAD_RADIUS - LOAD_RADIUS)) { this.failed.delete(key); this.tries.delete(key); this.retryAt.delete(key); }
+    }
   }
 
   load(tx, tz, key) {
@@ -93,13 +110,18 @@ export class TileManager {
       if (this.pending.get(key) !== id) return; // cancelled
       this.pending.delete(key);
       if (msg.error) {
-        console.error(`Tile ${key} failed:`, msg.error);
+        // Retry with back-off (5 s, 10 s, 20 s); meanwhile the tile counts as blocked (hits).
+        const n = (this.tries.get(key) || 0) + 1;
+        this.tries.set(key, n);
         this.failed.add(key);
+        if (n < 4) { this.retryAt.set(key, performance.now() + 5000 * 2 ** (n - 1)); console.warn(`Tile ${key} failed (try ${n}, retrying):`, msg.error); }
+        else { this.retryAt.delete(key); console.error(`Tile ${key} failed:`, msg.error); }
         return;
       }
+      this.tries.delete(key); this.retryAt.delete(key);
       this.add(key, msg.result);
     });
-    this.worker.postMessage({ id, url: `${this.baseUrl}${tx}_${tz}.bin.gz` });
+    this.worker.postMessage({ id, url: this.fileUrl(`${tx}_${tz}.bin.gz`) });
   }
 
   add(key, t) {
@@ -215,10 +237,11 @@ export class TileManager {
     return n;
   }
 
-  /** True if a circle at (x, z) with radius r is blocked: buildings, sea, map edge. */
+  /** True if a circle at (x, z) with radius r is blocked: buildings, sea, map edge, a tile that failed to load. */
   hits(x, z, r) {
     const b = this.bounds;
     if (x - r < b.minX || x + r > b.maxX || z - r < b.minZ || z + r > b.maxZ) return true;
+    if (this.failed.size && this.failedAt(x, z, r)) return true; // no data there: a wall, not a void
     const near = this.near, count = this.nearInto(x, z, r);
     for (let n = 0; n < count; n++) {
       const p = near[n].collide.solid;
@@ -234,12 +257,21 @@ export class TileManager {
     return !this.walkable(x, z);
   }
 
-  /** On land, on a pier, or on a road (bridges, causeways). Unknown tiles count as walkable. */
+  /** True if the circle touches a tile that failed to download. */
+  failedAt(x, z, r) {
+    const s = this.size;
+    for (let tx = Math.floor((x - r) / s); tx <= Math.floor((x + r) / s); tx++)
+      for (let tz = Math.floor((z - r) / s); tz <= Math.floor((z + r) / s); tz++) if (this.failed.has(`${tx},${tz}`)) return true;
+    return false;
+  }
+
+  /** On land, on a pier, or on a road (bridges, causeways). Tiles not loaded yet count as walkable, failed ones not. */
   walkable(x, z) {
     const s = this.size;
     const k = tileKey(Math.floor(x / s), Math.floor(z / s));
     if (!this.availableKeys.has(k)) return false; // open sea
     const own = this.byKey.get(k);
+    if (this.failed.size && this.failed.has(`${Math.floor(x / s)},${Math.floor(z / s)}`)) return false; // no data
     if (!own) return true; // not loaded yet
     const w = own.collide.walkable;
     if (w.count) {

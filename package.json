@@ -9,7 +9,7 @@
     "assets:pull": "git fetch -q --depth 1 origin assets && rm -rf public/media && mkdir -p public/media && git archive FETCH_HEAD | tar -x -C public/media",
     "predev": "npm run tiles && node scripts/art-index.mjs",
     "dev": "vite --host",
-    "build": "npm run tiles && node scripts/art-index.mjs && vite build",
+    "build": "npm run tiles && node scripts/art-index.mjs && vite build && node scripts/ship-media.mjs",
     "preview": "vite preview --host",
     "test": "node tests/smoke.mjs"
   },
@@ -35,6 +35,7 @@
     "lineclip": "^2.0.0",
     "meshoptimizer": "^0.22.0",
     "pbf": "^5.1.2",
+    "playwright": "1.63.0",
     "polygon-clipping": "^0.15.7",
     "sharp": "^0.35.5",
     "vite": "^8.3.8"

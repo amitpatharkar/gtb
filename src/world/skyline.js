@@ -20,11 +20,12 @@ export class Skyline {
    * @param {THREE.Scene} scene
    * @param {object} tiles TileManager (index.skyline names the file; tiles + size say what is loaded)
    * @param {object} tier quality tier (name)
+   * @param {number} [far] camera far plane: boxes beyond it could never draw
    */
-  constructor(scene, tiles, tier) {
+  constructor(scene, tiles, tier, far = Infinity) {
     this.scene = scene;
     this.tiles = tiles;
-    this.range = tier.name === 'High' ? 4200 : tier.name === 'Medium' ? 3300 : 2600;
+    this.range = Math.min(tier.name === 'High' ? 4200 : tier.name === 'Medium' ? 3300 : 2600, far - 50);
     this.max = tier.name === 'High' ? 4500 : tier.name === 'Medium' ? 3200 : 2200;
     this.knee = tier.loadRadius || 520;
     this.at = { x: 1e9, z: 1e9, v: -1 };
@@ -36,7 +37,7 @@ export class Skyline {
     const info = this.tiles.index?.skyline;
     if (!info) return;
     try {
-      const res = await fetch(this.tiles.baseUrl + info.file);
+      const res = await fetch(this.tiles.fileUrl ? this.tiles.fileUrl(info.file) : this.tiles.baseUrl + info.file);
       if (!res.ok) return;
       const u8 = await gunzipIfNeeded(await res.arrayBuffer());
       const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);

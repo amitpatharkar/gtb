@@ -1,5 +1,9 @@
 name: Deploy to GitHub Pages
 
+# One build per push: build → smoke tests on that very build → deploy only if they pass.
+# The smoke tests (tests/smoke.mjs) play the built game headless: boots without console
+# errors, drives across tiles without stutter, traffic keeps left, stealing a car works,
+# every mission plays through, nights are visible.
 on:
   push:
     branches: [main]
@@ -10,13 +14,15 @@ permissions:
   pages: write
   id-token: write
 
+# A newer push waits for the running deployment instead of cancelling it half-way.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,13 +40,50 @@ jobs:
           else
             echo "No assets branch yet"
           fi
+      # Map tiles from the last run with the same converter inputs: the converter checks its own
+      # input hash (index.json "inputs") and skips (~55 s) when nothing changed; same tile
+      # versions also keep players' cached tiles valid.
+      - uses: actions/cache@v4
+        with:
+          path: public/tiles
+          key: tiles-${{ hashFiles('data/raw/**', 'scripts/build-tiles.mjs', 'scripts/lib/**', 'src/world/tileFormat.js', 'src/world/overviewFormat.js', 'docs/research/street-library/**', 'package-lock.json') }}
+      # Converter → art index → vite build → scripts/ship-media.mjs (keeps only the media the game uses).
       - run: npm run build
+      - name: Site size
+        run: du -sh dist dist/* | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
-  deploy:
+  smoke:
     needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # Playwright comes from devDependencies (the version pinned in package.json).
+      - run: npm ci
+      - name: The site that build made (the Pages artifact is one tar file)
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          path: ${{ runner.temp }}/site
+      - run: mkdir -p dist && tar -xf "${{ runner.temp }}/site/artifact.tar" -C dist && ls dist
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('package-lock.json') }}
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps --only-shell chromium
+      - name: Play the game headless
+        run: node tests/smoke.mjs
+
+  deploy:
+    needs: [build, smoke]
     runs-on: ubuntu-latest
     environment:
       name: github-pages

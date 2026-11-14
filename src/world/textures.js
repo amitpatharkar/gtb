@@ -25,10 +25,14 @@ export class TextureLibrary {
 
   async init() {
     try {
-      const res = await fetch(`${this.base}media/manifest.json`);
+      // Always revalidated (GitHub Pages lets browsers keep files 10 minutes); every media URL
+      // then carries the manifest's version, so a deploy never mixes old and new files.
+      const res = await fetch(`${this.base}media/manifest.json`, { cache: 'no-cache' });
       if (!res.ok) throw new Error(res.status);
       const manifest = await res.json();
       for (const a of manifest.assets) this.assets.set(a.id, a);
+      this.version = mediaVersion(manifest);
+      versionMediaUrls(this.base, this.version);
       this.ktx2 = new KTX2Loader().setTranscoderPath(`${this.base}basis/`).detectSupport(this.renderer);
       this.available = true;
     } catch {
@@ -38,7 +42,7 @@ export class TextureLibrary {
   }
 
   has(id) { return this.assets.has(id); }
-  url(id, file = 0) { const a = this.assets.get(id); return a && `${this.base}media/${a.files[file]}`; }
+  url(id, file = 0) { const a = this.assets.get(id); return a && `${this.base}media/${a.files[file]}?v=${this.version}`; }
 
   /** Real-world size of one texture repeat, in metres. */
   metres(id, fallback = 2) {
@@ -49,7 +53,7 @@ export class TextureLibrary {
   load(path) {
     if (!this.cache.has(path)) {
       this.pending++;
-      const p = this.gate.then(() => this.ktx2.loadAsync(`${this.base}media/${path}`)).then((t) => {
+      const p = this.gate.then(() => this.ktx2.loadAsync(`${this.base}media/${path}?v=${this.version}`)).then((t) => {
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
         t.anisotropy = this.tier.anisotropy;
         return t;
@@ -63,6 +67,11 @@ export class TextureLibrary {
    * Put a texture set (colour, normal, occlusion/roughness) on a material once loaded.
    * Geometry UVs are in metres; `size` overrides the texture's real-world size.
    * Each call clones the textures so materials can use different scales.
+   *
+   * The slots get 1×1 stand-ins straight away (white; flat normal; no occlusion and the
+   * material's own roughness), so the shader is compiled with its final set of maps while
+   * the loading screen is up (renderer.compileAsync). The real textures only replace the
+   * stand-ins: same shader, no compile stall mid-drive when a texture arrives late.
    */
   apply(material, id, { size, normalScale = 1, aoIntensity = 0.6, onLoad } = {}) {
     if (!this.available || !this.has(id)) return Promise.resolve(false);
@@ -74,19 +83,65 @@ export class TextureLibrary {
       this.tier.normalMaps ? ['normalMap', pick('normal')] : null,
       ['roughnessMap', pick('orm')],
     ].filter((j) => j && j[1]);
+    for (const [slot] of jobs) {
+      if (slot === 'map') material.map = placeholder('color');
+      if (slot === 'normalMap') { material.normalMap = placeholder('normal'); material.normalScale.set(normalScale, normalScale); }
+      if (slot === 'roughnessMap') {
+        material.roughnessMap = material.aoMap = placeholder('orm', material.roughness);
+        material.aoMapIntensity = aoIntensity;
+        material.roughness = 1;
+      }
+    }
+    material.needsUpdate = true;
     return Promise.all(jobs.map(([slot, f]) => this.load(f).then((t) => [slot, t]))).then((loaded) => {
       for (const [slot, tex] of loaded) {
         const t = tex.clone();
         t.repeat.set(repeat, repeat);
         material[slot] = t;
-        if (slot === 'roughnessMap') { material.aoMap = t; material.aoMapIntensity = aoIntensity; material.roughness = 1; }
-        if (slot === 'normalMap') material.normalScale.set(normalScale, normalScale);
+        if (slot === 'roughnessMap') material.aoMap = t;
       }
+      // Same maps as the stand-ins, so the program cache key is unchanged: this finds the
+      // already-compiled shader rather than compiling a new one.
       material.needsUpdate = true;
       onLoad?.(material);
       return true;
     }).catch((e) => { console.warn(`Texture ${id} failed`, e); return false; });
   }
+}
+
+/** Version tag of the media folder: the shipped content hash (scripts/ship-media.mjs), else the build date. */
+export function mediaVersion(manifest) { return encodeURIComponent(manifest.shipped?.version || manifest.generated || '0'); }
+
+/**
+ * Files that three.js loaders fetch from media/ by themselves (a glTF's .bin and textures,
+ * the character models) get the same ?v= tag, through the default loading manager.
+ */
+function versionMediaUrls(base, v) {
+  const prefix = new URL(`${base}media/`, location.href).href;
+  THREE.DefaultLoadingManager.setURLModifier((url) => {
+    if (url.includes('?') || /^(blob|data):/.test(url)) return url;
+    return new URL(url, location.href).href.startsWith(prefix) ? `${url}?v=${v}` : url;
+  });
+}
+
+const stand = new Map();
+/**
+ * 1×1 stand-in textures (shared): 'color' white (sRGB), 'normal' flat (128, 128, 255),
+ * 'orm' no occlusion (red 255) with green = the roughness the material had, blue 0.
+ * Plain RGBA like the transcoded KTX2 textures (a packed RG normal map would change the shader).
+ */
+function placeholder(kind, roughness = 1) {
+  const g = Math.round(THREE.MathUtils.clamp(roughness, 0, 1) * 255);
+  const key = kind === 'orm' ? `orm${g}` : kind;
+  if (!stand.has(key)) {
+    const px = { color: [255, 255, 255, 255], normal: [128, 128, 255, 255], [`orm${g}`]: [255, g, 0, 255] }[key];
+    const t = new THREE.DataTexture(new Uint8Array(px), 1, 1, THREE.RGBAFormat);
+    if (kind === 'color') t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.needsUpdate = true;
+    stand.set(key, t);
+  }
+  return stand.get(key);
 }
 
 let noiseTex = null;
