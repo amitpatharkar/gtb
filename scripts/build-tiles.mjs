@@ -33,6 +33,7 @@ import { buildSkyline } from './lib/skyline.mjs';
 import { loadStreetLibrary, LAMP, lampSize } from './lib/streetLibrary.mjs';
 import { isTrainRoute, buildTrainLines } from './lib/trains.mjs';
 import { infill } from './lib/infill.mjs';
+import { compoundWalls, siteFence, WALL } from './lib/walls.mjs';
 import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, POINT, MAGIC, TILE_VERSION, DM } from '../src/world/tileFormat.js';
 import { OVERVIEW_MAGIC, OVERVIEW_VERSION, OVERVIEW_LAYER } from '../src/world/overviewFormat.js';
 
@@ -369,7 +370,7 @@ readOsmPbf(CFG.input, {
       const a = classifyArea(tags);
       if (a != null) {
         const ring = resolveRing(refs, false);
-        if (ring) areasRaw.push({ id, kind: a, polys: [[ring]], open: openGround(tags), aero: !!tags.aeroway });
+        if (ring) areasRaw.push({ id, kind: a, polys: [[ring]], open: openGround(tags), aero: !!tags.aeroway, site: tags.landuse === 'construction' });
         return;
       }
     }
@@ -431,7 +432,7 @@ for (const rel of relations) {
   }
   if (rel.tags.railway === 'platform') for (const o of outers) platformEdges.push([...o, o[0]]); // platform outline (for trains.json)
   if (b) buildingsRaw.push({ id: rel.id, tags: rel.tags, part: b === 'part', polys });
-  else areasRaw.push({ id: rel.id, kind: classifyArea(rel.tags), polys, open: rel.open, aero: !!rel.tags.aeroway });
+  else areasRaw.push({ id: rel.id, kind: classifyArea(rel.tags), polys, open: rel.open, aero: !!rel.tags.aeroway, site: rel.tags.landuse === 'construction' });
 }
 
 // Local train lines (written to trains.json at the end; needed earlier to clear the tracks).
@@ -636,6 +637,7 @@ const onLand = (x, z) => {
   return !!t && inMP(t.land, x, z);
 };
 
+const cranes = []; // tower cranes on construction sites (POINT.CRANE, added with the other points)
 // Empty frontage in the dense districts gets buildings in the district's grain (lib/infill.mjs):
 // OpenStreetMap misses many outlines there. Never on roads, footpaths, mapped buildings, parks,
 // water or tracks; added before street furniture so trees, lamps and stalls avoid them too.
@@ -646,17 +648,57 @@ const onLand = (x, z) => {
   const onStreet = (x, z) => segGrid.near(x, z, 14, ({ a, b, p }) => G.segDist2([x, z], a, b) < (p.hw + p.fw + 0.3) ** 2);
   const inArea = (x, z) => areaGrid.near(x, z, 1, (ring) => G.pointInRing(x, z, ring));
   const free = (x, z) => inBox([x, z]) && !onStreet(x, z) && !inBuilding(x, z, 0.35) && !onTrack(x, z, 4.5) && !inArea(x, z);
-  let n = 0;
+  let n = 0, wallCount = 0, towers = 0, seed = 11;
+  const rnd = () => hash01(seed++, 53);
+  const addBuilding = (ring, tags) => {
+    const b = { id: 9e11 + n++, tags, infill: true, polys: [[ring]] };
+    buildingsRaw.push(b);
+    buildingGrid.add(G.bboxOf(ring), ring);
+  };
+  // Walls are thin building outlines (BUILDING_FLAG.WALL, drawn by the worker's drawWall).
+  const addWall = (ring, kind, h, color) => {
+    const b = { id: 9e11 + n++, tags: { 'gtb:wall': String(kind) }, wall: { kind, h, color }, polys: [[ring]] };
+    buildingsRaw.push(b);
+    buildingGrid.add(G.bboxOf(ring), ring);
+    wallCount++;
+  };
+  // A construction site: hoarding round it, a netted tower going up inside, a tower crane.
+  const fenceOk = (x, z) => inBox([x, z]) && !onStreet(x, z) && !inBuilding(x, z, 0.2) && !onTrack(x, z, 3);
+  const buildSite = (ring, out) => {
+    siteFence(ring, fenceOk, addWall, rnd);
+    const [cx, cz] = G.centroid(ring), area = Math.abs(G.signedArea(ring));
+    // Tower: a rectangle round the centre, along the site's longest edge, clear of the fence.
+    let best = 0, ex = 1, ez = 0;
+    for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l > best) { best = l; ex = (b[0] - a[0]) / l; ez = (b[1] - a[1]) / l; } }
+    const hw = Math.min(14, Math.sqrt(area) * 0.32), hd = Math.min(11, Math.sqrt(area) * 0.26);
+    const rect = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => [cx + ex * u * hw - ez * v * hd, cz + ez * u * hw + ex * v * hd]);
+    if (area > 380 && rnd() < 0.75 && rect.every(([x, z]) => G.pointInRing(x, z, ring) && !inBuilding(x, z, 1.5))) {
+      addBuilding(rect, { building: 'construction', 'gtb:site': 'yes', 'building:levels': String(10 + Math.floor(rnd() * 26)) });
+      towers++;
+    }
+    if (area > 350) {
+      // The crane stands beside the tower, its jib swung over the site.
+      const kx = cx - ex * (hw + 4), kz = cz - ez * (hw + 4);
+      if (G.pointInRing(kx, kz, ring) && !inBuilding(kx, kz, 1.2)) cranes.push({ kind: POINT.CRANE, x: kx, z: kz, angle: rnd() * Math.PI * 2, size: 1.1 + rnd() * 0.8 });
+    }
+  };
   const made = infill({
     vparts, district: districtXZ, free, onLand, hash: hash01, BRIDGE: ROAD_FLAG.BRIDGE,
-    add: (ring, levels) => {
-      const tags = { building: 'yes', 'gtb:infill': 'yes', ...(levels ? { 'building:levels': String(levels) } : {}) };
-      const b = { id: 9e11 + n++, tags, infill: true, polys: [[ring]] };
-      buildingsRaw.push(b);
-      buildingGrid.add(G.bboxOf(b.polys[0][0]), b.polys[0][0]);
-    },
+    add: (ring, levels) => addBuilding(ring, { building: 'yes', 'gtb:infill': 'yes', ...(levels ? { 'building:levels': String(levels) } : {}) }),
+    site: (ring) => buildSite(ring),
   });
-  log(`infill: ${made} buildings on empty frontage in the dense districts (${((Date.now() - ms) / 1000).toFixed(1)}s)`);
+  log(`infill: ${made} buildings on empty frontage in the dense districts, ${infill.sites} redevelopment sites (${((Date.now() - ms) / 1000).toFixed(1)}s)`);
+  // Construction sites mapped in OpenStreetMap get the same treatment.
+  let mapped = 0;
+  for (const a of areasRaw) {
+    if (!a.site) continue;
+    const ring = a.polys[0][0], area = Math.abs(G.signedArea(ring));
+    if (area < 100 || area > 60000 || !inBox(G.centroid(ring))) continue;
+    buildSite(ring); mapped++;
+  }
+  // Compound walls in front of set-back buildings; dock walls on port roads (survey).
+  compoundWalls({ vparts, district: districtXZ, free, buildingWithin: (x, z, r) => inBuilding(x, z, r), hash: hash01, add: addWall, BRIDGE: ROAD_FLAG.BRIDGE });
+  log(`walls: ${wallCount} wall pieces (compound walls, pillars and gates, dock walls, hoardings round ${mapped + infill.sites} construction sites); ${towers} towers going up, ${cranes.length} tower cranes`);
 }
 
 const streetMs = Date.now();
@@ -772,14 +814,30 @@ for (const c of clutter) {
   points.push(c);
 }
 for (const [x, z] of fuel) points.push({ kind: POINT.FUEL, x, z, angle: 0, size: 1 });
+points.push(...cranes);
 for (const [x, z] of signalNodes) points.push({ kind: POINT.SIGNAL, x, z, angle: 0, size: 1 });
+// Survey: yellow steel traffic-police barricades with blue boards on the kerb beside some signal junctions
+// (most near the courts and offices of the heritage boulevards).
+for (const [x, z] of signalNodes) {
+  let best = null;
+  segGrid.near(x, z, 15, (it) => { if (it.p.info.cls > ROAD.TERTIARY) return false; const d = G.segDist2([x, z], it.a, it.b); if (!best || d < best.d) best = { d, ...it }; return false; });
+  if (!best) continue;
+  const r = hash01(Math.abs(Math.round(x * 13 + z * 7)), 61);
+  if (r > (best.p.profile?.policeBarricades ? 0.8 : 0.22)) continue;
+  const { a, b: e, p } = best, len = Math.hypot(e[0] - a[0], e[1] - a[1]) || 1, ux = (e[0] - a[0]) / len, uz = (e[1] - a[1]) / len;
+  const dir = Math.hypot(a[0] - x, a[1] - z) < Math.hypot(e[0] - x, e[1] - z) ? 1 : -1;
+  const side = hash01(Math.abs(Math.round(x * 5 - z * 3)), 62) < 0.5 ? 1 : -1, nx = -uz * side, nz = ux * side;
+  const px = x + ux * dir * 8 + nx * (p.hw + 0.45), pz = z + uz * dir * 8 + nz * (p.hw + 0.45);
+  if (onRoad(px, pz, 0) || inBuilding(px, pz, 0.6) || onTrack(px, pz) || !onLand(px, pz)) continue;
+  points.push({ kind: POINT.BARRICADE, x: px, z: pz, angle: Math.atan2(-nx, -nz), size: 1 }); // board faces the road
+}
 for (const [x, z] of busStops) if (!onRoad(x, z, 0.5) && !inBuilding(x, z, 0.5)) points.push({ kind: POINT.BUS_STOP, x, z, angle: 0, size: 1 });
 for (const pt of points) {
   if (!inBox([pt.x, pt.z])) continue;
   (getTile(Math.floor(pt.x / T), Math.floor(pt.z / T)).points ||= []).push(pt);
 }
 const count = (k) => points.filter((p) => p.kind === k).length;
-log(`points: ${count(POINT.RAIN_TREE) + count(POINT.GULMOHAR) + count(POINT.PEEPAL) + count(POINT.PALM)} trees, ${lights.length} lights, ${count(POINT.STALL)} stalls, ${count(POINT.GARBAGE)} garbage piles, ${count(POINT.POTHOLE)} potholes, ${count(POINT.PUDDLE)} puddles, ${count(POINT.HEDGE)} hedge pieces in planted medians, ${fuel.length} petrol pumps`);
+log(`points: ${count(POINT.RAIN_TREE) + count(POINT.GULMOHAR) + count(POINT.PEEPAL) + count(POINT.PALM)} trees, ${lights.length} lights, ${count(POINT.STALL)} stalls, ${count(POINT.GARBAGE)} garbage piles, ${count(POINT.POTHOLE)} potholes, ${count(POINT.PUDDLE)} puddles, ${count(POINT.HEDGE)} hedge pieces in planted medians, ${count(POINT.BARRIER)} water barriers, ${count(POINT.BANNER)} flex banners, ${count(POINT.BARRICADE)} police barricades, ${fuel.length} petrol pumps`);
 const fuelStations = fuel.map(([x, z]) => [r1(x), r1(z)]);
 
 // Landmarks: hand-built models replace these OpenStreetMap outlines (names are parodies).
@@ -841,12 +899,20 @@ for (const L of LANDMARKS) {
 const partGrid = new Grid(50);
 for (const b of buildingsRaw) if (b.part) { const [x, z] = G.centroid(b.polys[0][0]); partGrid.add([x, z, x, z], [x, z]); }
 const skylineList = []; // tall buildings for the far skyline (lib/skyline.mjs)
-let bCount = 0, bSkipped = 0, bWithHeight = 0, bProfiled = 0, bNetting = 0, bArcade = 0;
+let bCount = 0, bSkipped = 0, bWithHeight = 0, bProfiled = 0, bNetting = 0, bArcade = 0, bWalls = 0;
 for (const b of buildingsRaw) {
   for (const poly of b.polys) {
     const outer = poly[0];
     const c = G.centroid(outer);
     if (!inBox(c)) continue;
+    if (b.wall) {
+      // Compound walls, pillars, hoardings and fences (lib/walls.mjs): style = wall kind, height = wall height.
+      const tile = getTile(Math.floor(c[0] / T), Math.floor(c[1] / T));
+      let r = quantize(outer, tile.cx, tile.cz, true);
+      if (G.signedArea(r) < 0) r = r.reverse();
+      if (r.length >= 3) { tile.buildings.push({ h: b.wall.h, minH: 0, color: b.wall.color, flags: BUILDING_FLAG.WALL, style: b.wall.kind, levels: 0, rings: [r], front: r.map(() => 0) }); bWalls++; }
+      continue;
+    }
     if (!b.part) {
       const bb = G.bboxOf(outer);
       const hasPart = partGrid.near((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, Math.max(bb[2] - bb[0], bb[3] - bb[1]) / 2,
@@ -883,6 +949,7 @@ for (const b of buildingsRaw) {
     if (b.tags.height || b.tags['building:levels']) bWithHeight++;
     const tile = getTile(Math.floor(c[0] / T), Math.floor(c[1] / T));
     const look = buildingLook(b, type, h, area, d, sp);
+    if (b.tags['gtb:site']) { look.style = STYLE.CONCRETE; look.color = 0xbdb9b2; look.shops = false; } // a tower going up: bare concrete
     const rings = poly.map((ring, i) => {
       let r = quantize(G.simplifyRing(ring, 0.15), tile.cx, tile.cz, true);
       // Outer rings positive signed area in (x, z), holes negative (the worker relies on this).
@@ -910,13 +977,14 @@ for (const b of buildingsRaw) {
     // About one building in ten under repair wears green netting and scaffolding (survey).
     // Arcaded streets (street library): the ground floor steps back behind piers along the street walls.
     if (sp?.arcade && !b.hidden && !overTrack.has(b) && minH < 1 && h >= 8 && area >= 120 && look.style !== STYLE.GLASS && look.style !== STYLE.SHED && front.some(Boolean)) { f2 |= BUILDING_FLAG.ARCADE; bArcade++; }
+    if (b.tags['gtb:site']) f2 |= BUILDING_FLAG.NETTING;
     if (sp?.netting && !b.hidden && !overTrack.has(b) && !(f2 & BUILDING_FLAG.HERITAGE) && h > 8 && h < 70 && hash01(b.id, 21) < sp.netting) { f2 |= BUILDING_FLAG.NETTING; bNetting++; }
     tile.buildings.push({ h, minH, color: look.color, flags: f2, style: look.style, levels: look.levels, rings, front });
     bCount++;
     if (h >= 15 && !b.hidden && minH < 1) skylineList.push({ ring: outer, area, h, color: look.color });
   }
 }
-log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts; ${bProfiled} dressed by their street's profile, ${bNetting} under netting, ${bArcade} arcaded)`);
+log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts; ${bProfiled} dressed by their street's profile, ${bNetting} under netting, ${bArcade} arcaded; ${bWalls} wall pieces)`);
 
 // Roads and rails: polylines clipped to each tile. Junction points shared by two or more
 // roads are never simplified away, so the road graph stays connected.

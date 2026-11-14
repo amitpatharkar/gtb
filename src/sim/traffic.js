@@ -25,6 +25,7 @@ const PARTS = ['paint', 'glass', 'trim', 'lamps']; // one BatchedMesh each
  * left/right are relative to the segment's drawing direction. `parking` (0–1) sets how full.
  */
 let PROFILES = [], PROFILES_V = 0;
+const TAXI_RANK = ['taxi', 'taxi', 'taxiI10', 'taxi', 'padmini'];
 export function setStreetProfiles(list) { PROFILES = list || []; PROFILES_V++; }
 export const profileOf = (s) => PROFILES[((s[5] >> 8) & 255) - 1] || null;
 function parkSides(seg) {
@@ -103,6 +104,9 @@ export class Traffic {
       trim: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.15 }),
       lamps: new THREE.MeshBasicMaterial({ vertexColors: true }),
     };
+    // Uploaded car models are often single sheets meant to be seen from both sides (doors,
+    // panels): drawn one-sided, they looked exploded. The procedural fleet doesn't mind.
+    for (const m of Object.values(this.mats)) m.side = THREE.DoubleSide;
     this.parkMax = tier.name === 'High' ? 140 : tier.name === 'Medium' ? 100 : 60;
     this.cap = this.max + 24 + this.parkMax; // traffic, extras (broken-down taxis) and parked vehicles
     this.batches = {};
@@ -582,9 +586,10 @@ export class Traffic {
       let seed = (Math.abs(Math.round(s[0] * 7 + s[1] * 13 + s[2] * 3)) % 9973) + 1;
       const segKey = `${Math.round(s[0])},${Math.round(s[1])},${Math.round(s[2])},${Math.round(s[3])}`;
       const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-      const P = parkSides(seg);
+      const P = parkSides(seg), taxis = profileOf(s)?.taxis || 0;
       for (const side of [1, -1]) {
         if (side > 0 ? !P.left : !P.right) continue;
+        let stand = 0; // cars left in a taxi rank (survey: long kaali-peeli stands at the kerb)
         // Left kerb when facing along the segment: right vector is (-fz, fx) → left is (fz, -fx).
         const lx = fz * side, lz = -fx * side;
         let d = 8 + rnd() * 6;
@@ -593,11 +598,12 @@ export class Traffic {
           const pd = Math.hypot(x0 - player.pos.x, z0 - player.pos.z);
           if (pd > R || pd < 7) { d += 6; continue; } // not on top of the player's taxi
           const r = rnd();
-          if (r < 0.28 + (1 - P.parking) * 0.6) { d += 4 + rnd() * 8; continue; } // gap: a gate, a shop front, a hydrant (more on streets with little parking)
+          if (!stand && taxis && rnd() < taxis * 0.35) stand = 4 + Math.floor(rnd() * 8);
+          if (!stand && r < 0.28 + (1 - P.parking) * 0.6) { d += 4 + rnd() * 8; continue; } // gap: a gate, a shop front, a hydrant (more on streets with little parking)
           // Facing the way traffic flows on that side (on a one-way: both kerbs face the flow); a few face the other way on two-way streets.
           const flip = rnd() < 0.15 && !(s[5] & 2);
           const heading = (s[5] & 2 ? Math.atan2(fx, fz) : Math.atan2(fx * side, fz * side)) + (flip ? Math.PI : 0);
-          if (r < 0.5) {
+          if (r < 0.5 && !stand) {
             // A row of two-wheelers, angled to the kerb.
             const n = 2 + Math.floor(rnd() * 5);
             for (let k = 0; k < n && out.length < this.parkMax; k++) {
@@ -608,7 +614,8 @@ export class Traffic {
             }
             d += n * 0.85 + 1.5;
           } else {
-            const list = this.inSuburbs(z0) ? suburbTypes : carTypes;
+            const list = stand ? TAXI_RANK : this.inSuburbs(z0) ? suburbTypes : carTypes;
+            if (stand) stand--;
             const type = list[Math.floor(rnd() * list.length)], T = this.types[type], o = hw - T.wid / 2 - 0.25, th = rnd();
             const key = `${segKey}:${side}:${Math.round(d * 10)}`;
             if (!this.movedKeys.has(key)) out.push({ type, x: x0 + fx * T.len / 2 + lx * o, z: z0 + fz * T.len / 2 + lz * o, heading, tint: tint(type, th), parked: true, key });

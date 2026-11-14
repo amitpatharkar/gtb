@@ -17,8 +17,8 @@ import { readGlb, readAccessor, imageBytes, GlbWriter, identity, mul, nodeMatrix
 import { VEHICLE_ART, lengthFor } from '../src/vehicles/vehicleModels.js';
 
 const PARTS = ['paint', 'glass', 'trim', 'lamps'];
-const NEAR = { paint: 3200, glass: 500, trim: 2600, lamps: 260 };
-const FAR = { paint: 360, glass: 60, trim: 240, lamps: 40 };
+const NEAR = { paint: 2400, glass: 380, trim: 1800, lamps: 200 };
+const FAR = { paint: 300, glass: 50, trim: 200, lamps: 30 };
 const lin = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); // sRGB byte/255 → linear
 
 function classify(mat, names) {
@@ -138,8 +138,30 @@ export async function buildVehicle(file, id, fleetLen = {}) {
   const all = (fn) => { for (const g of groups) for (let i = 0; i < g.pos.length; i += 3) fn(g, i); };
   const bbox = () => { const b = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity]; all((g, i) => { for (let k = 0; k < 3; k++) { b[k] = Math.min(b[k], g.pos[i + k]); b[k + 3] = Math.max(b[k + 3], g.pos[i + k]); } }); return b; };
   const turn = (fn) => all((g, i) => { for (const arr of [g.pos, g.nrm]) { const [x, y, z] = fn(arr[i], arr[i + 1], arr[i + 2]); arr[i] = x; arr[i + 1] = y; arr[i + 2] = z; } });
+  // Stray objects (a ground plane, a turntable, a spare wheel beside the car, a light rig) would
+  // throw the size and orientation off: keep what lies within the bulk of the vertices.
+  {
+    const n = groups.reduce((s, g) => s + g.pos.length / 3, 0), ax = [new Float32Array(n), new Float32Array(n), new Float32Array(n)];
+    let k = 0;
+    all((g, i) => { ax[0][k] = g.pos[i]; ax[1][k] = g.pos[i + 1]; ax[2][k] = g.pos[i + 2]; k++; });
+    const lim = ax.map((a) => { a.sort(); const lo = a[Math.floor(n * 0.02)], hi = a[Math.floor(n * 0.98)], m = (hi - lo) * 0.12; return [lo - m, hi + m]; });
+    const inside = (g, i) => lim.every(([lo, hi], c) => g.pos[i + c] >= lo && g.pos[i + c] <= hi);
+    let dropped = 0;
+    for (const g of groups) {
+      const P = [], N = [], C = [];
+      for (let i = 0; i < g.pos.length; i += 9) {
+        if (!(inside(g, i) && inside(g, i + 3) && inside(g, i + 6))) { dropped++; continue; }
+        for (let j = 0; j < 9; j++) { P.push(g.pos[i + j]); N.push(g.nrm[i + j]); C.push(g.col[i + j]); }
+      }
+      g.pos = P; g.nrm = N; g.col = C;
+    }
+    if (dropped) groups.splice(0, groups.length, ...groups.filter((g) => g.pos.length));
+    if (!groups.length) throw new Error('nothing left after trimming stray objects');
+    if (dropped > 50) var trimmed = dropped; // reported below
+  }
   let b = bbox();
   const notes = [];
+  if (typeof trimmed !== 'undefined') notes.push(`${trimmed} stray triangles dropped`);
   if (b[4] - b[1] > Math.max(b[3] - b[0], b[5] - b[2]) * 1.2) { turn((x, y, z) => [x, z, -y]); notes.push('stood up (Z-up file)'); b = bbox(); }
   if (b[3] - b[0] > (b[5] - b[2]) * 1.15) { turn((x, y, z) => [z, y, -x]); notes.push('turned 90°'); b = bbox(); }
   let red = [0, 0], white = [0, 0];
@@ -158,31 +180,74 @@ export async function buildVehicle(file, id, fleetLen = {}) {
     const w = new GlbWriter(), nodes = [], meshes = [], counts = {};
     for (const part of PARTS) {
       const gs = groups.filter((g) => g.part === part);
-      const key = new Map(), P = [], N = [], C = [], idx = [];
+      // Weld by position only (flat-shaded exports split every corner, which stops the
+      // simplifier), with the colour averaged per welded vertex.
+      const key = new Map(), P = [], C = [], cn = [], idx = [];
       for (const g of gs) for (let i = 0; i < g.pos.length; i += 3) {
-        const k = `${Math.round(g.pos[i] * 1e4)},${Math.round(g.pos[i + 1] * 1e4)},${Math.round(g.pos[i + 2] * 1e4)},${Math.round(g.nrm[i] * 50)},${Math.round(g.nrm[i + 1] * 50)},${Math.round(g.nrm[i + 2] * 50)},${Math.round(g.col[i] * 40)},${Math.round(g.col[i + 1] * 40)},${Math.round(g.col[i + 2] * 40)}`;
+        const k = `${Math.round(g.pos[i] * 1e4)},${Math.round(g.pos[i + 1] * 1e4)},${Math.round(g.pos[i + 2] * 1e4)}`;
         let v = key.get(k);
-        if (v === undefined) { v = P.length / 3; key.set(k, v); P.push(g.pos[i], g.pos[i + 1], g.pos[i + 2]); N.push(g.nrm[i], g.nrm[i + 1], g.nrm[i + 2]); C.push(g.col[i], g.col[i + 1], g.col[i + 2]); }
+        if (v === undefined) { v = P.length / 3; key.set(k, v); P.push(g.pos[i], g.pos[i + 1], g.pos[i + 2]); C.push(0, 0, 0); cn.push(0); }
+        C[v * 3] += g.col[i]; C[v * 3 + 1] += g.col[i + 1]; C[v * 3 + 2] += g.col[i + 2]; cn[v]++;
         idx.push(v);
       }
+      for (let v = 0; v < cn.length; v++) for (let c = 0; c < 3; c++) C[v * 3 + c] /= cn[v];
       let ind = Uint32Array.from(idx);
       const pos = Float32Array.from(P);
       if (ind.length / 3 > budget[part]) {
         let [out] = MeshoptSimplifier.simplify(ind, pos, 3, budget[part] * 3, error);
-        if (out.length / 3 > budget[part] * 1.6) [out] = MeshoptSimplifier.simplify(ind, pos, 3, budget[part] * 3, error * 4);
+        for (let e = error * 4; out.length / 3 > budget[part] * 1.5 && e < 0.5; e *= 3) [out] = MeshoptSimplifier.simplify(ind, pos, 3, budget[part] * 3, e); // (no 'Prune': car bodies are many separate panels)
         if (out.length >= 3) ind = out;
       }
-      // Drop unused vertices.
-      const remap = new Int32Array(P.length / 3).fill(-1); let used = 0;
-      for (let i = 0; i < ind.length; i++) { if (remap[ind[i]] < 0) remap[ind[i]] = used++; ind[i] = remap[ind[i]]; }
+      // Unwelded output with crease normals: a corner averages the faces round its vertex that
+      // bend less than 40° from its own face (smooth panels, sharp edges stay sharp).
+      const nt = ind.length / 3, F = new Float32Array(nt * 3), A = new Float32Array(nt), around = new Map();
+      for (let t = 0; t < nt; t++) {
+        const a = ind[t * 3] * 3, b2 = ind[t * 3 + 1] * 3, c = ind[t * 3 + 2] * 3;
+        const ux = P[b2] - P[a], uy = P[b2 + 1] - P[a + 1], uz = P[b2 + 2] - P[a + 2], wx = P[c] - P[a], wy = P[c + 1] - P[a + 1], wz = P[c + 2] - P[a + 2];
+        const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx, l = Math.hypot(nx, ny, nz) || 1;
+        F[t * 3] = nx / l; F[t * 3 + 1] = ny / l; F[t * 3 + 2] = nz / l; A[t] = l;
+        for (let k = 0; k < 3; k++) { const v = ind[t * 3 + k]; (around.get(v) || around.set(v, []).get(v)).push(t); }
+      }
+      let used = nt * 3;
       let fp = new Float32Array(used * 3), fn = new Float32Array(used * 3), fc = new Float32Array(used * 3);
-      for (let v = 0; v < remap.length; v++) if (remap[v] >= 0) for (let k = 0; k < 3; k++) { fp[remap[v] * 3 + k] = P[v * 3 + k]; fn[remap[v] * 3 + k] = N[v * 3 + k]; fc[remap[v] * 3 + k] = C[v * 3 + k]; }
-      if (!used) { fp = new Float32Array(9); fn = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]); fc = new Float32Array(9); ind = Uint32Array.from([0, 1, 2]); used = 3; }
+      const COS = Math.cos((40 * Math.PI) / 180);
+      for (let t = 0; t < nt; t++) for (let k = 0; k < 3; k++) {
+        const v = ind[t * 3 + k], o = (t * 3 + k) * 3;
+        let sx = 0, sy = 0, sz = 0;
+        for (const u of around.get(v)) {
+          if (F[u * 3] * F[t * 3] + F[u * 3 + 1] * F[t * 3 + 1] + F[u * 3 + 2] * F[t * 3 + 2] < COS) continue;
+          sx += F[u * 3] * A[u]; sy += F[u * 3 + 1] * A[u]; sz += F[u * 3 + 2] * A[u];
+        }
+        const l = Math.hypot(sx, sy, sz) || 1;
+        fn[o] = sx / l; fn[o + 1] = sy / l; fn[o + 2] = sz / l;
+        for (let c = 0; c < 3; c++) { fp[o + c] = P[v * 3 + c]; fc[o + c] = C[v * 3 + c]; }
+      }
+      // Corners with the same vertex and normal are shared again (indexed output, smaller file).
+      {
+        const key = new Map(), keep = [], idx2 = new Uint32Array(used);
+        for (let i = 0; i < used; i++) {
+          const k = `${ind[i]},${Math.round(fn[i * 3] * 90)},${Math.round(fn[i * 3 + 1] * 90)},${Math.round(fn[i * 3 + 2] * 90)}`;
+          let v = key.get(k);
+          if (v === undefined) { v = keep.length; key.set(k, v); keep.push(i); }
+          idx2[i] = v;
+        }
+        const P2 = new Float32Array(keep.length * 3), N2 = new Float32Array(keep.length * 3), C2 = new Float32Array(keep.length * 3);
+        keep.forEach((i, v) => { for (let c = 0; c < 3; c++) { P2[v * 3 + c] = fp[i * 3 + c]; N2[v * 3 + c] = fn[i * 3 + c]; C2[v * 3 + c] = fc[i * 3 + c]; } });
+        fp = P2; fn = N2; fc = C2; ind = idx2; used = keep.length;
+      }
+      if (!nt) { fp = new Float32Array(9); fn = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]); fc = new Float32Array(9); ind = Uint32Array.from([0, 1, 2]); used = 3; }
       counts[part] = ind.length / 3;
-      meshes.push({ name: part, primitives: [{ attributes: { POSITION: w.attribute(fp, 3, true), NORMAL: w.attribute(fn, 3), COLOR_0: w.attribute(fc, 3) }, indices: w.indices(ind, used) }] });
-      nodes.push({ name: part, mesh: meshes.length - 1 });
+      // Positions as 16-bit integers in the part's box (the node's scale and translation restore
+      // metres), normals and colours as bytes: about a third of the floats' size.
+      const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+      for (let i = 0; i < fp.length; i += 3) for (let c = 0; c < 3; c++) { lo[c] = Math.min(lo[c], fp[i + c]); hi[c] = Math.max(hi[c], fp[i + c]); }
+      const ctr = lo.map((l, c) => (l + hi[c]) / 2), ext = Math.max(1e-4, ...lo.map((l, c) => (hi[c] - l) / 2));
+      const qp = new Float32Array(fp.length);
+      for (let i = 0; i < fp.length; i += 3) for (let c = 0; c < 3; c++) qp[i + c] = (fp[i + c] - ctr[c]) / ext;
+      meshes.push({ name: part, primitives: [{ attributes: { POSITION: w.quantised(qp, 3, 'i16', true), NORMAL: w.quantised(fn, 3, 'i8'), COLOR_0: w.quantised(fc, 3, 'u8') }, indices: w.indices(ind, used) }] });
+      nodes.push({ name: part, mesh: meshes.length - 1, translation: ctr, scale: [ext, ext, ext] });
     }
-    const out = w.build({ asset: { version: '2.0', generator: 'Bombay Bawaal art build' }, scene: 0, scenes: [{ nodes: nodes.map((_, i) => i) }], nodes, meshes });
+    const out = w.build({ asset: { version: '2.0', generator: 'Bombay Bawaal art build' }, extensionsUsed: ['KHR_mesh_quantization'], extensionsRequired: ['KHR_mesh_quantization'], scene: 0, scenes: [{ nodes: nodes.map((_, i) => i) }], nodes, meshes });
     return { out, counts };
   };
   const near = make(NEAR, 0.004), far = make(FAR, 0.03);

@@ -11,6 +11,7 @@ export const PART_TYPES = ['frame', 'sill', 'chajja', 'grille', 'ac', 'balcony',
 const PARTS_MAX_Y = 27;   // real geometry on the lower ~8 floors; higher up the shader carries the detail
 const CHAJJA_STYLES = new Set([0, 1, 2, 5]);
 const ARCADE_DEPTH = 2.8; // m from the street wall back to the shopfronts
+const WALL = { COMPOUND: 0, SHEET: 1, MESH: 2, DOCK: 3, STONE: 4, PILLAR: 5, POST: 6, GATEPOST: 7 }; // scripts/lib/walls.mjs
 const CORNICE_STYLES = new Set([0, 2, 3, 4, 5]);
 
 /** Horizontal strip sticking out of a wall (cornice/band): front, top and bottom faces, blank facade. */
@@ -74,9 +75,79 @@ export function buildBuildings(t, ox, oz, toWorld) {
   let hoardings = 0; // per tile
   const parts = Object.fromEntries(PART_TYPES.map((k) => [k, []]));
 
+  /**
+   * Walls (scripts/lib/walls.mjs): compound walls with pillars and a coping, dock walls with
+   * barbed wire, blue sheet hoardings and green mesh fences on steel posts, gate posts. The
+   * outline is a thin strip (left edge, then right edge reversed), so its centre line is the
+   * midpoint of vertex i and vertex n-1-i.
+   */
+  function drawWall(bd, bi) {
+    const kind = bd.style, ring = bd.rings[0], n = ring.length / 2, y0 = Y.KERB - 0.05, top = Y.KERB + bd.height;
+    const hex = (bd.color[0] << 16) | (bd.color[1] << 8) | bd.color[2];
+    const col = linear(hex), low = linear(hex, kind === WALL.DOCK ? 0.62 : 0.78);
+    const key = kind === WALL.SHEET ? 'sheet' : kind === WALL.MESH ? 'netting' : 'compound';
+    const m = get(key), cm = get('compound');
+    let u = rand(bi, 5) * 10;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n, ax = ring[i * 2], az = ring[i * 2 + 1], bx = ring[j * 2], bz = ring[j * 2 + 1];
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 0.01) continue;
+      wall(m, ax, az, bx, bz, y0, top, (bz - az) / len, -(bx - ax) / len, u, u + len, y0, top, key === 'compound' ? low : WHITE, key === 'compound' ? col : WHITE);
+      u += len;
+    }
+    if (kind === WALL.MESH) return posts(0.04, 2.5, top + 0.05, linear(0x6d6f71));
+    if (kind === WALL.SHEET) { flatPolygon(cm, bd.rings, top, linear(0x2a3f66), ox, oz); return posts(0.05, 3, top + 0.08, linear(0x3c4a5e)); }
+    // Coping on top (a shade lighter), then pillars or gate-post caps.
+    flatPolygon(cm, bd.rings, top, linear(hex, 1.08), ox, oz);
+    if (kind === WALL.GATEPOST) return;
+    if (kind === WALL.DOCK) return wire(top);
+    posts(0.21, 3.2 + rand(bi, 9), top + 0.22, linear(hex, 0.92), true);
+
+    // Along the centre line every `every` m: square posts of half-width hw up to height yt.
+    function posts(hw, every, yt, c, cap = false) {
+      if (n < 4) return;
+      const k = n / 2;
+      for (let i = 0; i + 1 < k; i++) {
+        const cx0 = (ring[i * 2] + ring[(n - 1 - i) * 2]) / 2, cz0 = (ring[i * 2 + 1] + ring[(n - 1 - i) * 2 + 1]) / 2;
+        const cx1 = (ring[(i + 1) * 2] + ring[(n - 2 - i) * 2]) / 2, cz1 = (ring[(i + 1) * 2 + 1] + ring[(n - 2 - i) * 2 + 1]) / 2;
+        const L = Math.hypot(cx1 - cx0, cz1 - cz0);
+        if (L < 0.5) continue;
+        const dx = (cx1 - cx0) / L, dz = (cz1 - cz0) / L;
+        for (let t = i === 0 ? 0.2 : every / 2; t < L; t += every) {
+          const px = cx0 + dx * t, pz = cz0 + dz * t;
+          box(cm, px, pz, dx, dz, hw, y0, yt, c);
+          if (cap) box(cm, px, pz, dx, dz, hw + 0.05, yt, yt + 0.07, linear(0xf2efe8));
+        }
+      }
+    }
+    // Concertina wire along the top of a dock wall: a see-through coil strip.
+    function wire(y) {
+      const wm = get('wire'), k = n / 2;
+      let wu = 0;
+      for (let i = 0; i + 1 < k; i++) {
+        const ax = (ring[i * 2] + ring[(n - 1 - i) * 2]) / 2, az = (ring[i * 2 + 1] + ring[(n - 1 - i) * 2 + 1]) / 2;
+        const bx = (ring[(i + 1) * 2] + ring[(n - 2 - i) * 2]) / 2, bz = (ring[(i + 1) * 2 + 1] + ring[(n - 2 - i) * 2 + 1]) / 2;
+        const len = Math.hypot(bx - ax, bz - az);
+        if (len < 0.1) continue;
+        wall(wm, ax, az, bx, bz, y, y + 0.55, (bz - az) / len, -(bx - ax) / len, wu, wu + len, 0, 1, WHITE);
+        wu += len;
+      }
+    }
+  }
+  function box(mm, x, z, dx, dz, hw, ya, yb, c) {
+    const nx = dz, nz = -dx; // right of the direction
+    const p = [[x - dx * hw - nx * hw, z - dz * hw - nz * hw], [x + dx * hw - nx * hw, z + dz * hw - nz * hw], [x + dx * hw + nx * hw, z + dz * hw + nz * hw], [x - dx * hw + nx * hw, z - dz * hw + nz * hw]];
+    for (let i = 0; i < 4; i++) {
+      const a = p[i], b = p[(i + 1) % 4], l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      wall(mm, b[0], b[1], a[0], a[1], ya, yb, -(b[1] - a[1]) / l, (b[0] - a[0]) / l, 0, l, ya, yb, c);
+    }
+    flatPolygon(mm, [[p[0][0], p[0][1], p[1][0], p[1][1], p[2][0], p[2][1], p[3][0], p[3][1]]], yb, c, ox, oz);
+  }
+
   t.buildings.forEach((bd, bi) => {
     // Landmark outlines: collide, but a hand-built model is drawn instead.
     if (bd.flags & BUILDING_FLAG.HIDDEN) { if (!(bd.flags & BUILDING_FLAG.NO_COLLIDE)) solid.push(bd.rings.map(toWorld)); return; }
+    if (bd.flags & BUILDING_FLAG.WALL) { drawWall(bd, bi); solid.push(bd.rings.map(toWorld)); return; }
     const style = Math.min(bd.style, STYLES.length - 1);
     const outer = bd.rings[0];
     const area = Math.abs(signedArea(outer));

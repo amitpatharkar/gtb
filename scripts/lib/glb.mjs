@@ -61,6 +61,25 @@ export class GlbWriter {
     }
     this.accessors.push(acc); return this.accessors.length - 1;
   }
+  /**
+   * Quantised vertex attribute (KHR_mesh_quantization): `kind` 'i16' (positions, already scaled
+   * to -1…1 — the node's scale/translation restore metres), 'i8' (normals), 'u8' (colours 0…1).
+   * Each element is padded to 4 bytes, as glTF requires for vertex strides.
+   */
+  quantised(arr, n, kind, minMax = false) {
+    const count = arr.length / n, T = kind === 'i16' ? Int16Array : kind === 'i8' ? Int8Array : Uint8Array;
+    const per = kind === 'i16' ? (n === 3 ? 4 : n) : 4, max = kind === 'i16' ? 32767 : kind === 'i8' ? 127 : 255;
+    const out = new T(count * per);
+    for (let i = 0; i < count; i++) for (let c = 0; c < n; c++) out[i * per + c] = Math.round(Math.max(kind === 'u8' ? 0 : -1, Math.min(1, arr[i * n + c])) * max);
+    const view = this.view(out, 34962);
+    this.views[view].byteStride = per * T.BYTES_PER_ELEMENT;
+    const acc = { bufferView: view, componentType: kind === 'i16' ? 5122 : kind === 'i8' ? 5120 : 5121, normalized: true, count, type: ['', 'SCALAR', 'VEC2', 'VEC3', 'VEC4'][n] };
+    if (minMax) {
+      acc.min = Array(n).fill(Infinity); acc.max = Array(n).fill(-Infinity);
+      for (let i = 0; i < count; i++) for (let c = 0; c < n; c++) { const v = out[i * per + c] / max; if (v < acc.min[c]) acc.min[c] = v; if (v > acc.max[c]) acc.max[c] = v; }
+    }
+    this.accessors.push(acc); return this.accessors.length - 1;
+  }
   indices(idx, vertexCount) {
     const small = vertexCount < 65536, arr = small ? Uint16Array.from(idx) : Uint32Array.from(idx);
     this.accessors.push({ bufferView: this.view(arr, 34963), componentType: small ? 5123 : 5125, count: arr.length, type: 'SCALAR' });

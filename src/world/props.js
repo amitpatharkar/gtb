@@ -129,6 +129,57 @@ function hedgeTexture() {
   });
 }
 
+/** Yellow lattice for tower-crane masts and jibs (alpha-tested): a frame with diagonal bracing. */
+function latticeTexture() {
+  return canvasTex(64, 64, (g) => {
+    g.clearRect(0, 0, 64, 64);
+    g.strokeStyle = '#e8b50f'; g.lineWidth = 5;
+    g.strokeRect(2, 2, 60, 60);
+    g.lineWidth = 3; g.beginPath(); g.moveTo(2, 2); g.lineTo(62, 62); g.moveTo(62, 2); g.lineTo(2, 62); g.stroke();
+  });
+}
+
+/**
+ * Flex banners on lamp posts (survey: "poles plastered with banners"): 8 made-up designs in one
+ * atlas (4 × 2): festival greetings, a birthday, a cricket tournament, a health camp, a garba
+ * night — cartoon faces, no real people, no parties.
+ */
+const BANNERS = [
+  ['#c2185b', '#ffd54a', 'HARDIK SHUBHECHHA!', 'Happy Birthday', 'SONU BHAU', 1],
+  ['#e65100', '#fff3c4', 'GANESHOTSAV 2026', 'Gully Mandal welcomes you', 'GANPATI BAPPA MORYA', 0],
+  ['#1b5e20', '#f1f8e9', 'EID MUBARAK', 'From all the shopkeepers', 'of the bazaar', 2],
+  ['#4a148c', '#f3e5f5', 'GARBA NIGHT', 'Navratri Utsav · 9 nights', 'Entry free', 0],
+  ['#0d47a1', '#e3f2fd', 'GULLY PREMIER LEAGUE', 'Tennis-ball cricket', 'Prize ₹5,001', 3],
+  ['#b71c1c', '#ffebee', 'FREE EYE CAMP', 'Sunday 9 am – 1 pm', 'Society hall', 2],
+  ['#006064', '#e0f7fa', 'MERRY CHRISTMAS', '& Happy New Year', 'from Pinky Tai', 1],
+  ['#f57f17', '#fffde7', 'SHUBH DEEPAVALI', 'Wishes from the', 'Mitra Mandal', 3],
+];
+function bannerAtlas() {
+  return canvasTex(1024, 1024, (g) => {
+    BANNERS.forEach(([bg, fg, title, l1, l2, faces], i) => {
+      const x = (i % 4) * 256, y = Math.floor(i / 4) * 512;
+      const gr = g.createLinearGradient(x, y, x + 256, y + 512); gr.addColorStop(0, bg); gr.addColorStop(1, '#222');
+      g.fillStyle = gr; g.fillRect(x, y, 256, 512);
+      g.fillStyle = fg; g.textAlign = 'center';
+      g.font = 'bold 26px sans-serif'; g.fillText(title, x + 128, y + 60, 236);
+      // Cartoon faces in circles (fictional people only).
+      for (let k = 0; k < faces; k++) {
+        const fx = x + 128 + (k - (faces - 1) / 2) * 70, fy = y + 190, r = 30;
+        g.fillStyle = '#fff'; g.beginPath(); g.arc(fx, fy, r + 4, 0, 7); g.fill();
+        g.fillStyle = ['#c68642', '#8d5524', '#e0ac69'][k % 3]; g.beginPath(); g.arc(fx, fy, r, 0, 7); g.fill();
+        g.fillStyle = '#222'; g.beginPath(); g.arc(fx - 10, fy - 6, 3.5, 0, 7); g.arc(fx + 10, fy - 6, 3.5, 0, 7); g.fill();
+        g.strokeStyle = '#222'; g.lineWidth = 3; g.beginPath(); g.arc(fx, fy + 4, 12, 0.2, Math.PI - 0.2); g.stroke();
+        g.fillStyle = '#1a1a1a'; g.beginPath(); g.arc(fx, fy - 18, r * 0.85, Math.PI, 0); g.fill();
+      }
+      if (!faces) { g.fillStyle = fg; g.beginPath(); g.arc(x + 128, y + 200, 60, 0, 7); g.fill(); g.fillStyle = bg; g.font = 'bold 54px sans-serif'; g.fillText('✦', x + 128, y + 220); }
+      g.fillStyle = fg; g.font = 'bold 24px sans-serif'; g.fillText(l1, x + 128, y + 320, 236);
+      g.font = 'bold 30px sans-serif'; g.fillText(l2, x + 128, y + 370, 236);
+      g.fillStyle = 'rgba(255,255,255,0.85)'; g.fillRect(x, y + 470, 256, 42);
+      g.fillStyle = '#333'; g.font = '16px sans-serif'; g.fillText('Shri Ganesh Flex Printers', x + 128, y + 497);
+    });
+  });
+}
+
 function blobTexture(seed, inner, outer) {
   return canvasTex(128, 128, (g) => {
     const rnd = seeded(seed);
@@ -260,6 +311,32 @@ export function createProps() {
     [[globeG, metal, true], [globeLampG, lampMat, false]],
   ];
 
+  // Tower crane: lattice mast 1.6 m square × 30 m, jib 32 m forward, counter-jib 11 m back.
+  const lattice = new THREE.MeshStandardMaterial({ map: latticeTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.6, metalness: 0.3 });
+  const latticeBox = (w, h, d, x, y, z) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
+  const crane = [
+    [merge([latticeBox(1.6, 30, 1.6, 0, 15, 0), latticeBox(1.3, 1.3, 43, 0, 31.2, 10.5), latticeBox(1, 4.2, 1, 0, 33.6, 0)]), lattice, false],
+    [merge([box(2.2, 2, 2.4, 0, 29.4, 1.6, 0xe8b50f), box(2.6, 2.4, 3.4, 0, 30.4, -8.5, 0x8a8781), cyl(0.04, 0.04, 16, 0, 22.6, 20, 0x333333, 4), box(0.6, 0.8, 0.8, 0, 14.4, 20, 0xe8b50f), box(2.8, 0.6, 2.8, 0, 0.3, 0, 0x8a8781)]), vc, false],
+  ];
+  // Water-filled barrier: 1.25 m long, tapered, orange with a white band near the top.
+  const barrierG = merge([box(0.5, 0.55, 1.2, 0, Y.ROAD + 0.28, 0, 0xe8661a), box(0.36, 0.14, 1.2, 0, Y.ROAD + 0.62, 0, 0xf2f2ee), box(0.3, 0.12, 1.2, 0, Y.ROAD + 0.75, 0, 0xe8661a)]);
+  // Police barricade: two legs, a top bar and a board, 1.8 m wide, facing local +z.
+  const barricadeG = merge([box(0.07, 1.1, 0.07, -0.85, Y.KERB + 0.55, 0, 0xe2b40c), box(0.07, 1.1, 0.07, 0.85, Y.KERB + 0.55, 0, 0xe2b40c), box(1.8, 0.07, 0.07, 0, Y.KERB + 1.1, 0, 0xe2b40c), box(0.07, 0.04, 0.6, -0.85, Y.KERB + 0.02, 0, 0xe2b40c), box(0.07, 0.04, 0.6, 0.85, Y.KERB + 0.02, 0, 0xe2b40c), box(1.8, 0.07, 0.07, 0, Y.KERB + 0.25, 0, 0xe2b40c)]);
+  const barricadeBoard = new THREE.PlaneGeometry(1.6, 0.55).translate(0, Y.KERB + 0.72, 0.045);
+  const barricadeMat = new THREE.MeshStandardMaterial({ map: canvasTex(256, 96, (g) => { g.fillStyle = '#1d4fa3'; g.fillRect(0, 0, 256, 96); g.fillStyle = '#fff'; g.font = 'bold 26px sans-serif'; g.textAlign = 'center'; g.fillText('TRAFFIC POLICE', 128, 44); g.font = '17px sans-serif'; g.fillText('No entry · Keep left', 128, 76); }), side: THREE.DoubleSide, roughness: 0.6 });
+  // Flex banners on lamp posts: 1 × 1.6 m at 2.9–4.5 m, across the footpath beside the pole,
+  // one geometry per design (the point's size picks it, like lamp types).
+  // One mesh for all designs: the geometry shows the atlas's first cell and each instance shifts
+  // its UVs by its design (attribute aCell, see buildProps) — one draw call per tile.
+  const bannerMat = new THREE.MeshStandardMaterial({ map: bannerAtlas(), side: THREE.DoubleSide, roughness: 0.7 });
+  bannerMat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aCell;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\nvMapUv += vec2(mod(aCell, 4.0) * 0.25, -floor(aCell / 4.0) * 0.5);');
+  };
+  bannerMat.customProgramCacheKey = () => 'banner-cells';
+  const bannerG = new THREE.PlaneGeometry(1.0, 1.6).rotateY(Math.PI / 2).translate(0.13, 3.7, 0.55);
+  { const uv = bannerG.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) / 4, 0.5 + uv.getY(k) / 2); }
+
   // kind → list of [geometry, material, castShadow, y]
   const KINDS = {
     [POINT.RAIN_TREE]: [[rain.trunk, bark, true], [rain.leaves, leafRain, true]],
@@ -275,6 +352,13 @@ export function createProps() {
     [POINT.STALL]: [[stallG, vc, true]],
     [POINT.FUEL]: [[fuelG, vc, true]],
     [POINT.TETRAPOD]: [[tetraG, concrete, true]],
+    [POINT.BANNER]: [[bannerG, bannerMat, false]],
+    // Construction: a tower crane (lattice mast, jib and counter-jib, cab, counterweight, hook), ~32 m at size 1.
+    [POINT.CRANE]: crane,
+    // Bazaar lane divider: orange water-filled plastic barrier with a white band.
+    [POINT.BARRIER]: [[barrierG, vc, true]],
+    // Traffic police barricade: yellow steel frame with a blue board.
+    [POINT.BARRICADE]: [[barricadeG, vc, true], [barricadeBoard, barricadeMat, false]],
     // Planted medians: a clipped hedge 0.95 m wide and 0.8 m tall on the median; the point's size stretches it along the road.
     [POINT.HEDGE]: [[new THREE.BoxGeometry(0.95, 0.8, 1, 1, 1, 1).translate(0, Y.KERB + 0.4, 0), new THREE.MeshStandardMaterial({ map: hedgeTexture(), roughness: 0.95 }), true]],
   };
@@ -313,7 +397,9 @@ export function buildProps(props, data, treeShare = 1) {
     for (const [gparts, keep] of groups) {
     if (!keep.length) continue;
     for (const [pi, [geo, mat, shadow, y]] of gparts.entries()) {
-      const mesh = new THREE.InstancedMesh(geo, mat, keep.length);
+      // Banners: each instance picks its design from the point's size (8 cells of one atlas).
+      const g2 = kind == POINT.BANNER ? geo.clone().setAttribute('aCell', new THREE.InstancedBufferAttribute(Float32Array.from(keep, (i) => Math.max(0, Math.min(7, Math.round((arr[i * 5 + 4] - 0.5) / 0.2)))), 1)) : geo;
+      const mesh = new THREE.InstancedMesh(g2, mat, keep.length);
       mesh.userData.part = pi; // 0 = trunk for trees, base for stalls (art.js swaps owner-made models in by part 0)
       keep.forEach((i, k) => {
         const s = arr[i * 5 + 4];
@@ -321,6 +407,7 @@ export function buildProps(props, data, treeShare = 1) {
         _p.set(arr[i * 5], y ?? arr[i * 5 + 1], arr[i * 5 + 2]);
         const sc = kind == POINT.POTHOLE || kind == POINT.PUDDLE || tree ? s : 1;
         if (kind == POINT.HEDGE) _s.set(1, 1, s); // stretched along the road
+        else if (kind == POINT.CRANE) _s.set(s, s, s);
         else _s.set(sc, tree ? 0.8 + s * 0.25 : sc, sc);
         _m.compose(_p, _q, _s);
         mesh.setMatrixAt(k, _m);

@@ -25,8 +25,17 @@ function normalise(p, index) {
     : has(gf, /shop|store|stall|eater|restaurant|khanaval|showroom|godown|bazaar|market|cafe|caf[eé]|bank|office|workshop/i) ? 0.85 : null;
   const details = [...(b.details || []), ...(p.clutter || [])].join(' · ');
   const netting = has(details, /netting|scaffold/i) ? 0.1 : 0;
-  const arcade = has(`${details} · ${gf}`, /arcade/i); // Fort and Causeway: shops behind a pillared walkway
   const clutter = (p.clutter || []).join(' · ');
+  const arcade = has(`${details} · ${gf}`, /arcade/i); // Fort and Causeway: shops behind a pillared walkway
+  const all = `${details} · ${clutter} · ${gf} · ${p.label || ''} · ${p.id} · ${Object.values(sec).join(" · ")} · ${p.lights || ''}`;
+  // Survey findings that become walls and street clutter (scripts/lib/walls.mjs, streets.mjs, traffic.js).
+  const compound = has(all, /compound wall|compound walls|gated|gates|boundary wall|security cabin/i) ? 0.85 : has(all, /bungalow|residential|apartment/i) ? 0.45 : 0;
+  const dock = has(all, /dock wall|concertina|barbed|port edge|port-dock/i);
+  const barriers = has(all, /water[- ]filled|plastic barricade|orange[/ -](and[- ])?white/i);
+  const policeBarricades = has(all, /police barricade|yellow steel frame/i);
+  const banners = has(all, /flex|banner/i);
+  const taxis = has(all, /taxi stands?|taxis parked|rows? of (kaali-peeli|taxis)/i) ? 0.55 : has(all, /taxis double-parked/i) ? 0.35 : 0;
+  const sites = has(all, /corrugated|construction site|redevelopment|tower crane/i);
   const lights = String(p.lights || '');
   const lamp = has(lights, /triple|lantern|heritage/i) ? LAMP.HERITAGE : has(lights, /globe/i) ? LAMP.GLOBE : has(lights, /tall|galvanised|necklace|curve/i) ? LAMP.TALL : LAMP.STANDARD;
   const medianLamp = has(lights, /median/i) || has(sec.median, /lamp|post/i);
@@ -39,7 +48,7 @@ function normalise(p, index) {
   return {
     id: p.id, index, label: p.label, styles, storeys, colours, shops, netting, arcade,
     treesPer100: typeof tr.per_100m === 'number' ? tr.per_100m : null, treeMix: tr.game_points && Object.keys(tr.game_points).length ? tr.game_points : null,
-    lamp, medianLamp, kerb, median, planted, parking,
+    lamp, medianLamp, kerb, median, planted, parking, compound, dock, barriers, policeBarricades, banners, taxis, sites,
     stalls: has(clutter, /stall|thela|vendor|hawker|seller|cart/i) ? 1 : 0.4,
     construction: has(clutter, /corrugated|hoarding|construction site/i) ? 1 : 0,
     traffic: String(p.traffic || ''), sounds: p.sounds || [],
@@ -68,7 +77,7 @@ export function loadStreetLibrary(root) {
     },
     /** What the game needs at runtime, by profile index (1-based; 0 = no profile). */
     runtimeTable() {
-      return [...profiles.values()].map((p) => ({ id: p.id, parking: p.parking, stalls: p.stalls, traffic: p.traffic.slice(0, 120), sounds: p.sounds }));
+      return [...profiles.values()].map((p) => ({ id: p.id, parking: p.parking, taxis: p.taxis, stalls: p.stalls, traffic: p.traffic.slice(0, 120), sounds: p.sounds }));
     },
   };
 }

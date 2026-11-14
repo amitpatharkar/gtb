@@ -221,6 +221,23 @@ export function streetFurniture(parts, opts) {
           const x = q.x - q.dz * side * o, z = q.z + q.dx * side * o;
           if (opts.blocked(x, z)) continue;
           lights.push({ kind: POINT.LIGHT, x, z, angle: Math.atan2(q.dz * side, -q.dx * side), size: opts.lampSize ? opts.lampSize(lamp) : 1 });
+          // Survey: poles plastered with flex banners (festival greetings, birthdays, events) on bazaar and chawl streets.
+          const bannerShare = prof?.banners ? 0.4 : d0.shops > 0.8 ? 0.15 : 0;
+          if (bannerShare && lamp === 0 && opts.rand(x * 7 + z * 3) < bannerShare) {
+            clutter.push({ kind: POINT.BANNER, x, z, angle: Math.atan2(q.dz * side, -q.dx * side), size: 0.5 + Math.floor(opts.rand(x + z * 5) * 8) * 0.2 });
+          }
+        }
+      }
+      // Survey: orange-and-white water-filled plastic barriers as a lane divider on bazaar arterials.
+      if (side === 1 && prof?.barriers && !(p.info.flags & 2) && width >= 10) {
+        for (let t = 25 + (p.id % 20); t < L - 20; t += 60 + opts.rand(p.id + t) * 40) {
+          const n = 6 + Math.floor(opts.rand(t * 3 + p.id) * 7);
+          for (let k = 0; k < n; k++) {
+            const tk = t + k * 1.3;
+            if (tk > L - 12 || !clear(tk, 8)) break;
+            const q = pointAt(p.pts, s, tk);
+            clutter.push({ kind: POINT.BARRIER, x: q.x, z: q.z, angle: Math.atan2(q.dx, q.dz), size: 1 });
+          }
         }
       }
       // Planted medians (street library): a clipped hedge down the middle of the median of a

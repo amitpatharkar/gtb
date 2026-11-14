@@ -71,3 +71,8 @@ badges, logos or number plates), keeps the colours, stands it on its wheels, tur
 forward, scales it to the real length and slims it to about 6,500 triangles (800 far away).
 If one comes out facing backwards, set `flip: true` for it in `vehicleModels.js`.
 
+**A vehicle file is used only once `public/art/CREDITS.md` has a line for it** (CC0 or CC BY), e.g.
+`- vehicles/hindustan_ambassador.glb — "Hindustan Ambassador" by <author> (<link>) — CC BY 4.0 — 2026-11-14`.
+Files keep their download names; the build matches them to game types (`FILE_TYPES`) and uses only the ones
+checked by eye (`VERIFIED` in `src/vehicles/vehicleModels.js`).
+

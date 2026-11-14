@@ -38,11 +38,15 @@ export const ROAD = {
 export const ROAD_FLAG = { BRIDGE: 1, ONEWAY: 2, KERB_BW: 4, KERB_BY: 8, KERB_PLAIN: 16, MEDIAN_BW: 32 };
 export const RAIL = { MAIN: 0, SERVICE: 1 };
 export const RAIL_FLAG = { BRIDGE: 1 };
-export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2, SHOPS: 4, HIDDEN: 8, NETTING: 16, ARCADE: 32 }; // ARCADE: ground floor set back behind piers on street-facing walls (Fort, Causeway); // NETTING: under repair (green netting + scaffolding); // HIDDEN: collide only (a hand-built landmark stands there)
+export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2, SHOPS: 4, HIDDEN: 8, NETTING: 16, ARCADE: 32, WALL: 64 }; // WALL: compound wall, pillar, hoarding or fence (style = kind, lib/walls.mjs); // ARCADE: ground floor set back behind piers on street-facing walls (Fort, Causeway); // NETTING: under repair (green netting + scaffolding); // HIDDEN: collide only (a hand-built landmark stands there)
 export const POINT = {
   RAIN_TREE: 0, GULMOHAR: 1, PEEPAL: 2, PALM: 3, LIGHT: 4, SIGNAL: 5, BUS_STOP: 6,
   POTHOLE: 7, PUDDLE: 8, GARBAGE: 9, STALL: 10, FUEL: 11, TETRAPOD: 12,
   HEDGE: 13, // clipped hedge in a planted median: size = length (m) along the angle
+  CRANE: 14, // tower crane on a construction site: size scales it (height ≈ 32 m × size)
+  BARRIER: 15, // orange-and-white water-filled plastic barrier (lane divider in bazaars)
+  BARRICADE: 16, // yellow steel traffic-police barricade with a blue board
+  BANNER: 17, // flex banner on a lamp post; size picks one of 8 designs
 };
 
 export class ByteReader {
