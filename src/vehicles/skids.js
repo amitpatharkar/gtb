@@ -1,7 +1,21 @@
 import * as THREE from 'three';
 
 // Tyre marks: dark strips laid behind the wheels while they slide (hard braking, sharp
-// turns at speed). A ring buffer of quads; old marks are overwritten.
+// turns at speed). A ring buffer of quads; old marks are overwritten. Only the quads written
+// since the last upload go to the graphics card (update ranges), not the whole buffer.
+
+/** Mark part of an attribute for upload; many small ranges collapse into one span. */
+function dirty(attr, start, count) {
+  const r = attr.updateRanges;
+  if (r.length >= 8) {
+    let lo = start, hi = start + count;
+    for (const x of r) { lo = Math.min(lo, x.start); hi = Math.max(hi, x.start + x.count); }
+    attr.clearUpdateRanges();
+    attr.addUpdateRange(lo, hi - lo);
+  } else attr.addUpdateRange(start, count);
+  attr.needsUpdate = true;
+}
+const WHEELS = [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]; // × (track, wheel base)
 
 export class SkidMarks {
   constructor(scene, max = 1500) {
@@ -26,28 +40,28 @@ export class SkidMarks {
   mark(id, x, y, z, strength, width = 0.17) {
     const prev = this.last.get(id);
     if (strength <= 0.02) { this.last.delete(id); return; }
-    if (!prev) { this.last.set(id, { x, y, z }); return; }
+    if (!prev) { this.last.set(id, { x, y, z, a: undefined }); return; }
     const dx = x - prev.x, dz = z - prev.z, l = Math.hypot(dx, dz);
     if (l < 0.25) return;
-    if (l > 3) { this.last.set(id, { x, y, z }); return; }
+    if (l > 3) { prev.x = x; prev.y = y; prev.z = z; prev.a = undefined; return; }
     const nx = (-dz / l) * width / 2, nz = (dx / l) * width / 2;
     const i = this.n++ % this.max, p = this.mesh.geometry.attributes.position, c = this.mesh.geometry.attributes.color;
     const a = Math.min(0.75, strength * 0.75), pa = prev.a ?? a;
     p.setXYZ(i * 4, prev.x - nx, prev.y, prev.z - nz); p.setXYZ(i * 4 + 1, prev.x + nx, prev.y, prev.z + nz);
     p.setXYZ(i * 4 + 2, x - nx, y, z - nz); p.setXYZ(i * 4 + 3, x + nx, y, z + nz);
     for (let k = 0; k < 4; k++) c.setXYZW(i * 4 + k, 0.025, 0.025, 0.03, k < 2 ? pa : a);
-    p.needsUpdate = true; c.needsUpdate = true;
-    this.last.set(id, { x, y, z, a });
+    dirty(p, i * 12, 12); dirty(c, i * 16, 16);
+    prev.x = x; prev.y = y; prev.z = z; prev.a = a;
   }
 
   /** Marks for a car: rear wheels when sliding, all four under hard braking. */
   track(car, slip, braking, track = 1.24, wheelBase = 2.34) {
     const h = car.heading, fx = Math.sin(h), fz = Math.cos(h), rx = -fz, rz = fx;
     const y = car.pos.y + 0.012;
-    const wheels = [[-track / 2, -wheelBase / 2], [track / 2, -wheelBase / 2], [-track / 2, wheelBase / 2], [track / 2, wheelBase / 2]];
-    wheels.forEach(([wx, wz], k) => {
+    for (let k = 0; k < 4; k++) {
+      const wx = WHEELS[k][0] * track, wz = WHEELS[k][1] * wheelBase;
       const s = k < 2 ? slip : braking ? slip : 0;
       this.mark(k, car.pos.x + rx * wx + fx * wz, y, car.pos.z + rz * wx + fz * wz, s);
-    });
+    }
   }
 }
