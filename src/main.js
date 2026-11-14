@@ -15,6 +15,7 @@ import { Traffic } from './sim/traffic.js';
 import { FacadeParts } from './world/facadeParts.js';
 import { Skyline } from './world/skyline.js';
 import { Birds } from './sim/birds.js';
+import { Art } from './world/art.js';
 import { updateNightLights } from './world/nightLights.js';
 import { Signals } from './sim/signals.js';
 import { Police } from './sim/police.js';
@@ -113,6 +114,7 @@ const env = await createEnvironment(renderer, scene, index.bounds, tier, lib);
 const post = createPost(renderer, scene, camera, tier);
 const landmarks = new Landmarks(scene, index.landmarks || [], lib);
 const streetProps = new StreetProps(scene, tiles, BASE, tier, started);
+const art = new Art(scene, tiles, BASE, tier, started); // owner-made models from public/art (docs/art-requests.md)
 // (The Poly Haven AC model was 9k triangles and 7 MB of textures per copy; facade AC units
 // stay procedural.)
 const startHour = Number(query.get('hour'));
@@ -615,6 +617,7 @@ function choice(title, options) {
 window.__gtb = { THREE, garage, crackers, stars, eggs, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 window.__gtb.skyline = skyline;
 window.__gtb.navigator = navigator;
+window.__gtb.art = art;
 window.__gtb.birds = birds;
 { const startle = crackers.startle.bind(crackers); crackers.startle = (x, z, r, by) => { birds.scare(x, z, r); return startle(x, z, r, by); }; } // crackers scare the pigeons too
 window.__gtb.interiors = interiors;
@@ -753,6 +756,7 @@ function step(dt) {
   facadeNight.value = night;
   landmarks.update(night);
   streetProps.update(dt, active.pos);
+  art.update(active.pos);
   facadeParts.update(dt, player, tiles, night);
   skyline.update(active.pos);
   birds.update(dt, active, clock.daylight);

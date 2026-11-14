@@ -7,9 +7,9 @@
     "tiles:preview": "node scripts/preview-tiles.mjs",
     "assets": "node scripts/assets/build-assets.mjs",
     "assets:pull": "git fetch -q --depth 1 origin assets && rm -rf public/media && mkdir -p public/media && git archive FETCH_HEAD | tar -x -C public/media",
-    "predev": "npm run tiles",
+    "predev": "npm run tiles && node scripts/art-index.mjs",
     "dev": "vite --host",
-    "build": "npm run tiles && vite build",
+    "build": "npm run tiles && node scripts/art-index.mjs && vite build",
     "preview": "vite preview --host"
   },
   "repository": {
