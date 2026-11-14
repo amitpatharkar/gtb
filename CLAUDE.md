@@ -209,6 +209,11 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   id — `swap` (stands in for a procedural prop kind near the player: carts for thelas, a bus shelter; the procedural
   instance is zero-scaled meanwhile, `userData.orig` keeps its matrix) or `near` (clutter around map points).
   Credits per file in `public/art/CREDITS.md`.
+- `src/vehicles/vehicleArt.js` + `vehicleModels.js` — owner-uploaded vehicle models (`public/art/vehicles/<id>.glb`, CC0/CC BY):
+  `scripts/art-vehicles.mjs` (called by art-index) splits each into the fleet's four parts (textures dropped → no real
+  logos; colours kept as vertex colours; oriented, scaled to the real length, near ~6.5k + far ~800 triangles) →
+  `art/opt/vehicles/`; at runtime `traffic.useModel(id, near, far, info)` grows the batches (`setGeometrySize`) and
+  replaces a fleet type's body or adds a new type (`VEHICLE_ART`: parody name, `base` type for handling/mass, `flip`).
 - `src/world/models.js` — glTF/GLB → instanced meshes (metres, base on ground); `src/world/streetProps.js` — Poly Haven
   chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
 - `src/sim/characters.js` — Quaternius rigged characters (from the pipeline's `converted/` GLBs, only if listed in

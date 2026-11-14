@@ -16,6 +16,7 @@ import { FacadeParts } from './world/facadeParts.js';
 import { Skyline } from './world/skyline.js';
 import { Birds } from './sim/birds.js';
 import { Art } from './world/art.js';
+import { loadVehicleArt } from './vehicles/vehicleArt.js';
 import { updateNightLights } from './world/nightLights.js';
 import { Signals } from './sim/signals.js';
 import { Police } from './sim/police.js';
@@ -120,6 +121,8 @@ const art = new Art(scene, tiles, BASE, tier, started); // owner-made models fro
 const startHour = Number(query.get('hour'));
 const clock = new GameClock(query.has('hour') && Number.isFinite(startHour) ? startHour : 17.25);
 const traffic = new Traffic(scene, tiles, tier);
+// Owner-uploaded vehicle models (public/art/vehicles) join the fleet once play has started.
+const vehicleArt = loadVehicleArt(BASE, traffic, started).catch(() => []);
 setStreetProfiles(index.profiles); // street library: parking and life by street type
 const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
 const skyline = new Skyline(scene, tiles, tier); // distant tall buildings beyond the loaded tiles
@@ -620,6 +623,7 @@ window.__gtb = { THREE, garage, crackers, stars, eggs, tiles, player, scene, cam
 window.__gtb.skyline = skyline;
 window.__gtb.navigator = navigator;
 window.__gtb.art = art;
+window.__gtb.vehicleArt = vehicleArt; // resolves to the ids of uploaded vehicle models in use
 window.__gtb.birds = birds;
 { const startle = crackers.startle.bind(crackers); crackers.startle = (x, z, r, by) => { birds.scare(x, z, r); return startle(x, z, r, by); }; } // crackers scare the pigeons too
 window.__gtb.interiors = interiors;

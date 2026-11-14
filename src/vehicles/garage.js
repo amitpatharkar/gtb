@@ -72,14 +72,14 @@ export class Garage {
       this.audio.hornKind = !S ? null : S.pedal ? 'bell' : S.rider || S.open ? 'peep' : null;
     }
     if (type === 'taxi') { Object.assign(p, this.taxiShape); p.mass = MASS.padmini; return; }
-    const T = this.traffic.types[type], [top, accel] = DRIVE[type] || [28, 6];
+    const T = this.traffic.types[type], [top, accel] = DRIVE[type] || DRIVE[T.base] || [28, 6];
     p.radius = Math.max(0.35, T.wid / 2);
     p.halfLength = Math.max(0, T.len / 2 - p.radius);
     // Long vehicles get extra collision circles between the two ends.
     const n = Math.max(2, Math.ceil((2 * p.halfLength) / (1.6 * p.radius)) + 1);
     p.circles = Array.from({ length: n }, (_, i) => -p.halfLength + (2 * p.halfLength * i) / (n - 1 || 1));
     p.maxSpeed = top; p.accel = accel;
-    p.mass = MASS[type] || 1000;
+    p.mass = MASS[type] || MASS[T.base] || 1000;
   }
 
   /**

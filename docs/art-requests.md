@@ -54,3 +54,20 @@ background, soft even studio lighting, realistic photo, no people, no text, no l
 Notes: the side facing the camera in the picture becomes the front; carts are turned to
 face the street automatically. Ask Claude Code to adjust a model's size or facing if it
 looks wrong in the game (`ART` table in `src/world/art.js`).
+
+## Vehicles (free models, credited)
+
+Free vehicle models (for example from Sketchfab, downloaded as "Autoconverted format (glb)")
+go in `public/art/vehicles/`, named after the game's vehicle type: `alto`, `wagonr`, `swift`,
+`i10`, `dzire`, `city`, `ertiga`, `innova`, `bolero`, `creta`, `eeco`, `padmini`, `bus`, `ace`,
+`tempo`, `scooter`, `bike`, `bullet`, `auto`, `cycle` replace that type's close-up body; new
+types: `ambassador`, `m800`, `omni`, `nano`, `indica`, `scorpio`, `thar`, `sumo`, `santro`
+(parody names in `src/vehicles/vehicleModels.js`). Only CC0 or CC BY (Attribution) licences;
+one credit line per file in `public/art/CREDITS.md` (title, author, link, licence).
+
+The build (`scripts/art-vehicles.mjs`) turns each file into the fleet's four parts (paint
+tinted per car, glass, trim, lamps) with a far version: it drops the model's textures (no real
+badges, logos or number plates), keeps the colours, stands it on its wheels, turns it to face
+forward, scales it to the real length and slims it to about 6,500 triangles (800 far away).
+If one comes out facing backwards, set `flip: true` for it in `vehicleModels.js`.
+

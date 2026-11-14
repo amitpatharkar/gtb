@@ -194,6 +194,29 @@ export class Traffic {
     return z < this.suburbZ;
   }
 
+  /**
+   * An uploaded vehicle model (src/vehicles/vehicleArt.js): `near`/`far` are the four parts.
+   * A fleet type gets a new close-up body; a new id becomes a type that drives like `info.base`.
+   */
+  useModel(id, near, far, info = {}) {
+    let T = this.types[id];
+    if (!T) {
+      const base = this.types[info.base] || this.types.wagonr;
+      T = this.types[id] = { ...base, base: info.base || 'wagonr', name: info.name || 'Car', len: info.len, wid: info.wid, weight: info.weight ?? 0.25, night: info.night ?? base.night, tints: info.tints || base.tints };
+      this.typeNames.push(id);
+      this.totalWeight += T.weight;
+    } else if (info.wid && Math.abs(info.wid - T.wid) > 0.12) T.wid = info.wid;
+    T.parts = near; T.far = far;
+    for (const part in this.batches) {
+      const b = this.batches[part];
+      this.vertCap ||= {};
+      this.vertCap[part] ??= b._maxVertexCount;
+      this.vertCap[part] += near[part].attributes.position.count + far[part].attributes.position.count;
+      b.setGeometrySize(this.vertCap[part], 0);
+      this.geo[part][id] = [b.addGeometry(near[part]), b.addGeometry(far[part])];
+    }
+  }
+
   /** Vehicle mix by hour: goods tempos run at night, BEST buses and private cars by day. */
   pickType(z = 0) {
     const night = this.hour >= 22 || this.hour < 6, suburb = this.inSuburbs(z);
@@ -528,7 +551,7 @@ export class Traffic {
     if (!v) return null;
     const moving = kind === 'traffic' && !(v.knock > 0);
     return {
-      v, kind, mass: MASS[v.type] || 1000,
+      v, kind, mass: MASS[v.type] || MASS[this.types[v.type]?.base] || 1000,
       vx: moving ? Math.sin(v.heading) * v.speed : v.pvx || 0, vz: moving ? Math.cos(v.heading) * v.speed : v.pvz || 0,
       push: (dvx, dvz, cx, cz) => this.shove(v, kind, dvx, dvz, cx, cz),
     };
