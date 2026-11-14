@@ -317,7 +317,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `public/tiles/`, `public/media/`, `public/basis/` — generated, not committed (`npm run build` makes tiles; deploy copies
   media from the `assets` branch, locally `npm run assets:pull`; Vite plugin copies the Basis transcoder)
 - `src/credits.js` — in-game Credits panel
-- `docs/research/` — Mumbai street guide, live check, 130 free assets (`assets.json`/`assets.md`)
+- `docs/research/` — Mumbai street guide, live check, 130 free assets (`assets.json`/`assets.md`); metro and monorail A to Z
+  (`metro/reports/Mumbai Metro A to Z.md`, notes in `metro/research_notes/`, stations and tracks in game coordinates in
+  `metro/osm-metro.json` from `scripts/research/metro-from-osm.mjs`)
 - `scripts/assets/build-assets.mjs` + `.github/workflows/assets.yml` — asset pipeline → `assets` branch (see Status)
 - `data/raw/mumbai-region.osm.pbf` — OpenStreetMap extract from extract.bbbike.org, 2026-11-13, ~34 megabytes.
   Bounding box 72.598,18.520 → 73.533,19.500 (Vasai-Virar to Alibag, coast to Lonavala).
