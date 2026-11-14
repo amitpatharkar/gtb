@@ -62,8 +62,11 @@ const km = (m) => Math.round(m) / 1000;
 const xzOf = (ll) => project(ll[0], ll[1]).map(r1);
 const lenLL = (pts) => { let s = 0; for (let i = 1; i < pts.length; i++) s += hav(pts[i - 1], pts[i]); return s; };
 const lenXZ = (pts) => { let s = 0; for (let i = 1; i < pts.length; i++) s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return s; };
-/** Metres of a lat/lon polyline inside the game's map box (projected; < 0.2 % error). */
-const lenInBox = (pts) => clipPolyline(pts.map((p) => project(p[0], p[1])), BOX).reduce((s, part) => s + lenXZ(part), 0);
+/** Metres of a lat/lon polyline inside the game's map box: the share inside (clipped in game coordinates) of its great-circle length. */
+function lenInBox(pts) {
+  const xz = pts.map((p) => project(p[0], p[1])), all = lenXZ(xz);
+  return all ? (lenLL(pts) * clipPolyline(xz, BOX).reduce((s, part) => s + lenXZ(part), 0)) / all : 0;
+}
 
 // ---------------------------------------------------------------- tag rules
 const MT = /^(subway|light_rail|monorail)$/;
@@ -204,8 +207,9 @@ const wayLL = (w) => w.refs.map((r) => coord.get(r)).filter(Boolean);
 const missingNodes = (w) => w.refs.filter((r) => !coord.has(r)).length;
 
 // ---------------------------------------------------------------- track ways and their groups
-// A group = one OSM `name` of track ways (unnamed ways take the name of the route relations they
-// belong to, else of the named track they touch). Lifecycle, structure and service are per way.
+// A group = one OSM `name` of track ways. Unnamed ways are labelled (inferred) by the route
+// relations they belong to, else by the track they are connected to. Lifecycle, structure and
+// service are summed per way inside each group.
 const tracks = [...trackIds].map((id) => ways.get(id)).filter(Boolean);
 const trackRoutesOf = new Map(); // way id → route relation ids
 for (const r of candRoutes.values()) for (const m of r.members) if (m.type === 'way' && trackIds.has(m.ref)) (trackRoutesOf.get(m.ref) || trackRoutesOf.set(m.ref, []).get(m.ref)).push(r.id);
@@ -213,14 +217,12 @@ const groupOf = new Map();
 const groupHow = new Map();
 for (const w of tracks) if (w.tags.name) { groupOf.set(w.id, w.tags.name); groupHow.set(w.id, 'name'); }
 const nodeWays = new Map();
-for (const w of tracks) for (const r of [w.refs[0], w.refs[w.refs.length - 1], ...w.refs]) (nodeWays.get(r) || nodeWays.set(r, new Set()).get(r)).add(w.id);
+for (const w of tracks) for (const r of w.refs) (nodeWays.get(r) || nodeWays.set(r, new Set()).get(r)).add(w.id);
 for (const w of tracks) {
   if (groupOf.has(w.id)) continue;
-  // Unnamed main track in a route relation: the most common group name among the relation's ways.
-  if (!w.tags.service) for (const rid of trackRoutesOf.get(w.id) || []) {
-    const names = candRoutes.get(rid).members.filter((m) => m.type === 'way' && groupOf.has(m.ref) && groupHow.get(m.ref) === 'name').map((m) => groupOf.get(m.ref));
-    if (names.length) { groupOf.set(w.id, names.sort((a, b) => names.filter((x) => x === b).length - names.filter((x) => x === a).length)[0]); groupHow.set(w.id, 'inferred: route relation'); break; }
-  }
+  // Unnamed track in a route relation: labelled by the relation's network and ref.
+  const r = (trackRoutesOf.get(w.id) || []).map((id) => candRoutes.get(id)).sort((a, b) => a.id - b.id)[0];
+  if (r) { groupOf.set(w.id, `(unnamed) in ${[r.tags.network, r.tags.ref ? `ref ${r.tags.ref}` : r.tags.name].filter(Boolean).join(' ')} route relations`); groupHow.set(w.id, 'inferred: route relation'); }
 }
 for (let changed = true; changed;) { // the rest: from connected track ways
   changed = false;
@@ -228,12 +230,16 @@ for (let changed = true; changed;) { // the rest: from connected track ways
     if (groupOf.has(w.id)) continue;
     const near = new Map();
     for (const r of w.refs) for (const o of nodeWays.get(r) || []) if (groupOf.has(o)) near.set(groupOf.get(o), (near.get(groupOf.get(o)) || 0) + 1);
-    if (near.size) { groupOf.set(w.id, [...near].sort((a, b) => b[1] - a[1])[0][0]); groupHow.set(w.id, 'inferred: connected track'); changed = true; }
+    if (!near.size) continue;
+    const g = [...near].sort((a, b) => b[1] - a[1])[0][0];
+    groupOf.set(w.id, g.startsWith('(unnamed') ? g : `(unnamed) connected to "${g}"`);
+    groupHow.set(w.id, 'inferred: connected track');
+    changed = true;
   }
 }
 const groups = new Map();
 for (const w of tracks) {
-  const g = groupOf.get(w.id) || '(unnamed, not connected to a named track)';
+  const g = groupOf.get(w.id) || `(unnamed) railway=${w.tags.railway}, not connected to a named track`;
   (groups.get(g) || groups.set(g, []).get(g)).push(w);
 }
 
@@ -435,7 +441,7 @@ for (const o of stopObjs) {
     const nm = [st.primary.tags.name, st.stopArea?.tags.name, ...st.buildings.map((b) => b.tags.name)].filter(Boolean);
     const sameStrict = nm.some((n) => strict(n) === strict(o.tags.name)), sameLoose = nm.some((n) => loose(n) && loose(n) === loose(o.tags.name));
     const score = d - (sameStrict ? 1000 : sameLoose ? 500 : 0);
-    if (((sameStrict || sameLoose) && d < 400) || d < 150) if (score < bd) { bd = score; best = st; how = sameStrict || sameLoose ? `inferred: same name, ${Math.round(d)} m` : `inferred: nearest station, ${Math.round(d)} m`; }
+    if (((sameStrict || sameLoose) && d < 200) || d < 150) if (score < bd) { bd = score; best = st; how = sameStrict || sameLoose ? `inferred: same name, ${Math.round(d)} m` : `inferred: nearest station, ${Math.round(d)} m`; }
   }
   if (best) attach(best, o, 'stops', how);
 }
@@ -443,7 +449,7 @@ for (const o of stopObjs) {
   if (stationOf.has(o.key)) continue;
   const st = newStation({ ...o, key: `synthetic:${o.key}`, synthetic: true }, 'inferred: no station object; position = mean of the stop positions of the same name within 400 m');
   attach(st, o, 'stops', 'inferred: stop of this place');
-  for (const p of stopObjs) if (!stationOf.has(p.key) && loose(p.tags.name) && loose(p.tags.name) === loose(o.tags.name) && hav(p.ll, o.ll) < 400) attach(st, p, 'stops', 'inferred: same name');
+  for (const p of stopObjs) if (!stationOf.has(p.key) && loose(p.tags.name) && loose(p.tags.name) === loose(o.tags.name) && hav(p.ll, o.ll) < 400) attach(st, p, 'stops', `inferred: same name, ${Math.round(hav(p.ll, o.ll))} m`);
 }
 // 4. Platforms and entrances not in a stop area: nearest station.
 const nearestStation = (ll, maxD, filter = () => true) => {
@@ -486,20 +492,31 @@ for (const r of [...candRoutes.values()].sort((a, b) => a.id - b.id)) {
   if (gaps) { const merged = G.mergeChains(ids.map((id) => ways.get(id).refs)); const alt = [...merged.open, ...merged.closed]; if (alt.length < chains.length) { segs = alt; how = 'merged by shared nodes (member order has gaps)'; } }
   const segLL = segs.map((c) => c.map((n) => coord.get(n)).filter(Boolean)).filter((p) => p.length > 1).sort((a, b) => lenLL(b) - lenLL(a));
   // Stops in member order.
-  const stopMembers = r.members.filter((m) => m.type === 'node' && (/stop/.test(m.role) || (!m.role && objs.has(keyOf('node', m.ref)))));
+  const stopMembers = r.members.filter((m) => m.type === 'node' && (/stop/.test(m.role) || !m.role));
   const segXZ = segLL.map((p) => p.map((q) => project(q[0], q[1]))), segCum = segXZ.map(cumOf);
   const stops = [];
   for (const m of stopMembers) {
     const ll = coord.get(m.ref), o = objs.get(keyOf('node', m.ref)), st = stationOf.get(keyOf('node', m.ref));
     if (!ll) { issue('relation member', `relation/${r.id}`, `stop node/${m.ref} is not in the extract (deleted or outside it)`); stops.push({ node: m.ref, role: m.role, missing: true }); continue; }
+    if (!nodeTags.has(m.ref)) issue('relation member', `relation/${r.id}`, `stop member node/${m.ref} has no tags (no name, not a stop or station)`);
     let at = null;
     segXZ.forEach((pts, si) => { const a = locate(pts, segCum[si], project(ll[0], ll[1])); if (!at || a.dist < at.dist) at = { ...a, seg: si }; });
     stops.push({
-      node: m.ref, role: m.role || null, name: o?.tags.name || null, station: st ? stationId(st) : null,
+      node: m.ref, role: m.role || null, name: o?.tags.name || nodeTags.get(m.ref)?.name || null, station: st ? stationId(st) : null, stationName: st ? stationName(st) : null,
       lat: r6(ll[0]), lon: r6(ll[1]), x: r1(project(ll[0], ll[1])[0]), z: r1(project(ll[0], ll[1])[1]), inBox: inBoxLL(ll[0], ll[1]),
       seg: at ? at.seg : null, chainage: at ? Math.round(at.d) : null, offTrack: at ? r1(at.dist) : null,
     });
     if (at && at.dist > 30) issue('stop off track', `relation/${r.id}`, `stop node/${m.ref} "${o?.tags.name || ''}" is ${Math.round(at.dist)} m from the route's track`);
+  }
+  // Relations whose ways run against their stop order (two umbrella relations under construction):
+  // turn the main piece round so that the polyline runs from the first stop to the last.
+  const s0 = stops.filter((s) => s.seg === 0 && s.chainage != null);
+  let reversed = false;
+  if (s0.length > 1 && s0.filter((s, i) => i && s.chainage < s0[i - 1].chainage).length > (s0.length - 1) / 2) {
+    const L0 = segCum[0][segCum[0].length - 1];
+    segLL[0].reverse();
+    for (const s of s0) s.chainage = Math.round(L0 - s.chainage);
+    reversed = true;
   }
   const main = segLL[0] || [];
   const total = segLL.reduce((s, p) => s + lenLL(p), 0);
@@ -514,14 +531,15 @@ for (const r of [...candRoutes.values()].sort((a, b) => a.id - b.id)) {
     tags: pick(t, ['name', 'ref', 'route', 'disused:route', 'construction', 'network', 'operator', 'colour', 'from', 'to', 'via', 'disused', 'note', 'opening_hours', 'interval', 'duration', 'name:mr', 'wikidata', 'public_transport:version']),
     foundBy: r.byTrack ? 'inferred: member ways are metro track (tags do not say metro)' : 'tags',
     statusFromTags: status, wayKmByLifecycle: wayStatus, wayKmByStructure: wayStructure,
-    ways: ids, chaining: how, gaps, pieces: segLL.length,
+    ways: ids, chaining: how, gaps, pieces: segLL.length, reversedToStopOrder: reversed ? 'inferred: the member ways run against the stop order; the main piece was turned round' : undefined,
     lengthKm: km(total), mainPieceKm: km(lenLL(main)), inBoxKm: km(segLL.reduce((s, p) => s + lenInBox(p), 0)),
-    firstToLastStopKm: firstLast.length > 1 ? km(Math.abs(firstLast[firstLast.length - 1].chainage - firstLast[0].chainage)) : null,
+    firstToLastStopKm: segLL.length === 1 && firstLast.length > 1 ? km(Math.abs(firstLast[firstLast.length - 1].chainage - firstLast[0].chainage)) : null,
     stopCount: stops.length, stops,
     polylines: segLL.map((p) => ({ lengthKm: km(lenLL(p)), ...simplify(p) })),
   });
 }
 function stationId(st) { return st.primary.synthetic ? `stops:${st.stops.map((s) => s.id).sort((a, b) => a - b)[0]}` : st.primary.key; }
+function stationName(st) { return (st.primary.synthetic ? null : st.primary.tags.name) || st.stopArea?.tags.name || st.stops.find((s) => s.tags.name)?.tags.name || st.buildings.find((b) => b.tags.name)?.tags.name || null; }
 
 // Route masters and lines.
 const routeById = new Map(routes.map((r) => [r.id, r]));
@@ -542,7 +560,7 @@ const lineOut = [];
 const usedIds = new Set();
 for (const L of lines) {
   const t = L.tags;
-  let id = isMono(t) ? `mumbai-monorail-${slug(v(t, 'ref').replace(/mono/i, '') || '1')}` : `${slug(v(t, 'network') || 'metro')}-${slug(v(t, 'ref') || v(t, 'name'))}`;
+  let id = isMono(t) ? `mumbai-monorail-${slug(v(t, 'ref').replace(/mono/i, '') || '1')}` : t.ref ? `${slug(v(t, 'network') || 'mumbai-metro')}-${slug(t.ref)}` : slug(v(t, 'name'));
   if (!L.master) id += `-relation-${L.routes[0].id}`;
   while (usedIds.has(id)) id += '-x';
   usedIds.add(id);
@@ -563,6 +581,8 @@ for (const L of lines) {
     firstToLastStopKm: dirs.length && dirs.every((r) => r.firstToLastStopKm != null) ? km(dirs.reduce((s, r) => s + r.firstToLastStopKm * 1000, 0) / dirs.length) : null,
     inBoxKm: dirs.length ? km(dirs.reduce((s, r) => s + r.inBoxKm * 1000, 0) / dirs.length) : null,
     stations: stOrder,
+    stationNames: stOrder.map((id) => { const st = stations.find((x) => stationId(x) === id); return st ? stationName(st) : null; }),
+    stationsInBox: stOrder.filter((id) => { const st = stations.find((x) => stationId(x) === id); const ll = st && posOf(st); return ll && inBoxLL(ll[0], ll[1]); }),
   });
 }
 // Track groups not used by any route relation = lines mapped only as ways.
@@ -584,10 +604,23 @@ for (const [name, list] of [...groups].sort((a, b) => a[0].localeCompare(b[0])))
     mainTrack: mainChains.map((p) => ({ lengthKm: km(lenLL(p)), ...simplify(p) })),
     serviceTrack: svcChains.map((p) => ({ lengthKm: km(lenLL(p)), ...simplify(p) })),
   });
-  for (const w of list) {
-    if (w.tags.railway === 'subway' && (w.tags.construction || w.tags['construction:railway'])) issue('lifecycle tags', `way/${w.id}`, `railway=subway with construction=${w.tags.construction || ''} construction:railway=${w.tags['construction:railway'] || ''} ("${name}"): open or under construction?`);
-    if (missingNodes(w)) issue('missing nodes', `way/${w.id}`, `${missingNodes(w)} node(s) not in the extract`);
-  }
+  const mixed = list.filter((w) => w.tags.railway === 'subway' && (w.tags.construction || w.tags['construction:railway']));
+  if (mixed.length) issue('lifecycle tags', `track group "${name}"`, `${mixed.length} way(s), ${km(mixed.reduce((s, w) => s + lenLL(wayLL(w)), 0))} km, are railway=subway (= open) but also construction=yes / construction:railway=subway: ${mixed.map((w) => `way/${w.id}`).join(', ')}`);
+  for (const w of list) if (missingNodes(w)) issue('missing nodes', `way/${w.id}`, `${missingNodes(w)} node(s) not in the extract`);
+}
+// Lines mapped only as track ways (no route relation uses them), with at least 1 km of main track.
+for (const g of groupOut) {
+  if (g.inRouteRelations || g.name.startsWith('(unnamed') || !g.mainTrack.length) continue;
+  const mainKm = g.mainTrack.reduce((s, p) => s + p.lengthKm, 0);
+  if (mainKm < 1) continue;
+  lineOut.push({
+    id: `ways-${slug(g.name)}`, kind: 'track ways only (no route relation)', osm: null, name: g.name, ref: null, network: null,
+    operator: g.tags.operator.length ? g.tags.operator.join(';') : null, colour: g.tags.colour.length ? g.tags.colour.join(';') : null,
+    mode: g.tags.railway.includes('monorail') ? 'monorail' : 'metro',
+    statusFromTags: Object.keys(g.kmByLifecycle).length === 1 ? Object.keys(g.kmByLifecycle)[0] : Object.keys(g.kmByLifecycle),
+    routes: [], trackGroup: g.name, trackKm: g.km, mainTrackPiecesKm: g.mainTrack.map((p) => p.lengthKm), inBoxKm: g.inBoxKm,
+    stations: null, stationsNote: 'see stations whose nearTracks name this group (inferred by distance)',
+  });
 }
 
 // ---------------------------------------------------------------- station output
@@ -609,8 +642,8 @@ const stationOut = stations.map((st) => {
   // Level: from the track at the stop positions (or the station point), and from the station's own tags.
   const probe = st.stops.length ? st.stops.map((s) => s.ll) : [ll];
   const near = probe.flatMap((q) => tracksNear(q, 60).slice(0, 1));
-  const lv = near.map((n) => structure(n.way.tags));
-  const trackLevel = lv.length ? lv.sort((a, b) => lv.filter((q) => q === b).length - lv.filter((q) => q === a).length)[0] : null;
+  const lv = [...new Set(near.map((n) => structure(n.way.tags)))];
+  const trackLevel = lv.length ? lv.sort().join('|') : null; // two values: the tracks at the stops are tagged differently
   const tagLevel = levelFromTags(t) || st.buildings.map((b) => levelFromTags(b.tags)).find(Boolean) || null;
   const lc = p.synthetic ? stationLifecycle(st.stops[0]?.tags || {}) : stationLifecycle(t);
   const nearTracks = [...new Set(tracksNear(ll, 150).map((n) => groupOf.get(n.way.id)).filter(Boolean))];
@@ -649,8 +682,8 @@ for (const s of stationOut) {
   for (const q of s.stops) { const d = hav([q.lat, q.lon], [s.lat, s.lon]); if (d > 150) issue('stop far from station', s.id, `stop ${q.osm} "${q.name}" is ${Math.round(d)} m from the station point`); }
   if (s.levelFromTags && s.levelFromTrack && s.levelFromTags !== s.levelFromTrack) issue('station level', s.id, `tags say ${s.levelFromTags}, the track at the stop is ${s.levelFromTrack}`);
   if (s.lifecycle !== 'operational') {
-    const op = stationOut.filter((o) => o.lifecycle === 'operational' && hav([o.lat, o.lon], [s.lat, s.lon]) < 250);
-    if (op.length) issue('stale lifecycle', s.id, `"${s.name || ''}" is tagged ${s.lifecycle} but operational station(s) ${op.map((o) => `"${o.name || o.stopAreaName}" (${Math.round(hav([o.lat, o.lon], [s.lat, s.lon]))} m)`).join(', ')} stand next to it`);
+    const op = stationOut.filter((o) => o.lifecycle === 'operational' && hav([o.lat, o.lon], [s.lat, s.lon]) < 100);
+    if (op.length) issue('stale lifecycle', s.id, `"${s.name || ''}" is tagged ${s.lifecycle} but the operational station ${op.map((o) => `"${o.name || o.stopAreaName}" (${o.id}, ${Math.round(hav([o.lat, o.lon], [s.lat, s.lon]))} m)`).join(', ')} stands next to it: a leftover from before the opening?`);
   }
 }
 for (const o of objs.values()) if (o.kind === 'station' && !metroContext(o) && (o.tags.station === 'light_rail' || o.tags.light_rail === 'yes')) issue('mode tags', o.key, `"${o.tags.name}" is station=light_rail but its network is "${o.tags.network}" (a suburban station; left out)`);
@@ -679,6 +712,7 @@ const out = {
       platforms: stationOut.reduce((s, x) => s + x.platforms.length, 0), issues: issues.length,
     },
   },
+  networks: networks.filter((n) => metroWords(n.tags) || n.members.some((m) => metroMasters.some((x) => x.id === m.ref))).map((n) => ({ id: n.id, tags: n.tags, members: n.members.map((m) => `${m.type}/${m.ref}`) })),
   lines: lineOut,
   routes,
   stations: stationOut,
