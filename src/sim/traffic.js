@@ -8,9 +8,8 @@ import { endKey, keyXZ } from './roadKeys.js';
 // driving on the LEFT along the real road network, slowing behind each other and for
 // the player. Density follows the clock (rush hours). One instanced mesh per type.
 
-const LEFT = (fx, fz) => [fz, -fx]; // left-hand perpendicular of a heading (x east, z south)
-
 const FORWARD = new THREE.Vector3(0, 0, 1);
+const PARTS = ['paint', 'glass', 'trim', 'lamps']; // one BatchedMesh each
 
 /**
  * Lanes of a segment for traffic going `dir` along it, as painted by the converter
@@ -25,8 +24,8 @@ const FORWARD = new THREE.Vector3(0, 0, 1);
  * one-way lanes too where the street library says parking is heavy (Colaba lanes, Fort).
  * left/right are relative to the segment's drawing direction. `parking` (0–1) sets how full.
  */
-let PROFILES = [];
-export function setStreetProfiles(list) { PROFILES = list || []; }
+let PROFILES = [], PROFILES_V = 0;
+export function setStreetProfiles(list) { PROFILES = list || []; PROFILES_V++; }
 export const profileOf = (s) => PROFILES[((s[5] >> 8) & 255) - 1] || null;
 function parkSides(seg) {
   const s = seg.s, hw = s[4], oneway = !!(s[5] & 2), prof = profileOf(s), parking = prof ? prof.parking : 0.5;
@@ -36,7 +35,12 @@ function parkSides(seg) {
   return { left: false, right: false, parking };
 }
 
+/** lanesOf, cached on the segment (it is asked for several times per car and frame). */
 function lanesOf(seg, dir) {
+  if (seg.lanesV !== PROFILES_V) { seg.lanesV = PROFILES_V; seg.lanes = [computeLanes(seg, -1), computeLanes(seg, 1)]; }
+  return seg.lanes[dir > 0 ? 1 : 0];
+}
+function computeLanes(seg, dir) {
   const s = seg.s, hw = s[4], oneway = !!(s[5] & 2);
   const n = oneway ? Math.max(1, Math.min(8, Math.round((hw * 2) / 3.4))) : Math.max(1, Math.min(4, Math.round((hw * 2) / 7)));
   const w = oneway ? (hw * 2) / n : hw / n;
@@ -47,6 +51,21 @@ function lanesOf(seg, dir) {
 }
 /** Offset (left of travel, metres from the centre line) of lane i. */
 const laneOffset = (seg, L, i) => seg.s[4] - (i + 0.5) * L.w;
+
+/** Length of a player-style Car (two end circles and their radius); the taxi's by default. */
+const carLength = (c) => 2 * ((c.halfLength ?? 1.1) + (c.radius ?? 0.8));
+
+
+/**
+ * Give every vehicle type the same keys in the same order (flags it lacks become undefined).
+ * The traffic loops read type fields for every pair of cars each frame; with one object shape
+ * those reads are direct, with many shapes each read of a number allocated a box.
+ */
+function sameShape(types) {
+  const keys = [...new Set([...Object.values(types).flatMap((t) => Object.keys(t)), 'base'])]; // base: uploaded models (useModel)
+  for (const n of Object.keys(types)) { const t = types[n], o = {}; for (const k of keys) o[k] = t[k]; types[n] = o; }
+  return types;
+}
 
 function riderLook() {
   const shirts = [0xc0392b, 0x2e86c1, 0xf2f2f2, 0x34495e, 0x27ae60, 0x7f8c8d, 0xe67e22];
@@ -73,7 +92,7 @@ export class Traffic {
     this.scene = scene;
     this.tiles = tiles;
     this.max = tier.name === 'High' ? 110 : tier.name === 'Medium' ? 80 : 55; // Mumbai is busy
-    this.types = buildFleet();
+    this.types = sameShape(buildFleet());
     this.typeNames = Object.keys(this.types);
     this.totalWeight = this.typeNames.reduce((s, n) => s + this.types[n].weight, 0);
     // All vehicle types share one BatchedMesh per part (paint, glass, trim, lamps): four draw
@@ -88,7 +107,7 @@ export class Traffic {
     this.cap = this.max + 24 + this.parkMax; // traffic, extras (broken-down taxis) and parked vehicles
     this.batches = {};
     this.geo = {};
-    for (const part of ['paint', 'glass', 'trim', 'lamps']) {
+    for (const part of PARTS) {
       let verts = 0;
       for (const n of this.typeNames) verts += this.types[n].parts[part].attributes.position.count + this.types[n].far[part].attributes.position.count;
       const b = new THREE.BatchedMesh(this.cap, verts, 0, this.mats[part]);
@@ -123,6 +142,11 @@ export class Traffic {
     this.movedKeys = new Set(); // parking spots whose vehicle was taken or shoved (not re-created)
     this.parkAt = { x: 1e9, z: 1e9, v: -1 };
     this.night = 0;
+    this.car = null;       // the player's Car (main.js), driven or standing where they got out
+    this.police = null;    // set by Police: its patrol cars are obstacles too
+    this.blockers = [];
+    this.slowAhead = false;
+    this.sigOut = {};      // scratch result for signals.ahead
   }
 
   /**
@@ -220,9 +244,17 @@ export class Traffic {
   /** Vehicle mix by hour: goods tempos run at night, BEST buses and private cars by day. */
   pickType(z = 0) {
     const night = this.hour >= 22 || this.hour < 6, suburb = this.inSuburbs(z);
-    const w = (n) => { const T = this.types[n]; return T.weight * (night ? T.night ?? 1 : 1) * (suburb ? T.suburb ?? 1 : T.city ?? 1) * (T.hours ? T.hours(this.hour) : 1); };
-    let r = Math.random() * this.typeNames.reduce((s, n) => s + w(n), 0);
-    for (const n of this.typeNames) { r -= w(n); if (r <= 0) return n; }
+    // The weights only change with the quarter hour and the area: kept, not rebuilt per try.
+    const key = (Math.floor(this.hour * 4) * 2 + (suburb ? 1 : 0)) * 1000 + this.typeNames.length;
+    let mix = (this.mixes ||= new Map()).get(key);
+    if (!mix) {
+      if (this.mixes.size > 8) this.mixes.clear();
+      const w = this.typeNames.map((n) => { const T = this.types[n]; return T.weight * (night ? T.night ?? 1 : 1) * (suburb ? T.suburb ?? 1 : T.city ?? 1) * (T.hours ? T.hours(this.hour) : 1); });
+      mix = { w, total: w.reduce((a, b) => a + b, 0) };
+      this.mixes.set(key, mix);
+    }
+    let r = Math.random() * mix.total;
+    for (let i = 0; i < mix.w.length; i++) { r -= mix.w[i]; if (r <= 0) return this.typeNames[i]; }
     return 'wagonr';
   }
 
@@ -236,6 +268,9 @@ export class Traffic {
       if (d < 45 || d > 220) continue;
       const type = this.pickType(mz);
       if (this.types[type].mainRoad && !(s[5] & 4)) continue; // buses stick to main roads
+      let crowded = false;
+      for (const c of this.cars) if ((c.x - mx) ** 2 + (c.z - mz) ** 2 < 144) { crowded = true; break; }
+      if (crowded) continue;
       const oneway = s[5] & 2;
       const dir = oneway || Math.random() < 0.5 ? 1 : -1;
       const tints = this.types[type].tints;
@@ -249,8 +284,12 @@ export class Traffic {
         pref: this.types[type].rider || this.types[type].open || this.types[type].big || this.types[type].slow ? 0 : Math.random() < 0.45 ? 0 : Math.random() < 0.6 ? 1 : 2,
         look: this.types[type].rider || this.types[type].open ? driverLook(this.types[type]) : null,
         pax: this.types[type].pax && Math.random() < 0.6 ? paxLook() : null,
+        // Every field the simulation sets later, set now: all cars then share one object shape,
+        // so the per-frame loops read their numbers directly (mixed shapes made every read of
+        // a position allocate — hundreds of kilobytes per frame).
+        knock: 0, recover: 0, held: 0, blockedT: 0, keepLeftT: 0, overtake: 0, yield: 0,
+        decideAp: null, gamble: false, pvx: 0, pvz: 0, spin: 0, roll: 0, h: 2.2, pedal: 0, // h: speech bubble height (bubbles.js default)
       };
-      if (this.cars.some((c) => Math.hypot(c.x - mx, c.z - mz) < 12)) continue;
       this.cars.push(car);
       return;
     }
@@ -296,7 +335,12 @@ export class Traffic {
       const dot = (ox * fx + oz * fz) / (fl * (Math.hypot(ox, oz) || 1));
       return { o, dir, score: dot + Math.random() * 0.9 };
     }).filter(Boolean).sort((a, b) => b.score - a.score);
-    if (!options.length) { car.dir *= -1; return; } // dead end: turn round
+    if (!options.length) {
+      // Dead end: turn round. The lane offset is measured left of travel, so it flips sign with
+      // the direction (the car stays where it is) and the car crosses over slowly to its new side.
+      car.dir *= -1; car.lane = -car.lane; car.speed = 0; car.recover = 2; car.overtake = 0;
+      return;
+    }
     car.seg = options[0].o.seg;
     car.dir = options[0].dir;
     car.t = 0;
@@ -313,111 +357,22 @@ export class Traffic {
     }
     if (Math.hypot(player.pos.x - this.parkAt.x, player.pos.z - this.parkAt.z) > 35 || this.parkAt.v !== this.tiles.version) this.placeParked(player);
     const target = Math.round(this.max * clock.traffic);
-    this.cars = this.cars.filter((c) => Math.hypot(c.x - player.pos.x, c.z - player.pos.z) < 320);
+    {
+      // Drop cars far from the player (in place: no new array every frame).
+      const cars = this.cars, px = player.pos.x, pz = player.pos.z;
+      let n = 0;
+      for (let i = 0; i < cars.length; i++) { const c = cars[i]; if ((c.x - px) ** 2 + (c.z - pz) ** 2 < 320 * 320) cars[n++] = c; }
+      cars.length = n;
+    }
     if (this.cars.length < target && this.segList.length) this.spawn(player);
     if (this.cars.length > target + 4) { const i = this.cars.findLastIndex((c) => !c.pulled); if (i >= 0) this.cars.splice(i, 1); }
 
     const night = clock.night;
+    const nBlock = this.gatherBlockers(player);
     for (const v of this.parked) if (v.pvx || v.pvz) this.slide(v, dt);
     for (const v of this.left) if (v.pvx || v.pvz || v.spin) this.slide(v, dt);
-    for (const car of this.cars) {
-      const s = car.seg.s;
-      const type = this.types[car.type];
-      if (car.knock > 0) {
-        // Shunted: slides and spins with the blow; the driver brakes, then steers back into lane.
-        car.knock -= dt; car.speed = 0;
-        this.slide(car, dt);
-        continue;
-      }
-      if (car.recover > 0) car.recover -= dt;
-      const fx = ((s[2] - s[0]) / car.seg.len) * car.dir, fz = ((s[3] - s[1]) / car.seg.len) * car.dir;
-      // Look ahead for other vehicles and the player in our lane.
-      let gap = 40;
-      let slowAhead = false;
-      const check = (x, z, len, slow) => {
-        const dx = x - car.x, dz = z - car.z;
-        const along = dx * fx + dz * fz, lateral = Math.abs(dx * fz - dz * fx);
-        if (along > 0 && lateral < (type.rider ? 1.0 : 1.6)) { const g = along - (type.len + len) / 2; if (g < gap) { gap = g; slowAhead = !!slow; } }
-      };
-      for (const o of this.cars) if (o !== car) check(o.x, o.z, this.types[o.type].len, this.types[o.type].slow && !type.slow);
-      check(player.pos.x, player.pos.z, 3.7);
-      if (this.taxi && this.taxi !== player) check(this.taxi.pos.x, this.taxi.pos.z, 3.7); // the parked taxi while on foot
-      for (const o of this.obstacles) check(o[0], o[1], o[2]);
-      // Signals: stop at red (and at amber if there is room); jumpers just go.
-      let atRed = false;
-      if (this.signals && !car.pulled) {
-        const sig = this.signals.ahead(car.x, car.z, fx, fz, 40);
-        if (sig && sig.light !== LIGHT.GREEN) {
-          const stopGap = sig.dist + car.creep - type.len / 2 - 0.3;
-          // At amber some drivers gamble and go for it (and cross on red).
-          if (sig.light === LIGHT.AMBER && car.decideAp !== sig.ap) { car.decideAp = sig.ap; car.gamble = sig.dist < 30 && Math.random() < 0.45; }
-          const going = (car.jumper && sig.light === LIGHT.RED) || (car.gamble && car.decideAp === sig.ap);
-          if (going) {
-            if (sig.light === LIGHT.RED && car.lastSig === sig.ap && car.lastDist > 0 && sig.dist <= 0) { this.events.push({ type: 'jump', car, ap: sig.ap }); car.boost = Math.max(car.boost, 2); }
-          } else if (stopGap > -0.5 && (sig.light === LIGHT.RED || stopGap > car.speed * 1.2)) { gap = Math.min(gap, Math.max(0, stopGap) + 2); atRed = true; }
-        }
-        car.lastSig = sig ? sig.ap : null;
-        car.lastDist = sig ? sig.dist : 0;
-      }
-      const cruise = (s[5] & 4 ? type.speed : type.speed * 0.6) * (night > 0.5 ? 1.15 : 1) * (car.boost > 0 ? 1.45 : 1) * (1 - 0.4 * jam);
-      car.boost = Math.max(0, car.boost - dt);
-      let want = gap < 2 ? 0 : Math.min(cruise, (gap - 2) * 0.8);
-      let decel = 7;
-      if (car.pulled) {
-        // Pulled over by the traffic police: ease to the kerb and wait for the challan.
-        car.pulled.t += dt;
-        want = car.pulled.t < car.pulled.dur ? 0 : want;
-        decel = 2.6;
-        if (car.pulled.t >= car.pulled.dur) { car.pulled = null; car.jumper = Math.random() < 0.3; }
-      }
-      if (car.held > 0) { car.held -= dt; want = 0; decel = 9; } // someone is pulling the driver out
-      car.speed += THREE.MathUtils.clamp(want - car.speed, -decel * dt, 2.5 * dt);
-      car.wait = car.speed < 0.5 && gap < 6 && !atRed && !car.pulled ? car.wait + dt : 0;
-      if (car.wait > 2.5) { this.honks.push([car.x, car.z]); car.wait = -4; }
-      // Stuck behind someone slower (not at a red light)? Overtake on the RIGHT, as in India:
-      // into the next lane if it is free, or — on a two-lane road — into the oncoming lane only
-      // when nothing is coming. Otherwise wait and honk. Drift back left when there is room.
-      if (gap < 9 && (car.speed < 2.5 || slowAhead) && !atRed && !car.pulled && !type.big) car.blockedT = (car.blockedT || 0) + dt; else car.blockedT = Math.max(0, (car.blockedT || 0) - dt * 0.5);
-      if (car.blockedT > (slowAhead ? 0.6 : 2) && !car.overtake) {
-        const L = lanesOf(car.seg, car.dir);
-        if (car.laneIdx < L.hi && this.laneFree(car, fx, fz, laneOffset(car.seg, L, car.laneIdx + 1))) { car.laneIdx++; car.blockedT = 0; }
-        else if (!(s[5] & 2) && car.laneIdx >= L.hi && this.oncomingClear(car, fx, fz, 55)) { car.overtake = 3.5 + Math.random() * 1.5; car.blockedT = 0; }
-        else if (Math.random() < 0.6) { this.honks.push([car.x, car.z]); car.blockedT = -1.5; }
-      }
-      if (car.overtake) { car.overtake -= dt; if (car.overtake <= 0) car.overtake = 0; }
-      car.keepLeftT = (car.keepLeftT || 0) - dt;
-      if (car.keepLeftT <= 0) {
-        car.keepLeftT = 2 + Math.random() * 2;
-        const L = lanesOf(car.seg, car.dir);
-        if (car.laneIdx > Math.max(L.lo, Math.min(car.pref, L.hi)) && this.laneFree(car, fx, fz, laneOffset(car.seg, L, car.laneIdx - 1))) car.laneIdx--;
-      }
-      if (Math.random() < dt * 0.015 * (0.3 + jam)) this.honks.push([car.x, car.z]);
-      car.t += (car.speed * dt) / car.seg.len;
-      while (car.t >= 1) { car.t -= 1; this.advance(car); }
-      const s2 = car.seg.s;
-      const t = car.dir > 0 ? car.t : 1 - car.t;
-      const gx = ((s2[2] - s2[0]) / car.seg.len) * car.dir, gz = ((s2[3] - s2[1]) / car.seg.len) * car.dir;
-      const [lx, lz] = LEFT(gx, gz);
-      const two = !(s2[5] & 2);
-      if (car.yield) { car.yield = Math.max(0, car.yield - dt); }
-      const L = lanesOf(car.seg, car.dir);
-      if (car.laneIdx < 0) car.laneIdx = Math.min(Math.max(car.pref, L.lo), L.hi); // first placement
-      car.laneIdx = Math.min(Math.max(car.laneIdx, L.lo), L.hi);
-      let laneWant = laneOffset(car.seg, L, car.laneIdx) + Math.min(car.kerb, L.w * 0.25);
-      if (L.parkLeft) laneWant = Math.min(laneWant, s2[4] - 2.2 - type.wid / 2); // single lane past parked cars
-      if (car.overtake) laneWant = two ? -Math.min(L.w * 0.5, 1.8) : laneWant;   // round the slow one, on the right
-      if (car.pulled || car.yield) laneWant = Math.max(0, s2[4] - type.wid / 2 - 0.3); // pull over to the left kerb
-      car.lane += (laneWant - car.lane) * Math.min(1, dt * 1.2);
-      const lane = car.lane;
-      const px = s2[0] + (s2[2] - s2[0]) * t + lx * lane, pz = s2[1] + (s2[3] - s2[1]) * t + lz * lane;
-      // Smooth position and heading through corners.
-      const k = Math.min(1, dt * (car.recover > 0 ? 1.6 : 8));
-      car.x += (px - car.x) * k; car.z += (pz - car.z) * k;
-      const h = Math.atan2(gx, gz);
-      let dh = h - car.heading;
-      dh = Math.atan2(Math.sin(dh), Math.cos(dh));
-      car.heading += dh * Math.min(1, dt * (car.recover > 0 ? 2 : 6));
-    }
+    this.jam = jam;
+    for (let i = 0; i < this.cars.length; i++) this.driveCar(this.cars[i], dt, night, nBlock);
 
     // Write instances: near geometry within ~90 m of the player, the coarse version beyond.
     this.riders.length = 0;
@@ -429,10 +384,11 @@ export class Traffic {
       this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, v.heading);
       if (v.roll) this.q.multiply(this.q2.setFromAxisAngle(FORWARD, v.roll)); // a two-wheeler lying on its side
       this.matrix.compose(this.pos.set(v.x, v.roll ? 0.2 : 0.02, v.z), this.q, this.unit);
-      for (const part in B) {
-        B[part].setGeometryIdAt(i, this.geo[part][v.type][lod]);
-        B[part].setMatrixAt(i, this.matrix);
-        B[part].setVisibleAt(i, true);
+      for (let k = 0; k < PARTS.length; k++) {
+        const part = PARTS[k], b = B[part];
+        b.setGeometryIdAt(i, this.geo[part][v.type][lod]);
+        b.setMatrixAt(i, this.matrix);
+        b.setVisibleAt(i, true);
       }
       B.paint.setColorAt(i, v.tint);
       if (v.look && !v.roll && (this.types[v.type].rider || this.types[v.type].open)) this.riders.push(v);
@@ -442,9 +398,153 @@ export class Traffic {
     for (const e of this.extras) put(e);
     for (const p of this.parked) put(p);
     for (const p of this.left) put(p);
-    for (let k = i; k < this.shown; k++) for (const part in B) B[part].setVisibleAt(k, false);
+    for (let k = i; k < this.shown; k++) for (let j = 0; j < PARTS.length; j++) B[PARTS[j]].setVisibleAt(k, false);
     this.shown = i;
     this.mats.lamps.color.setScalar(0.7 + this.night * 3.5);
+  }
+
+  /**
+   * Bumper-to-bumper gap (at most 40 m) from a car heading (fx, fz) to the nearest vehicle or
+   * blocker ahead within its lane; this.slowAhead says whether that one is a slow bicycle.
+   * Runs for every pair of cars each frame: a small method with plain loops, so the engine
+   * compiles it early and its numbers stay unboxed (no garbage).
+   */
+  gapAhead(car, fx, fz, type, nBlock) {
+    let gap = 40, slow = false;
+    const latMax = type.rider ? 1.0 : 1.6, half = type.len / 2, cx = car.x, cz = car.z, cars = this.cars, b = this.blockers;
+    for (let j = 0; j < cars.length; j++) {
+      const o = cars[j];
+      if (o === car) continue;
+      const dx = o.x - cx, dz = o.z - cz, along = dx * fx + dz * fz;
+      if (along <= 0 || along > 60) continue;
+      const lat = dx * fz - dz * fx;
+      if (lat >= latMax || lat <= -latMax) continue;
+      const T = this.types[o.type], g = along - half - T.len / 2;
+      if (g < gap) { gap = g; slow = !!T.slow && !type.slow; }
+    }
+    for (let j = 0; j < nBlock; j += 3) {
+      const dx = b[j] - cx, dz = b[j + 1] - cz, along = dx * fx + dz * fz;
+      if (along <= 0 || along > 60) continue;
+      const lat = dx * fz - dz * fx;
+      if (lat >= latMax || lat <= -latMax) continue;
+      const g = along - half - b[j + 2] / 2;
+      if (g < gap) { gap = g; slow = false; }
+    }
+    this.slowAhead = slow;
+    return gap;
+  }
+
+  /**
+   * Things traffic must not drive into besides other traffic, as [x, z, length, …]: the player
+   * (on foot or driving, at the real length of what they drive), the vehicle they stepped out
+   * of, the parked kaali-peeli, vehicles left on the street, police patrol cars, and street
+   * obstacles (cows, cricket, jaywalkers). Written into this.blockers (reused, never shrunk);
+   * returns how many numbers it wrote.
+   */
+  gatherBlockers(active) {
+    const out = this.blockers, car = this.car, px = active.pos.x, pz = active.pos.z;
+    let n = 0;
+    const add = (x, z, len) => { out[n++] = x; out[n++] = z; out[n++] = len; };
+    // Driving (a Car has a collision shape), or on foot / the stand-in at a door while indoors.
+    add(px, pz, active.halfLength !== undefined ? carLength(active) : 0.6);
+    if (car && car !== active) add(car.pos.x, car.pos.z, carLength(car)); // the vehicle they got out of
+    if (this.taxi && this.taxi !== car && this.taxi !== active) add(this.taxi.pos.x, this.taxi.pos.z, 3.7); // the parked taxi
+    for (const v of this.left) if ((v.x - px) ** 2 + (v.z - pz) ** 2 < 330 * 330 && this.types[v.type]) add(v.x, v.z, this.types[v.type].len);
+    if (this.police) for (const p of this.police.patrols) add(p.car.pos.x, p.car.pos.z, carLength(p.car));
+    for (const o of this.obstacles) add(o[0], o[1], o[2]);
+    return n;
+  }
+
+  /** One car, one step: look ahead, signals, speed, overtaking, lanes, position (from update). */
+  driveCar(car, dt, night, nBlock) {
+    const jam = this.jam;
+    const s = car.seg.s;
+    const type = this.types[car.type];
+    if (car.knock > 0) {
+      // Shunted: slides and spins with the blow; the driver brakes, then steers back into lane.
+      car.knock -= dt; car.speed = 0;
+      this.slide(car, dt);
+      return;
+    }
+    if (car.recover > 0) car.recover -= dt;
+    const fx = ((s[2] - s[0]) / car.seg.len) * car.dir, fz = ((s[3] - s[1]) / car.seg.len) * car.dir;
+    // Look ahead for other vehicles, the player (and whatever they left standing) in our lane.
+    let gap = this.gapAhead(car, fx, fz, type, nBlock);
+    const slowAhead = this.slowAhead;
+    // Signals: stop at red (and at amber if there is room); jumpers just go.
+    let atRed = false;
+    if (this.signals && !car.pulled) {
+      const sig = this.signals.ahead(car.x, car.z, fx, fz, 40, this.sigOut);
+      if (sig && sig.light !== LIGHT.GREEN) {
+        const stopGap = sig.dist + car.creep - type.len / 2 - 0.3;
+        // At amber some drivers gamble and go for it (and cross on red).
+        if (sig.light === LIGHT.AMBER && car.decideAp !== sig.ap) { car.decideAp = sig.ap; car.gamble = sig.dist < 30 && Math.random() < 0.45; }
+        const going = (car.jumper && sig.light === LIGHT.RED) || (car.gamble && car.decideAp === sig.ap);
+        if (going) {
+          if (sig.light === LIGHT.RED && car.lastSig === sig.ap && car.lastDist > 0 && sig.dist <= 0) { this.events.push({ type: 'jump', car, ap: sig.ap }); car.boost = Math.max(car.boost, 2); }
+        } else if (stopGap > -0.5 && (sig.light === LIGHT.RED || stopGap > car.speed * 1.2)) { gap = Math.min(gap, Math.max(0, stopGap) + 2); atRed = true; }
+      }
+      car.lastSig = sig ? sig.ap : null;
+      car.lastDist = sig ? sig.dist : 0;
+    }
+    const cruise = (s[5] & 4 ? type.speed : type.speed * 0.6) * (night > 0.5 ? 1.15 : 1) * (car.boost > 0 ? 1.45 : 1) * (1 - 0.4 * jam);
+    car.boost = Math.max(0, car.boost - dt);
+    let want = gap < 2 ? 0 : Math.min(cruise, (gap - 2) * 0.8);
+    let decel = 7;
+    if (car.pulled) {
+      // Pulled over by the traffic police: ease to the kerb and wait for the challan.
+      car.pulled.t += dt;
+      want = car.pulled.t < car.pulled.dur ? 0 : want;
+      decel = 2.6;
+      if (car.pulled.t >= car.pulled.dur) { car.pulled = null; car.jumper = Math.random() < 0.3; }
+    }
+    if (car.held > 0) { car.held -= dt; want = 0; decel = 9; } // someone is pulling the driver out
+    car.speed += THREE.MathUtils.clamp(want - car.speed, -decel * dt, 2.5 * dt);
+    car.wait = car.speed < 0.5 && gap < 6 && !atRed && !car.pulled ? car.wait + dt : 0;
+    if (car.wait > 2.5) { this.honks.push([car.x, car.z]); car.wait = -4; }
+    // Stuck behind someone slower (not at a red light)? Overtake on the RIGHT, as in India:
+    // into the next lane if it is free, or — on a two-lane road — into the oncoming lane only
+    // when nothing is coming. Otherwise wait and honk. Drift back left when there is room.
+    if (gap < 9 && (car.speed < 2.5 || slowAhead) && !atRed && !car.pulled && !type.big) car.blockedT = (car.blockedT || 0) + dt; else car.blockedT = Math.max(0, (car.blockedT || 0) - dt * 0.5);
+    if (car.blockedT > (slowAhead ? 0.6 : 2) && !car.overtake) {
+      const L = lanesOf(car.seg, car.dir);
+      if (car.laneIdx < L.hi && this.laneFree(car, fx, fz, laneOffset(car.seg, L, car.laneIdx + 1))) { car.laneIdx++; car.blockedT = 0; }
+      else if (!(s[5] & 2) && car.laneIdx >= L.hi && this.oncomingClear(car, fx, fz, 55)) { car.overtake = 3.5 + Math.random() * 1.5; car.blockedT = 0; }
+      else if (Math.random() < 0.6) { this.honks.push([car.x, car.z]); car.blockedT = -1.5; }
+    }
+    if (car.overtake) { car.overtake -= dt; if (car.overtake <= 0) car.overtake = 0; }
+    car.keepLeftT = (car.keepLeftT || 0) - dt;
+    if (car.keepLeftT <= 0) {
+      car.keepLeftT = 2 + Math.random() * 2;
+      const L = lanesOf(car.seg, car.dir);
+      if (car.laneIdx > Math.max(L.lo, Math.min(car.pref, L.hi)) && this.laneFree(car, fx, fz, laneOffset(car.seg, L, car.laneIdx - 1))) car.laneIdx--;
+    }
+    if (Math.random() < dt * 0.015 * (0.3 + jam)) this.honks.push([car.x, car.z]);
+    car.t += (car.speed * dt) / car.seg.len;
+    while (car.t >= 1) { car.t -= 1; this.advance(car); }
+    const s2 = car.seg.s;
+    const t = car.dir > 0 ? car.t : 1 - car.t;
+    const gx = ((s2[2] - s2[0]) / car.seg.len) * car.dir, gz = ((s2[3] - s2[1]) / car.seg.len) * car.dir;
+    const lx = gz, lz = -gx; // left of travel (x east, z south)
+    const two = !(s2[5] & 2);
+    if (car.yield) { car.yield = Math.max(0, car.yield - dt); }
+    const L = lanesOf(car.seg, car.dir);
+    if (car.laneIdx < 0) car.laneIdx = Math.min(Math.max(car.pref, L.lo), L.hi); // first placement
+    car.laneIdx = Math.min(Math.max(car.laneIdx, L.lo), L.hi);
+    let laneWant = laneOffset(car.seg, L, car.laneIdx) + Math.min(car.kerb, L.w * 0.25);
+    if (L.parkLeft) laneWant = Math.min(laneWant, s2[4] - 2.2 - type.wid / 2); // single lane past parked cars
+    if (car.overtake) laneWant = two ? -Math.min(L.w * 0.5, 1.8) : laneWant;   // round the slow one, on the right
+    if (car.pulled || car.yield) laneWant = Math.max(0, s2[4] - type.wid / 2 - 0.3); // pull over to the left kerb
+    car.lane += (laneWant - car.lane) * Math.min(1, dt * 1.2);
+    const lane = car.lane;
+    const px = s2[0] + (s2[2] - s2[0]) * t + lx * lane, pz = s2[1] + (s2[3] - s2[1]) * t + lz * lane;
+    // Smooth position and heading through corners.
+    const k = Math.min(1, dt * (car.recover > 0 ? 1.6 : 8));
+    car.x += (px - car.x) * k; car.z += (pz - car.z) * k;
+    const h = Math.atan2(gx, gz);
+    let dh = h - car.heading;
+    dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+    car.heading += dh * Math.min(1, dt * (car.recover > 0 ? 2 : 6));
   }
 
   /** The player honked: the car right ahead moves over to the left to let them pass. */
@@ -494,7 +594,9 @@ export class Traffic {
           if (pd > R || pd < 7) { d += 6; continue; } // not on top of the player's taxi
           const r = rnd();
           if (r < 0.28 + (1 - P.parking) * 0.6) { d += 4 + rnd() * 8; continue; } // gap: a gate, a shop front, a hydrant (more on streets with little parking)
-          const heading = Math.atan2(fx * side, fz * side) + (rnd() < 0.15 ? Math.PI : 0);
+          // Facing the way traffic flows on that side (on a one-way: both kerbs face the flow); a few face the other way on two-way streets.
+          const flip = rnd() < 0.15 && !(s[5] & 2);
+          const heading = (s[5] & 2 ? Math.atan2(fx, fz) : Math.atan2(fx * side, fz * side)) + (flip ? Math.PI : 0);
           if (r < 0.5) {
             // A row of two-wheelers, angled to the kerb.
             const n = 2 + Math.floor(rnd() * 5);
@@ -585,22 +687,38 @@ export class Traffic {
   }
 
   hits(x, z, r) {
-    for (const car of this.parked.concat(this.left)) {
-      if (Math.abs(x - car.x) > 8 || Math.abs(z - car.z) > 8) continue;
+    return this.hitList(this.parked, x, z, r) || this.hitList(this.left, x, z, r) || this.hitCars(x, z, r);
+  }
+
+  /** hitList for the moving traffic (its own copy: all cars share one shape, so this stays fast). */
+  hitCars(x, z, r) {
+    const list = this.cars, reach = r + 8;
+    for (let i = 0; i < list.length; i++) {
+      const car = list[i], dx = x - car.x, dz = z - car.z;
+      if (dx > reach || dx < -reach || dz > reach || dz < -reach) continue;
       const type = this.types[car.type];
-      const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
-      const dx = x - car.x, dz = z - car.z;
-      const along = THREE.MathUtils.clamp(dx * fx + dz * fz, -type.len / 2 + type.wid / 2, type.len / 2 - type.wid / 2);
-      const cx = car.x + fx * along, cz = car.z + fz * along;
-      if ((x - cx) ** 2 + (z - cz) ** 2 < (r + type.wid / 2) ** 2) return true;
+      const fx = Math.sin(car.heading), fz = Math.cos(car.heading), end = type.len / 2 - type.wid / 2;
+      let along = dx * fx + dz * fz;
+      along = along < -end ? -end : along > end ? end : along;
+      const ex = dx - fx * along, ez = dz - fz * along, rr = r + type.wid / 2;
+      if (ex * ex + ez * ez < rr * rr) return true;
     }
-    for (const car of this.cars) {
+    return false;
+  }
+
+  /** Is a circle at (x, z) touching a vehicle of `list` (a capsule along its length)? */
+  hitList(list, x, z, r) {
+    const reach = r + 8; // more than half the longest vehicle (an 11.6 m bus) plus half its width
+    for (let i = 0; i < list.length; i++) {
+      const car = list[i], dx = x - car.x, dz = z - car.z;
+      if (dx > reach || dx < -reach || dz > reach || dz < -reach) continue;
       const type = this.types[car.type];
-      const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
-      const dx = x - car.x, dz = z - car.z;
-      const along = THREE.MathUtils.clamp(dx * fx + dz * fz, -type.len / 2 + type.wid / 2, type.len / 2 - type.wid / 2);
-      const cx = car.x + fx * along, cz = car.z + fz * along;
-      if ((x - cx) ** 2 + (z - cz) ** 2 < (r + type.wid / 2) ** 2) return true;
+      if (!type) continue;
+      const fx = Math.sin(car.heading), fz = Math.cos(car.heading), end = type.len / 2 - type.wid / 2;
+      let along = dx * fx + dz * fz;
+      along = along < -end ? -end : along > end ? end : along;
+      const ex = dx - fx * along, ez = dz - fz * along, rr = r + type.wid / 2;
+      if (ex * ex + ez * ez < rr * rr) return true;
     }
     return false;
   }

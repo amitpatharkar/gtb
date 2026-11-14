@@ -170,6 +170,7 @@ const pichkari = new Pichkari(scene, { tiles, street, police, traffic, bubbles, 
 let combat = null; // created once the camera control exists (below)
 const jobs = new Jobs({ scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street });
 jobs.taxi = player;
+traffic.car = police.car = player; // driven or left standing: traffic and patrol cars avoid it at its real size
 const story = new Story({ scene, tiles, index, state, cityMap, hud, bubbles, people, jobs, street, clock, audio });
 const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => changeQuality(nextTier(tierKey)), onPhoto: () => takePhoto() });
 const propPhysics = new PropPhysics(scene, tiles, { bubbles, hud, state, audio });
