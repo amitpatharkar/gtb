@@ -1,0 +1,7 @@
+69548	ExoticPalmBaby.fbx
+122828	ExoticPalmCurve.fbx
+123532	ExoticPalmDefalt.fbx
+165644	ExoticPalmOld.fbx
+109372	ExoticPalmYoung.fbx
+2021884	ExoticPalmsLowPolyStyle.blend
+541	LowPolyTextureMap.png

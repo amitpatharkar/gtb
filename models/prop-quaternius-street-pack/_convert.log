@@ -1,0 +1,48 @@
+jobs: 7
+status: 0
+--- stdout ---
+blender 4.2.3 LTS fbx importer: True gltf exporter: True
+INFO Draco mesh compression is available, use library at /home/runner/blender-4.2.3-linux-x64/4.2/python/lib/python3.11/site-packages/libextern_draco.so
+animations []
+converted /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/Sign_NoParking.fbx -> /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/Sign_NoParking.glb
+animations []
+converted /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/Sign_Stop.fbx -> /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/Sign_Stop.glb
+animations []
+converted /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/Sign_Triangle.fbx -> /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/Sign_Triangle.glb
+animations []
+converted /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/Streetlight_Double.fbx -> /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/Streetlight_Double.glb
+animations []
+converted /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/Streetlight_Single.fbx -> /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/Streetlight_Single.glb
+animations []
+converted /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/TrafficLight.fbx -> /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/TrafficLight.glb
+animations []
+converted /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/TrafficLight_2.fbx -> /tmp/fbx-vwC6ON/Street_Pack_by_Quaternius/FBX/TrafficLight_2.glb
+--- stderr (tail) ---
+20:05:21 | INFO: Starting glTF 2.0 export
+20:05:21 | INFO: Extracting primitive: Cylinder.002
+20:05:21 | INFO: Primitives created: 4
+20:05:21 | INFO: Finished glTF 2.0 export in 0.011965513229370117 s
+20:05:21 | INFO: Starting glTF 2.0 export
+20:05:21 | INFO: Extracting primitive: Cylinder
+20:05:21 | INFO: Primitives created: 3
+20:05:21 | INFO: Finished glTF 2.0 export in 0.009187459945678711 s
+20:05:21 | INFO: Starting glTF 2.0 export
+20:05:21 | INFO: Extracting primitive: Cylinder.001
+20:05:21 | INFO: Primitives created: 3
+20:05:21 | INFO: Finished glTF 2.0 export in 0.008407115936279297 s
+20:05:21 | INFO: Starting glTF 2.0 export
+20:05:21 | INFO: Extracting primitive: Cylinder.005
+20:05:21 | INFO: Primitives created: 3
+20:05:21 | INFO: Finished glTF 2.0 export in 0.010905265808105469 s
+20:05:21 | INFO: Starting glTF 2.0 export
+20:05:21 | INFO: Extracting primitive: Cylinder.003
+20:05:21 | INFO: Primitives created: 3
+20:05:21 | INFO: Finished glTF 2.0 export in 0.009737014770507812 s
+20:05:21 | INFO: Starting glTF 2.0 export
+20:05:21 | INFO: Extracting primitive: Cylinder.006
+20:05:21 | INFO: Primitives created: 5
+20:05:21 | INFO: Finished glTF 2.0 export in 0.013230323791503906 s
+20:05:21 | INFO: Starting glTF 2.0 export
+20:05:21 | INFO: Extracting primitive: Cylinder.007
+20:05:21 | INFO: Primitives created: 5
+20:05:21 | INFO: Finished glTF 2.0 export in 0.013286590576171875 s

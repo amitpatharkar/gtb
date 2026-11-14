@@ -1,0 +1,10 @@
+4012576	Universal Animation Library 2 [Standard]/Female Mannequin/Mannequin_F.blend
+275	Universal Animation Library 2 [Standard]/Female Mannequin/README.txt
+575100	Universal Animation Library 2 [Standard]/Female Mannequin/Unity/Mannequin_F.fbx
+1442824	Universal Animation Library 2 [Standard]/Female Mannequin/Unreal-Godot/Mannequin_F.glb
+499312	Universal Animation Library 2 [Standard]/Godot_Setup.png
+541	Universal Animation Library 2 [Standard]/License.txt
+24371692	Universal Animation Library 2 [Standard]/Unity/UAL2_Standard.fbx
+237945	Universal Animation Library 2 [Standard]/Unity_Setup.png
+8061600	Universal Animation Library 2 [Standard]/Unreal-Godot/UAL2_Standard.glb
+148412	Universal Animation Library 2 [Standard]/Unreal_Setup.png

@@ -1,0 +1,84 @@
+jobs: 4
+status: 0
+--- stdout ---
+blender 4.2.3 LTS fbx importer: True gltf exporter: True
+INFO Draco mesh compression is available, use library at /home/runner/blender-4.2.3-linux-x64/4.2/python/lib/python3.11/site-packages/libextern_draco.so
+animations []
+converted /tmp/fbx-9n7JoV/ExoticPalmCurve.fbx -> /tmp/fbx-9n7JoV/ExoticPalmCurve.glb
+animations []
+converted /tmp/fbx-9n7JoV/ExoticPalmDefalt.fbx -> /tmp/fbx-9n7JoV/ExoticPalmDefalt.glb
+animations []
+converted /tmp/fbx-9n7JoV/ExoticPalmOld.fbx -> /tmp/fbx-9n7JoV/ExoticPalmOld.glb
+animations []
+converted /tmp/fbx-9n7JoV/ExoticPalmYoung.fbx -> /tmp/fbx-9n7JoV/ExoticPalmYoung.glb
+--- stderr (tail) ---
+20:04:25 | INFO: Starting glTF 2.0 export
+20:04:25 | INFO: Extracting primitive: Plane.159
+20:04:25 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+20:04:25 | INFO: Primitives created: 1
+20:04:25 | INFO: Extracting primitive: Sphere.004
+20:04:25 | INFO: Primitives created: 1
+20:04:25 | INFO: Extracting primitive: Cylinder.014
+20:04:25 | INFO: Primitives created: 1
+20:04:25 | INFO: Extracting primitive: Plane.078
+20:04:25 | INFO: Primitives created: 1
+20:04:25 | INFO: Extracting primitive: Plane.061
+20:04:25 | INFO: Primitives created: 1
+20:04:25 | INFO: Extracting primitive: Plane.057
+20:04:25 | INFO: Primitives created: 1
+20:04:25 | INFO: Extracting primitive: Cylinder.012
+20:04:25 | INFO: Primitives created: 1
+20:04:25 | INFO: Finished glTF 2.0 export in 0.025638818740844727 s
+20:04:25 | INFO: Starting glTF 2.0 export
+20:04:25 | INFO: Extracting primitive: Plane.158
+20:04:25 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Plane.056
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Plane.028
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Plane.005
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Cylinder.009
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Sphere.002
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Cylinder.008
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Finished glTF 2.0 export in 0.023348331451416016 s
+20:04:26 | INFO: Starting glTF 2.0 export
+20:04:26 | INFO: Extracting primitive: Plane.149
+20:04:26 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Plane.148
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Plane.146
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Plane.125
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Cylinder.015
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Cylinder.007
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Cylinder.006
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Plane.105
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Finished glTF 2.0 export in 0.030204057693481445 s
+20:04:26 | INFO: Starting glTF 2.0 export
+20:04:26 | INFO: Extracting primitive: Plane.006
+20:04:26 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Plane.160
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Plane.102
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Plane.086
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Cylinder.002
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Sphere.001
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Extracting primitive: Cylinder.001
+20:04:26 | INFO: Primitives created: 1
+20:04:26 | INFO: Finished glTF 2.0 export in 0.023294448852539062 s
