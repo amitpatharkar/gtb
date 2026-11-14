@@ -540,7 +540,8 @@ function interact() {
 function hospital() {
   state.pay(1500, 'Hospital bill');
   walker.health = 1;
-  onFoot = false;
+  onFoot = false; walker.spraying = false;
+  if (!garage.inTaxi) garage.toTaxi(); // like the tow: back in the kaali-peeli (a borrowed vehicle stays where it is)
   respawn();
   placeCamera(0);
   say('You woke up in hospital. Bill: ₹1,500. Look both ways next time!', 5);
@@ -773,7 +774,7 @@ function step(dt) {
   landmarks.update(night);
   streetProps.update(dt, active.pos);
   art.update(active.pos);
-  facadeParts.update(dt, player, tiles, night);
+  facadeParts.update(dt, active, tiles, night);
   skyline.update(active.pos);
   birds.update(dt, active, clock.daylight);
   tiles.props.lampMat.emissiveIntensity = night * 9;
@@ -785,10 +786,10 @@ function step(dt) {
   if (lampTimer <= 0) {
     lampTimer = night > 0.05 ? 0.12 : 0.4; // headlight cones follow the traffic
     placeLampLights(night);
-    seaFactor = nearSea();
+    seaFactor = nearSea(active.pos);
   }
   for (const [x, z] of traffic.honks.splice(0)) {
-    const d = Math.hypot(x - player.pos.x, z - player.pos.z);
+    const d = Math.hypot(x - active.pos.x, z - active.pos.z);
     if (d < 80 && Math.random() < 0.6) audio.play(Math.random() < 0.25 ? 'truckHorn' : 'horn', 0.5 / (1 + d / 15));
   }
   audio.update(seaFactor, clock.traffic, clock.daylight);
@@ -832,7 +833,7 @@ function placeLampLights(night) {
   // 30 m along the other streets, where the map has none — every road in Mumbai is lit at night.
   lampScan -= 1;
   if (lampScan <= 0 || !lampCache) { lampScan = 4; lampCache = gatherLamps(focus); }
-  const near = lampCache.map(([x, z, y]) => [(x - player.pos.x) ** 2 + (z - player.pos.z) ** 2, x, z, y ?? 8.4]).sort((a, b) => a[0] - b[0]);
+  const near = lampCache.map(([x, z, y]) => [(x - focus.x) ** 2 + (z - focus.z) ** 2, x, z, y ?? 8.4]).sort((a, b) => a[0] - b[0]);
   updateNightLights(night, focus, near.map(([, x, z, y]) => [x, z, 1, y]), traffic.cars, tier, onFoot || damage.headlampFactor(player.condition) < 0.3 ? null : player);
   lampLights.forEach((l, i) => {
     const n = near[i];
@@ -874,12 +875,12 @@ function gatherLamps(focus) {
   return out;
 }
 
-/** 0..1: how much open sea is around the player (for wave sounds). */
-function nearSea() {
+/** 0..1: how much open sea is around the player, on foot or driving (for wave sounds). */
+function nearSea(at) {
   let wet = 0;
   for (let k = 0; k < 8; k++) {
     const a = (k / 8) * Math.PI * 2;
-    if (!tiles.walkable(player.pos.x + Math.cos(a) * 45, player.pos.z + Math.sin(a) * 45)) wet++;
+    if (!tiles.walkable(at.x + Math.cos(a) * 45, at.z + Math.sin(a) * 45)) wet++;
   }
   return Math.min(1, wet / 3);
 }
