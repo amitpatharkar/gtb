@@ -67,6 +67,9 @@ export class Walker {
     this.pos.y += (ground - this.pos.y) * Math.min(1, dt * 15);
     this.phase += dt * Math.abs(this.speed) * 4.3;
     this.attacking = Math.max(0, (this.attacking || 0) - dt);
+    // Bruises heal: after 6 s without a blow, health creeps back up to 60 % (food and rest do the rest).
+    this.calm = (this.calm || 0) + dt;
+    if (this.calm > 6 && this.health < 0.6 && this.health > 0) this.health = Math.min(0.6, this.health + dt * 0.015);
   }
 
   /** A shove or a blow from someone: knock back along (fx, fz). */
@@ -74,12 +77,14 @@ export class Walker {
     this.health = Math.max(0, this.health - amount);
     this.vx = (this.vx || 0) + fx * push; this.vz = (this.vz || 0) + fz * push;
     this.hurt = 0.25;
+    this.calm = 0;
   }
 
   knock(amount) {
     if (this.down > 0) return;
     this.down = 1.6;
     this.health = Math.max(0, this.health - amount);
+    this.calm = 0;
   }
 
   draw(people, weapon = 'fists') {

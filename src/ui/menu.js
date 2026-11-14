@@ -157,7 +157,7 @@ export function loadingScreen() {
 /** In-game pause menu (Esc). handlers: resume, quality(tier), settings(s), quit. */
 export function pauseMenu(handlers) {
   const root = el(`<div id="pause-screen" hidden><div class="halftone"></div><div class="logo small"><b>${GAME.line1}</b><span>${GAME.line2} · PAUSED</span></div>
-    <div class="menu"><button data-a="resume" class="main">Resume</button><button data-a="settings">Settings</button><button data-a="guide">Guide</button><button data-a="quit">Save &amp; quit to title</button></div>
+    <div class="menu"><button data-a="resume" class="main">Resume</button><button data-a="settings">Settings</button><button data-a="guide">Guide</button><button data-a="abandon" hidden>Abandon mission</button><button data-a="quit">Save &amp; quit to title</button></div>
     <div class="panel" hidden></div></div>`);
   document.body.appendChild(root);
   const panel = root.querySelector('.panel');
@@ -168,6 +168,7 @@ export function pauseMenu(handlers) {
     if (a === 'guide') { panel.innerHTML = `<button class="close" data-a="close">✕</button><h2>Guide</h2>${GUIDE}`; panel.hidden = false; }
     if (a === 'close') panel.hidden = true;
     if (a === 'quit') handlers.quit();
+    if (a === 'abandon') { handlers.abandon?.(); api.toggle(false); }
     if (a === 'settings') {
       panel.innerHTML = `<button class="close" data-a="close">✕</button><h2>Settings</h2>
         <label>Graphics <select data-s="tier"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
@@ -194,7 +195,11 @@ export function pauseMenu(handlers) {
   });
   const api = {
     open: false,
-    toggle(on = !api.open) { api.open = on; root.hidden = !on; panel.hidden = true; handlers.paused?.(on); },
+    toggle(on = !api.open) {
+      api.open = on; root.hidden = !on; panel.hidden = true;
+      root.querySelector('[data-a="abandon"]').hidden = !handlers.canAbandon?.();
+      handlers.paused?.(on);
+    },
   };
   return api;
 }

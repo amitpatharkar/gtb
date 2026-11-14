@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { POSE, FLAG, outfit } from '../sim/people.js';
 import { buildMissions } from './missions.js';
 import { HOME } from './state.js';
+const CONTINUE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 'Tap to continue' : 'Space to continue';
 
 // The mission engine. The script lives in missions.js: a STORY strand (yellow markers) and
 // SIDE missions (blue markers); every mission whose turn has come shows a marker in the
@@ -227,7 +228,7 @@ export class Story {
       const [x, z] = this.spotNear(near.x, near.z, 1.6, 3);
       this.place(p, x, z, ctx.onFoot ? ctx.walker.pos : ctx.player.pos);
     }
-    this.cut.innerHTML = `<div class="bar top"></div><div class="bar bottom"><p><b>${who === 'you' ? 'You' : p.name}:</b> ${text}</p><small>Space to continue</small></div>`;
+    this.cut.innerHTML = `<div class="bar top"></div><div class="bar bottom"><p><b>${who === 'you' ? 'You' : p.name}:</b> ${text}</p><small>${CONTINUE}</small></div>`;
     this.cut.hidden = false;
     if (p && !p.inTaxi) p.pose = POSE.ARGUE;
     this.lineT = Math.max(2.5, text.length * 0.06);
@@ -253,7 +254,7 @@ export class Story {
 
   extLine() {
     const [name, text] = this.ext.lines[0];
-    this.cut.innerHTML = `<div class="bar top"></div><div class="bar bottom"><p><b>${name}:</b> ${text}</p><small>Space to continue</small></div>`;
+    this.cut.innerHTML = `<div class="bar top"></div><div class="bar bottom"><p><b>${name}:</b> ${text}</p><small>${CONTINUE}</small></div>`;
     this.cut.hidden = false;
     this.lineT = Math.max(2.6, text.length * 0.065);
   }

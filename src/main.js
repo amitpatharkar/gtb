@@ -468,6 +468,7 @@ async function teleportHome() {
   teleporting = false;
 }
 let message = '', messageTimer = 0;
+function skipHour() { clock.hour = (clock.hour + 1) % 24; say(`Time: ${clock.label}`, 1.5); }
 let weaponHtml = '';
 /** Keys that throw away where you are (R tow, Q graphics reload) need a second press within 3 s. */
 let armed = null;
@@ -506,6 +507,8 @@ const pause = pauseMenu({
   quality: (t) => changeQuality(t),
   settings: (st) => applySettings(st),
   quit: () => { state.save(); location.reload(); },
+  canAbandon: () => !!story.s.active && !story.busy,
+  abandon: () => story.fail('abandoned'),
 });
 let helpTimer = 50; // the long key list shows for the first 50 s, then ? brings it back
 applySettings(settings);
@@ -538,7 +541,7 @@ addEventListener('keydown', (e) => {
   if (onFoot && e.code === 'BracketRight') pichkari.setPressure(pichkari.pressure + 1);
   if (onFoot && e.code === 'BracketLeft') pichkari.setPressure(pichkari.pressure - 1);
   if (e.code === 'KeyE') interact();
-  if (e.code === 'KeyT') { clock.hour = (clock.hour + 1) % 24; say(`Time: ${clock.label}`, 1.5); }
+  if (e.code === 'KeyT') skipHour();
   if (e.code === 'KeyM') audio.toggleMute();
 });
 addEventListener('pointerdown', () => audio.start());
@@ -548,6 +551,10 @@ for (const [id, fn] of [['btn-kick', () => combat.kick()], ['btn-abuse', () => c
   $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); fn(); });
 }
 $('btn-door')?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); toggleFoot(); });
+// Touch: skip an hour (T), light a cracker (X); a tap anywhere moves a cutscene on (Space).
+$('btn-time')?.addEventListener('pointerdown', (e) => { e.preventDefault(); skipHour(); });
+$('btn-cracker')?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); if (onFoot) crackers.playerLight(walker, clock); });
+addEventListener('pointerdown', () => { if (story.camera && (story.lines?.length || story.ext)) story.skip(); });
 for (const id of ['btn-horn', 'btn-fuel']) {
   $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); if (id === 'btn-horn') honk(); else interact(); });
 }
@@ -560,7 +567,8 @@ function interact() {
     const p = nearestPump();
     if (p && p.d < 16) { refuel(); return; }
   }
-  if (!jobs.buySnack(onFoot ? walker : player)) say(onFoot ? 'Walk up to a thela (food cart) and press E to buy a snack' : 'Stop at a petrol pump or next to a thela and press E', 2.5);
+  if (jobs.buySnack(onFoot ? walker : player)) { if (onFoot) walker.health = Math.min(1, walker.health + 0.2); } // a vada pav heals
+  else say(onFoot ? 'Walk up to a thela (food cart) and press E to buy a snack' : 'Stop at a petrol pump or next to a thela and press E', 2.5);
 }
 
 /** Knocked out on foot: wake up at the spawn, minus the hospital bill. */
