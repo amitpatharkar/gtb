@@ -120,7 +120,31 @@ if (vfiles.length) {
   const { buildFleet } = await import('../src/vehicles/fleet.js');
   const { typeForFile, VEHICLE_ART } = await import('../src/vehicles/vehicleModels.js');
   const T = buildFleet(), fleetLen = Object.fromEntries(Object.entries(T).map(([k, v]) => [k, v.len])), fleetIds = Object.keys(T);
-  const creditsText = fs.existsSync(path.join(ART, 'CREDITS.md')) ? fs.readFileSync(path.join(ART, 'CREDITS.md'), 'utf8') : '';
+  // Sketchfab downloads carry their licence, author, title and page inside the file
+  // (asset.extras): a missing credit line is written from that, so CC BY attribution is never
+  // skipped (CREDITS.md feeds the in-game Credits panel).
+  const creditsPath = path.join(ART, 'CREDITS.md');
+  let creditsText = fs.existsSync(creditsPath) ? fs.readFileSync(creditsPath, 'utf8') : '# Credits for files in public/art\n';
+  const added = [];
+  for (const f of vfiles) {
+    if (creditsText.includes(`vehicles/${f}`)) continue;
+    try {
+      const fd = fs.openSync(path.join(vdir, f), 'r'), head = Buffer.alloc(20);
+      fs.readSync(fd, head, 0, 20, 0);
+      const json = Buffer.alloc(head.readUInt32LE(12));
+      fs.readSync(fd, json, 0, json.length, 20); fs.closeSync(fd);
+      const x = JSON.parse(json.toString('utf8')).asset?.extras;
+      if (!x?.license || !/CC-BY|CC0/i.test(x.license)) continue;
+      const lic = /CC0/i.test(x.license) ? 'CC0 1.0' : x.license.replace(/^CC-BY-([\d.]+).*/i, 'CC BY $1');
+      const author = String(x.author || 'unknown').replace(/\s*\(https?:[^)]*\)/, ''), title = String(x.title || f).trim();
+      added.push(`- vehicles/${f} — "${title}" by ${author}, ${x.source || ''} (${lic}; textures dropped, simplified, recoloured) — ${new Date().toISOString().slice(0, 10)}`);
+    } catch { /* not readable: stays uncredited */ }
+  }
+  if (added.length) {
+    creditsText = creditsText.trimEnd() + '\n' + added.join('\n') + '\n';
+    fs.writeFileSync(creditsPath, creditsText);
+    console.log(`art: ${added.length} vehicle credit line(s) written from the files' own licence data`);
+  }
   const credited = (f) => {
     const line = creditsText.split('\n').find((l) => l.includes(`vehicles/${f}`));
     if (!line) return 'no credit line';
