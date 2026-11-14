@@ -53,8 +53,10 @@ import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
 import { titleScreen, loadingScreen, pauseMenu, loadSettings } from './ui/menu.js';
+import { registerServiceWorker } from './serviceWorker.js';
 
 const BASE = import.meta.env.BASE_URL;
+registerServiceWorker(BASE); // cached map and media on repeat visits (built game only)
 
 // ------------------------------------------------------------------ title screen
 // A quality change mid-game saves where you are and reloads straight back into the game.

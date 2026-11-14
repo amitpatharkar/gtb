@@ -40,7 +40,7 @@ export class TileManager {
     const res = await fetch(this.baseUrl + 'index.json', { cache: 'no-cache' });
     if (!res.ok) throw new Error(`Map index missing (${res.status}). Run "npm run tiles" first.`);
     this.index = await res.json();
-    this.version = encodeURIComponent(this.index.generated || '');
+    this.fileTag = encodeURIComponent(this.index.generated || '');
     this.size = this.index.tileSize;
     this.bounds = this.index.bounds;
     this.available = new Map(this.index.tiles.map(([tx, tz, bytes]) => [`${tx},${tz}`, bytes]));
@@ -50,7 +50,7 @@ export class TileManager {
   }
 
   /** URL of a map file next to index.json (tiles, overview, skyline, trains), versioned. */
-  fileUrl(name) { return `${this.baseUrl}${name}${this.version ? `?v=${this.version}` : ''}`; }
+  fileUrl(name) { return `${this.baseUrl}${name}${this.fileTag ? `?v=${this.fileTag}` : ''}`; }
 
   /** Distance from (x, z) to the nearest point of a tile. */
   tileDistance(tx, tz, x, z) {
