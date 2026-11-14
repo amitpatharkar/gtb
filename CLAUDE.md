@@ -277,6 +277,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   garbage/potholes/puddles (`lib/streets.mjs`), building style + colour by district (`lib/districts.mjs`, from the
   research guide), OSM trees/signals/crossings/bus stops/petrol pumps from node tags. Index has `fuel` positions.
 - `scripts/lib/` — PBF reader (with optional node tags), geometry, Clipper helpers, byte writer
+- `scripts/lib/infill.mjs` — buildings on empty street frontage in the dense districts (OpenStreetMap misses many
+  outlines there): `DENSITY`/`GRAIN` by district name (bazaar 5–10 m fronts, low-rise 3.5–6 m with 1–3 storeys,
+  town 7–14 m), built up to the footpath, a second row behind where density ≥ 0.85; never on roads, footpaths,
+  mapped buildings, areas or tracks; ~71k buildings (tagged `gtb:infill`), then ordinary untagged buildings.
 - `scripts/lib/streetLibrary.mjs` — the owner's South Mumbai street library (`docs/research/street-library/`: README,
   `streets.json` 847 streets → OSM way ids and zones, `profiles.json` 25 street profiles, `buildings-notable.json`,
   `survey.json`). `normalise()` turns each profile's prose into numbers (styles, storeys, colours, shop share, netting,

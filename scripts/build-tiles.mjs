@@ -27,6 +27,7 @@ import { districtAt, pickStyle, STYLE } from './lib/districts.mjs';
 import { buildSkyline } from './lib/skyline.mjs';
 import { loadStreetLibrary, LAMP, lampSize } from './lib/streetLibrary.mjs';
 import { isTrainRoute, buildTrainLines } from './lib/trains.mjs';
+import { infill } from './lib/infill.mjs';
 import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, POINT, MAGIC, TILE_VERSION, DM } from '../src/world/tileFormat.js';
 import { OVERVIEW_MAGIC, OVERVIEW_VERSION, OVERVIEW_LAYER } from '../src/world/overviewFormat.js';
 
@@ -605,6 +606,29 @@ const onLand = (x, z) => {
   const t = tiles.get(`${Math.floor(x / T)},${Math.floor(z / T)}`);
   return !!t && inMP(t.land, x, z);
 };
+
+// Empty frontage in the dense districts gets buildings in the district's grain (lib/infill.mjs):
+// OpenStreetMap misses many outlines there. Never on roads, footpaths, mapped buildings, parks,
+// water or tracks; added before street furniture so trees, lamps and stalls avoid them too.
+{
+  const ms = Date.now();
+  const areaGrid = new Grid(40);
+  for (const a of areasRaw) for (const poly of a.polys) areaGrid.add(G.bboxOf(poly[0]), poly[0]);
+  const onStreet = (x, z) => segGrid.near(x, z, 14, ({ a, b, p }) => G.segDist2([x, z], a, b) < (p.hw + p.fw + 0.3) ** 2);
+  const inArea = (x, z) => areaGrid.near(x, z, 1, (ring) => G.pointInRing(x, z, ring));
+  const free = (x, z) => inBox([x, z]) && !onStreet(x, z) && !inBuilding(x, z, 0.35) && !onTrack(x, z, 4.5) && !inArea(x, z);
+  let n = 0;
+  const made = infill({
+    vparts, district: districtXZ, free, onLand, hash: hash01, BRIDGE: ROAD_FLAG.BRIDGE,
+    add: (ring, levels) => {
+      const tags = { building: 'yes', 'gtb:infill': 'yes', ...(levels ? { 'building:levels': String(levels) } : {}) };
+      const b = { id: 9e11 + n++, tags, infill: true, polys: [[ring]] };
+      buildingsRaw.push(b);
+      buildingGrid.add(G.bboxOf(b.polys[0][0]), b.polys[0][0]);
+    },
+  });
+  log(`infill: ${made} buildings on empty frontage in the dense districts (${((Date.now() - ms) / 1000).toFixed(1)}s)`);
+}
 
 const streetMs = Date.now();
 const areaPaths = areasRaw.filter((a) => a.kind !== 'water').map((a) => ({ kind: a.kind, aero: a.aero, bb: G.bboxOf(a.polys.flatMap((p) => p[0])), paths: C.mpToPaths(a.polys) }));
