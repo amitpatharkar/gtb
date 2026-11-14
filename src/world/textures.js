@@ -25,10 +25,14 @@ export class TextureLibrary {
 
   async init() {
     try {
-      const res = await fetch(`${this.base}media/manifest.json`);
+      // Always revalidated (GitHub Pages lets browsers keep files 10 minutes); every media URL
+      // then carries the manifest's version, so a deploy never mixes old and new files.
+      const res = await fetch(`${this.base}media/manifest.json`, { cache: 'no-cache' });
       if (!res.ok) throw new Error(res.status);
       const manifest = await res.json();
       for (const a of manifest.assets) this.assets.set(a.id, a);
+      this.version = mediaVersion(manifest);
+      versionMediaUrls(this.base, this.version);
       this.ktx2 = new KTX2Loader().setTranscoderPath(`${this.base}basis/`).detectSupport(this.renderer);
       this.available = true;
     } catch {
@@ -38,7 +42,7 @@ export class TextureLibrary {
   }
 
   has(id) { return this.assets.has(id); }
-  url(id, file = 0) { const a = this.assets.get(id); return a && `${this.base}media/${a.files[file]}`; }
+  url(id, file = 0) { const a = this.assets.get(id); return a && `${this.base}media/${a.files[file]}?v=${this.version}`; }
 
   /** Real-world size of one texture repeat, in metres. */
   metres(id, fallback = 2) {
@@ -49,7 +53,7 @@ export class TextureLibrary {
   load(path) {
     if (!this.cache.has(path)) {
       this.pending++;
-      const p = this.gate.then(() => this.ktx2.loadAsync(`${this.base}media/${path}`)).then((t) => {
+      const p = this.gate.then(() => this.ktx2.loadAsync(`${this.base}media/${path}?v=${this.version}`)).then((t) => {
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
         t.anisotropy = this.tier.anisotropy;
         return t;
@@ -103,6 +107,21 @@ export class TextureLibrary {
       return true;
     }).catch((e) => { console.warn(`Texture ${id} failed`, e); return false; });
   }
+}
+
+/** Version tag of the media folder: the shipped content hash (scripts/ship-media.mjs), else the build date. */
+export function mediaVersion(manifest) { return encodeURIComponent(manifest.shipped?.version || manifest.generated || '0'); }
+
+/**
+ * Files that three.js loaders fetch from media/ by themselves (a glTF's .bin and textures,
+ * the character models) get the same ?v= tag, through the default loading manager.
+ */
+function versionMediaUrls(base, v) {
+  const prefix = new URL(`${base}media/`, location.href).href;
+  THREE.DefaultLoadingManager.setURLModifier((url) => {
+    if (url.includes('?') || /^(blob|data):/.test(url)) return url;
+    return new URL(url, location.href).href.startsWith(prefix) ? `${url}?v=${v}` : url;
+  });
 }
 
 const stand = new Map();

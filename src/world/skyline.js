@@ -37,7 +37,7 @@ export class Skyline {
     const info = this.tiles.index?.skyline;
     if (!info) return;
     try {
-      const res = await fetch(this.tiles.baseUrl + info.file);
+      const res = await fetch(this.tiles.fileUrl ? this.tiles.fileUrl(info.file) : this.tiles.baseUrl + info.file);
       if (!res.ok) return;
       const u8 = await gunzipIfNeeded(await res.arrayBuffer());
       const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);

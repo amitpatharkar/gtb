@@ -5,7 +5,7 @@ import { createMaterials } from './world/materials.js';
 import { createEnvironment } from './world/environment.js';
 import { setupCredits } from './credits.js';
 import { TIERS, pickTier, query } from './settings.js';
-import { TextureLibrary } from './world/textures.js';
+import { TextureLibrary, mediaVersion } from './world/textures.js';
 import { createPost } from './render/post.js';
 import { creditedPhoto } from './render/photo.js';
 import { facadeDebug, facadeNight } from './world/facade.js';
@@ -65,10 +65,10 @@ let settings = loadSettings();
 let newGame = false;
 const skipMenu = resume || query.has('play') || query.has('quality') || query.has('hour');
 // Warm the HTTP cache while the title screen is up: map index, asset manifest, the sky.
-for (const u of ['tiles/index.json', 'media/manifest.json']) fetch(`${BASE}${u}`, { priority: 'high' }).catch(() => {});
-fetch(`${BASE}media/manifest.json`).then((r) => r.json()).then((m) => {
+fetch(`${BASE}tiles/index.json`, { priority: 'high', cache: 'no-cache' }).catch(() => {});
+fetch(`${BASE}media/manifest.json`, { priority: 'high', cache: 'no-cache' }).then((r) => r.json()).then((m) => {
   const sky = m.assets.find((a) => a.id === 'hdri-qwantani-late-afternoon-puresky');
-  if (sky) fetch(`${BASE}media/${sky.files[0]}`, { priority: 'high' }).catch(() => {});
+  if (sky) fetch(`${BASE}media/${sky.files[0]}?v=${mediaVersion(m)}`, { priority: 'high' }).catch(() => {}); // same URL as lib.url()
 }).catch(() => {});
 // Extras (characters, street-prop models, sign fonts) start downloading once play begins.
 let markStarted;

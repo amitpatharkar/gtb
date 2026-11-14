@@ -17,6 +17,7 @@
 //    replaced by their average values.
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import sharp from 'sharp';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import { readAccessor, GlbWriter } from './lib/glb.mjs';
@@ -169,7 +170,11 @@ async function lightenGltf(file, budget) {
 }
 
 // ------------------------------------------------------------------ manifest + credits
-const shipped = { ...manifest, assets: kept, shipped: { by: 'scripts/ship-media.mjs', assets: kept.length, removed: removed.map((a) => a.id) } };
+// version: a hash of every shipped file — the game appends ?v=<version> to media URLs, so
+// browsers (and the service worker) fetch again exactly when the content changed.
+const hash = crypto.createHash('sha1');
+for (const f of [...keep].filter((f) => !/(manifest.json|CREDITS.md)$/.test(f)).sort()) if (fs.existsSync(f)) hash.update(path.relative(MEDIA, f)).update(fs.readFileSync(f));
+const shipped = { ...manifest, assets: kept, shipped: { by: 'scripts/ship-media.mjs', version: hash.digest('hex').slice(0, 12), assets: kept.length, removed: removed.map((a) => a.id) } };
 fs.writeFileSync(MANIFEST, JSON.stringify(shipped, null, 1));
 const credits = ['# Asset credits', '', 'The assets this build ships (generated from docs/research/assets.json by scripts/assets/build-assets.mjs, trimmed by scripts/ship-media.mjs).', ''];
 const byLicence = (l) => kept.filter((a) => a.licence === l);

@@ -23,7 +23,7 @@ export function setupCredits(baseUrl) {
       `<h3>Software</h3><ul>${SOFTWARE.map(([n, u, l]) => `<li>${link(u, n)} — ${l}</li>`).join('')}</ul>`,
     ];
     try {
-      const res = await fetch(`${baseUrl}media/manifest.json`);
+      const res = await fetch(`${baseUrl}media/manifest.json`, { cache: 'no-cache' });
       if (!res.ok) throw new Error(res.status);
       const { assets } = await res.json();
       const group = (title, list, fmt) => list.length && parts.push(`<h3>${title}</h3><ul>${list.map(fmt).join('')}</ul>`);
@@ -37,7 +37,7 @@ export function setupCredits(baseUrl) {
       parts.push('<p>No third-party assets in this build yet.</p>');
     }
     try {
-      const res = await fetch(`${baseUrl}art/CREDITS.md`);
+      const res = await fetch(`${baseUrl}art/CREDITS.md`, { cache: 'no-cache' });
       if (!res.ok) throw new Error(res.status);
       const lines = (await res.text()).split('\n').filter((l) => l.startsWith('- ')).map((l) => l.slice(2).trim());
       if (lines.length) parts.push(`<h3>Made for this game</h3><ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`);

@@ -261,7 +261,7 @@ function coachGeometry() {
 export class Trains {
   /** Loads tiles/trains.json; resolves to null when the map has no train lines. */
   static async create(ctx) {
-    const res = await fetch(`${ctx.base}tiles/trains.json`).catch(() => null);
+    const res = await fetch(ctx.tiles?.fileUrl ? ctx.tiles.fileUrl('trains.json') : `${ctx.base}tiles/trains.json`).catch(() => null);
     if (!res?.ok) return null;
     const json = await res.json();
     if (!json.lines?.length) return null;

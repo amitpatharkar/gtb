@@ -77,7 +77,8 @@ export class CityMap {
     if (this.loading) return this.loading;
     this.loading = (async () => {
       const file = this.index.overview?.file || 'overview.bin.gz';
-      const res = await this.call('load', { url: new URL(this.baseUrl + file, location.href).href });
+      const v = this.index.generated ? `?v=${encodeURIComponent(this.index.generated)}` : ''; // versioned like the tiles (tiles.js fileUrl)
+      const res = await this.call('load', { url: new URL(this.baseUrl + file + v, location.href).href });
       this.labels = res.labels;
       this.stats = res.stats;
       this.data = res.chunks;
