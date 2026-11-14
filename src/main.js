@@ -462,7 +462,7 @@ police.onFlagStop = (f, who) => {
     [`Pay ₹${police.fines.toLocaleString('en-IN')}`, () => police.pay(false, f, who)],
     ['Argue ("Main toh dheere chala raha tha!")', () => police.argue(f, who)],
     ['Drive off (more stars)', () => police.flee(f)],
-  ]);
+  ], () => police.cancelStop()); // closed without an answer (Esc, a click elsewhere, another dialog)
 };
 
 // ------------------------------------------------------------------ settings, pause menu, hints
@@ -604,18 +604,26 @@ function repairMenu() {
   ]);
 }
 
-/** A small menu of choices (click or press 1, 2, 3…). */
+/**
+ * A small menu of choices (click or press 1, 2, 3…). Esc, a click outside the box or another
+ * menu replacing it closes it without picking anything: then `onCancel` runs instead.
+ */
 let closeChoice = null;
-function choice(title, options) {
+function choice(title, options, onCancel = null) {
   closeChoice?.(-1);
   const box = $('choice');
   box.innerHTML = `<b>${title}</b>${options.map(([label], i) => `<button data-i="${i}"><kbd>${i + 1}</kbd> ${label}</button>`).join('')}`;
   box.hidden = false;
   view.release();
-  const done = (i) => { box.hidden = true; removeEventListener('keydown', key, true); closeChoice = null; options[i]?.[1](); };
+  const done = (i) => {
+    box.hidden = true; removeEventListener('keydown', key, true); removeEventListener('pointerdown', outside, true); closeChoice = null;
+    if (options[i]) options[i][1](); else onCancel?.();
+  };
   closeChoice = done;
-  const key = (e) => { const i = Number(e.key) - 1; if (i >= 0 && i < options.length) { e.preventDefault(); e.stopPropagation(); done(i); } if (e.code === 'Escape') { e.stopPropagation(); done(options.length - 1); } };
+  const key = (e) => { const i = Number(e.key) - 1; if (i >= 0 && i < options.length) { e.preventDefault(); e.stopPropagation(); done(i); } if (e.code === 'Escape') { e.stopPropagation(); done(-1); } };
+  const outside = (e) => { if (!box.contains(e.target)) done(-1); };
   addEventListener('keydown', key, true);
+  addEventListener('pointerdown', outside, true); // capture: added now, so it misses the tap that opened the menu
   box.onclick = (e) => { const b = e.target.closest('button'); if (b) done(Number(b.dataset.i)); };
 }
 
