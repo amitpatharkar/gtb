@@ -97,7 +97,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/props.js` — procedural instanced props by point kind: rain tree, gulmohar (in bloom), peepal, coconut palm
   (alpha-tested leaf cards), street light (4 types in the point's size: standard, tall, heritage triple lantern, globe —
   `LAMP` in `scripts/lib/streetLibrary.mjs`), traffic signal, BEST bus shelter, pothole and puddle decals, garbage pile,
-  thela with umbrella, petrol pump canopy, sea-wall tetrapods
+  thela with umbrella, petrol pump canopy, sea-wall tetrapods, median hedge (`POINT.HEDGE`: size = length, from the
+  street library's planted medians, `streets.mjs`)
 - `src/world/tiles.js` — `TileManager`: streams tiles, builds meshes/props, collisions (`hits`), `walkable`,
   `groundHeight` (asphalt 0.02 m, kerb level 0.2 m), `roadAt`, `roadNameAt`, `segment()`; `version` bumps on load/unload
 - `src/world/tileWorker.js` + `src/world/mesh/` — worker: `ground.js` (ground layers, kerbs with paint strip, sea walls,

@@ -115,6 +115,20 @@ function palmGeometry(rnd) {
 }
 
 /** Irregular blob texture (alpha) for potholes, puddles and stains. */
+/** Clipped hedge: dense small leaves in several greens, a few darker gaps. */
+function hedgeTexture() {
+  return canvasTex(128, 128, (g) => {
+    g.fillStyle = '#2f5a23'; g.fillRect(0, 0, 128, 128);
+    let s = 7;
+    const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 900; i++) {
+      const x = r() * 128, y = r() * 128, k = r();
+      g.fillStyle = k < 0.12 ? '#1d3a17' : k < 0.5 ? '#3d7330' : k < 0.85 ? '#4f8a3a' : '#6aa04a';
+      g.beginPath(); g.ellipse(x, y, 2 + r() * 3, 1.2 + r() * 2, r() * 3, 0, 7); g.fill();
+    }
+  });
+}
+
 function blobTexture(seed, inner, outer) {
   return canvasTex(128, 128, (g) => {
     const rnd = seeded(seed);
@@ -259,6 +273,8 @@ export function createProps() {
     [POINT.STALL]: [[stallG, vc, true]],
     [POINT.FUEL]: [[fuelG, vc, true]],
     [POINT.TETRAPOD]: [[tetraG, concrete, true]],
+    // Planted medians: a clipped hedge 0.95 m wide and 0.8 m tall on the median; the point's size stretches it along the road.
+    [POINT.HEDGE]: [[new THREE.BoxGeometry(0.95, 0.8, 1, 1, 1, 1).translate(0, Y.KERB + 0.4, 0), new THREE.MeshStandardMaterial({ map: hedgeTexture(), roughness: 0.95 }), true]],
   };
   return { KINDS, LIGHTS, lampMat };
 }
@@ -289,7 +305,8 @@ export function buildProps(props, data, treeShare = 1) {
         _q.setFromAxisAngle(_up, arr[i * 5 + 3]);
         _p.set(arr[i * 5], y ?? arr[i * 5 + 1], arr[i * 5 + 2]);
         const sc = kind == POINT.POTHOLE || kind == POINT.PUDDLE || tree ? s : 1;
-        _s.set(sc, tree ? 0.8 + s * 0.25 : sc, sc);
+        if (kind == POINT.HEDGE) _s.set(1, 1, s); // stretched along the road
+        else _s.set(sc, tree ? 0.8 + s * 0.25 : sc, sc);
         _m.compose(_p, _q, _s);
         mesh.setMatrixAt(k, _m);
       });

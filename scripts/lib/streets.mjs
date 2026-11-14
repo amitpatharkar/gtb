@@ -223,6 +223,21 @@ export function streetFurniture(parts, opts) {
           lights.push({ kind: POINT.LIGHT, x, z, angle: Math.atan2(q.dz * side, -q.dx * side), size: opts.lampSize ? opts.lampSize(lamp) : 1 });
         }
       }
+      // Planted medians (street library): a clipped hedge down the middle of the median of a
+      // one-way boulevard carriageway (on its right: India keeps left), broken at junctions.
+      // Both carriageways find the same median; the converter drops hedges that land on others.
+      if (side === 1 && prof?.planted && p.info.flags & 2 && opts.onRoad) {
+        for (let t = 5; t < L - 4; t += 1.8) {
+          if (!clear(t, 4)) continue;
+          const q = pointAt(p.pts, s, t);
+          let gap = 0;
+          for (let d = hw + 1.4; d <= hw + 12; d += 0.4) if (opts.onRoad(q.x - q.dz * d, q.z + q.dx * d, 0)) { gap = d - hw; break; }
+          if (gap < 2.4) continue;
+          const o = hw + gap / 2, x = q.x - q.dz * o, z = q.z + q.dx * o;
+          if (opts.blocked(x, z)) continue;
+          clutter.push({ kind: POINT.HEDGE, x, z, angle: Math.atan2(q.dx, q.dz), size: 1.95 });
+        }
+      }
     }
   }
   // Potholes and waterlogged patches on the asphalt (lanes and side streets suffer most).

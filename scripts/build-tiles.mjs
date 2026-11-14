@@ -732,8 +732,14 @@ function inPitch(x, z) {
   return pitchGrid.near(x, z, 3, (poly) => inMP([poly], x, z));
 }
 points.push(...lights);
+const hedgeGrid = new Grid(6);
 for (const c of clutter) {
   if (c.kind === POINT.STALL && treeGrid.near(c.x, c.z, 3, ([x, z]) => (x - c.x) ** 2 + (z - c.z) ** 2 < 6)) continue;
+  if (c.kind === POINT.HEDGE) {
+    // Both carriageways of a boulevard find the same median: keep one hedge per spot.
+    if (hedgeGrid.near(c.x, c.z, 1, ([x, z]) => (x - c.x) ** 2 + (z - c.z) ** 2 < 0.9)) continue;
+    hedgeGrid.add([c.x, c.z, c.x, c.z], [c.x, c.z]);
+  }
   points.push(c);
 }
 for (const [x, z] of fuel) points.push({ kind: POINT.FUEL, x, z, angle: 0, size: 1 });
@@ -744,7 +750,7 @@ for (const pt of points) {
   (getTile(Math.floor(pt.x / T), Math.floor(pt.z / T)).points ||= []).push(pt);
 }
 const count = (k) => points.filter((p) => p.kind === k).length;
-log(`points: ${count(POINT.RAIN_TREE) + count(POINT.GULMOHAR) + count(POINT.PEEPAL) + count(POINT.PALM)} trees, ${lights.length} lights, ${count(POINT.STALL)} stalls, ${count(POINT.GARBAGE)} garbage piles, ${count(POINT.POTHOLE)} potholes, ${count(POINT.PUDDLE)} puddles, ${fuel.length} petrol pumps`);
+log(`points: ${count(POINT.RAIN_TREE) + count(POINT.GULMOHAR) + count(POINT.PEEPAL) + count(POINT.PALM)} trees, ${lights.length} lights, ${count(POINT.STALL)} stalls, ${count(POINT.GARBAGE)} garbage piles, ${count(POINT.POTHOLE)} potholes, ${count(POINT.PUDDLE)} puddles, ${count(POINT.HEDGE)} hedge pieces in planted medians, ${fuel.length} petrol pumps`);
 const fuelStations = fuel.map(([x, z]) => [r1(x), r1(z)]);
 
 // Landmarks: hand-built models replace these OpenStreetMap outlines (names are parodies).
