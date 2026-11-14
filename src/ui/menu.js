@@ -25,7 +25,7 @@ const GUIDE = `
 <h3>Map</h3>
 <p><b>Tab</b> (or tap the radar): the city map. Tap anywhere for a waypoint; the GPS shows the way. <b>T</b> skips an hour, <b>M</b> mutes, <b>R</b> resets to the start, <b>?</b> shows the key list.</p>
 <h3>Vehicles and crackers</h3>
-<p>On foot, <b>F</b> next to any vehicle gets in — yours, or anybody else's (drivers object, and so do the police). Your taxi stays where you left it; <b>R</b> tows you back to it. <b>Space</b> while steering at speed is a handbrake turn.</p>
+<p>On foot, <b>F</b> within a few metres of any vehicle steals it, GTA-style: you run to the driver's door (the right side — India drives on the left), the car stops and the driver is pulled out. Your own taxi too, of course. Drivers object, and so do the police if a constable sees it. Your taxi stays where you left it; <b>R</b> tows you back to it. <b>Space</b> while steering at speed is a handbrake turn.</p>
 <p><b>X</b> lights a firecracker a step ahead, <b>Z</b> changes the type: anar, chakri, ladi, sutli bomb, sky shot. No crackers after 10 pm if a constable is watching.</p>
 <h3>Missions and things to find</h3>
 <p><b>Yellow markers</b> are the story, <b>blue markers</b> are side missions (some only at certain hours); both are on the map. Drive or walk into one to start; if you fail, go back to it to try again.</p>

@@ -277,25 +277,69 @@ function toggleFoot() {
     onFoot = true;
     if (jobs.ride?.stage === 'ride') say('Your passenger is waiting in the taxi!', 3);
     // The long reminder only the first couple of times: it hides door prompts while it is up.
-    if ((footHints = (footHints || 0) + 1) <= 2) say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · X light a cracker (Z changes it) · E at a glowing door goes in · F gets into the nearest vehicle', 6);
+    if ((footHints = (footHints || 0) + 1) <= 2) say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · X light a cracker (Z changes it) · E at a glowing door goes in · F near any vehicle steals it (run to the driver\'s door, pull them out)', 6);
   } else {
     // Nearest of: what you were driving, your parked taxi, anything else on the street.
     const wx = walker.pos.x, wz = walker.pos.z;
     const mine = Math.hypot(wx - player.pos.x, wz - player.pos.z) - player.radius - player.halfLength * 0.6;
     const home = garage.home ? Math.hypot(wx - garage.home.x, wz - garage.home.z) - 1.4 : Infinity;
-    const other = garage.nearest(wx, wz);
+    const other = garage.nearest(wx, wz, JACK_REACH);
     // Your own vehicles come first when you are standing next to them — unless something else
     // is clearly closer, or it is a vehicle lent to you for a mission.
     const own = Math.min(mine, home);
-    if (own > 2.6 && !other) { say('Walk up to a vehicle to get in', 1.5); return; }
+    if (own > 2.6 && !other) { say('Walk up to a vehicle to get in (F within a few metres)', 1.5); return; }
     if (own <= 2.6 && !(other && (other.v.lent || other.d < own - 0.6))) { if (home < mine) garage.toTaxi(); }
-    else {
-      if (jobs.onDuty && !jobs.ride) jobs.toggleDuty(player);
-      garage.take(other, walker);
-    }
+    else if (other.d > 1.2) { startJack(other); return; } // GTA-style: run to the driver's door first
+    else takeVehicle(other);
     onFoot = false;
     walker.spraying = false;
   }
+}
+
+// ------------------------------------------------------------------ taking a vehicle
+// F within a few metres of any vehicle: the player runs to the driver's door (the right side:
+// India drives on the left with right-hand drive), the vehicle stops, the driver is pulled out.
+const JACK_REACH = 7;
+let jack = null;
+function startJack(target) {
+  jack = { target, t: 0 };
+  if (target.kind === 'traffic') target.v.held = 4; // the driver freezes (and then gets yanked out)
+}
+function takeVehicle(target) {
+  if (jobs.onDuty && !jobs.ride) jobs.toggleDuty(player);
+  garage.take(target, walker);
+  onFoot = false;
+  walker.spraying = false;
+}
+function updateJack(dt) {
+  const { target } = jack, v = target.v, T = traffic.types[v.type];
+  const list = target.kind === 'traffic' ? traffic.cars : target.kind === 'parked' ? traffic.parked : traffic.left;
+  jack.t += dt;
+  const moved = input.fwd || input.back || input.left || input.right;
+  if (!T || !list.includes(v) || (moved && jack.t > 0.25) || walker.down > 0) { jack = null; return; }
+  const h = v.heading, fx = Math.sin(h), fz = Math.cos(h), rx = -Math.cos(h), rz = Math.sin(h);
+  const side = T.rider ? 0.7 : T.wid / 2 + 0.45, ahead = T.rider ? -0.1 : T.len * 0.08;
+  const dx = v.x + rx * side + fx * ahead - walker.pos.x, dz = v.z + rz * side + fz * ahead - walker.pos.z, d = Math.hypot(dx, dz);
+  if (d < 0.5 || jack.t > 3.5) { jack = null; takeVehicle(target); return; }
+  const run = Math.min(d, 5.2 * dt), nx = walker.pos.x + (dx / d) * run, nz = walker.pos.z + (dz / d) * run;
+  walker.heading = Math.atan2(dx, dz);
+  walker.speed = 5.2;
+  // Round the vehicle's body rather than through it: slide sideways if the straight line is blocked.
+  if (!traffic.hits(nx, nz, 0.3) || d < 1.6) walker.pos.set(nx, tiles.groundHeight(nx, nz), nz);
+  else { const sx = walker.pos.x + rx * run, sz = walker.pos.z + rz * run; walker.pos.set(sx, tiles.groundHeight(sx, sz), sz); }
+  walker.phase += dt * 5.2 * 4.3;
+}
+/** HUD prompt on foot next to a vehicle. */
+function vehiclePrompt() {
+  if (!onFoot || interiors?.inside || jack) return '';
+  const t = garage.nearest(walker.pos.x, walker.pos.z, JACK_REACH);
+  const homeD = garage.home ? Math.hypot(walker.pos.x - garage.home.x, walker.pos.z - garage.home.z) : Infinity;
+  if (homeD < 4 && (!t || t.d > homeD - 1.4)) return 'F: get in your kaali-peeli';
+  if (!t) return '';
+  const name = traffic.types[t.v.type]?.name || 'vehicle';
+  if (t.v.lent) return `F: take the ${name} (lent to you)`;
+  if (t.v.taken) return `F: get back in the ${name}`;
+  return `F: steal the ${name}${t.kind === 'traffic' ? ' — the driver gets pulled out' : ''}${police.witness(walker.pos.x, walker.pos.z) ? ' · 👮 a constable is watching!' : ''}`;
 }
 
 // ------------------------------------------------------------------ camera
@@ -631,7 +675,8 @@ function step(dt) {
   if (!onFoot) propPhysics.sweep(player);
   propPhysics.update(dt, onFoot ? null : player);
   if (garage.inTaxi && player.condition > 0.97 && (damage.front || damage.rear)) damage.repair();
-  if (onFoot) {
+  if (onFoot && jack) updateJack(dt);
+  if (onFoot && !jack) {
     walker.update(dt, cutscene ? NO_INPUT : input, indoors ? interiors.world : footWorld, state.s.energy, clock.aqi, view);
     // Careless drivers knock you over.
     for (const c of traffic.cars) {
@@ -804,6 +849,7 @@ function updateHud() {
       state.s.hunger < 0.15 ? 'Pet mein chuhe daud rahe hain! Eat at a thela (E) or order on Bhookh (P)' :
       state.s.energy < 0.12 ? 'So tired… have a cutting chai (E at a thela)' : '';
     if (interiors.prompt && !police.flagger) message = interiors.prompt; // "E: enter …" at a door, things to use indoors
+    if (!message && !police.flagger) message = vehiclePrompt();
   }
   $('message').textContent = message;
   $('message').style.opacity = message ? 1 : 0;

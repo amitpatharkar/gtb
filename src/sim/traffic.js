@@ -331,6 +331,7 @@ export class Traffic {
         decel = 2.6;
         if (car.pulled.t >= car.pulled.dur) { car.pulled = null; car.jumper = Math.random() < 0.3; }
       }
+      if (car.held > 0) { car.held -= dt; want = 0; decel = 9; } // someone is pulling the driver out
       car.speed += THREE.MathUtils.clamp(want - car.speed, -decel * dt, 2.5 * dt);
       car.wait = car.speed < 0.5 && gap < 6 && !atRed && !car.pulled ? car.wait + dt : 0;
       if (car.wait > 2.5) { this.honks.push([car.x, car.z]); car.wait = -4; }
