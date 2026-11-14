@@ -310,17 +310,15 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   mapping and night lighting; recessed windows; kerb paint only on main roads; real characters for everyone nearby
   (one draw call each, feet/run fixed); fist-fight combos/block/knockouts; firecrackers; the map from Colaba to
   Bandra, Juhu, Andheri, Kurla and Powai with an overview file and GPS in a worker. 979 tiles, 9.2 MB; site ~191 MB.
-- Next (ideas, owner's goal: "GTA V Mumbai edition, maximised for a browser"; the live list is `docs/plan.md`):
-  1. **More missions**: Bhookh delivery-partner job (pick up at a stall, deliver on time, food condition), dabbawala
-     relay at lunchtime, tourist tours (Gateway → Marine Drive), police chase challenges, races on Marine Drive at night.
-  2. **Characters**: Quaternius rigged characters (assets pipeline: Blender step ran but produced no GLBs — check
-     `scripts/assets/fbx2glb.py` logs) to replace procedural people near the camera; clothes from Dukaan on foot.
-  3. **Enterable places**: Irani café, kirana shop, chawl room, the Powai flat (procedural interiors); tomatoes to throw.
-  4. **Flyovers**: converter keeps bridge/layer roads separate, raised decks with ramps and piers (JJ, Kemps Corner).
-  5. **Traffic depth**: junction yielding, lane changes/overtaking, autos in the suburbs, more two-wheelers.
-  6. **Weather**: monsoon rain (wet roads, puddles grow, waterlogging), more sky HDRIs per time of day.
-  7. **Bigger map** (whole island, then Powai so the home is reachable), far level of detail, landmarks with altered
-     names, heights from Google Open Buildings 2.5D, hills from Copernicus elevation.
+- Next (owner's goal: "GTA V Mumbai edition, maximised for a browser"; the live list with status is `docs/plan.md`):
+  1. **Local trains** (3.4) on the real tracks with stations and rides (in progress on a worktree branch).
+  2. **Flyovers and bridges** (3.3): Sea Link, Coastal Road, JJ, Kemps Corner — all roads are flat today.
+  3. **Monsoon and festivals** (4.5, 4.6): rain, wet roads, waterlogging; Ganesh visarjan, Navratri, Diwali lanterns.
+  4. **Street realism from the survey** (`docs/research/street-library/`): per-street profiles, black-white median
+     kerbs, planted medians, arcades, construction netting, more street furniture; owner-made models
+     (`docs/art-requests.md`, `public/art/`).
+  5. **People**: Indian clothes beyond saris, more character models, the far crowd.
+  6. **More missions and side jobs** (`docs/research/mumbai-guide-2.md` §3), police chase challenges, races.
 
 ## Testing in the session
 - `npm run build` must pass (it runs the converter first).
