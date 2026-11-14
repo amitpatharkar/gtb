@@ -63,6 +63,14 @@ export class Signals {
     this.digits = this.instanced(digitG, digitMat, false);
     scene.add(this.poles, ...this.lamps, this.digits);
     this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.c = new THREE.Color();
+    this.v = new THREE.Vector3(); this.one = new THREE.Vector3(1, 1, 1);
+    this.on = [new THREE.Color(5, 0.35, 0.2), new THREE.Color(4.5, 2.2, 0.1), new THREE.Color(0.2, 4, 1.4)];
+    this.off = [new THREE.Color(0.08, 0.01, 0.01), new THREE.Color(0.07, 0.04, 0.0), new THREE.Color(0.0, 0.06, 0.03)];
+    this.shown = [];        // approaches whose poles are drawn (re-chosen when the focus moves 20 m)
+    this.shownAt = { x: 1e9, z: 1e9, v: -2 };
+    this.shownState = new Int32Array(cap).fill(-1); // light × 100 + countdown, to skip unchanged uploads
+    this.glow = -1;
+    this.lightLeft = 0;     // seconds left in the state lightOf() returned
   }
 
   instanced(geo, mat, shadow) {
@@ -151,39 +159,52 @@ export class Signals {
     }
   }
 
-  /** Light for a phase group at a site, and seconds left in that state. */
+  /** Light for a phase group at a site, and seconds left in that state: [light, left]. */
   stateOf(site, group) {
+    const light = this.lightOf(site, group);
+    return [light, this.lightLeft];
+  }
+
+  /** Light for a phase group at a site; the seconds left in that state go to `lightLeft` (no allocation). */
+  lightOf(site, group) {
     const cycle = GREEN_A + GREEN_B + 2 * (AMBER + ALL_RED);
     const t = (this.time + site.offset) % cycle;
     const a0 = GREEN_A, a1 = a0 + AMBER, a2 = a1 + ALL_RED, b0 = a2 + GREEN_B, b1 = b0 + AMBER;
     if (group === 0) {
-      if (t < a0) return [LIGHT.GREEN, a0 - t];
-      if (t < a1) return [LIGHT.AMBER, a1 - t];
-      return [LIGHT.RED, cycle - t];
+      if (t < a0) { this.lightLeft = a0 - t; return LIGHT.GREEN; }
+      if (t < a1) { this.lightLeft = a1 - t; return LIGHT.AMBER; }
+      this.lightLeft = cycle - t; return LIGHT.RED;
     }
-    if (t < a2) return [LIGHT.RED, a2 - t];
-    if (t < b0) return [LIGHT.GREEN, b0 - t];
-    if (t < b1) return [LIGHT.AMBER, b1 - t];
-    return [LIGHT.RED, cycle - t + a0 + AMBER + ALL_RED];
+    if (t < a2) { this.lightLeft = a2 - t; return LIGHT.RED; }
+    if (t < b0) { this.lightLeft = b0 - t; return LIGHT.GREEN; }
+    if (t < b1) { this.lightLeft = b1 - t; return LIGHT.AMBER; }
+    this.lightLeft = cycle - t + a0 + AMBER + ALL_RED; return LIGHT.RED;
   }
 
   /**
    * Nearest stop line ahead of a vehicle at (x, z) heading (fx, fz) within `range` metres:
-   * { ap, dist, light, left } or null. `lane` is how far the lane can be from the stop point.
+   * { ap, dist, light, left } or null. Pass `out` to fill (and get back) a reused object
+   * instead of a new one — only when the result is not kept past the current frame.
    */
-  ahead(x, z, fx, fz, range = 45) {
-    let best = null;
-    for (const ap of this.approaches) {
+  ahead(x, z, fx, fz, range = 45, out = null) {
+    let best = null, bestDist = Infinity;
+    const list = this.approaches;
+    for (let i = 0; i < list.length; i++) {
+      const ap = list[i];
       if (ap.fx * fx + ap.fz * fz < 0.8) continue;
       const dx = ap.x - x, dz = ap.z - z;
       const along = dx * ap.fx + dz * ap.fz;
-      if (along < -12 || along > range) continue;
-      const lateral = Math.abs(dx * ap.fz - dz * ap.fx);
-      if (lateral > ap.hw + 1.5) continue;
-      if (!best || along < best.dist) best = { ap, dist: along };
+      if (along < -12 || along > range || along >= bestDist) continue;
+      const lateral = dx * ap.fz - dz * ap.fx;
+      if (lateral > ap.hw + 1.5 || lateral < -ap.hw - 1.5) continue;
+      best = ap; bestDist = along;
     }
-    if (best) [best.light, best.left] = this.stateOf(best.ap.site, best.ap.group);
-    return best;
+    if (!best) return null;
+    const r = out || {};
+    r.ap = best; r.dist = bestDist;
+    r.light = this.lightOf(best.site, best.group);
+    r.left = this.lightLeft;
+    return r;
   }
 
   update(dt, tiles, traffic, focus, night = 0) {
@@ -191,33 +212,50 @@ export class Signals {
     // Rebuild after the traffic graph changed — but not in the same frame as the traffic
     // rebuild itself, so two big jobs never land on one frame.
     if (this.version !== traffic.graphVersion) { if (this.waited) { this.waited = false; this.rebuild(tiles, traffic); } else this.waited = true; }
-    // Draw poles near the focus (instanced; all lights in view range).
-    let n = 0;
-    const on = [new THREE.Color(5, 0.35, 0.2), new THREE.Color(4.5, 2.2, 0.1), new THREE.Color(0.2, 4, 1.4)];
-    const off = [new THREE.Color(0.08, 0.01, 0.01), new THREE.Color(0.07, 0.04, 0.0), new THREE.Color(0.0, 0.06, 0.03)];
-    const glow = 1 + night * 0.6;
-    for (const ap of this.approaches) {
-      if (n >= this.cap) break;
-      if ((ap.poleX - focus.x) ** 2 + (ap.poleZ - focus.z) ** 2 > 360000) continue;
-      this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, Math.atan2(-ap.fx, -ap.fz));
-      this.m.compose(new THREE.Vector3(ap.poleX, 0.2, ap.poleZ), this.q, new THREE.Vector3(1, 1, 1));
-      this.poles.setMatrixAt(n, this.m);
-      this.digits.setMatrixAt(n, this.m);
-      const [light, left] = this.stateOf(ap.site, ap.group);
-      for (let k = 0; k < 3; k++) {
-        this.lamps[k].setMatrixAt(n, this.m);
-        const lit = (k === 0 && light === LIGHT.RED) || (k === 1 && light === LIGHT.AMBER) || (k === 2 && light === LIGHT.GREEN);
-        this.lamps[k].setColorAt(n, lit ? this.c.copy(on[k]).multiplyScalar(glow) : off[k]);
+    // Draw poles near the focus (instanced; all lights in view range). The poles stand still:
+    // their matrices are written only when the focus has moved 20 m or the junctions changed;
+    // each frame only the lamp colours and countdowns, and only uploaded when one changed.
+    const at = this.shownAt;
+    const meshes = this.meshes || (this.meshes = [this.poles, this.digits, ...this.lamps]);
+    if ((focus.x - at.x) ** 2 + (focus.z - at.z) ** 2 > 400 || at.v !== this.version) {
+      at.x = focus.x; at.z = focus.z; at.v = this.version;
+      const shown = this.shown;
+      shown.length = 0;
+      for (const ap of this.approaches) {
+        if (shown.length >= this.cap) break;
+        if ((ap.poleX - focus.x) ** 2 + (ap.poleZ - focus.z) ** 2 > 360000) continue;
+        const n = shown.length;
+        shown.push(ap);
+        this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, Math.atan2(-ap.fx, -ap.fz));
+        this.m.compose(this.v.set(ap.poleX, 0.2, ap.poleZ), this.q, this.one);
+        this.poles.setMatrixAt(n, this.m);
+        this.digits.setMatrixAt(n, this.m);
+        for (let k = 0; k < 3; k++) this.lamps[k].setMatrixAt(n, this.m);
       }
-      this.digitAttr.array[n] = Math.min(99, Math.ceil(left));
-      this.digits.setColorAt(n, light === LIGHT.GREEN ? this.c.setRGB(0.1, 2.2 * glow, 0.5) : this.c.setRGB(2.4 * glow, 0.12, 0.04));
-      n++;
+      for (const m of meshes) { m.count = shown.length; m.instanceMatrix.needsUpdate = true; }
+      this.shownState.fill(-1);
     }
-    for (const m of [this.poles, this.digits, ...this.lamps]) {
-      m.count = n;
-      m.instanceMatrix.needsUpdate = true;
-      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    const glow = 1 + night * 0.6, on = this.on, off = this.off, shown = this.shown;
+    const glowChanged = Math.abs(glow - this.glow) > 0.01;
+    if (glowChanged) this.glow = glow;
+    let changed = false;
+    for (let n = 0; n < shown.length; n++) {
+      const ap = shown[n];
+      const light = this.lightOf(ap.site, ap.group), digit = Math.min(99, Math.ceil(this.lightLeft));
+      const st = light * 100 + digit;
+      if (st === this.shownState[n] && !glowChanged) continue;
+      this.shownState[n] = st;
+      changed = true;
+      for (let k = 0; k < 3; k++) {
+        const lit = (k === 0 && light === LIGHT.RED) || (k === 1 && light === LIGHT.AMBER) || (k === 2 && light === LIGHT.GREEN);
+        this.lamps[k].setColorAt(n, lit ? this.c.copy(on[k]).multiplyScalar(this.glow) : off[k]);
+      }
+      this.digitAttr.array[n] = digit;
+      this.digits.setColorAt(n, light === LIGHT.GREEN ? this.c.setRGB(0.1, 2.2 * this.glow, 0.5) : this.c.setRGB(2.4 * this.glow, 0.12, 0.04));
     }
-    this.digitAttr.needsUpdate = true;
+    if (changed) {
+      for (const m of meshes) if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      this.digitAttr.needsUpdate = true;
+    }
   }
 }
