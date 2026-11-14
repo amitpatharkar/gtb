@@ -1,0 +1,1734 @@
+{
+ "version": 1,
+ "profiles": [
+  {
+   "id": "seafront-boulevard",
+   "label": "Seafront boulevard (Marine Drive, Netaji Subhash Chandra Bose Road, Worli/Napean sea faces)",
+   "section": {
+    "lanes": "4+4",
+    "median": "raised island, BLACK-WHITE striped kerb + low white railing",
+    "kerb": "black-white near junctions, plain grey elsewhere",
+    "footpath": "landward 3 m grey pavers; seaward 8–10 m concrete promenade + 0.6 m high, 0.6 m wide sea-wall parapet; tetrapods below",
+    "markings": "white dashed lanes, chevron hatching at slip merges, zebra crossings",
+    "surface": "smooth dark asphalt, freshly resurfaced"
+   },
+   "buildings": {
+    "styles": {
+     "DECO": 8,
+     "PLASTER": 2
+    },
+    "storeys": [
+     5,
+     7
+    ],
+    "colours": [
+     "#EFE9DC",
+     "#F2EAD8",
+     "#E7D7B6",
+     "#D6DDD9",
+     "#E3C6A6"
+    ],
+    "ground_floor": "residential entrances, building-name plaques in Deco lettering, few shops",
+    "details": [
+     "curved corners",
+     "horizontal eyebrow sunshades",
+     "vertical fins",
+     "porthole windows",
+     "stepped parapets",
+     "green construction netting + bamboo/steel scaffolding on ~1 in 10 buildings"
+    ]
+   },
+   "trees": {
+    "species": {
+     "coconut palm": 0.6,
+     "rain tree": 0.3,
+     "almond": 0.1
+    },
+    "per_100m": 3,
+    "game_points": {
+     "PALM": 0.6,
+     "RAIN_TREE": 0.4
+    }
+   },
+   "lights": "tall single-arm galvanised poles in a continuous curve (white LED; the \"Queen's Necklace\" at night)",
+   "clutter": [
+    "overhead sign gantries (blue/green boards)",
+    "joggers",
+    "couples on the sea wall",
+    "peanut and corn sellers",
+    "few parked cars"
+   ],
+   "traffic": "fast cars, kaali-peeli taxis, BEST buses; no autos",
+   "sounds": [
+    "sea-waves",
+    "traffic-fast",
+    "wind"
+   ],
+   "assets": [
+    "hdri-industrial-sunset-puresky",
+    "tex-ph-concrete-pavement",
+    "tex-ph-asphalt-02",
+    "tree-sketchfab-young-palm",
+    "sound-fs-648860",
+    "game:TETRAPOD",
+    "game:LIGHT"
+   ],
+   "streets": 3
+  },
+  {
+   "id": "deco-avenue",
+   "label": "Art Deco avenue with planted median (Churchgate, Veer Nariman Road, Maharshi Karve Road south)",
+   "section": {
+    "lanes": "2+2",
+    "median": "2 m planted median, dense hedge, BLACK-WHITE striped kerb blocks (~0.6 m each)",
+    "kerb": "black-white",
+    "footpath": "3 m grey pavers, café awnings",
+    "markings": "white dashed lanes",
+    "surface": "smooth asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "DECO": 6,
+     "PLASTER": 2,
+     "STONE": 2
+    },
+    "storeys": [
+     4,
+     7
+    ],
+    "colours": [
+     "#EDE3CD",
+     "#D9C6A0",
+     "#F3EFE6",
+     "#E3C6A6",
+     "#7FA39A"
+    ],
+    "ground_floor": "restaurants, cafés with striped awnings, banks, bookshops; English signs dominate",
+    "details": [
+     "Deco reliefs",
+     "corner towers",
+     "red Agra sandstone base on some (Eros-like)",
+     "revolving-restaurant tower at Marine Drive end"
+    ]
+   },
+   "trees": {
+    "species": {
+     "rain tree": 0.7,
+     "gulmohar": 0.2,
+     "palm": 0.1
+    },
+    "per_100m": 4,
+    "game_points": {
+     "RAIN_TREE": 0.7,
+     "GULMOHAR": 0.2,
+     "PALM": 0.1
+    }
+   },
+   "lights": "grey decorative twin-globe lamp posts on the median",
+   "clutter": [
+    "parked two-wheelers",
+    "overhead cable bundles",
+    "blue no-parking discs on poles",
+    "construction sites behind BLUE corrugated metal hoardings or GREEN mesh netting (about 1 per 300 m)",
+    "grey electric feeder pillars / utility boxes",
+    "kaali-peelis parked both kerbs",
+    "shoe-shine boys",
+    "newspaper stalls"
+   ],
+   "traffic": "taxis, cars, BEST buses",
+   "sounds": [
+    "traffic-city",
+    "cafe-chatter",
+    "crows"
+   ],
+   "assets": [
+    "tex-ph-beige-wall-001",
+    "tex-ph-patterned-concrete-pavers",
+    "font-bebasneue",
+    "game:RAIN_TREE"
+   ],
+   "streets": 28
+  },
+  {
+   "id": "heritage-boulevard",
+   "label": "Heritage boulevard beside the maidans (Madame Cama Road, Mahatma Gandhi Road, Karmaveer Bhaurao Patil Road)",
+   "section": {
+    "lanes": "3+3",
+    "median": "raised median, BLACK-WHITE striped kerb, low hedge/shrubs or grass verge",
+    "kerb": "black-yellow on footpath edge, black-white on median",
+    "footpath": "3–4 m clean grey pavers; iron railings of institutions",
+    "markings": "white dashed lanes, zebra crossings",
+    "surface": "smooth asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "STONE": 5,
+     "BASALT": 3,
+     "PLASTER": 2
+    },
+    "storeys": [
+     3,
+     5
+    ],
+    "colours": [
+     "#CDB58A",
+     "#5A5650",
+     "#D7C29A",
+     "#E1D5BF"
+    ],
+    "ground_floor": "arcaded ground floors, institutions behind railings; few shops",
+    "details": [
+     "pointed Gothic arches",
+     "buff Kurla stone with dark basalt bands",
+     "turrets, gables, clock towers",
+     "set back 10–20 m behind iron railings and lawns"
+    ]
+   },
+   "trees": {
+    "species": {
+     "rain tree": 0.6,
+     "royal palm": 0.2,
+     "gulmohar": 0.2
+    },
+    "per_100m": 4,
+    "game_points": {
+     "RAIN_TREE": 0.6,
+     "PALM": 0.2,
+     "GULMOHAR": 0.2
+    }
+   },
+   "lights": "tall grey double-arm decorative posts with three globe lanterns on the median",
+   "clutter": [
+    "long kaali-peeli taxi stands at the kerb",
+    "BEST bus shelters",
+    "tourists",
+    "police barricades near the court and Mantralaya (yellow steel frames with blue boards)"
+   ],
+   "traffic": "taxis, official white sedans, BEST buses",
+   "sounds": [
+    "traffic-city",
+    "crows"
+   ],
+   "assets": [
+    "tex-ph-sandstone-blocks-08",
+    "tex-acg-bricks096",
+    "tex-ph-concrete-pavement",
+    "game:BUS_STOP",
+    "game:RAIN_TREE"
+   ],
+   "streets": 21
+  },
+  {
+   "id": "fort-arcade-commercial",
+   "label": "Fort commercial street with stone arcade (Dr Dadabhai Naoroji Road, Hornby Road, Fort Street)",
+   "section": {
+    "lanes": "2+2",
+    "median": "raised stone-clad planter median with royal palms and shrubs, plain grey kerb",
+    "kerb": "plain grey; black-yellow at junctions",
+    "footpath": "continuous covered stone arcade (Gothic arches) + 2 m pavers outside",
+    "markings": "faded white lanes",
+    "surface": "asphalt with patches"
+   },
+   "buildings": {
+    "styles": {
+     "STONE": 5,
+     "BASALT": 2,
+     "PLASTER": 3
+    },
+    "storeys": [
+     4,
+     6
+    ],
+    "colours": [
+     "#CFB487",
+     "#D9C9A3",
+     "#E9E2D2",
+     "#B05A3B"
+    ],
+    "ground_floor": "shops inside the arcade (clothes, opticians, shoes, books); hawker stalls along the arcade pillars",
+    "details": [
+     "continuous Gothic arcade",
+     "buff stone with darker bands",
+     "carved balconies above",
+     "ornate cornices",
+     "clock gables"
+    ]
+   },
+   "trees": {
+    "species": {
+     "royal palm": 0.5,
+     "rain tree": 0.5
+    },
+    "per_100m": 3,
+    "game_points": {
+     "PALM": 0.5,
+     "RAIN_TREE": 0.5
+    }
+   },
+   "lights": "heritage black cast-iron lamp posts",
+   "clutter": [
+    "kaali-peelis parked along the arcade kerb",
+    "book and bag hawkers",
+    "dense pedestrian crowds",
+    "subway entrances near CST"
+   ],
+   "traffic": "taxis, BEST buses, handcarts",
+   "sounds": [
+    "crowd-murmur",
+    "horns",
+    "station-announcements near CST"
+   ],
+   "assets": [
+    "tex-ph-sandstone-blocks-08",
+    "tex-acg-bricks096",
+    "prop-kebab-cart",
+    "game:STALL"
+   ],
+   "streets": 16
+  },
+  {
+   "id": "fort-narrow-commercial",
+   "label": "Narrow Fort business street (Sir Pherozeshah Mehta Road, Bombay Samachar Marg, Mint Road, Perin Nariman Street)",
+   "section": {
+    "lanes": "1+1 or one-way",
+    "median": "none",
+    "kerb": "plain grey, broken in places",
+    "footpath": "1.5–2 m pavers, often blocked by parked bikes",
+    "markings": "faded/none",
+    "surface": "worn asphalt with patches"
+   },
+   "buildings": {
+    "styles": {
+     "STONE": 4,
+     "PLASTER": 3,
+     "WEATHERED": 3
+    },
+    "storeys": [
+     4,
+     6
+    ],
+    "colours": [
+     "#CDB58A",
+     "#DCC9A6",
+     "#E7E0D0",
+     "#BFB09A"
+    ],
+    "ground_floor": "banks and offices with full-width RED or BLUE fascia boards, printers, stationers, Irani cafés; projecting blade signs",
+    "details": [
+     "Edwardian stone fronts",
+     "timber windows",
+     "iron balconies",
+     "dense signage"
+    ]
+   },
+   "trees": {
+    "species": {
+     "rain tree": 0.6,
+     "peepal (growing out of walls)": 0.4
+    },
+    "per_100m": 1.5,
+    "game_points": {
+     "RAIN_TREE": 0.6,
+     "PEEPAL": 0.4
+    }
+   },
+   "lights": "wall-mounted lamps and older single-arm poles",
+   "clutter": [
+    "parked two-wheelers",
+    "overhead cable bundles",
+    "blue no-parking discs on poles",
+    "construction sites behind BLUE corrugated metal hoardings or GREEN mesh netting (about 1 per 300 m)",
+    "grey electric feeder pillars / utility boxes",
+    "cars parked tight both sides",
+    "delivery cyclists with cartons",
+    "tempo trucks unloading",
+    "hawker under blue tarp umbrella"
+   ],
+   "traffic": "taxis, tempos, delivery bikes, handcarts",
+   "sounds": [
+    "horns",
+    "crowd-murmur"
+   ],
+   "assets": [
+    "tex-ph-painted-metal-shutter",
+    "tex-texturecan-plastic-0019",
+    "font-rozhaone",
+    "font-mukta",
+    "game:STALL"
+   ],
+   "streets": 61
+  },
+  {
+   "id": "ballard-office",
+   "label": "Ballard Estate office street (Walchand Hirachand Road, Nicol Road, Shoorji Vallabhdas Marg)",
+   "section": {
+    "lanes": "2+2 wide, no median",
+    "median": "none",
+    "kerb": "stone kerb painted black-yellow at corners",
+    "footpath": "3 m pavers",
+    "markings": "minimal",
+    "surface": "asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "STONE": 7,
+     "PLASTER": 3
+    },
+    "storeys": [
+     4,
+     5
+    ],
+    "colours": [
+     "#CBB99A",
+     "#BCA98A",
+     "#E1D5BF",
+     "#8A8277"
+    ],
+    "ground_floor": "shipping offices, big timber doors, a few eateries",
+    "details": [
+     "uniform Edwardian neoclassical stone blocks, same cornice height",
+     "some single-storey dark basalt rubble buildings with tiled roofs"
+    ]
+   },
+   "trees": {
+    "species": {
+     "rain tree": 0.8,
+     "almond": 0.2
+    },
+    "per_100m": 4,
+    "game_points": {
+     "RAIN_TREE": 1.0
+    }
+   },
+   "lights": "single-arm poles",
+   "clutter": [
+    "cars parked angled",
+    "office staff",
+    "port trucks nearby"
+   ],
+   "traffic": "cars, trucks to the port",
+   "sounds": [
+    "port-horns",
+    "crows"
+   ],
+   "assets": [
+    "tex-ph-sandstone-blocks-08",
+    "tex-acg-bricks089",
+    "game:RAIN_TREE"
+   ],
+   "streets": 11
+  },
+  {
+   "id": "colaba-causeway",
+   "label": "Colaba Causeway (Shahid Bhagat Singh Marg, Colaba)",
+   "section": {
+    "lanes": "2+2",
+    "median": "~2 m planted median (hedges), BLACK-WHITE striped kerb; heritage triple-lantern black lamp posts every ~30 m",
+    "kerb": "black-white",
+    "footpath": "covered arcade on the east side + 3 m grey pavers",
+    "markings": "white dashed lanes",
+    "surface": "smooth asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "PLASTER": 5,
+     "DECO": 3,
+     "WEATHERED": 2
+    },
+    "storeys": [
+     4,
+     6
+    ],
+    "colours": [
+     "#EDE6D6",
+     "#E8DCC0",
+     "#D9C9A3",
+     "#F1EDE4"
+    ],
+    "ground_floor": "arcade with shops (clothes, cafés, trinkets) and pavement stalls (bags, shoes, sunglasses) under the arcade",
+    "details": [
+     "colonnaded verandah",
+     "Art Deco corner towers on the west side",
+     "shop signs under arches"
+    ]
+   },
+   "trees": {
+    "species": {
+     "rain tree": 0.8,
+     "gulmohar": 0.2
+    },
+    "per_100m": 3,
+    "game_points": {
+     "RAIN_TREE": 0.8,
+     "GULMOHAR": 0.2
+    }
+   },
+   "lights": "black cast-iron triple-lantern heritage posts on the median",
+   "clutter": [
+    "BEST bus shelters (grey steel + ad panels)",
+    "kaali-peelis parked angled at kerb",
+    "tourists",
+    "stalls under arcade"
+   ],
+   "traffic": "taxis, BEST buses, cars; no autos",
+   "sounds": [
+    "crowd-murmur",
+    "vendor-calls",
+    "horns"
+   ],
+   "assets": [
+    "tex-ph-beige-wall-001",
+    "tex-ph-patterned-concrete-pavers",
+    "game:BUS_STOP",
+    "game:LIGHT"
+   ],
+   "streets": 3
+  },
+  {
+   "id": "colaba-leafy-residential",
+   "label": "Leafy Colaba/Fort residential lane (Henry Road, B K Boman Behram Marg, Cooperage lanes)",
+   "section": {
+    "lanes": "1+1",
+    "median": "none",
+    "kerb": "plain grey",
+    "footpath": "1.5–2.5 m red+grey pavers",
+    "markings": "none",
+    "surface": "asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "PLASTER": 5,
+     "WEATHERED": 2,
+     "STONE": 2,
+     "DECO": 1
+    },
+    "storeys": [
+     3,
+     6
+    ],
+    "colours": [
+     "#A84A3C",
+     "#EFE6D2",
+     "#E8C9A8",
+     "#F1EDE4",
+     "#C9B99A"
+    ],
+    "ground_floor": "compound walls (white or red/white pillars with ball finials) with steel gates, security cabins; no shops",
+    "details": [
+     "timber balconies with fretwork brackets",
+     "louvred wooden shutters",
+     "sloping tin sunshades",
+     "grilled balconies on 1950s blocks",
+     "Victorian Gothic villas with turrets"
+    ]
+   },
+   "trees": {
+    "species": {
+     "rain tree": 0.9,
+     "almond": 0.1
+    },
+    "per_100m": 6,
+    "note": "canopy meets over the road — tree tunnel",
+    "game_points": {
+     "RAIN_TREE": 1.0
+    }
+   },
+   "lights": "black heritage lamp posts",
+   "clutter": [
+    "cars parked nose-to-tail on both kerbs",
+    "drivers waiting",
+    "potted plants at gates"
+   ],
+   "traffic": "private cars, taxis",
+   "sounds": [
+    "birds",
+    "crows",
+    "distant traffic"
+   ],
+   "assets": [
+    "tex-ph-red-plaster-weathered",
+    "tex-ph-painted-plaster-wall",
+    "tex-ph-brown-planks-03",
+    "tex-ph-rusty-metal-grid",
+    "game:RAIN_TREE"
+   ],
+   "streets": 47
+  },
+  {
+   "id": "fishing-village",
+   "label": "Koliwada / fishing village lanes (Colaba Machimar Nagar, Cuffe Parade, Worli Koliwada)",
+   "section": {
+    "lanes": "single lane / open concrete yards",
+    "median": "none",
+    "kerb": "none",
+    "footpath": "none — concrete or broken paving",
+    "markings": "none",
+    "surface": "concrete patches, dirt"
+   },
+   "buildings": {
+    "styles": {
+     "WEATHERED": 6,
+     "SHED": 3,
+     "PLASTER": 1
+    },
+    "storeys": [
+     1,
+     3
+    ],
+    "colours": [
+     "#3E7CB1",
+     "#F2D16B",
+     "#E58F7C",
+     "#6CA0C8",
+     "#9C4A2A"
+    ],
+    "ground_floor": "homes opening onto the lane, tiny shops",
+    "details": [
+     "rusty corrugated roofs held down with tyres/stones",
+     "blue tarpaulins",
+     "bright painted walls",
+     "boats and nets"
+    ]
+   },
+   "trees": {
+    "species": {
+     "coconut palm": 0.5,
+     "rain tree": 0.3,
+     "bougainvillea": 0.2
+    },
+    "per_100m": 2,
+    "game_points": {
+     "PALM": 0.5,
+     "RAIN_TREE": 0.3,
+     "GULMOHAR": 0.2
+    }
+   },
+   "lights": "few; bulbs on walls",
+   "clutter": [
+    "rows of scooters",
+    "political flex banners on poles",
+    "fish-drying racks",
+    "boats"
+   ],
+   "traffic": "two-wheelers, people",
+   "sounds": [
+    "gulls",
+    "crows",
+    "boat-engines"
+   ],
+   "assets": [
+    "tex-ph-rusty-corrugated-iron",
+    "tex-texturecan-plastic-0019",
+    "tex-ph-red-brick",
+    "game:GARBAGE"
+   ],
+   "streets": 0
+  },
+  {
+   "id": "nariman-office",
+   "label": "Nariman Point / Cuffe Parade office & tower district",
+   "section": {
+    "lanes": "2+2",
+    "median": "sometimes planted",
+    "kerb": "black-yellow",
+    "footpath": "3 m pavers",
+    "markings": "white lanes",
+    "surface": "smooth asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "CONCRETE": 4,
+     "GLASS": 4,
+     "PLASTER": 2
+    },
+    "storeys": [
+     12,
+     30
+    ],
+    "colours": [
+     "#D6D2C8",
+     "#B9B4A9",
+     "#8C8F91",
+     "#3E7F7A",
+     "#C7A66E"
+    ],
+    "ground_floor": "lobbies, banks, compound gardens behind hedges",
+    "details": [
+     "1970s slab towers",
+     "tinted glass",
+     "company signs on roofs",
+     "teal/green painted towers in Cuffe Parade"
+    ]
+   },
+   "trees": {
+    "species": {
+     "rain tree": 0.4,
+     "coconut palm": 0.3,
+     "areca palm": 0.3
+    },
+    "per_100m": 3,
+    "game_points": {
+     "RAIN_TREE": 0.4,
+     "PALM": 0.6
+    }
+   },
+   "lights": "single-arm LED",
+   "clutter": [
+    "cars and taxis double-parked in the middle aisle",
+    "drivers waiting",
+    "lunch stalls",
+    "security cabins"
+   ],
+   "traffic": "office cars, taxis, BEST buses",
+   "sounds": [
+    "traffic-city",
+    "sea"
+   ],
+   "assets": [
+    "tex-ph-concrete-tile-facade",
+    "tex-ph-concrete-wall-008",
+    "game:LIGHT"
+   ],
+   "streets": 26
+  },
+  {
+   "id": "port-dock-road",
+   "label": "Port / dock road (P D'Mello Road, Dockyard Road, Reay Road)",
+   "section": {
+    "lanes": "2+2",
+    "median": "grey concrete jersey barriers, chipped and stained",
+    "kerb": "plain",
+    "footpath": "narrow, broken",
+    "markings": "faded",
+    "surface": "dusty grey asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "SHED": 4,
+     "WEATHERED": 4,
+     "STONE": 2
+    },
+    "storeys": [
+     1,
+     4
+    ],
+    "colours": [
+     "#E9E6DE",
+     "#B8B2A6",
+     "#8C4A2F",
+     "#C9C1B1"
+    ],
+    "ground_floor": "port sheds, transport offices, small shops with faded boards",
+    "details": [
+     "long white-washed dock walls with Y-posts and concertina wire",
+     "rusty sheet sheds",
+     "cranes on the skyline"
+    ]
+   },
+   "trees": {
+    "species": {
+     "coconut palm": 0.4,
+     "rain tree": 0.6
+    },
+    "per_100m": 1.5,
+    "game_points": {
+     "PALM": 0.4,
+     "RAIN_TREE": 0.6
+    }
+   },
+   "lights": "single-arm poles",
+   "clutter": [
+    "white box tempos and trucks parked on the kerb",
+    "container trailers",
+    "delivery tricycles"
+   ],
+   "traffic": "trucks, tempos, taxis",
+   "sounds": [
+    "port-horns",
+    "trucks-reversing",
+    "crows"
+   ],
+   "assets": [
+    "vehicle-truck-ashok",
+    "tex-ph-rusty-corrugated-iron",
+    "tex-ph-dirty-concrete"
+   ],
+   "streets": 23
+  },
+  {
+   "id": "bazaar-wholesale",
+   "label": "Wholesale bazaar street (Crawford Market, Carnac Road, Masjid Bunder, Abdul Rehman Street, Mohammed Ali Road)",
+   "section": {
+    "lanes": "2+2 jammed or 1+1",
+    "median": "orange/white plastic barricades or none",
+    "kerb": "broken",
+    "footpath": "fully covered by goods and stalls",
+    "markings": "none visible",
+    "surface": "patched asphalt, potholes"
+   },
+   "buildings": {
+    "styles": {
+     "WEATHERED": 6,
+     "PLASTER": 3,
+     "STONE": 1
+    },
+    "storeys": [
+     3,
+     6
+    ],
+    "colours": [
+     "#C5A97C",
+     "#D9CBB0",
+     "#B2552F",
+     "#E5DDCB",
+     "#5F7F6B"
+    ],
+    "ground_floor": "open wholesale shops 2–4 m wide, goods stacked outside, flex boards in red/yellow/blue, Urdu + Devanagari + English signs",
+    "details": [
+     "timber balconies",
+     "rusty grilles",
+     "tarps stretched over the street",
+     "dense cable bundles"
+    ]
+   },
+   "trees": {
+    "species": {
+     "peepal": 0.6,
+     "rain tree": 0.4
+    },
+    "per_100m": 0.5,
+    "game_points": {
+     "PEEPAL": 0.6,
+     "RAIN_TREE": 0.4
+    }
+   },
+   "lights": "single-arm poles plastered with political banners",
+   "clutter": [
+    "handcarts",
+    "porters (hamaal) with loads on heads",
+    "tempos unloading",
+    "gunny sacks",
+    "crates",
+    "political flex hoardings with (fictional) leaders"
+   ],
+   "traffic": "handcarts, tempos, taxis, two-wheelers",
+   "sounds": [
+    "bargaining",
+    "vendor-calls",
+    "horns",
+    "azaan near mosques"
+   ],
+   "assets": [
+    "prop-ph-plastic-crate-02",
+    "prop-ph-wooden-crate-02",
+    "vehicle-hand-cart",
+    "sound-fs-552692",
+    "font-notonastaliqurdu",
+    "game:STALL"
+   ],
+   "streets": 61
+  },
+  {
+   "id": "kalbadevi-gully",
+   "label": "Kalbadevi / Bhuleshwar trading gully (Kalbadevi Road, Zaveri Bazaar, Bhuleshwar lanes)",
+   "section": {
+    "lanes": "1 shared lane",
+    "median": "none",
+    "kerb": "none or very low",
+    "footpath": "none — shared with people, carts, bikes",
+    "markings": "none",
+    "surface": "concrete patches + asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "WEATHERED": 7,
+     "PLASTER": 3
+    },
+    "storeys": [
+     3,
+     5
+    ],
+    "colours": [
+     "#E3C58E",
+     "#B9D2C7",
+     "#E7A57D",
+     "#F2ECD9",
+     "#8E5A3C"
+    ],
+    "ground_floor": "tiny shops (2–3 m) with gaddi seating, Gujarati + Devanagari + English hand-painted boards; temples every few metres",
+    "details": [
+     "carved teak balconies and brackets",
+     "Mangalore-tile roofs patched with tin and tarps",
+     "flower garlands"
+    ]
+   },
+   "trees": {
+    "species": {
+     "peepal (at temples)": 1.0
+    },
+    "per_100m": 0.3,
+    "game_points": {
+     "PEEPAL": 1.0
+    }
+   },
+   "lights": "wall bulbs, few poles",
+   "clutter": [
+    "cows",
+    "handcarts",
+    "scooters",
+    "sacks",
+    "flower sellers"
+   ],
+   "traffic": "scooters, handcarts, porters",
+   "sounds": [
+    "temple-bells",
+    "bargaining",
+    "bicycle-bells"
+   ],
+   "assets": [
+    "font-baloobhai2",
+    "font-yatraone",
+    "tex-ph-clay-roof-tiles-02",
+    "sound-fs-876449"
+   ],
+   "streets": 47
+  },
+  {
+   "id": "girgaon-chawl-street",
+   "label": "Girgaon / Charni Road chawl street (Jagannath Shankarsheth Marg, Vithalbhai Patel Road, Raja Ram Mohan Roy Road)",
+   "section": {
+    "lanes": "1+1 or 2+2",
+    "median": "none or low divider",
+    "kerb": "black-yellow on main roads",
+    "footpath": "1.5–2 m pavers",
+    "markings": "faded",
+    "surface": "asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "WEATHERED": 6,
+     "PLASTER": 4
+    },
+    "storeys": [
+     3,
+     5
+    ],
+    "colours": [
+     "#F2D16B",
+     "#8FBF9F",
+     "#6CA0C8",
+     "#E58F7C",
+     "#F5F1E6"
+    ],
+    "ground_floor": "khanavals (eateries), sweet shops, medical stores, Marathi boards; shutters",
+    "details": [
+     "chawl galleries with railings",
+     "clothes drying",
+     "timber stairs",
+     "Ganesh pandal frames in season"
+    ]
+   },
+   "trees": {
+    "species": {
+     "peepal": 0.4,
+     "rain tree": 0.4,
+     "coconut palm": 0.2
+    },
+    "per_100m": 1.5,
+    "game_points": {
+     "PEEPAL": 0.4,
+     "RAIN_TREE": 0.4,
+     "PALM": 0.2
+    }
+   },
+   "lights": "single-arm poles with banners",
+   "clutter": [
+    "parked two-wheelers",
+    "overhead cable bundles",
+    "blue no-parking discs on poles",
+    "construction sites behind BLUE corrugated metal hoardings or GREEN mesh netting (about 1 per 300 m)",
+    "grey electric feeder pillars / utility boxes",
+    "kids playing cricket",
+    "scooters",
+    "festival banners"
+   ],
+   "traffic": "taxis, scooters, BEST buses on main roads",
+   "sounds": [
+    "temple-bells",
+    "pressure-cooker whistles",
+    "crows"
+   ],
+   "assets": [
+    "tex-ph-blue-plaster-weathered",
+    "tex-ph-peeling-painted-wall",
+    "font-kalam",
+    "font-mukta"
+   ],
+   "streets": 84
+  },
+  {
+   "id": "wadi-lane",
+   "label": "Wadi lane with old cottages (Khotachiwadi, Girgaon wadis, Mazgaon village lanes)",
+   "section": {
+    "lanes": "footpath-width lane (3–4 m)",
+    "median": "none",
+    "kerb": "none",
+    "footpath": "none",
+    "markings": "none",
+    "surface": "concrete / stone"
+   },
+   "buildings": {
+    "styles": {
+     "WEATHERED": 5,
+     "PLASTER": 5
+    },
+    "storeys": [
+     1,
+     3
+    ],
+    "colours": [
+     "#F2D16B",
+     "#8FBF9F",
+     "#6CA0C8",
+     "#E58F7C",
+     "#FFFFFF"
+    ],
+    "ground_floor": "houses with verandahs, wooden staircases outside",
+    "details": [
+     "Portuguese-style cottages",
+     "tiled roofs",
+     "carved balconies",
+     "crosses and shrines"
+    ]
+   },
+   "trees": {
+    "species": {
+     "coconut palm": 0.4,
+     "mango": 0.3,
+     "banana": 0.3
+    },
+    "per_100m": 3,
+    "game_points": {
+     "PALM": 0.7,
+     "RAIN_TREE": 0.3
+    }
+   },
+   "lights": "wall lamps",
+   "clutter": [
+    "potted plants",
+    "bicycles",
+    "cats"
+   ],
+   "traffic": "pedestrians only",
+   "sounds": [
+    "birds",
+    "church-bells"
+   ],
+   "assets": [
+    "tex-ph-clay-roof-tiles-02",
+    "tex-ph-painted-plaster-wall",
+    "tree-ph-planter-pot-clay"
+   ],
+   "streets": 15
+  },
+  {
+   "id": "arterial-mixed",
+   "label": "Busy mixed arterial (Grant Road, Sardar Vallabhbhai Patel Road, Maulana Shaukat Ali Marg, J Boman Behram Marg)",
+   "section": {
+    "lanes": "2+2",
+    "median": "low concrete divider with steel railing or orange plastic barricades",
+    "kerb": "black-yellow",
+    "footpath": "2 m pavers with breaks, junction boxes",
+    "markings": "faded lanes, zebras",
+    "surface": "patched asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "WEATHERED": 5,
+     "PLASTER": 3,
+     "CONCRETE": 2
+    },
+    "storeys": [
+     3,
+     7
+    ],
+    "colours": [
+     "#D8CBB3",
+     "#BFB09A",
+     "#9AA6A0",
+     "#D9A066",
+     "#EDE7DA"
+    ],
+    "ground_floor": "continuous shops: salons, mobile shops, chemists, restaurants; white/red box signs and flex boards",
+    "details": [
+     "old timber 3-storey buildings next to 1970s concrete",
+     "political banners on poles",
+     "AC units everywhere"
+    ]
+   },
+   "trees": {
+    "species": {
+     "rain tree": 0.6,
+     "peepal": 0.4
+    },
+    "per_100m": 1.5,
+    "game_points": {
+     "RAIN_TREE": 0.6,
+     "PEEPAL": 0.4
+    }
+   },
+   "lights": "single-arm poles with flex banners",
+   "clutter": [
+    "parked two-wheelers",
+    "overhead cable bundles",
+    "blue no-parking discs on poles",
+    "construction sites behind BLUE corrugated metal hoardings or GREEN mesh netting (about 1 per 300 m)",
+    "grey electric feeder pillars / utility boxes",
+    "blue direction boards",
+    "no-entry signs",
+    "utility boxes",
+    "hawkers"
+   ],
+   "traffic": "taxis, BEST buses, tempos, two-wheelers",
+   "sounds": [
+    "traffic-city",
+    "horns"
+   ],
+   "assets": [
+    "tex-ph-concrete-wall-008",
+    "tex-ph-painted-metal-shutter",
+    "prop-ph-utility-box-01",
+    "game:SIGNAL"
+   ],
+   "streets": 43
+  },
+  {
+   "id": "electronics-strip",
+   "label": "Lamington Road / Grant Road electronics strip (Dr Dadasaheb Bhadkamkar Marg)",
+   "section": {
+    "lanes": "2+2",
+    "median": "divider with railing",
+    "kerb": "black-yellow",
+    "footpath": "2 m, stacked with cartons",
+    "markings": "faded",
+    "surface": "asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "CONCRETE": 4,
+     "WEATHERED": 4,
+     "PLASTER": 2
+    },
+    "storeys": [
+     4,
+     8
+    ],
+    "colours": [
+     "#D8CBB3",
+     "#CFC9BC",
+     "#9AA6A0",
+     "#EDE7DA"
+    ],
+    "ground_floor": "electronics and computer shops with big illuminated box signs stacked up two floors",
+    "details": [
+     "sign overload",
+     "glass shopfronts",
+     "metal awnings"
+    ]
+   },
+   "trees": {
+    "species": {
+     "rain tree": 1.0
+    },
+    "per_100m": 1,
+    "game_points": {
+     "RAIN_TREE": 1.0
+    }
+   },
+   "lights": "single-arm poles",
+   "clutter": [
+    "cartons",
+    "delivery boys",
+    "handcarts"
+   ],
+   "traffic": "taxis, delivery bikes",
+   "sounds": [
+    "horns",
+    "shop-music"
+   ],
+   "assets": [
+    "font-bebasneue",
+    "font-teko"
+   ],
+   "streets": 1
+  },
+  {
+   "id": "muslim-quarter-bazaar",
+   "label": "Bhendi Bazaar / Mohammed Ali Road / Nagpada quarter",
+   "section": {
+    "lanes": "2+2 under the J J flyover or 1+1 lanes",
+    "median": "flyover piers",
+    "kerb": "broken black-yellow",
+    "footpath": "stalls and parked bikes",
+    "markings": "none",
+    "surface": "patched asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "WEATHERED": 6,
+     "PLASTER": 3,
+     "CONCRETE": 1
+    },
+    "storeys": [
+     3,
+     6
+    ],
+    "colours": [
+     "#E8DCC0",
+     "#B9D2C7",
+     "#4F8F6A",
+     "#D9C7A1",
+     "#F3EFE6"
+    ],
+    "ground_floor": "food stalls, bakeries, attar and cloth shops, Urdu + Devanagari + English boards, mosques with green and white facades",
+    "details": [
+     "carved timber balconies",
+     "green-painted mosque fronts and minarets",
+     "new cluster-redevelopment towers (SBUT) behind"
+    ]
+   },
+   "trees": {
+    "species": {
+     "peepal": 0.6,
+     "rain tree": 0.4
+    },
+    "per_100m": 0.5,
+    "game_points": {
+     "PEEPAL": 0.6,
+     "RAIN_TREE": 0.4
+    }
+   },
+   "lights": "single-arm poles; strings of lights in Ramzan",
+   "clutter": [
+    "handcarts",
+    "food stalls",
+    "two-wheelers",
+    "crowds"
+   ],
+   "traffic": "taxis, handcarts, two-wheelers",
+   "sounds": [
+    "azaan",
+    "crowd-murmur",
+    "vendor-calls"
+   ],
+   "assets": [
+    "font-notonastaliqurdu",
+    "tex-ph-peeling-painted-wall",
+    "game:STALL"
+   ],
+   "streets": 85
+  },
+  {
+   "id": "malabar-hill-ridge",
+   "label": "Malabar Hill / Altamount / Napean Sea ridge road",
+   "section": {
+    "lanes": "1+1 or 2+2 winding",
+    "median": "none",
+    "kerb": "black-yellow on bends",
+    "footpath": "2 m pavers, retaining walls",
+    "markings": "white edge lines",
+    "surface": "smooth asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "CONCRETE": 4,
+     "PLASTER": 5,
+     "GLASS": 1
+    },
+    "storeys": [
+     10,
+     40
+    ],
+    "colours": [
+     "#F3F0E8",
+     "#DDD5C6",
+     "#B9B3A6",
+     "#E8E0CF"
+    ],
+    "ground_floor": "gated compounds with security cabins, high walls with creepers",
+    "details": [
+     "luxury towers",
+     "old bungalows",
+     "stone retaining walls on slopes"
+    ]
+   },
+   "trees": {
+    "species": {
+     "rain tree": 0.4,
+     "banyan": 0.2,
+     "gulmohar": 0.2,
+     "peepal": 0.2
+    },
+    "per_100m": 5,
+    "game_points": {
+     "RAIN_TREE": 0.6,
+     "GULMOHAR": 0.2,
+     "PEEPAL": 0.2
+    }
+   },
+   "lights": "single-arm poles",
+   "clutter": [
+    "drivers waiting by luxury cars",
+    "security guards"
+   ],
+   "traffic": "private cars, taxis",
+   "sounds": [
+    "birds",
+    "quiet traffic"
+   ],
+   "assets": [
+    "tree-sketchfab-banyan-001",
+    "tree-sketchfab-gulmohar",
+    "tex-ph-concrete-wall-008"
+   ],
+   "streets": 50
+  },
+  {
+   "id": "banganga-ghat",
+   "label": "Banganga tank lanes (Walkeshwar)",
+   "section": {
+    "lanes": "narrow lanes and steps",
+    "median": "none",
+    "kerb": "none",
+    "footpath": "stone steps",
+    "markings": "none",
+    "surface": "stone, concrete"
+   },
+   "buildings": {
+    "styles": {
+     "WEATHERED": 5,
+     "PLASTER": 4,
+     "STONE": 1
+    },
+    "storeys": [
+     2,
+     4
+    ],
+    "colours": [
+     "#E8B04B",
+     "#D96B4A",
+     "#FFFFFF",
+     "#4A4743"
+    ],
+    "ground_floor": "houses, small temples, dharamshalas",
+    "details": [
+     "dark basalt ghats",
+     "temple shikharas",
+     "lamp pillars"
+    ]
+   },
+   "trees": {
+    "species": {
+     "peepal": 0.6,
+     "banyan": 0.4
+    },
+    "per_100m": 2,
+    "game_points": {
+     "PEEPAL": 0.6,
+     "RAIN_TREE": 0.4
+    }
+   },
+   "lights": "few",
+   "clutter": [
+    "ducks",
+    "pilgrims",
+    "washing"
+   ],
+   "traffic": "pedestrians",
+   "sounds": [
+    "temple-bells",
+    "birds"
+   ],
+   "assets": [
+    "tex-acg-bricks096",
+    "sound-fs-876449"
+   ],
+   "streets": 1
+  },
+  {
+   "id": "byculla-mill-market",
+   "label": "Byculla / Agripada / Mumbai Central mixed area",
+   "section": {
+    "lanes": "2+2",
+    "median": "low divider",
+    "kerb": "black-yellow on main roads",
+    "footpath": "2 m pavers",
+    "markings": "faded",
+    "surface": "asphalt"
+   },
+   "buildings": {
+    "styles": {
+     "WEATHERED": 5,
+     "PLASTER": 3,
+     "CONCRETE": 2
+    },
+    "storeys": [
+     3,
+     8
+    ],
+    "colours": [
+     "#D9C7A1",
+     "#C08A5C",
+     "#E5DDCB",
+     "#8E9C8D",
+     "#B34B3B"
+    ],
+    "ground_floor": "furniture shops, garages, eateries; goods on the footpath",
+    "details": [
+     "chawls with tiled roofs",
+     "mill-land towers",
+     "Victorian churches",
+     "J J / Byculla flyover piers"
+    ]
+   },
+   "trees": {
+    "species": {
+     "rain tree": 0.6,
+     "banyan": 0.2,
+     "peepal": 0.2
+    },
+    "per_100m": 2,
+    "game_points": {
+     "RAIN_TREE": 0.8,
+     "PEEPAL": 0.2
+    }
+   },
+   "lights": "single-arm poles",
+   "clutter": [
+    "parked two-wheelers",
+    "overhead cable bundles",
+    "blue no-parking discs on poles",
+    "construction sites behind BLUE corrugated metal hoardings or GREEN mesh netting (about 1 per 300 m)",
+    "grey electric feeder pillars / utility boxes",
+    "handcarts",
+    "tempos",
+    "furniture on footpaths"
+   ],
+   "traffic": "taxis, trucks, BEST buses",
+   "sounds": [
+    "traffic-city",
+    "trains",
+    "azaan"
+   ],
+   "assets": [
+    "tex-ph-red-brick",
+    "tex-ph-clay-roof-tiles-02",
+    "vehicle-hand-cart"
+   ],
+   "streets": 49
+  },
+  {
+   "id": "flyover-corridor",
+   "label": "Flyover deck (J J Flyover, Kemps Corner, Marine Lines, Lalbaug, Frere)",
+   "section": {
+    "lanes": "1+1 or 2+2 on deck",
+    "median": "concrete New-Jersey barrier",
+    "kerb": "none",
+    "footpath": "none",
+    "markings": "white lanes",
+    "surface": "concrete deck or asphalt"
+   },
+   "buildings": {
+    "styles": {},
+    "storeys": [],
+    "colours": [],
+    "ground_floor": "—",
+    "details": [
+     "round concrete piers (~1.5 m)",
+     "new Coastal Road / connector decks on T-shaped piers with ORANGE pier caps (#E07A2E)",
+     "galvanised W-beam crash barriers or blue-painted concrete parapets",
+     "blue- or grey-painted steel crash rails",
+     "sound-barrier panels on some",
+     "dark under-deck spaces with parking, markets"
+    ]
+   },
+   "trees": {
+    "species": {},
+    "per_100m": 0,
+    "game_points": {}
+   },
+   "lights": "single-arm poles on the parapet",
+   "clutter": [
+    "overhead sign boards"
+   ],
+   "traffic": "fast cars, buses",
+   "sounds": [
+    "traffic-fast"
+   ],
+   "assets": [
+    "tex-ph-concrete-wall-008"
+   ],
+   "streets": 15
+  },
+  {
+   "id": "quiet-residential",
+   "label": "Generic quiet residential street (fallback for unsurveyed residential lanes)",
+   "section": {
+    "lanes": "1+1",
+    "median": "none",
+    "kerb": "plain grey",
+    "footpath": "1.5 m pavers",
+    "markings": "none",
+    "surface": "asphalt"
+   },
+   "buildings": {
+    "styles": "use district weights",
+    "storeys": "use district guesses",
+    "colours": "use district colours",
+    "ground_floor": "compound walls, gates, a few shops at corners",
+    "details": [
+     "grilled balconies",
+     "AC units",
+     "water tanks"
+    ]
+   },
+   "trees": {
+    "species": {
+     "rain tree": 0.6,
+     "gulmohar": 0.2,
+     "almond": 0.2
+    },
+    "per_100m": 3,
+    "game_points": {
+     "RAIN_TREE": 0.8,
+     "GULMOHAR": 0.2
+    }
+   },
+   "lights": "single-arm poles",
+   "clutter": [
+    "parked two-wheelers",
+    "overhead cable bundles",
+    "blue no-parking discs on poles",
+    "construction sites behind BLUE corrugated metal hoardings or GREEN mesh netting (about 1 per 300 m)",
+    "grey electric feeder pillars / utility boxes",
+    "parked cars both sides"
+   ],
+   "traffic": "cars, taxis",
+   "sounds": [
+    "birds",
+    "distant traffic"
+   ],
+   "assets": [
+    "tex-ph-painted-plaster-wall",
+    "game:RAIN_TREE"
+   ],
+   "streets": 94
+  },
+  {
+   "id": "service-lane",
+   "label": "Service lane / compound road / back lane (fallback for class service)",
+   "section": {
+    "lanes": "single",
+    "median": "none",
+    "kerb": "none",
+    "footpath": "none",
+    "markings": "none",
+    "surface": "concrete or rough asphalt"
+   },
+   "buildings": {
+    "styles": "use district weights",
+    "storeys": "use district guesses",
+    "colours": "use district colours",
+    "ground_floor": "back walls, pipes, garbage points",
+    "details": [
+     "drainpipes",
+     "AC outdoor units",
+     "grilles"
+    ]
+   },
+   "trees": {
+    "species": {},
+    "per_100m": 0.5,
+    "game_points": {}
+   },
+   "lights": "wall bulbs",
+   "clutter": [
+    "garbage bags",
+    "parked bikes",
+    "stray dogs"
+   ],
+   "traffic": "bikes",
+   "sounds": [
+    "crows"
+   ],
+   "assets": [
+    "prop-ph-trashbag",
+    "game:GARBAGE"
+   ],
+   "streets": 53
+  },
+  {
+   "id": "pedestrian-promenade",
+   "label": "Footpath, steps, promenade or pedestrian street (class footway/pedestrian)",
+   "section": {
+    "lanes": "none",
+    "median": "none",
+    "kerb": "none",
+    "footpath": "whole width",
+    "markings": "none",
+    "surface": "pavers or concrete"
+   },
+   "buildings": {
+    "styles": "use district weights",
+    "storeys": "use district guesses",
+    "colours": "use district colours",
+    "ground_floor": "—",
+    "details": []
+   },
+   "trees": {
+    "species": {
+     "rain tree": 0.5,
+     "coconut palm": 0.5
+    },
+    "per_100m": 2,
+    "game_points": {
+     "RAIN_TREE": 0.5,
+     "PALM": 0.5
+    }
+   },
+   "lights": "bollard or post lamps",
+   "clutter": [
+    "benches",
+    "vendors"
+   ],
+   "traffic": "pedestrians",
+   "sounds": [
+    "crowd-murmur"
+   ],
+   "assets": [
+    "prop-ph-painted-wooden-bench"
+   ],
+   "streets": 21
+  }
+ ],
+ "new_districts": [
+  {
+   "name": "Bhendi Bazaar",
+   "bbox": [
+    18.955,
+    72.828,
+    18.966,
+    72.836
+   ],
+   "styles": {
+    "WEATHERED": 6,
+    "PLASTER": 3,
+    "CONCRETE": 1
+   },
+   "colours": [
+    "#E8DCC0",
+    "#B9D2C7",
+    "#4F8F6A",
+    "#D9C7A1",
+    "#F3EFE6"
+   ],
+   "trees": 0.15,
+   "shops": 0.95,
+   "profile": "muslim-quarter-bazaar"
+  },
+  {
+   "name": "Nagpada",
+   "bbox": [
+    18.962,
+    72.822,
+    18.972,
+    72.832
+   ],
+   "styles": {
+    "WEATHERED": 5,
+    "PLASTER": 3,
+    "CONCRETE": 2
+   },
+   "colours": [
+    "#E3D6BA",
+    "#D9C7A1",
+    "#9AA6A0",
+    "#E8DCC0",
+    "#4F8F6A"
+   ],
+   "trees": 0.25,
+   "shops": 0.85,
+   "profile": "muslim-quarter-bazaar"
+  },
+  {
+   "name": "Dongri Mandvi",
+   "bbox": [
+    18.95,
+    72.834,
+    18.962,
+    72.845
+   ],
+   "styles": {
+    "WEATHERED": 6,
+    "PLASTER": 3,
+    "SHED": 1
+   },
+   "colours": [
+    "#C5A97C",
+    "#D9CBB0",
+    "#E5DDCB",
+    "#B2552F",
+    "#8E9C8D"
+   ],
+   "trees": 0.15,
+   "shops": 0.9,
+   "profile": "bazaar-wholesale"
+  },
+  {
+   "name": "Mumbai Central",
+   "bbox": [
+    18.968,
+    72.812,
+    18.98,
+    72.828
+   ],
+   "styles": {
+    "CONCRETE": 4,
+    "PLASTER": 3,
+    "WEATHERED": 3
+   },
+   "colours": [
+    "#D6CFC0",
+    "#E3D6BA",
+    "#CFC9BC",
+    "#EDE7DA"
+   ],
+   "trees": 0.35,
+   "shops": 0.7,
+   "profile": "byculla-mill-market"
+  },
+  {
+   "name": "Reay Road",
+   "bbox": [
+    18.975,
+    72.84,
+    18.995,
+    72.86
+   ],
+   "styles": {
+    "SHED": 4,
+    "WEATHERED": 3,
+    "PLASTER": 3
+   },
+   "colours": [
+    "#E9E6DE",
+    "#B8B2A6",
+    "#C9C1B1",
+    "#8C4A2F"
+   ],
+   "trees": 0.3,
+   "shops": 0.4,
+   "profile": "port-dock-road"
+  }
+ ]
+}
