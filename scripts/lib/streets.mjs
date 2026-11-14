@@ -167,9 +167,12 @@ export function streetFurniture(parts, opts) {
         const x = q.x - q.dz * side * (hw + fw * 0.6), z = q.z + q.dx * side * (hw + fw * 0.6);
         const d = opts.district(x, z);
         const r = opts.rand(p.id * 7 + Math.round(t * 10) + side);
-        const palm = marineDrive || d.palms;
-        if (r > (palm ? 0.75 : d.trees) || opts.blocked(x, z)) continue;
-        trees.push({ kind: palm && opts.rand(r * 1e6) < 0.85 ? POINT.PALM : treeKind(opts.rand(x * 13.1 + z)), x, z, angle: r * Math.PI * 2, size: 0.8 + opts.rand(x + z * 7.7) * 0.5 });
+        const palm = marineDrive || d.palms, prof = p.profile;
+        // Street library: trees per 100 m per side (candidate slots are ~17.5 m apart) and species mix.
+        const share = prof?.treesPer100 != null ? Math.min(1, prof.treesPer100 / 5.7) : palm ? 0.75 : d.trees;
+        if (r > share || opts.blocked(x, z)) continue;
+        const kind = prof?.treeMix ? pickPoint(prof.treeMix, opts.rand(x * 13.1 + z)) : palm && opts.rand(r * 1e6) < 0.85 ? POINT.PALM : treeKind(opts.rand(x * 13.1 + z));
+        trees.push({ kind, x, z, angle: r * Math.PI * 2, size: 0.8 + opts.rand(x + z * 7.7) * 0.5 });
       }
       // Thelas and stalls on busy footpaths (fruit, vada pav, chai), facing the road.
       const d0 = opts.district(p.pts[0][0], p.pts[0][1]);
@@ -195,14 +198,29 @@ export function streetFurniture(parts, opts) {
           }
         }
       }
-      // Lights: main roads, ~32 m apart, on the kerb facing the road.
-      if (cls <= ROAD.TERTIARY && (side === 1 || width >= 11)) {
-        for (let t = 10 + (p.id % 11); t < L - 5; t += 32) {
+      // Lights: main roads ~32 m apart on the kerb facing the road; profiled side streets get
+      // them too, one side. The street library says which post: heritage triple lanterns,
+      // globes, tall seafront poles or the plain single arm; boulevards with a planted median
+      // carry them in the median (the right-hand side of a one-way carriageway: India keeps left).
+      const prof = p.profile, lamp = prof ? prof.lamp : 0;
+      const lampy = cls <= ROAD.TERTIARY || (prof && cls <= ROAD.RESIDENTIAL);
+      if (lampy && (side === 1 || width >= 11) && (cls <= ROAD.TERTIARY || side === 1)) {
+        const oneway = p.info.flags & 2;
+        const inMedian = side === 1 && oneway && prof && (prof.medianLamp || prof.planted);
+        const gap = lamp === opts.LAMP?.HERITAGE || lamp === opts.LAMP?.GLOBE ? 26 : cls <= ROAD.TERTIARY ? 32 : 38;
+        for (let t = 10 + (p.id % 11); t < L - 5; t += gap) {
           if (!clear(t, 2)) continue;
           const q = pointAt(p.pts, s, t);
-          const x = q.x - q.dz * side * (hw + 0.5), z = q.z + q.dx * side * (hw + 0.5);
+          let o = hw + 0.5;
+          if (inMedian) {
+            // Only where another carriageway really lies beyond the median.
+            const far = hw + 4.5;
+            if (!opts.onRoad?.(q.x - q.dz * far, q.z + q.dx * far, 0)) continue;
+            o = hw + 1.1;
+          }
+          const x = q.x - q.dz * side * o, z = q.z + q.dx * side * o;
           if (opts.blocked(x, z)) continue;
-          lights.push({ kind: POINT.LIGHT, x, z, angle: Math.atan2(q.dz * side, -q.dx * side), size: 1 });
+          lights.push({ kind: POINT.LIGHT, x, z, angle: Math.atan2(q.dz * side, -q.dx * side), size: opts.lampSize ? opts.lampSize(lamp) : 1 });
         }
       }
     }
@@ -225,6 +243,14 @@ export function streetFurniture(parts, opts) {
     }
   }
   return { trees, lights, clutter };
+}
+
+/** Weighted pick of a tree point kind from { PALM: 0.6, RAIN_TREE: 0.4 } (street profiles). */
+function pickPoint(mix, r) {
+  const entries = Object.entries(mix).filter(([k]) => k in POINT);
+  let sum = entries.reduce((a, [, w]) => a + w, 0) * r;
+  for (const [k, w] of entries) { sum -= w; if (sum <= 0) return POINT[k]; }
+  return POINT[entries[entries.length - 1]?.[0]] ?? POINT.RAIN_TREE;
 }
 
 export function treeKind(r) {

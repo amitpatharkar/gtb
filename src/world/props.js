@@ -168,6 +168,23 @@ export function createProps() {
     box(0.35, 0.12, 0.7, 0, 8.85, 1.9, 0x5c6266),
   ]);
   const lampG = new THREE.BoxGeometry(0.3, 0.04, 0.6).translate(0, 8.78, 1.9);
+  // Lamp-post types from the street library (point size encodes the type, see scripts/lib/streetLibrary.mjs):
+  // 1 tall galvanised seafront pole, 2 black heritage post with three lanterns, 3 grey post with globes.
+  const tallG = merge([
+    cyl(0.1, 0.16, 11, 0, 5.5, 0, 0xa7adb2), cyl(0.05, 0.05, 2.5, 0, 0, 0, 0xa7adb2).rotateX(Math.PI / 2).translate(0, 10.9, 1.25),
+    box(0.32, 0.1, 0.8, 0, 10.85, 2.4, 0x6a7076),
+  ]);
+  const tallLampG = new THREE.BoxGeometry(0.28, 0.04, 0.7).translate(0, 10.79, 2.4);
+  const heritageG = (() => {
+    const iron = 0x161616, parts = [cyl(0.24, 0.3, 0.7, 0, 0.35, 0, iron, 8), cyl(0.09, 0.13, 3.4, 0, 2.3, 0, iron, 8), cyl(0.16, 0.16, 0.12, 0, 1.0, 0, iron, 8)];
+    parts.push(box(1.3, 0.07, 0.07, 0, 4.0, 0, iron), box(0.07, 0.07, 1.3, 0, 4.0, 0, iron)); // cross arms
+    for (const [x, z] of [[0.62, 0], [-0.31, 0.54], [-0.31, -0.54]]) parts.push(box(0.26, 0.06, 0.26, x, 4.48, z, iron), cyl(0.04, 0.16, 0.14, x, 4.56, z, iron, 6));
+    parts.push(cyl(0.03, 0.08, 0.5, 0, 4.4, 0, iron, 6));
+    return merge(parts);
+  })();
+  const heritageLampG = merge([[0.62, 0], [-0.31, 0.54], [-0.31, -0.54]].map(([x, z]) => box(0.2, 0.36, 0.2, x, 4.25, z, 0xffffff)));
+  const globeG = merge([cyl(0.2, 0.26, 0.5, 0, 0.25, 0, 0x6c7277, 8), cyl(0.07, 0.1, 4.6, 0, 2.6, 0, 0x6c7277, 8), box(1.4, 0.06, 0.06, 0, 4.7, 0, 0x6c7277)]);
+  const globeLampG = merge([-0.7, 0, 0.7].map((x) => new THREE.SphereGeometry(0.22, 10, 8).translate(x, x === 0 ? 5.15 : 4.92, 0)));
   const stopG = merge([
     cyl(0.06, 0.06, 2.6, -1.8, 1.3, 0, 0x6b7075), cyl(0.06, 0.06, 2.6, 1.8, 1.3, 0, 0x6b7075),
     box(4.4, 0.1, 1.9, 0, 2.65, 0.2, 0xc0392b), box(4.2, 1.2, 0.05, 0, 1.6, -0.6, 0x1e4fa3),
@@ -219,6 +236,13 @@ export function createProps() {
   const decal = (size) => new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2);
 
   const lampMat = new THREE.MeshStandardMaterial({ color: 0xfff1d0, emissive: 0xffd9a0, emissiveIntensity: 0, roughness: 0.4 });
+  // Lamp variants by type (index = type): [geometry, material, castShadow] lists like KINDS.
+  const LIGHTS = [
+    [[lightG, metal, true], [lampG, lampMat, false]],
+    [[tallG, metal, true], [tallLampG, lampMat, false]],
+    [[heritageG, metal, true], [heritageLampG, lampMat, false]],
+    [[globeG, metal, true], [globeLampG, lampMat, false]],
+  ];
 
   // kind → list of [geometry, material, castShadow, y]
   const KINDS = {
@@ -236,7 +260,7 @@ export function createProps() {
     [POINT.FUEL]: [[fuelG, vc, true]],
     [POINT.TETRAPOD]: [[tetraG, concrete, true]],
   };
-  return { KINDS, lampMat };
+  return { KINDS, LIGHTS, lampMat };
 }
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
@@ -250,10 +274,14 @@ export function buildProps(props, data, treeShare = 1) {
     const arr = data[kind];
     const tree = kind <= POINT.PALM;
     const n = arr.length / 5;
-    const keep = [];
-    for (let i = 0; i < n; i++) if (!tree || (i * 0.618) % 1 < treeShare) keep.push(i);
+    const all = [];
+    for (let i = 0; i < n; i++) if (!tree || (i * 0.618) % 1 < treeShare) all.push(i);
+    if (!all.length) continue;
+    // Street lamps come in types (point size 1, 1.25, 1.5, 1.75): one set of meshes per type.
+    const groups = kind == POINT.LIGHT && props.LIGHTS ? props.LIGHTS.map((ps, v) => [ps, all.filter((i) => Math.round((arr[i * 5 + 4] - 1) * 4) === v)]) : [[parts, all]];
+    for (const [gparts, keep] of groups) {
     if (!keep.length) continue;
-    for (const [pi, [geo, mat, shadow, y]] of parts.entries()) {
+    for (const [pi, [geo, mat, shadow, y]] of gparts.entries()) {
       const mesh = new THREE.InstancedMesh(geo, mat, keep.length);
       mesh.userData.part = pi; // 0 = trunk for trees (heroTrees.js swaps palms near the player)
       keep.forEach((i, k) => {
@@ -271,6 +299,7 @@ export function buildProps(props, data, treeShare = 1) {
       mesh.userData.kind = Number(kind);
       mesh.userData.index = keep; // instance k is point keep[k] (for shaking trees, bending poles)
       group.add(mesh);
+    }
     }
   }
   return group;

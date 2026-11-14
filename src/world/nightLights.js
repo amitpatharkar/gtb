@@ -88,7 +88,7 @@ export function updateNightLights(night, focus, lamps = [], cars = [], tier = nu
   lamps.sort((a, b) => (a[0] - focus.x) ** 2 + (a[1] - focus.z) ** 2 - ((b[0] - focus.x) ** 2 + (b[1] - focus.z) ** 2));
   const L = nightUniforms.uLamps.value;
   let n = 0;
-  for (const [x, z, k] of lamps) { if (n >= maxL) break; L[n++].set(x, 8.4, z, k); }
+  for (const [x, z, k, y = 8.4] of lamps) { if (n >= maxL) break; L[n++].set(x, y, z, k); }
   nightUniforms.uLampN.value = n;
   const C = nightUniforms.uCars.value;
   let m = 0;

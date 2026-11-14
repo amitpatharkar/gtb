@@ -234,6 +234,21 @@ export function buildBuildings(t, ox, oz, toWorld) {
       }
     }
 
+    // Under repair (street library: about one building in ten on many streets): green safety
+    // netting hung 0.4 m off the walls over the upper floors, past the parapet.
+    if (bd.flags & BUILDING_FLAG.NETTING) {
+      const net = get('netting'), n = outer.length / 2, yb = Math.max(y0 + 3, h * (0.25 + rand(bi, 31) * 0.3)), yt = top + 0.7;
+      let u = 0;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n, ax = outer[i * 2], az = outer[i * 2 + 1], bx = outer[j * 2], bz = outer[j * 2 + 1];
+        const len = Math.hypot(bx - ax, bz - az);
+        if (len < 0.3) continue;
+        const nx = (bz - az) / len, nz = -(bx - ax) / len, o = 0.4;
+        wall(net, ax + nx * o - (bx - ax) / len * o, az + nz * o - (bz - az) / len * o, bx + nx * o + (bx - ax) / len * o, bz + nz * o + (bz - az) / len * o, yb, yt, nx, nz, u, u + len + 2 * o, yb, yt, WHITE);
+        u += len;
+      }
+    }
+
     // Black plastic water tanks (Sintex-style) on almost every roof.
     if (area > 50) {
       const count = 1 + Math.floor(rand(bi, 11) * Math.min(5, area / 120));

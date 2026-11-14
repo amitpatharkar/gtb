@@ -59,7 +59,8 @@ export class Combat {
 
   free(p, mode, t = 0) {
     p.free = true;
-    p.combat = { mode, t, cool: 0.6 + Math.random() * 0.5, shots: 0, life: 0 };
+    // Fleeing needs time to run (a zero timer made a fleeing person vanish on the next frame).
+    p.combat = { mode, t: mode === 'flee' && t <= 0 ? 6 : t, cool: 0.6 + Math.random() * 0.5, shots: 0, life: 0 };
     p.hp ??= 1;
   }
 
@@ -195,7 +196,9 @@ export class Combat {
   updateFighter(p, dt) {
     const c = p.combat, w = this.walker;
     c.life += dt; c.t -= dt; c.cool -= dt;
-    const dx = w.pos.x - p.x, dz = w.pos.z - p.z, d = Math.hypot(dx, dz);
+    // Distances from where the player really is: the walker on foot, the vehicle while driving.
+    const me = !this.onFoot && this.car ? this.car.pos : w.pos;
+    const dx = me.x - p.x, dz = me.z - p.z, d = Math.hypot(dx, dz);
     p.y = this.tiles.groundHeight(p.x, p.z);
     p.phase = (p.phase || 0) + dt * 6;
     const far = d > 16 || !this.onFoot;
@@ -209,7 +212,8 @@ export class Combat {
         const l = d || 1;
         this.moveTo(p, p.x - (dx / l) * 5, p.z - (dz / l) * 5, 3.2, dt);
         p.phase += dt * 8;
-        if (c.t <= 0 || d > 40) p.dead = true;
+        // Run off out of sight before going: gone once well away (or after a long while).
+        if (d > 40 || (c.t <= 0 && d > 28) || c.t < -15) p.dead = true;
         break;
       }
       case 'fight':
@@ -317,6 +321,7 @@ export class Combat {
    * Children are always pulled clear.
    */
   carVsPeople(car) {
+    this.car = car;
     const sp = Math.hypot(car.vx || 0, car.vz || 0);
     if (sp < 1.2) return;
     const fx = Math.sin(car.heading), fz = Math.cos(car.heading), HL = car.halfLength, R = car.radius + 0.28;

@@ -1,6 +1,6 @@
 // Ground and streets for one tile: asphalt, raised footpaths and plots, parks, kerbs with
 // black-yellow paint, lane markings, sea walls with a Marine Drive-style parapet, rails.
-import { AREA, ROAD } from '../tileFormat.js';
+import { AREA, ROAD, ROAD_FLAG } from '../tileFormat.js';
 import { Y } from '../levels.js';
 import { MeshBuilder, wall, flatPolygon, ribbon, linear, WHITE, inPolygon } from './builder.js';
 
@@ -39,21 +39,44 @@ export function buildGround(t, ox, oz) {
   let seed = (t.tx * 73856093) ^ (t.tz * 19349663);
   const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
   const roads = t.areas.filter((a) => a.kind === AREA.ROAD);
-  // Main-road centre lines (flag 4) for deciding which kerbs get the black-and-yellow paint.
-  const mainSegs = [];
+  // Kerb paint by street. The street library (ROAD_FLAG.KERB_*) says black-white, black-yellow or
+  // plain; streets it does not cover follow the old rule (main roads black-yellow, the rest plain).
+  // Medians — kerbs with another carriageway just beyond — are black-white (survey: almost everywhere).
+  const segs = [];
   for (const r of t.roads || []) {
-    if (!(r.flags & 4)) continue;
-    for (let i = 0; i + 3 < r.line.length; i += 2) mainSegs.push(r.line[i], r.line[i + 1], r.line[i + 2], r.line[i + 3], r.width / 2 + 3);
+    if (r.cls > ROAD.TRACK || r.cls === ROAD.FOOTWAY || r.cls === ROAD.PEDESTRIAN) continue;
+    const f = r.flags || 0;
+    const mode = f & ROAD_FLAG.KERB_BW ? 2 : f & ROAD_FLAG.KERB_BY ? 1 : f & ROAD_FLAG.KERB_PLAIN ? 0 : r.cls <= ROAD.TERTIARY ? 1 : 0;
+    const median = f & ROAD_FLAG.MEDIAN_BW || r.cls <= ROAD.TERTIARY ? 2 : 0;
+    for (let i = 0; i + 3 < r.line.length; i += 2) segs.push(r.line[i], r.line[i + 1], r.line[i + 2], r.line[i + 3], r.width / 2, mode, median);
   }
-  const nearMain = (x, z) => {
-    for (let i = 0; i < mainSegs.length; i += 5) {
-      const ax = mainSegs[i], az = mainSegs[i + 1], dx = mainSegs[i + 2] - ax, dz = mainSegs[i + 3] - az;
+  const S = 7, CELL = 20, grid = new Map();
+  for (let i = 0; i < segs.length; i += S) {
+    const r = segs[i + 4] + 10;
+    for (let cx = Math.floor((Math.min(segs[i], segs[i + 2]) - r) / CELL); cx <= Math.floor((Math.max(segs[i], segs[i + 2]) + r) / CELL); cx++)
+      for (let cz = Math.floor((Math.min(segs[i + 1], segs[i + 3]) - r) / CELL); cz <= Math.floor((Math.max(segs[i + 1], segs[i + 3]) + r) / CELL); cz++) {
+        const k = cx * 4096 + cz; let a = grid.get(k); if (!a) grid.set(k, (a = [])); a.push(i);
+      }
+  }
+  /** Nearest road to (x, z) within its half-width + slack: [mode, median, distance beyond its edge] or null. */
+  const nearestRoad = (x, z, slack) => {
+    let best = null, bd = Infinity;
+    for (const i of grid.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL)) || []) {
+      const ax = segs[i], az = segs[i + 1], dx = segs[i + 2] - ax, dz = segs[i + 3] - az;
       const l2 = dx * dx + dz * dz || 1;
       const k = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
-      const ex = ax + k * dx - x, ez = az + k * dz - z, lim = mainSegs[i + 4];
-      if (ex * ex + ez * ez < lim * lim) return true;
+      const d = Math.hypot(ax + k * dx - x, az + k * dz - z) - segs[i + 4];
+      if (d < slack && d < bd) { bd = d; best = i; }
     }
-    return false;
+    return best === null ? null : [segs[best + 5], segs[best + 6], bd];
+  };
+  /** Kerb paint for an edge at (x, z) whose outer side (away from the road) is (ox, oz): 0 plain, 1 black-yellow, 2 black-white. */
+  const kerbMode = (x, z, ox, oz) => {
+    const own = nearestRoad(x, z, 3);
+    if (!own) return 0;
+    // Another carriageway 1.5–7 m beyond the kerb: this is a median.
+    for (const d of [2.5, 4.5, 6.5]) { const o = nearestRoad(x + ox * d, z + oz * d, 0.3); if (o && o[2] < 0.3 && own[1]) return 2; }
+    return own[0];
   };
 
   for (const a of t.areas) {
@@ -64,7 +87,7 @@ export function buildGround(t, ox, oz) {
       // Kerbs: every asphalt edge that is not a tile seam gets a vertical face up to
       // footpath level. Along main roads (and their medians) they are painted black and
       // yellow with a strip on top; lanes and side streets get plain concrete kerbs.
-      const painted = get('kerb'), plain = get('kerbPlain');
+      const painted = get('kerb'), bw = get('kerbBW'), plain = get('kerbPlain');
       for (const ring of a.rings) {
         const n = ring.length / 2;
         let u = 0;
@@ -75,8 +98,8 @@ export function buildGround(t, ox, oz) {
           if (len < 0.02) continue;
           if (onClip(ax, az) & onClip(bx, bz)) { u += len; continue; }
           const ix = -(bz - az) / len, iz = (bx - ax) / len; // into the road (outer rings are positive area)
-          const main = nearMain((ax + bx) / 2, (az + bz) / 2);
-          const kerb = main ? painted : plain;
+          const mode = kerbMode((ax + bx) / 2, (az + bz) / 2, -ix, -iz), main = mode > 0;
+          const kerb = mode === 2 ? bw : mode === 1 ? painted : plain;
           wall(kerb, ax, az, bx, bz, Y.ROAD - 0.05, Y.KERB, ix, iz, u, u + len, 0, 0.25, WHITE);
           if (!main) { u += len; continue; }
           // Painted top strip, on the footpath side.

@@ -132,13 +132,19 @@ await check('steal', async () => {
   const { page, errors } = await game('hour=11');
   const info = await page.evaluate(() => {
     const g = window.__gtb;
+    g.story.s.done = g.story.missions.map((m) => m.id); // no mission marker by the spawn (driving into it starts a cutscene)
     for (let i = 0; i < 200; i++) g.step(0.05);
     g.toggleFoot(); for (let i = 0; i < 3; i++) g.step(0.05);
-    const car = g.traffic.cars.filter((c) => !g.traffic.types[c.type].rider).sort((a, b) => Math.hypot(a.x - g.walker.pos.x, a.z - g.walker.pos.z) - Math.hypot(b.x - g.walker.pos.x, b.z - g.walker.pos.z))[0];
+    const car = g.traffic.cars.filter((c) => !g.traffic.types[c.type].rider && Math.hypot(c.x - g.player.pos.x, c.z - g.player.pos.z) > 12).sort((a, b) => Math.hypot(a.x - g.walker.pos.x, a.z - g.walker.pos.z) - Math.hypot(b.x - g.walker.pos.x, b.z - g.walker.pos.z))[0];
     if (!car) return { car: null };
     const T = g.traffic.types[car.type], h = car.heading;
     g.walker.pos.set(car.x - Math.cos(h) * (T.wid / 2 + 3.5), 0.2, car.z + Math.sin(h) * (T.wid / 2 + 3.5));
+    // Only this car within reach (kerbside parking would otherwise be nearer), and a clear road ahead.
+    const clear = (list) => { for (let i = list.length - 1; i >= 0; i--) if (list[i] !== car && Math.hypot(list[i].x - car.x, list[i].z - car.z) < 40) list.splice(i, 1); };
+    clear(g.traffic.parked); clear(g.traffic.cars); clear(g.traffic.left);
     g.step(0.05);
+    const target = g.garage.nearest(g.walker.pos.x, g.walker.pos.z, 7);
+    if (!target || target.v !== car) return { car: car.type, wrongTarget: target ? target.kind + ':' + target.v.type : 'none' };
     const peds = g.street.peds.length;
     g.toggleFoot();
     let n = 0; for (; n < 120 && g.onFoot; n++) g.step(0.05);
@@ -149,6 +155,7 @@ await check('steal', async () => {
   await page.close();
   const fails = noErrors(errors);
   if (!info.car) fails.push('no car to steal');
+  else if (info.wrongTarget) fails.push('F would take ' + info.wrongTarget);
   else { if (!info.took) fails.push('did not get into the car'); if (info.driverOut < 1) fails.push('driver was not pulled out'); if (info.speed < 3) fails.push('stolen car did not drive'); }
   return { info, fails };
 });

@@ -98,7 +98,8 @@ function buildTile(t) {
     for (let i = 0; i + 1 < n; i++) {
       const x0 = r.line[i * 2] + ox, z0 = r.line[i * 2 + 1] + oz, x1 = r.line[i * 2 + 2] + ox, z1 = r.line[i * 2 + 3] + oz;
       // Flags: 1 = vehicle road, 2 = one-way (in drawing direction), 4 = main road.
-      segs.push(x0, z0, x1, z1, hw, (vehicle ? 1 : 0) | (r.flags & ROAD_FLAG.ONEWAY ? 2 : 0) | (r.cls <= ROAD.TERTIARY ? 4 : 0) | (r.cls > ROAD.SECONDARY && r.cls <= ROAD.LINK ? 8 : 0) | (r.cls > ROAD.LINK ? 16 : 0));
+      // Flags bits 8–15: the street-library profile (index into index.json `profiles`, 0 = none).
+      segs.push(x0, z0, x1, z1, hw, (vehicle ? 1 : 0) | (r.flags & ROAD_FLAG.ONEWAY ? 2 : 0) | (r.cls <= ROAD.TERTIARY ? 4 : 0) | (r.cls > ROAD.SECONDARY && r.cls <= ROAD.LINK ? 8 : 0) | (r.cls > ROAD.LINK ? 16 : 0) | ((r.profile || 0) << 8));
       segName.push(vehicle ? r.name : -1);
       segBox.push(Math.min(x0, x1) - hw, Math.min(z0, z1) - hw, Math.max(x0, x1) + hw, Math.max(z0, z1) + hw);
     }

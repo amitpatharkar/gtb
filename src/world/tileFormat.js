@@ -5,18 +5,19 @@
 // Coordinates are decimetres relative to the tile centre; each ring/line stores
 // its first point relative to (0,0) and every next point as a delta.
 //
-// Layout (version 2):
+// Layout (version 3):
 //   "GTB1" magic, version, tx, tz, tileSize (m), clip rect x0 z0 x1 z1 (dm)
 //   names[]                                   (road names, referenced by index)
 //   buildings[]: height dm, minHeight dm, r g b (sRGB bytes), flags, style, levels,
 //                rings[], then a bitset over the outer ring's edges: 1 = faces a street
 //   areas[]:     kind, rings[]                (first ring outer, others holes)
-//   roads[]:     class, width dm, flags, name index + 1 (0 = none), layer, line
+//   roads[]:     class, width dm, flags, name index + 1 (0 = none), layer, street profile (0 = none,
+//                else 1-based index into index.json `profiles`), line
 //   rails[]:     class, flags, line
 //   markings[]:  width cm, line               (white road paint)
 //   points[]:    kind, x dm, z dm, angle (0–255 = full turn), size (0–255 → 0.5–2.0)
 
-export const TILE_VERSION = 2;
+export const TILE_VERSION = 3;
 export const MAGIC = [0x47, 0x54, 0x42, 0x31]; // "GTB1"
 export const DM = 10; // units per metre
 
@@ -33,10 +34,11 @@ export const ROAD = {
   MOTORWAY: 0, TRUNK: 1, PRIMARY: 2, SECONDARY: 3, TERTIARY: 4, LINK: 5,
   RESIDENTIAL: 6, LIVING: 7, SERVICE: 8, PEDESTRIAN: 9, FOOTWAY: 10, TRACK: 11, PIER: 12,
 };
-export const ROAD_FLAG = { BRIDGE: 1, ONEWAY: 2 };
+// KERB_*: how the kerbs along this road are painted (street library; none set = by road class).
+export const ROAD_FLAG = { BRIDGE: 1, ONEWAY: 2, KERB_BW: 4, KERB_BY: 8, KERB_PLAIN: 16, MEDIAN_BW: 32 };
 export const RAIL = { MAIN: 0, SERVICE: 1 };
 export const RAIL_FLAG = { BRIDGE: 1 };
-export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2, SHOPS: 4, HIDDEN: 8 }; // HIDDEN: collide only (a hand-built landmark stands there)
+export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2, SHOPS: 4, HIDDEN: 8, NETTING: 16 }; // NETTING: under repair (green netting + scaffolding); // HIDDEN: collide only (a hand-built landmark stands there)
 export const POINT = {
   RAIN_TREE: 0, GULMOHAR: 1, PEEPAL: 2, PALM: 3, LIGHT: 4, SIGNAL: 5, BUS_STOP: 6,
   POTHOLE: 7, PUDDLE: 8, GARBAGE: 9, STALL: 10, FUEL: 11, TETRAPOD: 12,
@@ -104,7 +106,7 @@ export function decodeTile(u8) {
   for (let i = r.uvar(); i > 0; i--) tile.areas.push({ kind: r.u8(), rings: r.rings() });
   tile.roads = [];
   for (let i = r.uvar(); i > 0; i--) {
-    tile.roads.push({ cls: r.u8(), width: r.uvar() / DM, flags: r.u8(), name: r.uvar() - 1, layer: r.u8(), line: r.points() });
+    tile.roads.push({ cls: r.u8(), width: r.uvar() / DM, flags: r.u8(), name: r.uvar() - 1, layer: r.u8(), profile: r.u8(), line: r.points() });
   }
   tile.rails = [];
   for (let i = r.uvar(); i > 0; i--) tile.rails.push({ cls: r.u8(), flags: r.u8(), line: r.points() });

@@ -91,16 +91,20 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   fonts (`signs.redraw` in materials.js); the worker adds a board + posts over the longest street-facing wall of
   some buildings (mesh key `hoarding`, max 8 per tile); material is lit at night through `facadeNight`.
 - `src/world/props.js` — procedural instanced props by point kind: rain tree, gulmohar (in bloom), peepal, coconut palm
-  (alpha-tested leaf cards), street light, traffic signal, BEST bus shelter, pothole and puddle decals, garbage pile,
+  (alpha-tested leaf cards), street light (4 types in the point's size: standard, tall, heritage triple lantern, globe —
+  `LAMP` in `scripts/lib/streetLibrary.mjs`), traffic signal, BEST bus shelter, pothole and puddle decals, garbage pile,
   thela with umbrella, petrol pump canopy, sea-wall tetrapods
 - `src/world/tiles.js` — `TileManager`: streams tiles, builds meshes/props, collisions (`hits`), `walkable`,
   `groundHeight` (asphalt 0.02 m, kerb level 0.2 m), `roadAt`, `roadNameAt`, `segment()`; `version` bumps on load/unload
 - `src/world/tileWorker.js` + `src/world/mesh/` — worker: `ground.js` (ground layers, kerbs with paint strip, sea walls,
   parapet, tetrapods, markings, footways, rails), `buildings.js` (per-style walls with facade data, parapets, stair
   rooms, roof types, water tanks), `builder.js` (mesh helpers). Road segments: 6 floats `x0 z0 x1 z1 halfWidth flags`
-  (flags 1 vehicle, 2 one-way, 4 main road). Kerbs are painted black-yellow only near main roads (`kerbPlain` elsewhere).
-- `src/world/tileFormat.js` — binary tile format v2 (buildings with style/levels/street-facing walls, areas incl.
-  PLOT/ROAD/FOOTPATH, roads, rails, markings, points); `src/world/levels.js` — ground heights
+  (flags 1 vehicle, 2 one-way, 4 main road, bits 8–15 street profile). Kerb paint: the street profile's
+  (`ROAD_FLAG.KERB_BW/BY/PLAIN`), else black-yellow near main roads (`kerbPlain` elsewhere); median kerbs (another
+  carriageway within 6.5 m beyond the kerb) black-white (`kerbBW`). Netting buildings get a green mesh wall (`netting`).
+- `src/world/tileFormat.js` — binary tile format v3 (buildings with style/levels/street-facing walls and flags incl.
+  `NETTING`, areas incl. PLOT/ROAD/FOOTPATH, roads with kerb/median flags and a street-profile byte, rails, markings,
+  points); `src/world/levels.js` — ground heights
 - `src/vehicles/taxi.js` + `car.js` — procedural kaali-peeli taxi (Premier Padmini proportions, clear-coat paint) and car
   handling (bicycle steering, two collision circles, kerb bumps, body roll/pitch, fuel ~40 km per tank, condition)
 - `src/sim/clock.js` — 24-hour clock (1 real s = 1 game min, T = +1 h), real sun path for Mumbai in December,
@@ -256,6 +260,15 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   garbage/potholes/puddles (`lib/streets.mjs`), building style + colour by district (`lib/districts.mjs`, from the
   research guide), OSM trees/signals/crossings/bus stops/petrol pumps from node tags. Index has `fuel` positions.
 - `scripts/lib/` — PBF reader (with optional node tags), geometry, Clipper helpers, byte writer
+- `scripts/lib/streetLibrary.mjs` — the owner's South Mumbai street library (`docs/research/street-library/`: README,
+  `streets.json` 847 streets → OSM way ids and zones, `profiles.json` 25 street profiles, `buildings-notable.json`,
+  `survey.json`). `normalise()` turns each profile's prose into numbers (styles, storeys, colours, shop share, netting,
+  tree density + species, lamp type, kerb/median paint, parking pressure, stalls); `forWay(id, lat)` gives a road its
+  profile. The converter dresses each road by it (kerb flags, trees, lamps incl. median lamps on planted boulevards)
+  and each untagged building by the profile of the nearest profiled street within 35 m (storeys, style, colour,
+  shops, netting); `index.json` carries `profiles` (runtime table), used by `traffic.setStreetProfiles()` for kerb
+  parking. Streets outside the library keep the district rules (`lib/districts.mjs`, which also has the library's five
+  new districts: Bhendi Bazaar, Nagpada, Dongri–Mandvi, Mumbai Central, Reay Road).
 - `scripts/preview-tiles.mjs` — debug top-down SVG of all tiles (`npm run tiles:preview`)
 - `public/tiles/`, `public/media/`, `public/basis/` — generated, not committed (`npm run build` makes tiles; deploy copies
   media from the `assets` branch, locally `npm run assets:pull`; Vite plugin copies the Basis transcoder)
@@ -314,9 +327,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   1. **Local trains** (3.4) on the real tracks with stations and rides (in progress on a worktree branch).
   2. **Flyovers and bridges** (3.3): Sea Link, Coastal Road, JJ, Kemps Corner — all roads are flat today.
   3. **Monsoon and festivals** (4.5, 4.6): rain, wet roads, waterlogging; Ganesh visarjan, Navratri, Diwali lanterns.
-  4. **Street realism from the survey** (`docs/research/street-library/`): per-street profiles, black-white median
-     kerbs, planted medians, arcades, construction netting, more street furniture; owner-made models
-     (`docs/art-requests.md`, `public/art/`).
+  4. **Street realism from the survey** (`docs/research/street-library/`; profiles, kerbs, lamps, trees, netting
+     and parking are in): planted medians, Fort arcades, construction hoardings, notable buildings, profile-driven
+     stalls/crowds/sounds; owner-made models (`docs/art-requests.md`, `public/art/`).
   5. **People**: Indian clothes beyond saris, more character models, the far crowd.
   6. **More missions and side jobs** (`docs/research/mumbai-guide-2.md` §3), police chase challenges, races.
 

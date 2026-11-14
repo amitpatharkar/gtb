@@ -20,12 +20,28 @@ const FORWARD = new THREE.Vector3(0, 0, 1);
  * Parked cars take the kerb lane on wide streets (as in traffic.placeParked).
  * Returns { n, w, lo, hi }: lane count, lane width, lowest and highest usable lane.
  */
+/**
+ * Which kerbs of a segment have parked vehicles: wide streets (9 m and more) as before; narrow
+ * one-way lanes too where the street library says parking is heavy (Colaba lanes, Fort).
+ * left/right are relative to the segment's drawing direction. `parking` (0–1) sets how full.
+ */
+let PROFILES = [];
+export function setStreetProfiles(list) { PROFILES = list || []; }
+export const profileOf = (s) => PROFILES[((s[5] >> 8) & 255) - 1] || null;
+function parkSides(seg) {
+  const s = seg.s, hw = s[4], oneway = !!(s[5] & 2), prof = profileOf(s), parking = prof ? prof.parking : 0.5;
+  if (seg.len < 22) return { left: false, right: false, parking };
+  if (hw >= 4.5) return { left: parking > 0.05, right: parking > 0.05 && (oneway || hw >= 6), parking };
+  if (oneway && hw >= 3.4 && parking >= 0.7) return { left: true, right: false, parking };
+  return { left: false, right: false, parking };
+}
+
 function lanesOf(seg, dir) {
   const s = seg.s, hw = s[4], oneway = !!(s[5] & 2);
   const n = oneway ? Math.max(1, Math.min(8, Math.round((hw * 2) / 3.4))) : Math.max(1, Math.min(4, Math.round((hw * 2) / 7)));
   const w = oneway ? (hw * 2) / n : hw / n;
-  const parks = hw >= 4.5 && seg.len >= 22;
-  const parkLeft = parks && (dir > 0 || oneway || hw >= 6), parkRight = parks && oneway;
+  const P = parkSides(seg);
+  const parkLeft = dir > 0 ? P.left : P.right, parkRight = oneway && P.right;
   const lo = parkLeft && n > 1 ? 1 : 0, hi = parkRight && n - 2 >= lo ? n - 2 : n - 1;
   return { n, w, lo, hi, parkLeft: parkLeft && n === 1 };
 }
@@ -436,15 +452,16 @@ export class Traffic {
     const tint = (type, h) => { const t = this.types[type].tints; return new THREE.Color(t[Math.floor(h * t.length) % t.length]); };
     for (const seg of this.segList || []) {
       const s = seg.s, hw = s[4];
-      if (hw < 4.5 || seg.len < 22) continue;
+      if (hw < 3.4 || seg.len < 22) continue;
       const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
       if (Math.hypot(mx - player.pos.x, mz - player.pos.z) > R + seg.len / 2) continue;
       const fx = (s[2] - s[0]) / seg.len, fz = (s[3] - s[1]) / seg.len;
       let seed = (Math.abs(Math.round(s[0] * 7 + s[1] * 13 + s[2] * 3)) % 9973) + 1;
       const segKey = `${Math.round(s[0])},${Math.round(s[1])},${Math.round(s[2])},${Math.round(s[3])}`;
       const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const P = parkSides(seg);
       for (const side of [1, -1]) {
-        if (side < 0 && !(s[5] & 2) && hw < 6) continue; // two-way streets under 12 m: one side only
+        if (side > 0 ? !P.left : !P.right) continue;
         // Left kerb when facing along the segment: right vector is (-fz, fx) → left is (fz, -fx).
         const lx = fz * side, lz = -fx * side;
         let d = 8 + rnd() * 6;
@@ -453,7 +470,7 @@ export class Traffic {
           const pd = Math.hypot(x0 - player.pos.x, z0 - player.pos.z);
           if (pd > R || pd < 7) { d += 6; continue; } // not on top of the player's taxi
           const r = rnd();
-          if (r < 0.28) { d += 4 + rnd() * 8; continue; } // gap: a gate, a shop front, a hydrant
+          if (r < 0.28 + (1 - P.parking) * 0.6) { d += 4 + rnd() * 8; continue; } // gap: a gate, a shop front, a hydrant (more on streets with little parking)
           const heading = Math.atan2(fx * side, fz * side) + (rnd() < 0.15 ? Math.PI : 0);
           if (r < 0.5) {
             // A row of two-wheelers, angled to the kerb.

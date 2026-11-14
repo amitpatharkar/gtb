@@ -11,7 +11,7 @@ import { facadeDebug, facadeNight } from './world/facade.js';
 import { createTaxi } from './vehicles/taxi.js';
 import { Car } from './vehicles/car.js';
 import { GameClock } from './sim/clock.js';
-import { Traffic } from './sim/traffic.js';
+import { Traffic, setStreetProfiles } from './sim/traffic.js';
 import { FacadeParts } from './world/facadeParts.js';
 import { Skyline } from './world/skyline.js';
 import { Birds } from './sim/birds.js';
@@ -120,6 +120,7 @@ const art = new Art(scene, tiles, BASE, tier, started); // owner-made models fro
 const startHour = Number(query.get('hour'));
 const clock = new GameClock(query.has('hour') && Number.isFinite(startHour) ? startHour : 17.25);
 const traffic = new Traffic(scene, tiles, tier);
+setStreetProfiles(index.profiles); // street library: parking and life by street type
 const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
 const skyline = new Skyline(scene, tiles, tier); // distant tall buildings beyond the loaded tiles
 const signals = new Signals(scene);
@@ -801,12 +802,12 @@ function placeLampLights(night) {
   // 30 m along the other streets, where the map has none — every road in Mumbai is lit at night.
   lampScan -= 1;
   if (lampScan <= 0 || !lampCache) { lampScan = 4; lampCache = gatherLamps(focus); }
-  const near = lampCache.map(([x, z]) => [(x - player.pos.x) ** 2 + (z - player.pos.z) ** 2, x, z]).sort((a, b) => a[0] - b[0]);
-  updateNightLights(night, focus, near.map(([, x, z]) => [x, z, 1]), traffic.cars, tier, onFoot || damage.headlampFactor(player.condition) < 0.3 ? null : player);
+  const near = lampCache.map(([x, z, y]) => [(x - player.pos.x) ** 2 + (z - player.pos.z) ** 2, x, z, y ?? 8.4]).sort((a, b) => a[0] - b[0]);
+  updateNightLights(night, focus, near.map(([, x, z, y]) => [x, z, 1, y]), traffic.cars, tier, onFoot || damage.headlampFactor(player.condition) < 0.3 ? null : player);
   lampLights.forEach((l, i) => {
     const n = near[i];
     if (!n || n[0] > 120 * 120) { l.intensity = 0; return; }
-    l.position.set(n[1], 8.6, n[2]);
+    l.position.set(n[1], n[3] + 0.2, n[2]);
     l.intensity = night * 30; // street lamps light a pool, not the whole facade
   });
 }
@@ -818,11 +819,12 @@ function gatherLamps(focus) {
     const arr = t.points[POINT.LIGHT];
     if (!arr) continue;
     for (let i = 0; i < arr.length; i += 5) {
-      const ang = arr[i + 3];
-      // The lamp head hangs 1.9 m out over the road.
-      const x = arr[i] + t.origin[0] + Math.sin(ang) * 1.9, z = arr[i + 2] + t.origin[1] + Math.cos(ang) * 1.9;
+      const ang = arr[i + 3], type = Math.round((arr[i + 4] - 1) * 4);
+      // Lamp heads: the plain and tall poles hang out over the road; heritage and globe posts light from the top.
+      const reach = type === 1 ? 2.4 : type >= 2 ? 0 : 1.9, y = [8.4, 10.6, 4.3, 5.0][type] ?? 8.4;
+      const x = arr[i] + t.origin[0] + Math.sin(ang) * reach, z = arr[i + 2] + t.origin[1] + Math.cos(ang) * reach;
       if (Math.abs(x - focus.x) > R || Math.abs(z - focus.z) > R) continue;
-      out.push([x, z]); cell.add(ck(x, z));
+      out.push([x, z, y]); cell.add(ck(x, z));
     }
   }
   for (const seg of traffic.segList || []) {

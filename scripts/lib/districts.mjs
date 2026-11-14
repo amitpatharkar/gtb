@@ -32,6 +32,13 @@ const LIST = [
   D('Malabar Hill', [18.940, 72.792, 18.965, 72.812], { CONCRETE: 4, PLASTER: 5, GLASS: 1 }, ['#F3F0E8', '#DDD5C6', '#B9B3A6', '#E8E0CF'], 0.9, 0.2),
   D('Colaba', [18.895, 72.805, 18.925, 72.835], { PLASTER: 5, WEATHERED: 3, DECO: 2 }, ['#E8DCC0', '#D9C9A3', '#C9B48A', '#F1EDE4', '#B8B1A3'], 0.6, 0.7),
 
+  // ---- Proposed by the street library (docs/research/street-library/README.md, profiles.json new_districts)
+  D('Bhendi Bazaar', [18.955, 72.828, 18.966, 72.836], { WEATHERED: 6, PLASTER: 3, CONCRETE: 1 }, ['#E8DCC0', '#B9D2C7', '#4F8F6A', '#D9C7A1', '#F3EFE6'], 0.15, 0.95),
+  D('Nagpada', [18.962, 72.822, 18.972, 72.832], { WEATHERED: 5, PLASTER: 3, CONCRETE: 2 }, ['#E3D6BA', '#D9C7A1', '#9AA6A0', '#E8DCC0', '#4F8F6A'], 0.25, 0.85),
+  D('Dongri Mandvi', [18.950, 72.834, 18.962, 72.845], { WEATHERED: 6, PLASTER: 3, SHED: 1 }, ['#C5A97C', '#D9CBB0', '#E5DDCB', '#B2552F', '#8E9C8D'], 0.15, 0.9),
+  D('Mumbai Central', [18.968, 72.812, 18.980, 72.828], { CONCRETE: 4, PLASTER: 3, WEATHERED: 3 }, ['#D6CFC0', '#E3D6BA', '#CFC9BC', '#EDE7DA'], 0.35, 0.7),
+  D('Reay Road', [18.975, 72.840, 18.995, 72.860], { SHED: 4, WEATHERED: 3, PLASTER: 3 }, ['#E9E6DE', '#B8B2A6', '#C9C1B1', '#8C4A2F'], 0.3, 0.4),
+
   // ---- Central island city (guide A2)
   D('Haji Ali', [18.975, 72.805, 18.990, 72.825], { CONCRETE: 4, PLASTER: 4, GLASS: 2 }, ['#E9E4D8', '#D6D0C2', '#F2EEE4', '#C9C1B1'], 0.5, 0.5,
     { tall: { CONCRETE: 4, GLASS: 3, PLASTER: 3 }, lv: { towers: [700, 0.45, 12, 35] } }),

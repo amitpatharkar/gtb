@@ -22,17 +22,30 @@ function canvasTexture(c, { srgb = true, aniso = 4 } = {}) {
 }
 
 /** Kerb paint: alternating black and yellow, 0.6 m each, a bit dirty. u = metres along the kerb. */
-function kerbTexture() {
+/** Painted kerb blocks: black and yellow, or black and white (medians, heritage streets — survey). */
+function kerbTexture(second = '#e8b800') {
   const [c, g] = canvas(128, 64);
   const rnd = seeded(5);
   g.fillStyle = '#1b1b1b'; g.fillRect(0, 0, 64, 64);
-  g.fillStyle = '#e8b800'; g.fillRect(64, 0, 64, 64);
+  g.fillStyle = second; g.fillRect(64, 0, 64, 64);
   for (let i = 0; i < 900; i++) {
     g.fillStyle = `rgba(${rnd() < 0.5 ? '40,35,30' : '200,190,170'},${rnd() * 0.25})`;
     g.fillRect(rnd() * 128, rnd() * 64, 1 + rnd() * 3, 1 + rnd() * 3);
   }
   const t = canvasTexture(c);
   t.repeat.set(1 / 1.2, 4);
+  return t;
+}
+
+/** Green construction netting: a knitted mesh (alpha) with sagging folds, one tile per metre. */
+function nettingTexture() {
+  const [c, g] = canvas(64, 64);
+  g.fillStyle = '#000'; g.fillRect(0, 0, 64, 64);
+  g.strokeStyle = '#fff'; g.lineWidth = 1.4;
+  for (let i = 0; i <= 64; i += 4) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 64); g.stroke(); g.beginPath(); g.moveTo(0, i); g.lineTo(64, i); g.stroke(); }
+  g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(0, 0, 64, 64);
+  const t = canvasTexture(c);
+  t.colorSpace = THREE.NoColorSpace;
   return t;
 }
 
@@ -97,6 +110,8 @@ export function createMaterials(renderer, lib, tier) {
     pool: std({ color: 0x4fb3cf, roughness: 0.05 }),
     footway: offset(tex(std({ color: 0xa8a196 }), 'tex-ph-patterned-paving', 2, { onLoad: (x) => x.color.set(0xe0dbd2) }), -1),
     kerb: std({ map: kerbTexture(), roughness: 0.85 }),
+    kerbBW: std({ map: kerbTexture('#ecebe6'), roughness: 0.85 }),
+    netting: new THREE.MeshStandardMaterial({ color: 0x2e7a3c, alphaMap: nettingTexture(), transparent: true, opacity: 0.92, side: THREE.DoubleSide, depthWrite: false, roughness: 0.95 }),
     // Lanes and side streets: plain weathered concrete kerbs (paint is for main roads).
     kerbPlain: tex(std({ color: 0x8e8a84, roughness: 0.9 }), 'tex-ph-concrete-pavement', 1.5, { onLoad: (x) => x.color.set(0xb4aea6) }),
     seawall: tex(std({ color: 0x8a847a }), 'tex-ph-castle-brick-07', 2.5, { onLoad: (x) => x.color.set(0xb0aaa0) }),
@@ -115,7 +130,7 @@ export function createMaterials(renderer, lib, tier) {
     }),
   };
   // Street lamps and headlights light the ground and the walls at night (nightLights.js).
-  for (const k of ['road', 'roadWorn', 'roadPoor', 'footpath', 'plot', 'paved', 'grass', 'wood', 'pitch', 'sand', 'dirt', 'railyard', 'pier', 'footway', 'kerb', 'kerbPlain', 'seawall', 'parapet', 'paint']) if (m[k]) addNightLight(m[k]);
+  for (const k of ['road', 'roadWorn', 'roadPoor', 'footpath', 'plot', 'paved', 'grass', 'wood', 'pitch', 'sand', 'dirt', 'railyard', 'pier', 'footway', 'kerb', 'kerbBW', 'kerbPlain', 'seawall', 'parapet', 'paint']) if (m[k]) addNightLight(m[k]);
   for (const w of m.walls) addNightLight(w);
   // Rooftop hoardings share the sign fonts: redrawing the shop signs redraws the ads too.
   const ads = makeHoardingAtlas();

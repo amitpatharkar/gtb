@@ -24,10 +24,13 @@ import * as C from './lib/clip.mjs';
 import { FOOTPATH, isVehicle, junctions, markings, streetFurniture, treeKind } from './lib/streets.mjs';
 import { districtAt, pickStyle, STYLE } from './lib/districts.mjs';
 import { buildSkyline } from './lib/skyline.mjs';
+import { loadStreetLibrary, LAMP, lampSize } from './lib/streetLibrary.mjs';
 import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, POINT, MAGIC, TILE_VERSION, DM } from '../src/world/tileFormat.js';
 import { OVERVIEW_MAGIC, OVERVIEW_VERSION, OVERVIEW_LAYER } from '../src/world/overviewFormat.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// The owner's street library: a profile per named street of South Mumbai (dresses roads and buildings).
+const streetLib = loadStreetLibrary(root);
 const args = Object.fromEntries(
   process.argv.slice(2).join(' ').split('--').filter(Boolean).map((s) => {
     const [k, ...v] = s.trim().split(/\s+/);
@@ -184,7 +187,7 @@ function wallColour(t, id) {
   return pal[Math.floor(hash01(id, 7) * pal.length)];
 }
 
-function buildingHeights(t, id, area, d) {
+function buildingHeights(t, id, area, d, sp = null) {
   const type = t.building && t.building !== 'yes' ? t.building : t['building:part'] || 'yes';
   let h = parseLength(t.height ?? t['building:height']);
   const levels = parseFloat(t['building:levels']);
@@ -215,6 +218,8 @@ function buildingHeights(t, id, area, d) {
       const tw = rule?.towers;
       if (tw && area >= tw[0] && TOWER_TYPES.has(type) && hash01(id, 5) < tw[1]) lv = tw[2] + hash01(id, 9) * (tw[3] - tw[2]);
       if (rule?.cap) lv = Math.min(lv, 1 + r * (rule.cap - 0.6));
+      // The street profile's storey range (survey) wins for ordinary buildings along profiled streets.
+      if (sp?.storeys && area >= 60 && !(tw && area >= tw[0] && lv >= tw[2])) lv = sp.storeys[0] + hash01(id, 13) * (sp.storeys[1] - sp.storeys[0] + 0.99);
       h = Math.floor(lv) * LEVEL + 0.8;
     }
   }
@@ -235,7 +240,7 @@ const STYLE_COLOURS = {
   [STYLE.BRICK]: ['#F1EBE2', '#E8DED2'],
 };
 const hex = (c) => parseInt(c.slice(1), 16);
-function buildingLook(b, type, h, area, d) {
+function buildingLook(b, type, h, area, d, sp = null) {
   const t = b.tags, r = hash01(b.id, 3);
   let style;
   if (type === 'construction') style = STYLE.BRICK;
@@ -245,17 +250,17 @@ function buildingLook(b, type, h, area, d) {
   else if (h > 60) style = r < 0.4 ? STYLE.GLASS : r < 0.7 ? STYLE.CONCRETE : STYLE.PLASTER;
   else if ((t.heritage || t.historic) && h < 40) style = r < 0.8 ? STYLE.STONE : STYLE.BASALT;
   else if (h > 32) style = pickStyle({ CONCRETE: 4, PLASTER: 4, GLASS: d.styles.GLASS ? 3 : 1 }, r);
-  else style = pickStyle(d.styles, r);
+  else style = pickStyle(sp?.styles || d.styles, r);
   let color;
   const named = (t['building:colour'] || t.colour || '').toLowerCase().trim();
   if (/^#[0-9a-f]{6}$/.test(named) && style !== STYLE.STONE && style !== STYLE.GLASS) color = hex(named);
   else {
-    const pal = STYLE_COLOURS[style] || d.colours;
+    const pal = STYLE_COLOURS[style] || sp?.colours || d.colours;
     color = hex(pal[Math.floor(hash01(b.id, 7) * pal.length)]);
   }
   const levels = Math.max(1, Math.min(250, Math.round(parseFloat(t['building:levels']) || (h - 0.8) / LEVEL)));
   const shopType = ['commercial', 'retail', 'yes', 'apartments', 'residential', 'mixed', 'hotel'].includes(type);
-  return { style, color, levels, shops: shopType && h < 60 && hash01(b.id, 11) < d.shops };
+  return { style, color, levels, shops: shopType && h < 60 && hash01(b.id, 11) < (sp?.shops ?? d.shops) };
 }
 
 // ---------------------------------------------------------------- read OpenStreetMap
@@ -504,6 +509,19 @@ class Grid {
   }
 }
 
+// Street profiles: every road piece looks up its OSM way in the street library (long streets
+// change character along their length: zones by latitude).
+let profiled = 0;
+if (streetLib) for (const r of roadsRaw) {
+  const m = r.pts[Math.floor(r.pts.length / 2)];
+  r.profile = streetLib.forWay(r.id, unproject(m[0], m[1])[0]);
+  if (!r.profile) continue;
+  profiled++;
+  // Kerb paint as surveyed: black-white, black-yellow or plain; medians black-white.
+  const k = r.profile.kerb;
+  r.info = { ...r.info, flags: r.info.flags | (k === 'bw' ? ROAD_FLAG.KERB_BW : k === 'by' ? ROAD_FLAG.KERB_BY : k === 'plain' ? ROAD_FLAG.KERB_PLAIN : 0) | (r.profile.median === 'bw' ? ROAD_FLAG.MEDIAN_BW : 0) };
+}
+if (streetLib) log(`street library: ${streetLib.streets.length} streets, ${streetLib.profiles.size} profiles → ${profiled} road pieces dressed by profile`);
 const vparts = roadsRaw.filter((r) => isVehicle(r.info.cls));
 for (const p of vparts) { p.fw = FOOTPATH[p.info.cls] || 0; p.bbox = G.bboxOf(p.pts); }
 const segGrid = new Grid(25);
@@ -597,7 +615,7 @@ log(`markings: ${paint.length} painted lines`);
 // Street trees, lights and real tree positions from OpenStreetMap.
 const rand = (seed) => hash01(Math.floor(Math.abs(seed) * 1000) % 2147483647, 99);
 const blocked = (x, z) => !inBox([x, z]) || onRoad(x, z, 0.3) || inBuilding(x, z, 0.8) || !onLand(x, z);
-const { trees, lights, clutter } = streetFurniture(vparts, { district: districtXZ, blocked, junc, rand });
+const { trees, lights, clutter } = streetFurniture(vparts, { district: districtXZ, blocked, junc, rand, onRoad, lampSize, LAMP });
 const treeGrid = new Grid(10);
 const points = [];
 const addTree = (t) => {
@@ -706,7 +724,7 @@ for (const L of LANDMARKS) {
 const partGrid = new Grid(50);
 for (const b of buildingsRaw) if (b.part) { const [x, z] = G.centroid(b.polys[0][0]); partGrid.add([x, z, x, z], [x, z]); }
 const skylineList = []; // tall buildings for the far skyline (lib/skyline.mjs)
-let bCount = 0, bSkipped = 0, bWithHeight = 0;
+let bCount = 0, bSkipped = 0, bWithHeight = 0, bProfiled = 0, bNetting = 0;
 for (const b of buildingsRaw) {
   for (const poly of b.polys) {
     const outer = poly[0];
@@ -721,10 +739,24 @@ for (const b of buildingsRaw) {
     const area = Math.abs(G.signedArea(outer));
     if (area < 4) continue;
     const d = districtXZ(c[0], c[1]);
-    const { h, minH, flags, type } = buildingHeights(b.tags, b.id, area, d);
+    // The street this building fronts (nearest profiled street within 35 m of its centre or
+    // walls): its profile sets the look of the buildings along it.
+    let sp = null, spD = 35 * 35;
+    if (streetLib) {
+      const probe = (x, z) => segGrid.near(x, z, 30, ({ a, b: e, p: rp }) => {
+        if (!rp.profile) return false;
+        const dd = G.segDist2([x, z], a, e);
+        if (dd < spD) { spD = dd; sp = rp.profile; }
+        return false;
+      });
+      probe(c[0], c[1]);
+      if (!sp) for (let k = 0; k < outer.length; k += Math.max(1, Math.floor(outer.length / 6))) probe(outer[k][0], outer[k][1]);
+    }
+    if (sp) bProfiled++;
+    const { h, minH, flags, type } = buildingHeights(b.tags, b.id, area, d, sp);
     if (b.tags.height || b.tags['building:levels']) bWithHeight++;
     const tile = getTile(Math.floor(c[0] / T), Math.floor(c[1] / T));
-    const look = buildingLook(b, type, h, area, d);
+    const look = buildingLook(b, type, h, area, d, sp);
     const rings = poly.map((ring, i) => {
       let r = quantize(G.simplifyRing(ring, 0.15), tile.cx, tile.cz, true);
       // Outer rings positive signed area in (x, z), holes negative (the worker relies on this).
@@ -749,12 +781,14 @@ for (const b of buildingsRaw) {
     let f2 = flags;
     if (look.shops && front.some(Boolean) && minH < 1) f2 |= BUILDING_FLAG.SHOPS;
     if (b.hidden) f2 |= BUILDING_FLAG.HIDDEN;
+    // About one building in ten under repair wears green netting and scaffolding (survey).
+    if (sp?.netting && !b.hidden && !(f2 & BUILDING_FLAG.HERITAGE) && h > 8 && h < 70 && hash01(b.id, 21) < sp.netting) { f2 |= BUILDING_FLAG.NETTING; bNetting++; }
     tile.buildings.push({ h, minH, color: look.color, flags: f2, style: look.style, levels: look.levels, rings, front });
     bCount++;
     if (h >= 15 && !b.hidden && minH < 1) skylineList.push({ ring: outer, area, h, color: look.color });
   }
 }
-log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts)`);
+log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts; ${bProfiled} dressed by their street's profile, ${bNetting} under netting)`);
 
 // Roads and rails: polylines clipped to each tile. Junction points shared by two or more
 // roads are never simplified away, so the road graph stays connected.
@@ -851,7 +885,7 @@ const nRoads = addLines(roadsRaw, (tile, r, line) => {
     if (!tile.names.has(name)) tile.names.set(name, tile.names.size);
     idx = tile.names.get(name);
   }
-  tile.roads.push({ ...r.info, name: idx, layer: r.id % 5, line });
+  tile.roads.push({ ...r.info, name: idx, layer: r.id % 5, profile: r.profile?.index || 0, line });
 }, 0.2, isJunction);
 const nRails = addLines(railsRaw, (tile, r, line) => tile.rails.push({ ...r.info, line }));
 const nPaint = addLines(paint, (tile, m, line) => (tile.markings ||= []).push({ width: m.width, line }), 0);
@@ -927,7 +961,7 @@ for (const t of ordered) {
 
   w.uvar(t.roads.length);
   for (const r of t.roads) {
-    w.u8(r.cls); w.uvar(Math.round(r.width * DM)); w.u8(r.flags); w.uvar(r.name + 1); w.u8(r.layer);
+    w.u8(r.cls); w.uvar(Math.round(r.width * DM)); w.u8(r.flags); w.uvar(r.name + 1); w.u8(r.layer); w.u8(r.profile || 0);
     w.points(r.line);
   }
   w.uvar(t.rails.length);
@@ -1056,6 +1090,7 @@ const meta = {
   spawn,
   overview,
   skyline,
+  profiles: streetLib ? streetLib.runtimeTable() : [],
   fuel: fuelStations,
   landmarks,
   tiles: index,
