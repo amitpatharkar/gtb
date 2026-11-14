@@ -60,11 +60,13 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/main.js` — boot order (texture library → tiles → sky → post-processing → clock, traffic, audio, minimap),
   chase camera, `step(dt)` simulation (also called by headless tests via `window.__gtb.step`), night lights near the
   player, refuelling, HUD. URL options: `?quality=high|medium|low`, `?hour=20.5`.
-- `src/settings.js` — quality tiers (High: ambient occlusion, 4096 shadows, normal maps; Medium: no AO, normal maps,
+- `src/settings.js` — `detectTier()`: Medium on desktop WebGL 2, Low on phones/tablets/software; `TierProbe` falls back
+  to Low if under 40 fps at resolution scale 0.6 (off once the player picks a tier: `gtb.tierChosen`). Quality tiers (High: ambient occlusion, 4096 shadows, normal maps; Medium: no AO, normal maps,
   bloom; Low: no post-processing, 3D facade parts within 45 m). First run: `detectTier()` picks Medium on dedicated or
   Apple-silicon graphics, Low elsewhere; main.js lowers the resolution on the fly when the frame rate drops
   (`dynRes`, off under automation). Q key / Graphics link cycles and reloads.
-- `src/render/post.js` — composer: scene (MSAA, half-float) → GTAO ambient occlusion from depth only → bloom →
+- `src/render/post.js` — Low has a CSS grade overlay `#grade` (`post.grade`); `src/render/photo.js` saves photos with the
+  OpenStreetMap credit. Composer: scene (MSAA, half-float) → GTAO ambient occlusion from depth only → bloom →
   Neutral tone mapping (renderer, main.js) → colour grade/vignette
 - `src/world/environment.js` — HDRI sky (rotated so its sun follows the clock), sun-free copy for lighting, sun +
   moon lights, haze colour/density from daylight and AQI, sea shader (3 scrolling ripple layers, no visible tiling)
@@ -76,7 +78,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   window rectangles, 32-bit integer hash identical in JavaScript and GLSL); `src/world/facadeParts.js` — real 3D facade
   parts near the player (frames, sills, chajjas, grille cages, AC units, balconies, signboards, shutter boxes), one
   instanced mesh per part type for the whole city
-- `src/world/facade.js` — facade shader (windows/glass reflections, curtains, grilles, balconies with clothes, AC units,
+- `src/world/facade.js` — facade shader (far windows and fine patterns fade by screen size; shop goods 8–12 cm packets; windows/glass reflections, curtains, grilles, balconies with clothes, AC units,
   sunshades, monsoon streaks, floor bands, parapet coping, ground-floor shops with shutters and signboards, lit windows
   at night) and the shop-sign atlas (128 boards, Marathi in Devanagari over English, BMC style; fonts from `media/`).
   Per-building attributes MUST stay `flat` varyings (interpolation noise + hashing = speckle). Debug:
@@ -94,7 +96,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   and star is made up) drawn into one 2048² canvas atlas (4 × 8 cells, last two = steel), redrawn with the sign
   fonts (`signs.redraw` in materials.js); the worker adds a board + posts over the longest street-facing wall of
   some buildings (mesh key `hoarding`, max 8 per tile); material is lit at night through `facadeNight`.
-- `src/world/props.js` — procedural instanced props by point kind: rain tree, gulmohar (in bloom), peepal, coconut palm
+- `src/world/props.js` — procedural instanced props by point kind: rain tree, gulmohar (December: ~5 % in bloom, 30 % drawn as rain trees), peepal, coconut palm
   (alpha-tested leaf cards), street light (4 types in the point's size: standard, tall, heritage triple lantern, globe —
   `LAMP` in `scripts/lib/streetLibrary.mjs`), traffic signal, BEST bus shelter, pothole and puddle decals, garbage pile,
   thela with umbrella, petrol pump canopy, sea-wall tetrapods, median hedge (`POINT.HEDGE`: size = length, from the
@@ -305,6 +307,13 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   parking. Streets outside the library keep the district rules (`lib/districts.mjs`, which also has the library's five
   new districts: Bhendi Bazaar, Nagpada, Dongri–Mandvi, Mumbai Central, Reay Road).
 - `scripts/preview-tiles.mjs` — debug top-down SVG of all tiles (`npm run tiles:preview`)
+- Caching after a deploy: map files carry `?v=index.generated` (`tiles.fileUrl()`; `tiles.fileTag` is the tag,
+  `tiles.version` is the load counter), media `?v=manifest.shipped.version` (`lib.url()` + a DefaultLoadingManager URL
+  modifier); both indexes are fetched `no-cache`. `public/sw.js` + `src/serviceWorker.js`: cache-first for versioned
+  `media/` and `tiles/`, page loads `no-cache`, built game only, `?nosw` unregisters. A tile that fails to load is
+  retried at 5/10/20 s and is a wall meanwhile. `art/index.json` is fetched `no-cache` and owner models load as `<file>?v=<content hash>`.
+- Shaders: `textures.js` fills map slots with 1×1 stand-ins so programs compile once; use `post.compile(obj, camera,
+  scene)` (composer-target variant), not `renderer.compileAsync`; `models.js setPrecompile` for models loaded in play.
 - `public/tiles/`, `public/media/`, `public/basis/` — generated, not committed (`npm run build` makes tiles; deploy copies
   media from the `assets` branch, locally `npm run assets:pull`; Vite plugin copies the Basis transcoder)
 - `src/credits.js` — in-game Credits panel
@@ -368,13 +377,17 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   5. **More missions and side jobs** (`docs/research/mumbai-guide-2.md` §3), police chase challenges, races.
 
 ## Testing in the session
-- `npm run build` must pass (it runs the converter first).
+- `npm run build` must pass: converter (skips when the `"inputs"` hash in `index.json` is unchanged; `--force` rebuilds)
+  → `scripts/art-index.mjs` → vite build → `scripts/ship-media.mjs` (keeps only the media ids named in `src`/`index.html`,
+  warns about ids built at run time, slims the Poly Haven props to 600–2,400 triangles with 512 px textures, writes
+  `manifest.shipped.version`). Site about 80 MB.
 - Allocation per step: the browser's sampling heap profiler (`HeapProfiler.startSampling` with
   `includeObjectsCollectedByMajorGC`/`MinorGC` true) through Playwright's CDP session.
 - `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night`,
   `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
-  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, or a too-dark night. It also runs in
-  GitHub Actions after every push (`.github/workflows/smoke.yml`). Add a check there for every new system.
+  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, or a too-dark night. In GitHub Actions
+  `deploy.yml` runs build → smoke (on the Pages artifact) → deploy, so a failing check stops the deploy (Playwright
+  1.63.0 is a devDependency). Add a check there for every new system.
 - Visual check: `npx vite preview --port 4173`, then headless Chrome via Playwright with
   `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`, open `http://localhost:4173/gtb/`,
   hold keys, take a screenshot, and check console errors. Headless frame rate is very low, so for driving tests call

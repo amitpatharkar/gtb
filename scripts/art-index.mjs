@@ -11,6 +11,7 @@
 //   a far version (scripts/art-vehicles.mjs) → public/art/opt/vehicles/<id>.glb and <id>-far.glb.
 // If a file cannot be processed, a model is listed as uploaded and a vehicle is left out.
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import sharp from 'sharp';
 import { MeshoptSimplifier } from 'meshoptimizer';
@@ -25,6 +26,8 @@ const files = glbs(dir), vfiles = glbs(vdir);
 const SMALL = /stool|cylinder|milk-can|dustbin|barricade/;
 const budget = (id) => (SMALL.test(id) ? 900 : 5000);
 const scripts = ['art-index.mjs', 'art-vehicles.mjs', 'lib/glb.mjs'].map((f) => fs.statSync(new URL(f, import.meta.url)).mtimeMs);
+/** Short content hash: the game asks for <file>?v=<hash>, so a new upload is never served from an old cache. */
+const hashOf = (f) => crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex').slice(0, 10);
 const stale = (src, ...outs) => outs.some((o) => !fs.existsSync(o) || fs.statSync(o).mtimeMs < Math.max(fs.statSync(src).mtimeMs, ...scripts));
 
 async function optimise(src, dst, target) {
@@ -104,7 +107,7 @@ for (const f of files) {
     }
     file = `opt/${id}.glb`;
   } catch (e) { console.warn(`art: ${f} not optimised (${e.message}); using it as uploaded`); }
-  models.push({ id, file, bytes: fs.statSync(path.join(ART, file)).size });
+  models.push({ id, file, bytes: fs.statSync(path.join(ART, file)).size, v: hashOf(path.join(ART, file)) });
 }
 
 // Vehicles: fleet lengths for scaling replacements of existing types.
@@ -123,7 +126,7 @@ if (vfiles.length) {
         console.log(`art: vehicle ${f} → ${r.info.len} × ${r.info.wid} × ${r.info.hgt} m, ${sum(r.info.near)} / ${sum(r.info.far)} triangles${r.info.paint ? '' : ', no paint part found'}${r.info.notes.length ? ` (${r.info.notes.join(', ')})` : ''}`);
       }
       const info = JSON.parse(fs.readFileSync(meta, 'utf8'));
-      vehicles.push({ id, near: `opt/vehicles/${id}.glb`, far: `opt/vehicles/${id}-far.glb`, len: info.len, wid: info.wid, hgt: info.hgt });
+      vehicles.push({ id, near: `opt/vehicles/${id}.glb`, far: `opt/vehicles/${id}-far.glb`, v: hashOf(near) + hashOf(far).slice(0, 4), len: info.len, wid: info.wid, hgt: info.hgt });
     } catch (e) { console.warn(`art: vehicle ${f} left out (${e.message})`); }
   }
 }

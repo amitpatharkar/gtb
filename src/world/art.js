@@ -40,10 +40,10 @@ export class Art {
     this.version = -1;
     this.m = new THREE.Matrix4(); this.p = new THREE.Vector3(); this.q = new THREE.Quaternion(); this.s = new THREE.Vector3(1, 1, 1);
     this.zero = new THREE.Matrix4().makeScale(0, 0, 0);
-    started.then(() => fetch(`${base}art/index.json`)).then((r) => (r.ok ? r.json() : { models: [] })).then(({ models }) => Promise.all(models.map(async ({ id, file }) => {
+    started.then(() => fetch(`${base}art/index.json`, { cache: 'no-cache' })).then((r) => (r.ok ? r.json() : { models: [] })).then(({ models }) => Promise.all(models.map(async ({ id, file, v }) => {
       const def = ART[id];
       if (!def) return;
-      const parts = await loadParts(`${base}art/${file}`, { size: def.height });
+      const parts = await loadParts(`${base}art/${file}${v ? `?v=${v}` : ''}`, { size: def.height });
       this.models[id] = { def, inst: new Instancer(scene, parts, def.swap !== undefined ? 80 : 240) };
       if (def.swap !== undefined) (this.swaps[def.swap] ||= []).push(id);
     }))).then(() => { this.version = -1; this.at.set(1e9, 0, 0); this.count = Object.keys(this.models).length; }).catch(() => {});

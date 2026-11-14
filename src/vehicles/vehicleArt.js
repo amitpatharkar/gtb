@@ -25,13 +25,13 @@ function parts(gltf) {
 
 export async function loadVehicleArt(base, traffic, started = Promise.resolve()) {
   await started;
-  const res = await fetch(`${base}art/index.json`).catch(() => null);
+  const res = await fetch(`${base}art/index.json`, { cache: 'no-cache' }).catch(() => null);
   if (!res?.ok) return [];
   const { vehicles = [] } = await res.json();
   const loader = new GLTFLoader(), done = [];
   for (const v of vehicles) {
     try {
-      const [near, far] = await Promise.all([v.near, v.far].map((f) => loader.loadAsync(`${base}art/${f}`).then(parts)));
+      const [near, far] = await Promise.all([v.near, v.far].map((f) => loader.loadAsync(`${base}art/${f}${v.v ? `?v=${v.v}` : ''}`).then(parts)));
       traffic.useModel(v.id, near, far, { ...(VEHICLE_ART[v.id] || {}), len: v.len, wid: v.wid });
       done.push(v.id);
     } catch (e) { console.warn(`Vehicle model ${v.id} not used:`, e.message); }
