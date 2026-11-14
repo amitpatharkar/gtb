@@ -11,7 +11,7 @@ const UNLOAD_RADIUS = 950;
 const MAX_IN_FLIGHT = 3;
 const DETAIL_MESHES = new Set(['railSteel', 'paint', 'contact']); // hidden on far tiles
 // [cast shadow, receive shadow] by mesh key (walls and roofs cast; ground only receives).
-const shadowsFor = (key) => (key.startsWith('walls') || key.startsWith('roof') || key === 'parapet' ? [true, true] : [false, true]);
+const shadowsFor = (key) => (key.startsWith('walls') || key.startsWith('roof') || key === 'parapet' || key === 'compound' || key === 'sheet' ? [true, true] : [false, true]);
 const SEG = 6; // floats per road segment: x0 z0 x1 z1 halfWidth flags (1 vehicle, 2 one-way, 4 main road)
 /** Numeric tile key (no strings in per-frame lookups); tile indices stay within ±2048. */
 const tileKey = (tx, tz) => (tx + 2048) * 4096 + (tz + 2048);

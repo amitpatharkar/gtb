@@ -31,16 +31,24 @@ const KIND = {
   'Girgaon': 'bazaar', 'Grant Road': 'bazaar', 'Nagpada': 'bazaar', 'Kurla': 'bazaar', 'Saki Naka': 'bazaar', 'Dadar': 'bazaar',
   'Dharavi': 'low', 'Worli Koliwada': 'low',
 };
+/** Redevelopment: share of construction sites among new plots (×3 %), by district. */
+const SITES = {
+  'Bhendi Bazaar': 1, 'Girgaon': 0.8, 'Nagpada': 0.8, 'Byculla': 0.7, 'Kalbadevi': 0.4, 'Mazgaon': 0.6, 'Mumbai Central': 0.7,
+  'Grant Road': 0.6, 'Parel': 0.8, 'Lower Parel': 0.7, 'Worli': 0.6, 'Prabhadevi': 0.7, 'Dadar': 0.6, 'Mahim': 0.4, 'Sion': 0.4,
+  'Kurla': 0.6, 'Saki Naka': 0.5, 'Andheri East': 0.5, 'Andheri West': 0.5, 'Bandra East': 0.6, 'Santacruz': 0.5, 'Vile Parle': 0.5,
+  'Ghatkopar': 0.5, 'Chembur': 0.5, 'Colaba': 0.2, 'Fort': 0.1, 'Mumbai': 0.3,
+};
 // Road classes that get frontage (not motorways, trunk expressways, footways, tracks or piers).
 const FRONTAGE = new Set([2, 3, 4, 5, 6, 7, 8]); // PRIMARY…SERVICE (see ROAD in src/world/tileFormat.js)
 
 /**
  * @param o.vparts vehicle roads ({ pts, hw, fw, info: { cls, flags } }) · o.district(x, z) → { name }
  * @param o.free(x, z) is this point free to build on (no road, footpath, building, area, track)?
- * @param o.onLand(x, z) · o.hash(n, salt) → 0..1 · o.add(ring, levels) adds a building
+ * @param o.onLand(x, z) · o.hash(n, salt) → 0..1 · o.add(ring, levels) adds a building · o.site(ring) a construction site
  */
-export function infill({ vparts, district, free, onLand, hash, add, BRIDGE = 1 }) {
+export function infill({ vparts, district, free, onLand, hash, add, site = null, BRIDGE = 1 }) {
   let made = 0, seed = 1;
+  infill.sites = 0;
   const rnd = () => hash(seed++, 77);
   const rectFree = (r) => {
     // Corners and edges first (cheap rejects), then the inside every ~2 m; land at the corners.
@@ -68,7 +76,18 @@ export function infill({ vparts, district, free, onLand, hash, add, BRIDGE = 1 }
         const [f0, f1, d0, d1, gap, cap] = GRAIN[KIND[d.name] || 'town'];
         const front = p.hw + (p.fw || 0) + 0.45; // just behind the footpath (or the road edge)
         let t = 1.5 + rnd() * 2;
+        const siteChance = site ? 0.03 * (SITES[d.name] ?? 0) : 0;
         while (t < L - 2) {
+          // Now and then a redevelopment site: a big plot behind hoardings (a tower and a crane inside).
+          if (siteChance && rnd() < siteChance) {
+            const sw = 18 + rnd() * 18, sd = 16 + rnd() * 12;
+            if (t + sw < L - 1) {
+              const o0 = p.hw + (p.fw || 0) + 0.45, o1 = o0 + sd;
+              const r = [[a[0] + ux * t + nx * o0, a[1] + uz * t + nz * o0], [a[0] + ux * (t + sw) + nx * o0, a[1] + uz * (t + sw) + nz * o0],
+                [a[0] + ux * (t + sw) + nx * o1, a[1] + uz * (t + sw) + nz * o1], [a[0] + ux * t + nx * o1, a[1] + uz * t + nz * o1]];
+              if (rectFree(r)) { site(r, [ux * side, uz * side]); infill.sites++; t += sw + 1; continue; }
+            }
+          }
           const w = f0 + rnd() * (f1 - f0), depth = d0 + rnd() * (d1 - d0);
           if (t + w > L - 1) break;
           if (rnd() < density) {

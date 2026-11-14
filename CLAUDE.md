@@ -100,7 +100,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   (alpha-tested leaf cards), street light (4 types in the point's size: standard, tall, heritage triple lantern, globe —
   `LAMP` in `scripts/lib/streetLibrary.mjs`), traffic signal, BEST bus shelter, pothole and puddle decals, garbage pile,
   thela with umbrella, petrol pump canopy, sea-wall tetrapods, median hedge (`POINT.HEDGE`: size = length, from the
-  street library's planted medians, `streets.mjs`)
+  street library's planted medians, `streets.mjs`), tower crane (`CRANE`, size scales it), orange-white water barrier
+  (`BARRIER`, bazaar lane dividers), traffic-police barricade (`BARRICADE`, beside signal junctions), flex banner on a
+  lamp post (`BANNER`: 8 made-up designs in one atlas, the size picks the design via the `aCell` attribute)
 - `src/world/tiles.js` — `TileManager`: streams tiles, builds meshes/props, collisions (`hits`), `walkable`,
   `groundHeight` (asphalt 0.02 m, kerb level 0.2 m), `roadAt`, `roadNameAt`, `segment()`; `version` bumps on load/unload.
   Collision queries allocate nothing: numeric `tileKey` maps (`byKey`, `availableKeys`), `nearInto()` fills `tiles.near`;
@@ -128,7 +130,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   (`sameShape()`)**: mixed object shapes made every numeric read allocate. `driveCar` (per car), `gapAhead`
   (look-ahead), `gatherBlockers` (player at real length, the vehicle left while on foot = `traffic.car`, parked taxi,
   `left`, patrols via `traffic.police`, obstacles); `lanesOf` cached per segment (`seg.lanes`); vehicle mix cached per
-  quarter hour (`pickType`).
+  quarter hour (`pickType`); kerb parking forms kaali-peeli taxi ranks where the profile has `taxis` (`TAXI_RANK`).
 - `src/sim/traffic.js` (continued) — ambient traffic near the player (fleet from `src/vehicles/fleet.js`: taxis, hatchbacks,
   sedans, SUVs, BEST buses on main roads, tempos (more at night), motorbikes with riders), keeps LEFT, follows the
   road graph (loose ends within 2.5 m joined; per-tile segment data cached on `tile.graph`, numeric junction keys
@@ -297,6 +299,12 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   outlines there): `DENSITY`/`GRAIN` by district name (bazaar 5–10 m fronts, low-rise 3.5–6 m with 1–3 storeys,
   town 7–14 m), built up to the footpath, a second row behind where density ≥ 0.85; never on roads, footpaths,
   mapped buildings, areas or tracks; ~71k buildings (tagged `gtb:infill`), then ordinary untagged buildings.
+- `scripts/lib/walls.mjs` — the survey's walls: compound walls with pillars and gates at the back of the footpath in front
+  of set-back buildings (`COMPOUND` share by district, or the profile's `compound`), white dock walls with barbed wire
+  on port roads, blue corrugated hoardings or green mesh round construction sites (OSM `landuse=construction` + infill
+  redevelopment plots, `SITES` in infill.mjs) with a netted concrete tower (`gtb:site`) and a tower crane. Stored as
+  thin building outlines with `BUILDING_FLAG.WALL` (style = kind, height = wall height; they collide); the worker's
+  `drawWall` adds copings, pillars, steel posts and wire (mesh keys `compound`, `sheet`, `netting`, `wire`).
 - `scripts/lib/streetLibrary.mjs` — the owner's South Mumbai street library (`docs/research/street-library/`: README,
   `streets.json` 847 streets → OSM way ids and zones, `profiles.json` 25 street profiles, `buildings-notable.json`,
   `survey.json`). `normalise()` turns each profile's prose into numbers (styles, storeys, colours, shop share, netting,
