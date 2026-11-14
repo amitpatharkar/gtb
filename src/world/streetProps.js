@@ -6,7 +6,8 @@ import { loadParts, Instancer } from './models.js';
 // Photo-scanned street clutter from Poly Haven around the player: plastic monobloc chairs
 // and crates at every thela, trash bags heaped at garbage spots, metal bins at bus stops
 // and grey utility boxes at the foot of some lamp posts. Placed from the map's points,
-// refreshed as the player moves (only within ~140 m).
+// refreshed as the player moves (within 160 m on High, 120 m on Medium, 50 m on Low).
+// The shipped models are simplified to a few hundred triangles each (scripts/ship-media.mjs).
 
 const rand = (a, b) => { const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s - Math.floor(s); };
 
@@ -14,12 +15,15 @@ export class StreetProps {
   constructor(scene, tiles, base, tier, started = Promise.resolve()) {
     this.scene = scene;
     this.tiles = tiles;
-    this.radius = tier.name === 'High' ? 160 : 120;
+    const low = tier.name === 'Low';
+    this.radius = tier.name === 'High' ? 160 : low ? 50 : 120;
+    this.bags = low ? 2 : 4; // trash bags per garbage spot
     this.ready = {};
     this.timer = 0;
     this.last = new THREE.Vector3(1e9, 0, 0);
     const url = (dir, file) => `${base}media/models/${dir}/${file}`;
-    const load = (key, dir, file, opts, max) => started.then(() => loadParts(url(dir, file), opts)).then((parts) => { this.ready[key] = new Instancer(scene, parts, max); this.version = -1; }).catch(() => {});
+    const keepMaps = tier.normalMaps ? ['map', 'normalMap'] : ['map']; // Low: colour only
+    const load = (key, dir, file, opts, max) => started.then(() => loadParts(url(dir, file), { keepMaps, ...opts })).then((parts) => { this.ready[key] = new Instancer(scene, parts, max); this.version = -1; }).catch(() => {});
     // Lighter set on Low. Loads only once play has started (after the loading screen).
     load('chair', 'prop-ph-plastic-monobloc-chair-01', 'plastic_monobloc_chair_01_1k.gltf', { size: 0.82 }, 260);
     load('crate', 'prop-ph-plastic-crate-02', 'plastic_crate_02_1k.gltf', { size: 0.3 }, 260);
@@ -68,7 +72,7 @@ export class StreetProps {
       });
       // Garbage spots: a heap of bags.
       each(POINT.GARBAGE, (x, z, a) => {
-        for (let k = 0; k < 5; k++) this.place('bag', x + (rand(x + k, z) - 0.5) * 1.6, z + (rand(z, x + k) - 0.5) * 1.6, rand(k, x) * 6.28, 0.8 + rand(x, k) * 0.5, Y.KERB - 0.02);
+        for (let k = 0; k < this.bags; k++) this.place('bag', x + (rand(x + k, z) - 0.5) * 1.6, z + (rand(z, x + k) - 0.5) * 1.6, rand(k, x) * 6.28, 0.8 + rand(x, k) * 0.5, Y.KERB - 0.02);
       });
       // Bus stops: a bin.
       each(POINT.BUS_STOP, (x, z, a) => { const px = x + Math.cos(a) * 2.6, pz = z - Math.sin(a) * 2.6; if (!this.tiles.hits(px, pz, 0.3)) this.place('bin', px, pz, a); });

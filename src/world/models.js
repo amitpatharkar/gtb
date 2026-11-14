@@ -11,7 +11,7 @@ const cache = new Map();
 
 /** Load a model and return [{ geometry, material }] in metres (base at y = 0, centred). */
 export function loadParts(url, { size, axis = 'height', node = null, keepMaps = ['map', 'normalMap'] } = {}) {
-  const key = `${url}|${size}|${axis}|${node}`;
+  const key = `${url}|${size}|${axis}|${node}|${keepMaps}`;
   if (cache.has(key)) return cache.get(key);
   const p = loader.loadAsync(url).then((gltf) => {
     gltf.scene.updateMatrixWorld(true);
@@ -25,11 +25,17 @@ export function loadParts(url, { size, axis = 'height', node = null, keepMaps = 
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       const m = mats[0];
       // Keep only colour and normal maps (lighter on memory); fold roughness into a constant.
-      for (const slot of ['roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap']) if (!keepMaps.includes(slot) && m[slot]) { m[slot].dispose(); m[slot] = null; }
+      // (Shipped Poly Haven props have those maps baked into factors by scripts/ship-media.mjs.)
+      for (const slot of ['roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'normalMap']) if (!keepMaps.includes(slot) && m[slot]) {
+        m[slot].dispose(); m[slot] = null;
+        if (slot === 'metalnessMap') m.metalness = Math.min(m.metalness, 0.2); // a factor of 1 without its map turns plastic into chrome
+      }
       m.needsUpdate = true;
-      (byMat.get(m) || byMat.set(m, []).get(m)).push(g.index ? g.toNonIndexed() : g);
+      (byMat.get(m) || byMat.set(m, []).get(m)).push(g);
     });
-    let parts = [...byMat].map(([material, geos]) => ({ material, geometry: mergeGeometries(geos) }));
+    // Indexed geometry stays indexed (a third of the vertices) unless the parts are mixed.
+    const merge = (geos) => mergeGeometries(geos.every((g) => g.index) ? geos : geos.map((g) => (g.index ? g.toNonIndexed() : g)));
+    let parts = [...byMat].map(([material, geos]) => ({ material, geometry: merge(geos) }));
     // Normalise: base on the ground, centred, scaled to the requested size.
     const bb = new THREE.Box3();
     for (const p of parts) { p.geometry.computeBoundingBox(); bb.union(p.geometry.boundingBox); }
