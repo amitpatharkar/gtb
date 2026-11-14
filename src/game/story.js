@@ -15,6 +15,8 @@ const CONTINUE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coar
 const MARK = { story: 0xf7c600, side: 0x35b6ff, target: 0x9cf0ff };
 const ON_TEXT = { foot: 'on foot', vehicle: 'in a vehicle', taxi: 'in your taxi', two: 'on a two-wheeler', swift: 'in a Maroti Swyft', auto: 'in the auto-rickshaw', tanker: 'in the water tanker', ambulance: 'in the ambulance', school: 'in the school bus', cycle: 'on the bicycle', bus: 'in the BEST bus', decker: 'in the double-decker' };
 const inHours = (h, [a, b]) => (a <= b ? h >= a && h < b : h >= a || h < b);
+/** The objective panel is refreshed every frame: touch the page only when its text changes. */
+const setHtml = (el, html) => { if (el._html !== html) { el._html = html; el.innerHTML = html; } };
 const clockText = (h) => `${((Math.floor(h) + 11) % 12) + 1}${h % 1 ? ':30' : ''} ${h >= 12 && h < 24 ? 'pm' : 'am'}`;
 
 export class Story {
@@ -496,7 +498,7 @@ export class Story {
       this.next(ctx);
     }
     this.el.hidden = !objective;
-    this.el.innerHTML = `<b>${m.strand === 'story' ? '★' : '◆'} ${m.title}:</b> ${objective}`;
+    setHtml(this.el, `<b>${m.strand === 'story' ? '★' : '◆'} ${m.title}:</b> ${objective}`);
   }
 
   /** No mission running: show the markers of those on offer, their givers, and start one when the player arrives. */
@@ -528,7 +530,7 @@ export class Story {
     this.el.hidden = !show;
     if (show) {
       const d = Math.hypot(me.pos.x - show.at[0], me.pos.z - show.at[1]);
-      this.el.innerHTML = `<b>${show.strand === 'story' ? '★ Story' : '◆ Side mission'}:</b> ${show.title} — go to the ${show.strand === 'story' ? 'yellow' : 'blue'} marker (${d < 1000 ? `${Math.round(d / 10) * 10} m` : `${(d / 1000).toFixed(1)} km`})`;
+      setHtml(this.el, `<b>${show.strand === 'story' ? '★ Story' : '◆ Side mission'}:</b> ${show.title} — go to the ${show.strand === 'story' ? 'yellow' : 'blue'} marker (${d < 1000 ? `${Math.round(d / 10) * 10} m` : `${(d / 1000).toFixed(1)} km`})`);
     }
   }
 }

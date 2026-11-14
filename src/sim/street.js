@@ -103,6 +103,22 @@ export class StreetLife {
     return null;
   }
 
+  /**
+   * Would someone appearing at (x, z) pop into existence on screen? Within 60 m of the camera
+   * and inside its view (the camera looks at the player; ±55° covers a wide screen with margin).
+   */
+  inView(x, z) {
+    const cam = this.people.cam, f = this.people.focus;
+    if (!cam || !f) return false;
+    const dx = x - cam.x, dz = z - cam.z, d2 = dx * dx + dz * dz;
+    if (d2 > 60 * 60) return false;
+    let vx = f.x - cam.x, vz = f.z - cam.z;
+    const vl = Math.hypot(vx, vz);
+    if (vl < 0.5) return true; // camera right above the player (looking down): everything near is on screen
+    vx /= vl; vz /= vl;
+    return (dx * vx + dz * vz) / (Math.sqrt(d2) || 1) > 0.57;
+  }
+
   spawnPed(player, hour) {
     const segs = this.traffic.segList;
     for (let tries = 0; tries < 30 && segs.length; tries++) {
@@ -111,16 +127,21 @@ export class StreetLife {
       const d = Math.hypot(mx - player.pos.x, mz - player.pos.z);
       if (d < 18 || d > 120 || seg.len < 6) continue;
       const side = Math.random() < 0.5 ? 1 : -1;
+      const dir = Math.random() < 0.5 ? 1 : -1, t = Math.random();
+      // Where exactly they would stand: not in plain sight of the camera, close up.
+      const u = dir > 0 ? t : 1 - t, ex = s[0] + (s[2] - s[0]) * u, ez = s[1] + (s[3] - s[1]) * u;
+      if (Math.hypot(ex - player.pos.x, ez - player.pos.z) < 18 || this.inView(ex, ez)) continue;
       const off = this.footOffset(seg, side);
       if (off == null) continue;
       const kind = this.kindFor(hour, Math.random());
       const look = outfit(kind === 'jogger' ? 'casual' : kind);
       const speed = kind === 'jogger' ? 2.6 + Math.random() * 0.6 : kind === 'kid' ? 1.4 : 1.05 + Math.random() * 0.45;
       this.peds.push({
-        seg, dir: Math.random() < 0.5 ? 1 : -1, t: Math.random(), side, off, speed, kind, ...look,
+        seg, dir, t, side, off, speed, kind, ...look,
         flags: kind === 'sari' ? FLAG.SARI : 0, scale: kind === 'kid' ? 0.68 + Math.random() * 0.1 : 0.93 + Math.random() * 0.12,
         x: mx, z: mz, y: Y.KERB, heading: 0, phase: Math.random() * 6, pose: POSE.WALK, state: 'walk', timer: 0, ox: 0, oz: 0,
         h: kind === 'kid' ? 1.5 : 2.1,
+        vx: 0, vz: 0, crossTo: 0, watch: null, dead: false, // set later; here so that people share one shape (cheaper per-frame loops)
       });
       return;
     }
@@ -143,7 +164,13 @@ export class StreetLife {
 
   updatePeds(dt, player, hour) {
     const want = Math.round(this.maxPeds * this.activity(hour));
-    this.peds = this.peds.filter((p) => !p.dead && Math.hypot(p.x - player.pos.x, p.z - player.pos.z) < 150);
+    {
+      // Drop the dead and the far away (in place: no new array every frame).
+      const peds = this.peds, px = player.pos.x, pz = player.pos.z;
+      let n = 0;
+      for (let i = 0; i < peds.length; i++) { const p = peds[i]; if (!p.dead && (p.x - px) ** 2 + (p.z - pz) ** 2 < 150 * 150) peds[n++] = p; }
+      peds.length = n;
+    }
     for (let k = 0; k < 3 && this.peds.length < want; k++) this.spawnPed(player, hour);
     const pfx = Math.sin(player.heading), pfz = Math.cos(player.heading);
     for (const p of this.peds) {
@@ -179,13 +206,21 @@ export class StreetLife {
         if (p.timer <= 0) p.state = 'walk';
       }
       if (p.dead) continue;
-      const [bx, bz, h] = this.segPoint(p.seg, Math.min(p.t, 1), p.dir, p.side, p.off);
+      // Position on the segment (segPoint inlined: no array per person and frame).
+      const s = p.seg.s, len = p.seg.len, tt = Math.min(p.t, 1), u = p.dir > 0 ? tt : 1 - tt;
+      const gx = ((s[2] - s[0]) / len) * p.dir, gz = ((s[3] - s[1]) / len) * p.dir;
+      const bx = s[0] + (s[2] - s[0]) * u + gz * p.side * p.off, bz = s[1] + (s[3] - s[1]) * u - gx * p.side * p.off;
       p.ox *= Math.exp(-dt * 0.8); p.oz *= Math.exp(-dt * 0.8);
       if (p.state === 'dodge') { p.ox += p.vx * dt; p.oz += p.vz * dt; }
       p.x = bx + p.ox; p.z = bz + p.oz;
-      if (p.state === 'cross') p.heading = h + (p.crossTo > p.off ? -Math.PI / 2 : Math.PI / 2) * p.side;
-      else if (p.state === 'walk') p.heading = h;
-      p.y = this.tiles.groundHeight(p.x, p.z);
+      if (p.state === 'cross' || p.state === 'walk') {
+        const h = Math.atan2(gx, gz);
+        p.heading = p.state === 'cross' ? h + (p.crossTo > p.off ? -Math.PI / 2 : Math.PI / 2) * p.side : h;
+      }
+      // On the footpath, away from the segment's ends (where side streets cross), people are at
+      // kerb level without asking the map; on the road, near junctions or pushed aside, it asks.
+      const along = tt * len, onFootpath = p.state === 'walk' && p.off >= s[4] + 0.3 && along > 12 && along < len - 12 && p.ox * p.ox + p.oz * p.oz < 0.04;
+      p.y = onFootpath ? Y.KERB : this.tiles.groundHeight(p.x, p.z);
       // Jump out of the taxi's way.
       if (p.state === 'walk' || p.state === 'cross') {
         const dx = p.x - player.pos.x, dz = p.z - player.pos.z, d = Math.hypot(dx, dz);

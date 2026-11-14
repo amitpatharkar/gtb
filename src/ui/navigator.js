@@ -55,8 +55,13 @@ export class Navigator {
     const route = this.map.route, wp = this.map.waypoint;
     if (wp !== this.lastWaypoint) { this.said.clear(); this.lastWaypoint = wp; if (wp && route) this.speak(pick(SAY.start)); }
     if (!wp && this.el.dataset.on) { this.el.hidden = true; delete this.el.dataset.on; if (this.wasOn) this.speak(pick(SAY.arrive)); this.wasOn = false; }
-    if (!route || !wp) { this.arrows.count = 0; return; }
+    if (!route || !wp) { this.arrows.count = 0; this.done = null; return; }
     this.wasOn = true;
+    // Everything below depends only on the route (a new one comes every 1.5 s), the waypoint,
+    // whether we drive, and the loaded tiles: work it out once per change, not every frame.
+    const done = this.done || (this.done = {});
+    if (done.route === route && done.wp === wp && done.driving === driving && done.tiles === this.tiles.version) return;
+    Object.assign(done, { route, wp, driving, tiles: this.tiles.version });
     // Cumulative distances along the route (it starts at the player).
     const cum = [0];
     for (let i = 1; i < route.length; i++) cum.push(cum[i - 1] + Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]));
@@ -79,7 +84,7 @@ export class Navigator {
       if (turn.s < 140 && turn.s > 50 && !this.said.has(key + 'far')) { this.said.add(key + 'far'); this.speak(pick(turn.dir === 'uturn' ? SAY.uturn : SAY[turn.dir])); }
       if (turn.s <= 35 && !this.said.has(key + 'now') && turn.dir !== 'uturn') { this.said.add(key + 'now'); this.speak(pick(turn.dir === 'left' ? SAY.nowLeft : SAY.nowRight)); }
     } else html = `<i>↑</i><div><b>Seedha chalo</b><small>${fmt(total)} to ${wp.label || 'waypoint'}</small></div>`;
-    this.el.innerHTML = html;
+    if (this.el._html !== html) { this.el._html = html; this.el.innerHTML = html; }
     this.el.hidden = false;
     this.el.dataset.on = '1';
     // Chevrons on the road ahead (only while driving).

@@ -189,6 +189,8 @@ await check('missions', async () => {
       const Tt = g.traffic.types[type], h = v.heading;
       if (!g.onFoot) g.toggleFoot();
       g.walker.pos.set(v.x - Math.cos(h) * (Tt.wid / 2 + 0.7), g.walker.pos.y, v.z + Math.sin(h) * (Tt.wid / 2 + 0.7));
+      // Passing traffic right at the door would be the nearer vehicle: keep the test about the lent one.
+      for (let i = g.traffic.cars.length - 1; i >= 0; i--) if (Math.hypot(g.traffic.cars[i].x - v.x, g.traffic.cars[i].z - v.z) < 15) g.traffic.cars.splice(i, 1);
       g.step(0.05); g.toggleFoot(); for (let i = 0; i < 80 && g.onFoot; i++) g.step(0.05);
     };
     const needType = (st) => { if (typeof st.on === 'string' && g.traffic.types[st.on] && g.garage.type !== st.on && st.on !== 'swift') takeLent(st.on); };

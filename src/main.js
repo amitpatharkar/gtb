@@ -171,6 +171,7 @@ const pichkari = new Pichkari(scene, { tiles, street, police, traffic, bubbles, 
 let combat = null; // created once the camera control exists (below)
 const jobs = new Jobs({ scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street });
 jobs.taxi = player;
+traffic.car = police.car = player; // driven or left standing: traffic and patrol cars avoid it at its real size
 const story = new Story({ scene, tiles, index, state, cityMap, hud, bubbles, people, jobs, street, clock, audio });
 jobs.paused = () => !!story.s.active; // no new fares while a mission is on (they share the GPS)
 jobs.canFare = () => garage.inTaxi || garage.type === 'auto';
@@ -490,7 +491,7 @@ police.onFlagStop = (f, who) => {
     [`Pay ₹${police.fines.toLocaleString('en-IN')}`, () => police.pay(false, f, who)],
     ['Argue ("Main toh dheere chala raha tha!")', () => police.argue(f, who)],
     ['Drive off (more stars)', () => police.flee(f)],
-  ]);
+  ], () => police.cancelStop()); // closed without an answer (Esc, a click elsewhere, another dialog)
 };
 
 // ------------------------------------------------------------------ settings, pause menu, hints
@@ -575,7 +576,8 @@ function interact() {
 function hospital() {
   state.pay(1500, 'Hospital bill');
   walker.health = 1;
-  onFoot = false;
+  onFoot = false; walker.spraying = false;
+  if (!garage.inTaxi) garage.toTaxi(); // like the tow: back in the kaali-peeli (a borrowed vehicle stays where it is)
   respawn();
   placeCamera(0);
   say('You woke up in hospital. Bill: ₹1,500. Look both ways next time!', 5);
@@ -639,18 +641,26 @@ function repairMenu() {
   ]);
 }
 
-/** A small menu of choices (click or press 1, 2, 3…). */
+/**
+ * A small menu of choices (click or press 1, 2, 3…). Esc, a click outside the box or another
+ * menu replacing it closes it without picking anything: then `onCancel` runs instead.
+ */
 let closeChoice = null;
-function choice(title, options) {
+function choice(title, options, onCancel = null) {
   closeChoice?.(-1);
   const box = $('choice');
   box.innerHTML = `<b>${title}</b>${options.map(([label], i) => `<button data-i="${i}"><kbd>${i + 1}</kbd> ${label}</button>`).join('')}`;
   box.hidden = false;
   view.release();
-  const done = (i) => { box.hidden = true; removeEventListener('keydown', key, true); closeChoice = null; options[i]?.[1](); };
+  const done = (i) => {
+    box.hidden = true; removeEventListener('keydown', key, true); removeEventListener('pointerdown', outside, true); closeChoice = null;
+    if (options[i]) options[i][1](); else onCancel?.();
+  };
   closeChoice = done;
-  const key = (e) => { const i = Number(e.key) - 1; if (i >= 0 && i < options.length) { e.preventDefault(); e.stopPropagation(); done(i); } if (e.code === 'Escape') { e.stopPropagation(); done(options.length - 1); } };
+  const key = (e) => { const i = Number(e.key) - 1; if (i >= 0 && i < options.length) { e.preventDefault(); e.stopPropagation(); done(i); } if (e.code === 'Escape') { e.stopPropagation(); done(-1); } };
+  const outside = (e) => { if (!box.contains(e.target)) done(-1); };
   addEventListener('keydown', key, true);
+  addEventListener('pointerdown', outside, true); // capture: added now, so it misses the tap that opened the menu
   box.onclick = (e) => { const b = e.target.closest('button'); if (b) done(Number(b.dataset.i)); };
 }
 
@@ -800,7 +810,7 @@ function step(dt) {
   landmarks.update(night);
   streetProps.update(dt, active.pos);
   art.update(active.pos);
-  facadeParts.update(dt, player, tiles, night);
+  facadeParts.update(dt, active, tiles, night);
   skyline.update(active.pos);
   birds.update(dt, active, clock.daylight);
   tiles.props.lampMat.emissiveIntensity = night * 9;
@@ -812,10 +822,10 @@ function step(dt) {
   if (lampTimer <= 0) {
     lampTimer = night > 0.05 ? 0.12 : 0.4; // headlight cones follow the traffic
     placeLampLights(night);
-    seaFactor = nearSea();
+    seaFactor = nearSea(active.pos);
   }
   for (const [x, z] of traffic.honks.splice(0)) {
-    const d = Math.hypot(x - player.pos.x, z - player.pos.z);
+    const d = Math.hypot(x - active.pos.x, z - active.pos.z);
     if (d < 80 && Math.random() < 0.6) audio.play(Math.random() < 0.25 ? 'truckHorn' : 'horn', 0.5 / (1 + d / 15));
   }
   audio.update(seaFactor, clock.traffic, clock.daylight);
@@ -859,7 +869,7 @@ function placeLampLights(night) {
   // 30 m along the other streets, where the map has none — every road in Mumbai is lit at night.
   lampScan -= 1;
   if (lampScan <= 0 || !lampCache) { lampScan = 4; lampCache = gatherLamps(focus); }
-  const near = lampCache.map(([x, z, y]) => [(x - player.pos.x) ** 2 + (z - player.pos.z) ** 2, x, z, y ?? 8.4]).sort((a, b) => a[0] - b[0]);
+  const near = lampCache.map(([x, z, y]) => [(x - focus.x) ** 2 + (z - focus.z) ** 2, x, z, y ?? 8.4]).sort((a, b) => a[0] - b[0]);
   updateNightLights(night, focus, near.map(([, x, z, y]) => [x, z, 1, y]), traffic.cars, tier, onFoot || damage.headlampFactor(player.condition) < 0.3 ? null : player);
   lampLights.forEach((l, i) => {
     const n = near[i];
@@ -901,12 +911,12 @@ function gatherLamps(focus) {
   return out;
 }
 
-/** 0..1: how much open sea is around the player (for wave sounds). */
-function nearSea() {
+/** 0..1: how much open sea is around the player, on foot or driving (for wave sounds). */
+function nearSea(at) {
   let wet = 0;
   for (let k = 0; k < 8; k++) {
     const a = (k / 8) * Math.PI * 2;
-    if (!tiles.walkable(player.pos.x + Math.cos(a) * 45, player.pos.z + Math.sin(a) * 45)) wet++;
+    if (!tiles.walkable(at.x + Math.cos(a) * 45, at.z + Math.sin(a) * 45)) wet++;
   }
   return Math.min(1, wet / 3);
 }

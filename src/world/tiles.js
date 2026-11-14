@@ -13,13 +13,16 @@ const DETAIL_MESHES = new Set(['railSteel', 'paint', 'contact']); // hidden on f
 // [cast shadow, receive shadow] by mesh key (walls and roofs cast; ground only receives).
 const shadowsFor = (key) => (key.startsWith('walls') || key.startsWith('roof') || key === 'parapet' ? [true, true] : [false, true]);
 const SEG = 6; // floats per road segment: x0 z0 x1 z1 halfWidth flags (1 vehicle, 2 one-way, 4 main road)
+/** Numeric tile key (no strings in per-frame lookups); tile indices stay within ±2048. */
+const tileKey = (tx, tz) => (tx + 2048) * 4096 + (tz + 2048);
 
 export class TileManager {
   constructor(scene, materials, tier) {
     this.scene = scene;
     this.tier = tier;
     this.materials = materials;
-    this.tiles = new Map();    // key → loaded tile
+    this.tiles = new Map();    // key "tx,tz" → loaded tile
+    this.byKey = new Map();    // numeric tileKey → loaded tile (collision queries)
     this.pending = new Map();  // key → request id
     this.failed = new Set();
     this.callbacks = new Map();
@@ -29,6 +32,9 @@ export class TileManager {
     this.props = createProps();
     this.detailRadius = tier?.detailRadius ?? 300;
     this.loadRadius = tier?.loadRadius ?? LOAD_RADIUS;   // smaller on Low: fewer tiles, fewer draw calls
+    // Scratch state for the collision queries (see roadHit).
+    this.roadTile = null; this.roadIndex = -1; this.roadDist = Infinity;
+    this.near = new Array(64).fill(null); // tiles found by nearInto (never shrunk: no garbage)
   }
 
   async init(baseUrl) {
@@ -39,6 +45,7 @@ export class TileManager {
     this.size = this.index.tileSize;
     this.bounds = this.index.bounds;
     this.available = new Map(this.index.tiles.map(([tx, tz, bytes]) => [`${tx},${tz}`, bytes]));
+    this.availableKeys = new Set(this.index.tiles.map(([tx, tz]) => tileKey(tx, tz)));
     this.worker = new Worker(new URL('./tileWorker.js', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e) => this.callbacks.get(e.data.id)?.(e.data);
     return this.index;
@@ -58,8 +65,10 @@ export class TileManager {
     const wanted = [];
     for (let tx = ptx - r; tx <= ptx + r; tx++) {
       for (let tz = ptz - r; tz <= ptz + r; tz++) {
+        const k = tileKey(tx, tz);
+        if (!this.availableKeys.has(k) || this.byKey.has(k)) continue; // most tiles: no string key needed
         const key = `${tx},${tz}`;
-        if (!this.available.has(key) || this.tiles.has(key) || this.pending.has(key) || this.failed.has(key)) continue;
+        if (this.pending.has(key) || this.failed.has(key)) continue;
         const d = this.tileDistance(tx, tz, x, z);
         if (d <= this.loadRadius) wanted.push([d, tx, tz, key]);
       }
@@ -69,9 +78,9 @@ export class TileManager {
       if (this.pending.size >= MAX_IN_FLIGHT) break;
       this.load(tx, tz, key);
     }
-    for (const [key, tile] of this.tiles) {
+    for (const tile of this.tiles.values()) {
       const d = this.tileDistance(tile.tx, tile.tz, x, z);
-      if (d > this.loadRadius + (UNLOAD_RADIUS - LOAD_RADIUS)) this.unload(key);
+      if (d > this.loadRadius + (UNLOAD_RADIUS - LOAD_RADIUS)) this.unload(tile.key);
       else tile.detail.visible = d < this.detailRadius;
     }
   }
@@ -142,7 +151,9 @@ export class TileManager {
     }
     group.updateMatrixWorld(true);
     this.scene.add(group);
-    this.tiles.set(key, { ...t, group, detail });
+    const tile = { ...t, key, group, detail };
+    this.tiles.set(key, tile);
+    this.byKey.set(tileKey(t.tx, t.tz), tile);
     this.version = (this.version || 0) + 1;
   }
 
@@ -156,6 +167,8 @@ export class TileManager {
       else if (o.geometry && o.geometry !== this.tankGeo) o.geometry.dispose();
     });
     this.tiles.delete(key);
+    this.byKey.delete(tileKey(tile.tx, tile.tz));
+    this.near.fill(null); // let the unloaded tile go
     this.version = (this.version || 0) + 1;
   }
 
@@ -179,23 +192,44 @@ export class TileManager {
   }
 
   // ------------------------------------------------------------ collisions
+  // These run hundreds of times per frame (cars, people, police), so they allocate nothing:
+  // numeric tile keys, plain loops instead of generators and closures, results in fields.
 
-  /** Loaded tiles whose content might touch the circle (x, z, r). */
-  *nearTiles(x, z, r) {
-    const s = this.size;
-    for (let tx = Math.floor((x - r) / s) - 1; tx <= Math.floor((x + r) / s) + 1; tx++)
-      for (let tz = Math.floor((z - r) / s) - 1; tz <= Math.floor((z + r) / s) + 1; tz++) {
-        const t = this.tiles.get(`${tx},${tz}`);
-        if (t) yield t;
+  /** Loaded tiles whose content might touch the circle (x, z, r), as a new array. */
+  nearTiles(x, z, r) {
+    return this.near.slice(0, this.nearInto(x, z, r));
+  }
+
+  /**
+   * nearTiles without garbage: fills this.near from index 0 and returns how many it found.
+   * Each query reads them before the next one starts (none of them nest).
+   */
+  nearInto(x, z, r) {
+    const s = this.size, out = this.near, tx1 = Math.floor((x + r) / s) + 1, tz0 = Math.floor((z - r) / s) - 1, tz1 = Math.floor((z + r) / s) + 1;
+    let n = 0;
+    for (let tx = Math.floor((x - r) / s) - 1; tx <= tx1; tx++)
+      for (let tz = tz0; tz <= tz1; tz++) {
+        const t = this.byKey.get(tileKey(tx, tz));
+        if (t) out[n++] = t; // grows the array once if ever needed
       }
+    return n;
   }
 
   /** True if a circle at (x, z) with radius r is blocked: buildings, sea, map edge. */
   hits(x, z, r) {
     const b = this.bounds;
     if (x - r < b.minX || x + r > b.maxX || z - r < b.minZ || z + r > b.maxZ) return true;
-    for (const t of this.nearTiles(x, z, r)) {
-      if (gridAny(t.collide.solid, x, z, r, (i) => polyHit(t.collide.solid, i, x, z, r))) return true;
+    const near = this.near, count = this.nearInto(x, z, r);
+    for (let n = 0; n < count; n++) {
+      const p = near[n].collide.solid;
+      if (!p.count) continue;
+      const g = p.grid;
+      const a0 = Math.max(0, Math.floor((x - r - g.x0) / g.cell)), a1 = Math.min(g.nx - 1, Math.floor((x + r - g.x0) / g.cell));
+      const b0 = Math.max(0, Math.floor((z - r - g.z0) / g.cell)), b1 = Math.min(g.nz - 1, Math.floor((z + r - g.z0) / g.cell));
+      for (let gb = b0; gb <= b1; gb++) for (let ga = a0; ga <= a1; ga++) {
+        const c = gb * g.nx + ga;
+        for (let k = g.start[c]; k < g.start[c + 1]; k++) if (polyHit(p, g.items[k], x, z, r)) return true;
+      }
     }
     return !this.walkable(x, z);
   }
@@ -203,64 +237,97 @@ export class TileManager {
   /** On land, on a pier, or on a road (bridges, causeways). Unknown tiles count as walkable. */
   walkable(x, z) {
     const s = this.size;
-    const key = `${Math.floor(x / s)},${Math.floor(z / s)}`;
-    if (!this.available.has(key)) return false; // open sea
-    const own = this.tiles.get(key);
+    const k = tileKey(Math.floor(x / s), Math.floor(z / s));
+    if (!this.availableKeys.has(k)) return false; // open sea
+    const own = this.byKey.get(k);
     if (!own) return true; // not loaded yet
     const w = own.collide.walkable;
-    if (gridAny(w, x, z, 0, (i) => polyContains(w, i, x, z))) return true;
-    return !!this.roadAt(x, z, 0);
+    if (w.count) {
+      const g = w.grid;
+      const ga = Math.floor((x - g.x0) / g.cell), gb = Math.floor((z - g.z0) / g.cell);
+      if (ga >= 0 && ga < g.nx && gb >= 0 && gb < g.nz) {
+        const c = gb * g.nx + ga;
+        for (let i = g.start[c]; i < g.start[c + 1]; i++) if (polyContains(w, g.items[i], x, z)) return true;
+      }
+    }
+    return this.roadHit(x, z, 0, false);
+  }
+
+  /**
+   * Allocation-free core of roadAt: true if a road segment is within its own half-width +
+   * slack of (x, z); the nearest is left in roadTile / roadIndex / roadDist.
+   */
+  roadHit(x, z, slack, vehicleOnly = false) {
+    this.roadTile = null; this.roadIndex = -1;
+    let best = Infinity;
+    const near = this.near, count = this.nearInto(x, z, 20);
+    for (let n = 0; n < count; n++) {
+      const t = near[n], rd = t.collide.roads;
+      if (!rd.count) continue;
+      // Cells around the point itself even for a negative slack (a negative range used to skip
+      // every cell within 0.15 m of a 16 m grid line: roads read as kerb there).
+      const g = rd.grid, s = rd.segs, r = slack > 0 ? slack : 0;
+      const a0 = Math.max(0, Math.floor((x - r - g.x0) / g.cell)), a1 = Math.min(g.nx - 1, Math.floor((x + r - g.x0) / g.cell));
+      const b0 = Math.max(0, Math.floor((z - r - g.z0) / g.cell)), b1 = Math.min(g.nz - 1, Math.floor((z + r - g.z0) / g.cell));
+      for (let gb = b0; gb <= b1; gb++) for (let ga = a0; ga <= a1; ga++) {
+        const c = gb * g.nx + ga;
+        for (let k = g.start[c]; k < g.start[c + 1]; k++) {
+          const i = g.items[k], o = i * SEG;
+          if (vehicleOnly && !(s[o + 5] & 1)) continue;
+          const d = segDist(x, z, s[o], s[o + 1], s[o + 2], s[o + 3]);
+          if (d <= s[o + 4] + slack && d < best) { best = d; this.roadTile = t; this.roadIndex = i; }
+        }
+      }
+    }
+    this.roadDist = best;
+    return this.roadTile !== null;
   }
 
   /** Nearest road segment within its own half-width + slack: { tile, index, dist }. */
   roadAt(x, z, slack, vehicleOnly = false) {
-    let best = null;
-    for (const t of this.nearTiles(x, z, 20)) {
-      const rd = t.collide.roads;
-      gridAny(rd, x, z, slack, (i) => {
-        const s = rd.segs, o = i * SEG;
-        if (vehicleOnly && !(s[o + 5] & 1)) return false;
-        const d = segDist(x, z, s[o], s[o + 1], s[o + 2], s[o + 3]);
-        if (d <= s[o + 4] + slack && (!best || d < best.dist)) best = { tile: t, index: i, dist: d };
-        return false;
-      });
-    }
-    return best;
+    return this.roadHit(x, z, slack, vehicleOnly) ? { tile: this.roadTile, index: this.roadIndex, dist: this.roadDist } : null;
   }
 
   /** Name of the road the player is on, or ''. */
   roadNameAt(x, z) {
-    let best = null;
-    for (const t of this.nearTiles(x, z, 20)) {
-      const rd = t.collide.roads;
-      gridAny(rd, x, z, 6, (i) => {
-        const n = rd.names[i];
-        if (n < 0) return false;
-        const s = rd.segs, o = i * SEG;
-        const d = segDist(x, z, s[o], s[o + 1], s[o + 2], s[o + 3]) - s[o + 4];
-        if (d < 6 && (!best || d < best.d)) best = { d, name: t.names[n] };
-        return false;
-      });
+    let best = Infinity, name = '';
+    const near = this.near, count = this.nearInto(x, z, 20);
+    for (let n = 0; n < count; n++) {
+      const t = near[n], rd = t.collide.roads;
+      if (!rd.count) continue;
+      const g = rd.grid, s = rd.segs;
+      const a0 = Math.max(0, Math.floor((x - 6 - g.x0) / g.cell)), a1 = Math.min(g.nx - 1, Math.floor((x + 6 - g.x0) / g.cell));
+      const b0 = Math.max(0, Math.floor((z - 6 - g.z0) / g.cell)), b1 = Math.min(g.nz - 1, Math.floor((z + 6 - g.z0) / g.cell));
+      for (let gb = b0; gb <= b1; gb++) for (let ga = a0; ga <= a1; ga++) {
+        const c = gb * g.nx + ga;
+        for (let k = g.start[c]; k < g.start[c + 1]; k++) {
+          const i = g.items[k], nm = rd.names[i];
+          if (nm < 0) continue;
+          const o = i * SEG;
+          const d = segDist(x, z, s[o], s[o + 1], s[o + 2], s[o + 3]) - s[o + 4];
+          if (d < 6 && d < best) { best = d; name = t.names[nm]; }
+        }
+      }
     }
-    return best ? best.name : '';
+    return name;
   }
 
   /** Ground height under (x, z): asphalt on carriageways, kerb level elsewhere. */
   groundHeight(x, z) {
-    return this.roadAt(x, z, -0.15, true) ? Y.ROAD : Y.KERB;
+    return this.roadHit(x, z, -0.15, true) ? Y.ROAD : Y.KERB;
   }
 
   /** Ground height felt by the player's wheels: rough lanes undulate, potholes dip. */
   wheelHeight(x, z) {
     this.inPothole = false;
-    const r = this.roadAt(x, z, -0.15, true);
-    if (!r) return Y.KERB;
-    const f = r.tile.collide.roads.segs[r.index * SEG + 5];
+    if (!this.roadHit(x, z, -0.15, true)) return Y.KERB;
+    const f = this.roadTile.collide.roads.segs[this.roadIndex * SEG + 5];
     let y = Y.ROAD;
     if (f & 16) y += 0.028 * Math.sin(x * 1.7 + Math.sin(z * 0.6) * 2.2) * Math.sin(z * 2.1 + x * 0.35) + 0.012 * Math.sin(x * 5.3 - z * 4.1);
     else if (f & 8) y += 0.01 * Math.sin(x * 1.2 + z * 0.9) * Math.sin(z * 1.6);
-    for (const t of this.nearTiles(x, z, 2)) {
-      const arr = t.points[POINT.POTHOLE];
+    const near = this.near, count = this.nearInto(x, z, 2);
+    for (let n = 0; n < count; n++) {
+      const t = near[n], arr = t.points[POINT.POTHOLE];
       if (!arr) continue;
       for (let i = 0; i < arr.length; i += 5) {
         const dx = x - arr[i] - t.origin[0], dz = z - arr[i + 2] - t.origin[1], rad = arr[i + 4] * 0.45;
@@ -275,21 +342,6 @@ export class TileManager {
   segment(tile, i) { return tile.collide.roads.segs.subarray(i * SEG, i * SEG + SEG); }
 
   get loadedCount() { return this.tiles.size; }
-}
-
-/** Visit grid items near (x, z) ± r; stops early when fn returns true. */
-function gridAny(set, x, z, r, fn) {
-  const g = set.grid;
-  if (!set.count) return false;
-  const a0 = Math.max(0, Math.floor((x - r - g.x0) / g.cell)), a1 = Math.min(g.nx - 1, Math.floor((x + r - g.x0) / g.cell));
-  const b0 = Math.max(0, Math.floor((z - r - g.z0) / g.cell)), b1 = Math.min(g.nz - 1, Math.floor((z + r - g.z0) / g.cell));
-  for (let b = b0; b <= b1; b++) {
-    for (let a = a0; a <= a1; a++) {
-      const c = b * g.nx + a;
-      for (let k = g.start[c]; k < g.start[c + 1]; k++) if (fn(g.items[k])) return true;
-    }
-  }
-  return false;
 }
 
 function polyContains(p, i, x, z) {
@@ -326,5 +378,6 @@ function segDist(x, z, ax, az, bx, bz) {
   const len2 = dx * dx + dz * dz;
   let t = len2 ? ((x - ax) * dx + (z - az) * dz) / len2 : 0;
   t = t < 0 ? 0 : t > 1 ? 1 : t;
-  return Math.hypot(ax + t * dx - x, az + t * dz - z);
+  const ex = ax + t * dx - x, ez = az + t * dz - z;
+  return Math.sqrt(ex * ex + ez * ez);
 }

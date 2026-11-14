@@ -379,6 +379,7 @@ export class Jobs {
     }
     for (const d of this.riders) if (d.state === 'coming') rows.push(`${d.app === 'jhatpat' ? '🟢 JhatPat' : '🟠 Bhookh'} order: ${Math.max(0, Math.ceil(d.eta - d.t))} s`);
     else if (d.state === 'walking') rows.push(`${d.app === 'jhatpat' ? '🟢' : '🟠'} Delivery partner is here — stop to collect`);
-    el.innerHTML = rows.join('<br>');
+    const html = rows.join('<br>');
+    if (el._html !== html) { el._html = html; el.innerHTML = html; } // rewritten only when it changes (this runs every frame)
   }
 }

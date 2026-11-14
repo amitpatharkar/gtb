@@ -234,8 +234,14 @@ export class PeopleRenderer {
     this.beforeEnd?.(list);   // real rigged characters take the nearest people (p.hero)
     for (const p of list) if (!p.hero) this.write(p);
     this.mesh.count = this.n;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    for (const a of [this.anim, this.colA, this.colB, this.skin, ...this.splat]) a.needsUpdate = true;
+    // Upload only the instances drawn this frame, not the whole buffers (the range replaces any
+    // left from frames that were stepped but not drawn: everything below n was just written).
+    if (!this.n) return;
+    for (const a of this.attrs || (this.attrs = [this.mesh.instanceMatrix, this.anim, this.colA, this.colB, this.skin, ...this.splat])) {
+      a.clearUpdateRanges();
+      a.addUpdateRange(0, this.n * a.itemSize);
+      a.needsUpdate = true;
+    }
   }
 }
 

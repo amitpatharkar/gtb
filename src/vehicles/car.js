@@ -145,19 +145,32 @@ export class Car {
     this.odometer += dist;
     this.fuel = Math.max(0, this.fuel - dist / 300000 - dt * 0.000004); // ~300 km per tank (35 L, ~8.5 km/L)
 
-    // Ground: average of front and rear wheels; kerbs give a bump.
+    // Ground: average of front and rear wheels; kerbs and potholes give a bump.
     const wx = Math.sin(this.heading) * 1.17, wz = Math.cos(this.heading) * 1.17;
     world.pothole = false;
-    const gF = world.groundHeight(this.pos.x + wx, this.pos.z + wz), gR = world.groundHeight(this.pos.x - wx, this.pos.z - wz);
+    const gF = world.groundHeight(this.pos.x + wx, this.pos.z + wz), inF = !!world.pothole;
+    world.pothole = false;
+    const gR = world.groundHeight(this.pos.x - wx, this.pos.z - wz), inR = !!world.pothole;
+    world.pothole = inF || inR;
     const g = (gF + gR) / 2;
-    if (Math.abs(g - this.pos.y) > 0.06 && Math.abs(this.speed) > 3) {
-      // Kerbs and potholes: a jolt, some lost speed, and a little damage when taken fast.
-      this.speed *= 0.93;
-      this.lastBump = 0.25;
-      // Only potholes hurt the car (kerbs and rough patches just jolt it).
-      if (world.pothole && Math.abs(this.speed) > 9) this.condition = Math.max(0, this.condition - 0.0012 * Math.abs(this.speed));
-      this.bumped = true;
+    // Jolts come from the ground itself changing under a wheel — a kerb edge, a wheel dropping
+    // into a pothole — once per wheel and event, so the speed lost is the same at any frame rate.
+    if (this.prevGF !== undefined && Math.abs(this.speed) > 3) {
+      let loss = 1, holes = 0;
+      if (Math.abs(gF - this.prevGF) > 0.06 && !inF && !this.prevInF) loss *= 0.93; // kerb under the front wheels
+      if (Math.abs(gR - this.prevGR) > 0.06 && !inR && !this.prevInR) loss *= 0.93; // … and the rear
+      if (inF && !this.prevInF) { loss *= 0.97; holes++; }
+      if (inR && !this.prevInR) { loss *= 0.97; holes++; }
+      if (loss < 1) {
+        // Velocity and speed together (a lone change to `speed` reads as a teleport next frame).
+        this.vx *= loss; this.vz *= loss; this.speed *= loss; this.lastSpeed = this.speed;
+        this.lastBump = 0.25;
+        // Only potholes hurt the car (kerbs and rough patches just jolt it).
+        if (holes && Math.abs(this.speed) > 9) this.condition = Math.max(0, this.condition - 0.0006 * holes * Math.abs(this.speed));
+        this.bumped = true;
+      }
     }
+    this.prevGF = gF; this.prevGR = gR; this.prevInF = inF; this.prevInR = inR;
     this.pos.y += (g - this.pos.y) * Math.min(1, dt * 12);
 
     // Body motion: pitch from acceleration and slope, roll from cornering.

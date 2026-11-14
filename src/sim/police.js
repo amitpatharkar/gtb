@@ -63,11 +63,20 @@ function umbrellaGeometry() {
   return mergeGeometries(parts);
 }
 
-/** Two circles along a car (front and back), like the player's own collision shape. */
+const TAXI_CIRCLES = [1.1, -1.1];
+/**
+ * Circles along a car, like the player's own collision shape: the player Car's real ones (a
+ * bus is long), two for the parked taxi's stand-in; a person on foot is one small circle.
+ */
 function carHit(car, x, z, r) {
-  const fx = Math.sin(car.heading || 0) * 1.1, fz = Math.cos(car.heading || 0) * 1.1;
-  if (car.condition === undefined) return Math.hypot(x - car.pos.x, z - car.pos.z) < r + 0.5; // a person on foot
-  return (x - car.pos.x - fx) ** 2 + (z - car.pos.z - fz) ** 2 < (r + 0.8) ** 2 || (x - car.pos.x + fx) ** 2 + (z - car.pos.z + fz) ** 2 < (r + 0.8) ** 2;
+  if (car.condition === undefined) { const dx = x - car.pos.x, dz = z - car.pos.z; return dx * dx + dz * dz < (r + 0.5) * (r + 0.5); } // a person on foot
+  const fx = Math.sin(car.heading || 0), fz = Math.cos(car.heading || 0), R = r + (car.radius ?? 0.8);
+  const list = car.circles || (car.halfLength !== undefined ? [car.halfLength, -car.halfLength] : TAXI_CIRCLES);
+  for (let i = 0; i < list.length; i++) {
+    const dx = x - car.pos.x - fx * list[i], dz = z - car.pos.z - fz * list[i];
+    if (dx * dx + dz * dz < R * R) return true;
+  }
+  return false;
 }
 
 export class Police {
@@ -83,6 +92,9 @@ export class Police {
     this.pSig = null;
     this.flagger = null;    // constable flagging the player down
     this.patrols = [];
+    this.modelPool = [];    // patrol car models are kept and reused (no new materials and textures per chase)
+    this.car = null;        // the player's Car (main.js), also while they are on foot
+    traffic.police = this;  // traffic slows for patrol cars too
     this.graphVersion = -1;
     this.time = 0;
     this.cops = [];
@@ -93,7 +105,7 @@ export class Police {
     this.umbrellas.receiveShadow = true;
     this.umbrellas.frustumCulled = false;
     scene.add(this.umbrellas);
-    this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion();
+    this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.v = new THREE.Vector3(); this.one = new THREE.Vector3(1, 1, 1);
   }
 
   // ------------------------------------------------------------------ constables
@@ -370,6 +382,15 @@ export class Police {
     this.pay(false, f, player);
   }
 
+  /**
+   * The challan dialog closed without an answer (Esc, a click elsewhere, another dialog): the
+   * hawaldar asks again if the player is still stopped by him a few seconds later.
+   */
+  cancelStop() {
+    this.deciding = false;
+    this.stopT = -3;
+  }
+
   /** Drive off from the hawaldar mid-conversation. */
   flee(f) {
     this.deciding = false;
@@ -396,6 +417,8 @@ export class Police {
   // ------------------------------------------------------------------ patrol cars
   buildGraph() {
     this.graphVersion = this.traffic.graphVersion;
+    // Routes point at nodes of the old graph: A* from one of those fails, so plan again.
+    for (const p of this.patrols) { p.route = null; p.goal = null; p.leaveGoal = null; p.routeT = 0; }
     // One node per junction list (joined loose ends share a list), edges along segments.
     const byList = new Map(), byKey = new Map();
     for (const [k, list] of this.traffic.ends) {
@@ -491,7 +514,8 @@ export class Police {
       if (tries < 40 && ((x - player.pos.x) * fx + (z - player.pos.z) * fz) > 0) continue; // prefer behind
       if (tries < 50 && this.los(x, z, player.pos.x, player.pos.z)) continue;           // appear out of sight
       if (this.tiles.hits(x, z, 1.2)) continue;
-      const model = createTaxi({ police: true });
+      const model = this.modelPool.pop() || createTaxi({ police: true });
+      model.lights.bar.red.emissiveIntensity = model.lights.bar.blue.emissiveIntensity = 0;
       this.scene.add(model.root);
       const car = new Car(model, { maxSpeed: 23, accel: 6.5, fuel: 1 });
       car.pos.set(x, Y.ROAD, z);
@@ -524,7 +548,7 @@ export class Police {
           const route = this.path(from, goal);
           p.route = route;
           p.goal = goal;
-          if (!route) p.lost = (p.lost || 0) + 1;
+          p.lost = route ? 0 : (p.lost || 0) + 1;
         }
       }
       while (p.route?.length > 1 && Math.hypot(p.route[0].x - pos.x, p.route[0].z - pos.z) < 6) p.route.shift();
@@ -562,10 +586,7 @@ export class Police {
   }
 
   hits(x, z, r) {
-    for (const p of this.patrols) {
-      const c = p.car.pos, fx = Math.sin(p.car.heading) * 1.1, fz = Math.cos(p.car.heading) * 1.1;
-      if ((x - c.x - fx) ** 2 + (z - c.z - fz) ** 2 < (r + 0.8) ** 2 || (x - c.x + fx) ** 2 + (z - c.z + fz) ** 2 < (r + 0.8) ** 2) return true;
-    }
+    for (const p of this.patrols) if (carHit(p.car, x, z, r)) return true;
     return false;
   }
 
@@ -603,20 +624,31 @@ export class Police {
     if ((want || this.patrols.length) && this.graphVersion !== this.traffic.graphVersion) this.buildGraph();
     const chasing = this.patrols.filter((p) => p.mode === 'chase').length;
     if (chasing < want && Math.random() < dt * 0.6) this.spawnPatrol(player);
-    const world = {
-      hits: (x, z, r) => this.tiles.hits(x, z, r) || this.traffic.hits(x, z, r) || carHit(player, x, z, r) || (this.taxi && this.taxi !== player && carHit(this.taxi, x, z, r)),
+    // What a patrol car bumps into: buildings, traffic, the player (whatever they drive, at its
+    // real size, or on foot), the vehicle the player left standing, the parked taxi, other patrols.
+    this.player = player;
+    const world = this.world || (this.world = {
+      hits: (x, z, r) => {
+        const pl = this.player, car = this.car;
+        if (this.tiles.hits(x, z, r) || this.traffic.hits(x, z, r) || carHit(pl, x, z, r)) return true;
+        if (car && car !== pl && carHit(car, x, z, r)) return true;
+        if (this.taxi && this.taxi !== pl && this.taxi !== car && carHit(this.taxi, x, z, r)) return true;
+        for (const q of this.patrols) if (q !== this.driving && carHit(q.car, x, z, r)) return true;
+        return false;
+      },
       groundHeight: (x, z) => this.tiles.groundHeight(x, z),
-    };
+    });
     let siren = 0;
     for (const p of this.patrols) {
+      this.driving = p;
       this.drivePatrol(p, dt, player, world);
       if (p.mode === 'chase') siren = Math.max(siren, 1 / (1 + p.car.pos.distanceTo(player.pos) / 40));
     }
-    for (const p of this.patrols.filter((p) => p.dead)) {
-      this.scene.remove(p.model.root);
-      p.model.root.traverse((o) => { o.geometry?.dispose(); for (const m of [o.material].flat()) m?.dispose?.(); });
+    this.driving = null;
+    if (this.patrols.some((p) => p.dead)) {
+      for (const p of this.patrols) if (p.dead) { this.scene.remove(p.model.root); this.modelPool.push(p.model); }
+      this.patrols = this.patrols.filter((p) => !p.dead);
     }
-    this.patrols = this.patrols.filter((p) => !p.dead);
     this.audio.siren(siren);
 
     // Draw constables and their umbrellas.
@@ -625,7 +657,7 @@ export class Police {
       this.people.add({ x: c.x, y: c.y, z: c.z, heading: c.heading, phase: c.phase, pose: c.pose, amp: 1, flags: FLAG.CAP, shirt: c.shirt, pants: c.pants, skin: c.skin });
       if (n < 120) {
         this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, 0);
-        this.m.compose(new THREE.Vector3(c.ux, Y.KERB, c.uz), this.q, new THREE.Vector3(1, 1, 1));
+        this.m.compose(this.v.set(c.ux, Y.KERB, c.uz), this.q, this.one);
         this.umbrellas.setMatrixAt(n++, this.m);
       }
     }
