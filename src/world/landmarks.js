@@ -50,7 +50,7 @@ function archedBlock(u0, u1, h, depth, arches) {
 }
 
 function dome(r, y, squash = 1, ribs = 0) {
-  const g = new THREE.SphereGeometry(r, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, squash, 1).translate(0, y, 0);
+  const g = new THREE.SphereGeometry(r, 48, 16, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, squash, 1).translate(0, y, 0);
   if (!ribs) return g;
   // Ribbed dome: push every other longitude band out a little.
   const p = g.attributes.position;
@@ -65,7 +65,7 @@ function onion(r, y) {
   const pts = [];
   for (let i = 0; i <= 16; i++) { const t = i / 16; pts.push(new THREE.Vector2(r * Math.sin(t * Math.PI) * (1 + 0.35 * Math.sin(t * Math.PI * 0.9)) * (1 - t * 0.6), y + t * r * 2.2)); }
   pts.push(new THREE.Vector2(0.001, y + r * 2.6));
-  return new THREE.LatheGeometry(pts, 20);
+  return new THREE.LatheGeometry(pts, 40);
 }
 function turret(r, h, x, z, capR = r * 1.15) {
   return [new THREE.CylinderGeometry(r, r * 1.05, h, 8).translate(x, h / 2, z), new THREE.CylinderGeometry(capR, capR, 0.4, 8).translate(x, h + 0.2, z)];
@@ -226,13 +226,13 @@ export class Landmarks {
     let side = 1;
     if (gw) { const dx = gw.x - L.x, dz = gw.z - L.z, c = Math.cos(L.angle), s = Math.sin(L.angle); side = (-dx * s + dz * c) >= 0 ? 1 : -1; }
     const fz = side * (D / 2 - wing / 2);
-    this.add(g, [box(30, H + 6, wing + 4, 0, 0, fz + side * 2), new THREE.CylinderGeometry(9.5, 10, 6, 16).translate(0, H + 9, fz)], M.hotelWall);
+    this.add(g, [box(30, H + 6, wing + 4, 0, 0, fz + side * 2), new THREE.CylinderGeometry(9.5, 10, 6, 48).translate(0, H + 9, fz)], M.hotelWall);
     this.add(g, [dome(9.5, H + 12, 1.15, 16).translate(0, 0, fz), new THREE.CylinderGeometry(1.2, 1.4, 2.5, 8).translate(0, H + 24, fz)], M.copper);
     this.add(g, [finial(0, H + 25, fz, 3)], M.gold);
     // Corner turrets with smaller domes, and a row of chhatris along the front.
     const tur = [], dm = [];
     for (const [x, z] of [[-W / 2, D / 2], [W / 2, D / 2], [-W / 2, -D / 2], [W / 2, -D / 2]]) { tur.push(...turret(4, H + 6, x, z)); dm.push(dome(4.4, H + 6.4, 1.2, 12).translate(x, 0, z)); }
-    for (let k = -2; k <= 2; k++) { if (!k) continue; const x = k * (W / 6); tur.push(new THREE.CylinderGeometry(1.8, 1.8, 3, 8).translate(x, H + 1.5, fz)); dm.push(dome(2, H + 3, 1.2, 8).translate(x, 0, fz)); }
+    for (let k = -2; k <= 2; k++) { if (!k) continue; const x = k * (W / 6); tur.push(new THREE.CylinderGeometry(1.8, 1.8, 3, 20).translate(x, H + 1.5, fz)); dm.push(dome(2, H + 3, 1.2, 8).translate(x, 0, fz)); }
     this.add(g, tur, M.hotelWall);
     this.add(g, dm, M.copper);
     this.add(g, [box(W - wing * 2, 0.3, D - wing * 2, 0, 0.2, 0)], M.trim); // courtyard
@@ -254,7 +254,7 @@ export class Landmarks {
       ...[-3, -2, -1, 1, 2, 3].map((k) => gable(k * W / 7.5, D / 2 - front / 2, 9, front, H))], M.roofRed);
     // Central ribbed dome on a tall drum, with the 'Progress' figure as a slender finial.
     const cz = D / 2 - D * 0.2;
-    this.add(g, [new THREE.CylinderGeometry(9, 9.5, 8, 16).translate(0, H + 18, cz)], M.stationWall);
+    this.add(g, [new THREE.CylinderGeometry(9, 9.5, 8, 48).translate(0, H + 18, cz)], M.stationWall);
     this.add(g, [dome(9, H + 22, 1.35, 16).translate(0, 0, cz)], M.ribbed);
     this.add(g, [new THREE.CylinderGeometry(0.5, 0.8, 4, 8).translate(0, H + 35, cz), finial(0, H + 37, cz, 3)], M.gold);
     const tur = [], sp = [];

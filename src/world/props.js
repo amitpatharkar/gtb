@@ -76,10 +76,10 @@ function canopy(count, centre, radius, card, rnd) {
 }
 
 function trunk(height, r0, r1, branches, rnd) {
-  const parts = [new THREE.CylinderGeometry(r1, r0, height, 8, 1).translate(0, height / 2, 0)];
+  const parts = [new THREE.CylinderGeometry(r1, r0, height, 12, 2).translate(0, height / 2, 0)];
   for (let i = 0; i < branches; i++) {
     const len = 2.2 + rnd() * 1.8, a = (i / branches) * Math.PI * 2 + rnd();
-    const b = new THREE.CylinderGeometry(r1 * 0.35, r1 * 0.6, len, 5, 1).translate(0, len / 2, 0);
+    const b = new THREE.CylinderGeometry(r1 * 0.35, r1 * 0.6, len, 7, 1).translate(0, len / 2, 0);
     b.rotateZ(0.7 + rnd() * 0.4); b.rotateY(a);
     b.translate(0, height * 0.9, 0);
     parts.push(b);
@@ -90,7 +90,7 @@ function trunk(height, r0, r1, branches, rnd) {
 function palmGeometry(rnd) {
   const h = 9;
   const curve = new THREE.CubicBezierCurve3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.3, h * 0.35, 0), new THREE.Vector3(0.9, h * 0.7, 0.2), new THREE.Vector3(1.2, h, 0.3));
-  const trunkG = new THREE.TubeGeometry(curve, 12, 0.18, 7, false);
+  const trunkG = new THREE.TubeGeometry(curve, 16, 0.18, 10, false);
   const top = curve.getPoint(1);
   const fronds = [];
   for (let i = 0; i < 13; i++) {
