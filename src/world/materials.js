@@ -37,6 +37,23 @@ function kerbTexture(second = '#e8b800') {
   return t;
 }
 
+/**
+ * Contact shade along building walls (mesh key `contact`): vertex colours multiplied over the
+ * ground (white = no change), fading out with distance so far blocks don't get dark outlines.
+ * Lighter on High, where ambient occlusion already darkens the corners.
+ */
+function contactShade(tier) {
+  const m = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.MultiplyBlending, premultipliedAlpha: true, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const strength = tier?.name === 'High' ? 0.55 : 1;
+  m.onBeforeCompile = (s) => {
+    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying float vDist;').replace('#include <project_vertex>', '#include <project_vertex>\nvDist = -mvPosition.z;');
+    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vDist;')
+      .replace('#include <premultiplied_alpha_fragment>', `gl_FragColor.rgb = mix(vec3(1.0), gl_FragColor.rgb, ${strength.toFixed(2)} * (1.0 - smoothstep(90.0, 220.0, vDist)));\n#include <premultiplied_alpha_fragment>`);
+  };
+  m.customProgramCacheKey = () => `contact-${strength}`;
+  return m;
+}
+
 /** Green construction netting: a knitted mesh (alpha) with sagging folds, one tile per metre. */
 function nettingTexture() {
   const [c, g] = canvas(64, 64);
@@ -111,6 +128,7 @@ export function createMaterials(renderer, lib, tier) {
     footway: offset(tex(std({ color: 0xa8a196 }), 'tex-ph-patterned-paving', 2, { onLoad: (x) => x.color.set(0xe0dbd2) }), -1),
     kerb: std({ map: kerbTexture(), roughness: 0.85 }),
     kerbBW: std({ map: kerbTexture('#ecebe6'), roughness: 0.85 }),
+    contact: contactShade(tier),
     netting: new THREE.MeshStandardMaterial({ color: 0x2e7a3c, alphaMap: nettingTexture(), transparent: true, opacity: 0.92, side: THREE.DoubleSide, depthWrite: false, roughness: 0.95 }),
     // Lanes and side streets: plain weathered concrete kerbs (paint is for main roads).
     kerbPlain: tex(std({ color: 0x8e8a84, roughness: 0.9 }), 'tex-ph-concrete-pavement', 1.5, { onLoad: (x) => x.color.set(0xb4aea6) }),

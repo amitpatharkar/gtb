@@ -112,6 +112,22 @@ export function buildBuildings(t, ox, oz, toWorld) {
       }
     });
 
+    // Contact shade: a soft dark band on the ground along the walls (multiplied over it; stands in
+    // for ambient occlusion on the tiers without it, where buildings looked pasted on).
+    if (!canopy) {
+      const cm = get('contact'), n = outer.length / 2, yb = Y.KERB + 0.012, W = 0.85;
+      const DARK = [118, 118, 122], CLEAR = WHITE;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n, ax = outer[i * 2], az = outer[i * 2 + 1], bx = outer[j * 2], bz = outer[j * 2 + 1];
+        const len = Math.hypot(bx - ax, bz - az);
+        if (len < 0.3) continue;
+        const nx = (bz - az) / len, nz = -(bx - ax) / len;
+        const a0 = cm.v(ax, yb, az, 0, 1, 0, 0, 0, DARK), b0 = cm.v(bx, yb, bz, 0, 1, 0, 1, 0, DARK);
+        const b1 = cm.v(bx + nx * W, yb, bz + nz * W, 0, 1, 0, 1, 1, CLEAR), a1 = cm.v(ax + nx * W, yb, az + nz * W, 0, 1, 0, 0, 1, CLEAR);
+        cm.triUp(a0, b0, b1); cm.triUp(a0, b1, a1);
+      }
+    }
+
     function addParts(ax, az, bx, bz, nx, nz, len, bays, shop, u0, front) {
       const dx = (bx - ax) / len, dz = (bz - az) / len, bw = len / bays;
       const yaw = Math.atan2(nx, nz), Yb = Y.KERB;
