@@ -1,7 +1,8 @@
 // Headless smoke tests for the built game (dist/). Run after `npm run build`:
 //   node tests/smoke.mjs            all checks on the Low tier
 //   node tests/smoke.mjs --only=boot,drive --quality=medium
-// Needs Playwright with Chromium (`npm i -g playwright && npx playwright install chromium`).
+// Needs Playwright with Chromium (a devDependency: `npx playwright install chromium`; a global
+// install found through NODE_PATH works too). In CI it runs inside deploy.yml, before the deploy.
 // Serves dist/ the way GitHub Pages does (under /gtb/, .gz files as plain application/gzip)
 // and drives the game through window.__gtb with the simulation stepped by hand (headless
 // rendering is far too slow to play in real time). Exits non-zero if any check fails.
