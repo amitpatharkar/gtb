@@ -28,6 +28,8 @@ const GUIDE = `
 <h3>Vehicles and crackers</h3>
 <p>On foot, <b>F</b> within a few metres of any vehicle steals it, GTA-style: you run to the driver's door (the right side — India drives on the left), the car stops and the driver is pulled out. Your own taxi too, of course. Drivers object, and so do the police if a constable sees it. Your taxi stays where you left it; <b>R</b> tows you back to it. <b>Space</b> while steering at speed is a handbrake turn.</p>
 <p><b>X</b> lights a firecracker a step ahead, <b>Z</b> changes the type: anar, chakri, ladi, sutli bomb, sky shot. No crackers after 10 pm if a constable is watching.</p>
+<h3>Local trains</h3>
+<p>Suburban locals run on the Western, Central and Harbour lines, every minute or two at rush hour and not at all from 1:15 to 4:15 at night, and they do not stop for taxis on the track. On foot at a station (🚆 on the map), <b>E</b> opens the ticket window: pick a stop, pay ₹5 to ₹20 and step off there a few minutes later.</p>
 <h3>Missions and things to find</h3>
 <p><b>Yellow markers</b> are the story, <b>blue markers</b> are side missions (some only at certain hours); both are on the map. Drive or walk into one to start; if you fail, go back to it to try again.</p>
 <p>Thirty-two <b>golden cutting-chai glasses</b> are hidden at famous places across the city, from Colaba to Powai — walk or drive through them. There are easter eggs too. Look closely at Powai Lake.</p>

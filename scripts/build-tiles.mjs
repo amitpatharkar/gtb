@@ -8,7 +8,8 @@
  * Reads data/raw/mumbai-region.osm.pbf, keeps the bounding box (south,west,north,east),
  * projects to local metres (x = east, z = south) around a fixed world origin (--origin,
  * Mahim by default, so coordinates and tile numbers never move when the box grows), and
- * writes public/tiles/<tx>_<tz>.bin.gz plus public/tiles/index.json.
+ * writes public/tiles/<tx>_<tz>.bin.gz plus public/tiles/index.json, overview.bin.gz (full map
+ * and GPS) and trains.json (local train lines and stations, see scripts/lib/trains.mjs).
  * Tile format: src/world/tileFormat.js.
  */
 import fs from 'node:fs';
@@ -25,6 +26,7 @@ import { FOOTPATH, isVehicle, junctions, markings, streetFurniture, treeKind } f
 import { districtAt, pickStyle, STYLE } from './lib/districts.mjs';
 import { buildSkyline } from './lib/skyline.mjs';
 import { loadStreetLibrary, LAMP, lampSize } from './lib/streetLibrary.mjs';
+import { isTrainRoute, buildTrainLines } from './lib/trains.mjs';
 import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, POINT, MAGIC, TILE_VERSION, DM } from '../src/world/tileFormat.js';
 import { OVERVIEW_MAGIC, OVERVIEW_VERSION, OVERVIEW_LAYER } from '../src/world/overviewFormat.js';
 
@@ -144,7 +146,8 @@ function classifyRail(t) {
   // Main-line railways only. The Metro (railway=subway) and the monorail run on viaducts here;
   // they are left out until they can be raised on piers (flat track would block the roads).
   if (t.railway !== 'rail' && t.railway !== 'narrow_gauge') return null;
-  if ((t.tunnel && t.tunnel !== 'no') || t.location === 'underground' || parseFloat(t.layer) < 0) return null;
+  // (Tracks through a station building, as at Churchgate, are at ground level: keep them.)
+  if ((t.tunnel && t.tunnel !== 'no' && t.tunnel !== 'building_passage') || t.location === 'underground' || parseFloat(t.layer) < 0) return null;
   return { cls: t.service ? RAIL.SERVICE : RAIL.MAIN, flags: t.bridge && t.bridge !== 'no' ? RAIL_FLAG.BRIDGE : 0 };
 }
 
@@ -266,11 +269,17 @@ function buildingLook(b, type, h, area, d, sp = null) {
 // ---------------------------------------------------------------- read OpenStreetMap
 log(`Reading ${path.relative(root, CFG.input)} for ${CFG.name} [${CFG.bbox.join(', ')}]`);
 
-// Pass 1: multipolygon relations we care about, and the ways they need.
+// Pass 1: multipolygon relations we care about, and the ways they need; local train routes.
 const relations = [];
 const relWays = new Set();
+const trainRoutes = [], trainWays = new Set(), trainStopIds = new Set();
 readOsmPbf(CFG.input, {
   relation(id, tags, members) {
+    if (isTrainRoute(tags)) {
+      trainRoutes.push({ id, tags, members });
+      for (const m of members) if (m.type === 'way') trainWays.add(m.ref); else if (m.type === 'node') trainStopIds.add(m.ref);
+      return;
+    }
     if (tags.type !== 'multipolygon') return;
     const kind = classifyBuilding(tags) || classifyArea(tags);
     if (kind == null) return;
@@ -279,7 +288,7 @@ readOsmPbf(CFG.input, {
     ways.forEach((m) => relWays.add(m.ref));
   },
 });
-log(`pass 1: ${relations.length} multipolygon relations`);
+log(`pass 1: ${relations.length} multipolygon relations, ${trainRoutes.length} local train routes`);
 
 // Pass 2: node coordinates inside the box (plus margin), then ways.
 const M = CFG.margin;
@@ -293,6 +302,7 @@ const railsRaw = [];
 const coastWays = [];
 const aeroLines = [];     // runway and taxiway centre lines: { pts, width, runway }
 const treeNodes = [], signalNodes = [], signalIds = new Set(), crossingIds = new Set(), busStops = [], fuel = [];
+const trainWayRefs = new Map(), trainStops = new Map(), stationNodes = [], platformEdges = []; // for trains.json
 readOsmPbf(CFG.input, {
   nodeTags: true,
   node(id, lat, lon, tags) {
@@ -300,6 +310,8 @@ readOsmPbf(CFG.input, {
     const [x, z] = project(lat, lon);
     nodeX.set(id, x);
     nodeZ.set(id, z);
+    if (trainStopIds.has(id)) trainStops.set(id, { x, z, name: tags?.name || tags?.['name:en'] || '' });
+    if (tags && (tags.railway === 'station' || tags.railway === 'halt') && tags.name) stationNodes.push([x, z, tags.name]);
     if (!tags || !inBox([x, z])) return;
     if (tags.natural === 'tree') treeNodes.push([x, z, id]);
     else if (tags.highway === 'traffic_signals') { signalNodes.push([x, z]); signalIds.add(id); }
@@ -309,12 +321,14 @@ readOsmPbf(CFG.input, {
   },
   way(id, tags, refs) {
     if (relWays.has(id)) wayRefs.set(id, refs);
+    if (trainWays.has(id)) trainWayRefs.set(id, refs);
     let any = false;
     for (const r of refs) if (nodeX.has(r)) { any = true; break; }
     if (!any) return;
     const closed = refs.length >= 4 && refs[0] === refs[refs.length - 1];
     if (tags.natural === 'coastline') { coastWays.push(refs); return; }
     if (tags.amenity === 'fuel') { const r = resolveRing(refs, false); if (r) fuel.push(G.centroid(r)); }
+    if (tags.railway === 'platform' || (tags.public_transport === 'platform' && tags.train === 'yes')) platformEdges.push(...resolveLine(refs));
     if (closed) {
       const b = classifyBuilding(tags);
       if (b) {
@@ -385,8 +399,25 @@ for (const rel of relations) {
     const p = polys.find((pp) => G.pointInRing(inner[0][0], inner[0][1], pp[0]));
     if (p) p.push(inner);
   }
+  if (rel.tags.railway === 'platform') for (const o of outers) platformEdges.push([...o, o[0]]); // platform outline (for trains.json)
   if (b) buildingsRaw.push({ id: rel.id, tags: rel.tags, part: b === 'part', polys });
   else areasRaw.push({ id: rel.id, kind: classifyArea(rel.tags), polys, open: rel.open, aero: !!rel.tags.aeroway });
+}
+
+// Local train lines (written to trains.json at the end; needed earlier to clear the tracks).
+const trainNet = buildTrainLines({ routes: trainRoutes, wayRefs: trainWayRefs, stops: trainStops, stationNodes, platforms: platformEdges, resolveLine, box: BOX, log });
+// The rails drawn under the trains move with the lines where tracks were mapped too close together.
+if (trainNet.shift) for (const r of railsRaw) {
+  if (!trainWays.has(r.id)) continue;
+  const pts = [];
+  r.pts.forEach((p, i) => {
+    if (i) {
+      const q = r.pts[i - 1], n = Math.ceil(Math.hypot(p[0] - q[0], p[1] - q[1]) / 20);
+      for (let k = 1; k < n; k++) pts.push([q[0] + ((p[0] - q[0]) * k) / n, q[1] + ((p[1] - q[1]) * k) / n]);
+    }
+    pts.push(p);
+  });
+  r.pts = pts.map(([x, z]) => { const [dx, dz] = trainNet.shift(x, z); return [x + dx, z + dz]; });
 }
 
 // Runways and taxiways: centre lines with a width → paved airfield polygons (square-cut runway ends).
@@ -542,6 +573,33 @@ const inBuilding = (x, z, pad = 0) => buildingGrid.near(x, z, pad + 1, (ring) =>
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) if (G.segDist2([x, z], ring[j], ring[i]) < pad * pad) return true;
   return false;
 });
+// Train lines: nothing may stand on the track. Buildings mapped over the rails (station halls,
+// footbridge booking offices, OpenStreetMap layer 1 or 2) and platform roofs that reach over a
+// coach are raised clear of the trains (see the buildings loop), and no trees, lamps or stalls
+// are placed within reach of a passing train.
+const trackGrid = new Grid(25);
+const overTrack = new Set(); // buildings to raise over the tracks
+const shedType = (t) => /^(train_station|roof|transportation|concourse)$/.test(t.building !== 'yes' && t.building || t['building:part'] || '') || t.man_made === 'bridge' || t.bridge === 'yes';
+{
+  const owner = new Map(), inside = new Map(), beside = new Map();
+  const add = (m, b, v) => m.set(b, (m.get(b) || 0) + v);
+  for (const b of buildingsRaw) for (const poly of b.polys) owner.set(poly[0], b);
+  for (const L of trainNet.lines) for (let i = 1; i < L.pts.length; i++) {
+    const a = L.pts[i - 1], c = L.pts[i], len = Math.hypot(c[0] - a[0], c[1] - a[1]), n = Math.max(1, Math.ceil(len / 2));
+    const ux = (c[0] - a[0]) / (len || 1), uz = (c[1] - a[1]) / (len || 1);
+    trackGrid.add([Math.min(a[0], c[0]) - 3, Math.min(a[1], c[1]) - 3, Math.max(a[0], c[0]) + 3, Math.max(a[1], c[1]) + 3], { a, b: c });
+    for (let k = 0; k < n; k++) for (const o of [0, -1.9, 1.9]) {
+      // The track centre, and both sides of a coach (3.66 m wide).
+      const x = a[0] + ((c[0] - a[0]) * (k + 0.5)) / n - uz * o, z = a[1] + ((c[1] - a[1]) * (k + 0.5)) / n + ux * o;
+      buildingGrid.near(x, z, 1, (ring) => { if (G.pointInRing(x, z, ring)) add(o ? beside : inside, owner.get(ring), len / n); return false; });
+    }
+  }
+  for (const [b, m] of inside) if (m >= 8) overTrack.add(b);
+  for (const [b, m] of beside) if (m >= 4 && shedType(b.tags)) overTrack.add(b); // platform roofs over the coaches
+  if (trainNet.lines.length) log(`trains: ${overTrack.size} buildings and roofs over the tracks raised clear of the trains`);
+}
+const TRAIN_CLEARANCE = 6.2; // metres under a canopy: a coach is 4.3 m high, its pantograph 5.7 m
+const onTrack = (x, z, m = 2.8) => trackGrid.near(x, z, m, ({ a, b }) => G.segDist2([x, z], a, b) < m * m);
 const inMP = (mp, x, z) => mp.some((poly) => poly.reduce((inside, ring) => (G.pointInRing(x, z, ring) ? !inside : inside), false));
 const onLand = (x, z) => {
   const t = tiles.get(`${Math.floor(x / T)},${Math.floor(z / T)}`);
@@ -614,7 +672,7 @@ log(`markings: ${paint.length} painted lines`);
 
 // Street trees, lights and real tree positions from OpenStreetMap.
 const rand = (seed) => hash01(Math.floor(Math.abs(seed) * 1000) % 2147483647, 99);
-const blocked = (x, z) => !inBox([x, z]) || onRoad(x, z, 0.3) || inBuilding(x, z, 0.8) || !onLand(x, z);
+const blocked = (x, z) => !inBox([x, z]) || onRoad(x, z, 0.3) || inBuilding(x, z, 0.8) || !onLand(x, z) || onTrack(x, z);
 const { trees, lights, clutter } = streetFurniture(vparts, { district: districtXZ, blocked, junc, rand, onRoad, lampSize, LAMP });
 const treeGrid = new Grid(10);
 const points = [];
@@ -624,7 +682,7 @@ const addTree = (t) => {
   points.push(t);
 };
 for (const [x, z, id] of treeNodes) {
-  if (onRoad(x, z, 0.2) || inBuilding(x, z, 0.5)) continue;
+  if (onRoad(x, z, 0.2) || inBuilding(x, z, 0.5) || onTrack(x, z)) continue;
   const d = districtXZ(x, z);
   addTree({ kind: d.palms && rand(id) < 0.6 ? POINT.PALM : treeKind(rand(id * 3)), x, z, angle: rand(id * 5) * Math.PI * 2, size: 0.8 + rand(id * 7) * 0.6 });
 }
@@ -753,7 +811,16 @@ for (const b of buildingsRaw) {
       if (!sp) for (let k = 0; k < outer.length; k += Math.max(1, Math.floor(outer.length / 6))) probe(outer[k][0], outer[k][1]);
     }
     if (sp) bProfiled++;
-    const { h, minH, flags, type } = buildingHeights(b.tags, b.id, area, d, sp);
+    let { h, minH, flags, type } = buildingHeights(b.tags, b.id, area, d, sp);
+    if (overTrack.has(b)) {
+      // Over the rails: raised so the trains run underneath. Roofs and big station halls
+      // become a thin shed roof, small station buildings a booking office on the footbridge;
+      // anything else stands on stilts.
+      const shed = shedType(b.tags), roof = type === 'roof' || type === 'concourse' || (shed && area > 1500);
+      minH = Math.max(minH, TRAIN_CLEARANCE);
+      h = roof ? minH + 0.8 : shed ? minH + 3.2 : Math.max(h, minH + 3.2);
+      flags |= BUILDING_FLAG.NO_COLLIDE;
+    }
     if (b.tags.height || b.tags['building:levels']) bWithHeight++;
     const tile = getTile(Math.floor(c[0] / T), Math.floor(c[1] / T));
     const look = buildingLook(b, type, h, area, d, sp);
@@ -782,7 +849,7 @@ for (const b of buildingsRaw) {
     if (look.shops && front.some(Boolean) && minH < 1) f2 |= BUILDING_FLAG.SHOPS;
     if (b.hidden) f2 |= BUILDING_FLAG.HIDDEN;
     // About one building in ten under repair wears green netting and scaffolding (survey).
-    if (sp?.netting && !b.hidden && !(f2 & BUILDING_FLAG.HERITAGE) && h > 8 && h < 70 && hash01(b.id, 21) < sp.netting) { f2 |= BUILDING_FLAG.NETTING; bNetting++; }
+    if (sp?.netting && !b.hidden && !overTrack.has(b) && !(f2 & BUILDING_FLAG.HERITAGE) && h > 8 && h < 70 && hash01(b.id, 21) < sp.netting) { f2 |= BUILDING_FLAG.NETTING; bNetting++; }
     tile.buildings.push({ h, minH, color: look.color, flags: f2, style: look.style, levels: look.levels, rings, front });
     bCount++;
     if (h >= 15 && !b.hidden && minH < 1) skylineList.push({ ring: outer, area, h, color: look.color });
@@ -1076,6 +1143,19 @@ const skyline = (() => {
   return { file: 'skyline.bin.gz', bytes: gz.length, count };
 })();
 
+// ---------------------------------------------------------------- local trains
+// One polyline per suburban track and direction with its stations, for src/sim/trains.js.
+function writeTrains() {
+  const file = path.join(CFG.out, 'trains.json');
+  const { json } = trainNet;
+  if (!json) { fs.rmSync(file, { force: true }); log('trains: no suburban route relations in the box (no trains.json)'); return null; }
+  const text = JSON.stringify(json);
+  fs.writeFileSync(file, text);
+  log(`trains.json: ${(text.length / 1024).toFixed(0)} KB (${(zlib.gzipSync(text, { level: 9 }).length / 1024).toFixed(1)} KB gzipped)`);
+  return { file: 'trains.json', lines: json.lines.length };
+}
+const trains = writeTrains();
+
 const meta = {
   format: TILE_VERSION,
   name: CFG.name,
@@ -1091,6 +1171,7 @@ const meta = {
   overview,
   skyline,
   profiles: streetLib ? streetLib.runtimeTable() : [],
+  trains,
   fuel: fuelStations,
   landmarks,
   tiles: index,

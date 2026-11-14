@@ -141,6 +141,11 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/sim/birds.js` — pigeon flocks at famous spots (`SPOTS`: Gateway plaza, Dadar kabutarkhana, …) that peck about
   and take off when the player, a honk (`birds.scare`) or a cracker comes close, plus kites circling overhead;
   one instanced mesh, wings flap in the vertex shader (`aFlap`: 0 folded, 1 flapping, 2 gliding).
+- `src/sim/trains.js` — local trains (loaded after play starts; `scripts/lib/trains.mjs` writes `tiles/trains.json`: lines
+  from the OSM route relations, stations, turn-rounds; buildings over the tracks raised by the converter): one
+  instanced mesh of coaches within ~1 km, timetable from the game clock (`Line.state`), `hits`/`bodyAt` (solid,
+  heavy), `shove` (cars and the walker knocked aside), level crossings (traffic and people wait), station life,
+  ticket window (`interact()`, E on foot), ride by fade, `markers()` for the map; hooks at the end of main.js.
 - `src/sim/street.js` — street life near the player: pedestrians on footpaths (jaywalk, dodge the taxi, puddle splash),
   scenarios from map points (thela vendors calling + customers, bus-stop commuters, dogs by garbage that chase the taxi,
   cows on lanes, gully cricket, push-starting a broken-down taxi), red-light hawkers, bump-and-argue drivers
@@ -325,20 +330,19 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   (one draw call each, feet/run fixed); fist-fight combos/block/knockouts; firecrackers; the map from Colaba to
   Bandra, Juhu, Andheri, Kurla and Powai with an overview file and GPS in a worker. 979 tiles, 9.2 MB; site ~191 MB.
 - Next (owner's goal: "GTA V Mumbai edition, maximised for a browser"; the live list with status is `docs/plan.md`):
-  1. **Local trains** (3.4) on the real tracks with stations and rides (in progress on a worktree branch).
-  2. **Flyovers and bridges** (3.3): Sea Link, Coastal Road, JJ, Kemps Corner — all roads are flat today.
-  3. **Monsoon and festivals** (4.5, 4.6): rain, wet roads, waterlogging; Ganesh visarjan, Navratri, Diwali lanterns.
-  4. **Street realism from the survey** (`docs/research/street-library/`; profiles, kerbs, lamps, trees, netting
+  1. **Flyovers and bridges** (3.3): Sea Link, Coastal Road, JJ, Kemps Corner — all roads are flat today.
+  2. **Monsoon and festivals** (4.5, 4.6): rain, wet roads, waterlogging; Ganesh visarjan, Navratri, Diwali lanterns.
+  3. **Street realism from the survey** (`docs/research/street-library/`; profiles, kerbs, lamps, trees, netting
      and parking are in): planted medians, Fort arcades, construction hoardings, notable buildings, profile-driven
      stalls/crowds/sounds; owner-made models (`docs/art-requests.md`, `public/art/`).
-  5. **People**: Indian clothes beyond saris, more character models, the far crowd.
-  6. **More missions and side jobs** (`docs/research/mumbai-guide-2.md` §3), police chase challenges, races.
+  4. **People**: Indian clothes beyond saris, more character models, the far crowd.
+  5. **More missions and side jobs** (`docs/research/mumbai-guide-2.md` §3), police chase challenges, races.
 
 ## Testing in the session
 - `npm run build` must pass (it runs the converter first).
-- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,night`,
+- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night`,
   `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
-  wrong-side traffic, a broken carjack, any mission that cannot be finished, or a too-dark night. It also runs in
+  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, or a too-dark night. It also runs in
   GitHub Actions after every push (`.github/workflows/smoke.yml`). Add a check there for every new system.
 - Visual check: `npx vite preview --port 4173`, then headless Chrome via Playwright with
   `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`, open `http://localhost:4173/gtb/`,

@@ -172,6 +172,11 @@ export class StreetLife {
         const t = p.state === 'angry' ? player.pos : p.watch;
         if (t) p.heading = Math.atan2(t.x - p.x, t.z - p.z);
         if (p.timer <= 0) p.state = 'walk';
+      } else if (p.state === 'wait') {
+        // Held at a level crossing while a train passes (trains.js keeps the timer topped up).
+        p.pose = POSE.STAND;
+        p.phase += dt * 2;
+        if (p.timer <= 0) p.state = 'walk';
       }
       if (p.dead) continue;
       const [bx, bz, h] = this.segPoint(p.seg, Math.min(p.t, 1), p.dir, p.side, p.off);

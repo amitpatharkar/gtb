@@ -246,6 +246,37 @@ await check('missions', async () => {
   return { info: { missions: res.length, passed: res.filter((r) => r.ok).length }, fails };
 });
 
+await check('trains', async () => {
+  // Local trains near Dadar: they appear, move along the track, and cost little per step.
+  const { page, errors } = await game('hour=9');
+  await page.waitForFunction(() => window.__gtb.trains, null, { timeout: 60000 });
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, T = g.trains;
+    const st = T.lines.flatMap((l) => l.stations).find((s) => /dadar/i.test(s.name));
+    if (!st) return { station: null };
+    g.player.pos.set(st.x + st.fz * 40, 0.02, st.z - st.fx * 40);
+    await g.tiles.whenReady(g.player.pos.x, g.player.pos.z, 250);
+    for (let i = 0; i < 4; i++) g.step(0.05);
+    const first = new Map([...T.trains.values()].map((t) => [t.key, [t.x, t.z]]));
+    let worst = 0;
+    for (let i = 0; i < 300; i++) { const t0 = performance.now(); g.step(0.05); worst = Math.max(worst, performance.now() - t0); }
+    const now = [...T.trains.values()];
+    const moved = now.filter((t) => first.has(t.key) && Math.hypot(t.x - first.get(t.key)[0], t.z - first.get(t.key)[1]) > 20).length;
+    return { station: st.name, trains: now.length, moved, finite: now.every((t) => Number.isFinite(t.x) && Number.isFinite(t.z)), worstMs: +worst.toFixed(1), markers: T.markers().length };
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (!info.station) fails.push('no Dadar station');
+  else {
+    if (info.trains < 1) fails.push('no trains near Dadar');
+    if (info.moved < 1) fails.push('no train moved');
+    if (!info.finite) fails.push('train position is not a number');
+    if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms`);
+    if (info.markers < 10) fails.push('stations missing on the map');
+  }
+  return { info, fails };
+});
+
 await check('night', async () => {
   // At 10 pm the road ahead must be visible (lamp pools, headlights).
   const { page, errors } = await game('hour=22');

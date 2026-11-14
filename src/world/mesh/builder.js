@@ -64,7 +64,7 @@ export function wall(m, ax, az, bx, bz, y0, y1, nx, nz, u0, u1, v0, v1, colBotto
 }
 
 /** Flat polygon (outer + holes) at height y; UVs are metres (ox, oz = tile centre in UV space, see tileWorker.js). */
-export function flatPolygon(m, rings, y, col, ox, oz) {
+export function flatPolygon(m, rings, y, col, ox, oz, down = false) {
   const flat = [], holes = [];
   for (let r = 0; r < rings.length; r++) {
     if (r) holes.push(flat.length / 2);
@@ -72,8 +72,12 @@ export function flatPolygon(m, rings, y, col, ox, oz) {
   }
   const tris = earcut(flat, holes);
   const base = m.count;
-  for (let i = 0; i < flat.length; i += 2) m.v(flat[i], y, flat[i + 1], 0, 1, 0, flat[i] + ox, flat[i + 1] + oz, col);
-  for (let i = 0; i < tris.length; i += 3) m.triUp(base + tris[i], base + tris[i + 1], base + tris[i + 2]);
+  for (let i = 0; i < flat.length; i += 2) m.v(flat[i], y, flat[i + 1], 0, down ? -1 : 1, 0, flat[i] + ox, flat[i + 1] + oz, col);
+  // down: the underside of a canopy, facing the ground (seen from below).
+  for (let i = 0; i < tris.length; i += 3) {
+    m.triUp(base + tris[i], base + tris[i + 1], base + tris[i + 2]);
+    if (down) { const I = m.i, k = I.length; [I[k - 2], I[k - 1]] = [I[k - 1], I[k - 2]]; }
+  }
   return tris.length / 3;
 }
 

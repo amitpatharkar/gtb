@@ -524,6 +524,7 @@ for (const id of ['btn-horn', 'btn-fuel']) {
 /** E: refuel at a pump (in the taxi), or buy a snack at a thela. */
 function interact() {
   if (onFoot && interiors.interact()) return; // a door, or something to use indoors
+  if (onFoot && trains?.interact()) return; // local trains: the ticket window at a station
   if (!onFoot) {
     const p = nearestPump();
     if (p && p.d < 16) { refuel(); return; }
@@ -728,6 +729,7 @@ function step(dt) {
   eggs.update(dt, { player, onFoot, walker });
   interiors.update(dt, onFoot); // doors on the street; indoors: the room's people, lights and things to use
   story.update(dt, { player, onFoot, walker });
+  trains?.update(dt, active, onFoot); // local trains (after street life: they add level-crossing stops and doorway commuters)
   if (onFoot) walker.draw(people, combat.weapon);
   else if (garage.seated) {
     // Riding a two-wheeler or driving an auto: the player can be seen in the seat.
@@ -794,6 +796,21 @@ function step(dt) {
   window.__gtb.stepMs = window.__gtb.stepMs * 0.9 + (performance.now() - t0) * 0.1 || 0;
 }
 window.__gtb.step = step;
+
+// ------------------------------------------------------------------ local trains
+// Loaded once play has started (not part of the first load). Trains are solid and far heavier
+// than any car; their stations show on the map; E on foot at a station sells tickets.
+let trains = null;
+started.then(() => import('./sim/trains.js'))
+  .then(({ Trains }) => Trains.create({ base: BASE, scene, renderer, camera, tiles, traffic, street, people, bubbles, audio, hud, state, clock, walker, player, view, snap: () => placeCamera(0) }))
+  .then((t) => { trains = window.__gtb.trains = t; })
+  .catch((err) => console.warn('Local trains are not available:', err));
+for (const w of [world, footWorld]) { const hits = w.hits; w.hits = (x, z, r) => hits(x, z, r) || !!trains?.hits(x, z, r); }
+{
+  const bodyAt = world.bodyAt, markers = cityMap.markers;
+  world.bodyAt = (x, z, r) => trains?.bodyAt(x, z, r) || bodyAt(x, z, r);
+  cityMap.markers = () => [...markers(), ...(trains?.markers() || [])];
+}
 
 function placeLampLights(night) {
   if (night < 0.05) { lampLights.forEach((l) => (l.intensity = 0)); updateNightLights(0); return; }
