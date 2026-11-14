@@ -52,7 +52,7 @@ function cssGrade() {
 export function createPost(renderer, scene, camera, tier) {
   if (!tier.ao && !tier.bloom) {
     // `grade` lets photo mode apply the same look to saved pictures (render/photo.js).
-    return { render: () => renderer.render(scene, camera), setSize() {}, grade: cssGrade() };
+    return { render: () => renderer.render(scene, camera), setSize() {}, compile: (obj, cam, target) => renderer.compileAsync(obj, cam, target), grade: cssGrade() };
   }
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
   const opts = { type: THREE.HalfFloatType, samples: tier.msaa };
@@ -93,5 +93,18 @@ export function createPost(renderer, scene, camera, tier) {
       composer.render();
     },
     setSize(w, h) { composer.setSize(w, h); },
+    /**
+     * renderer.compileAsync for what this pipeline draws: the scene goes into the composer's
+     * render target (linear colour, no tone mapping — OutputPass does that), and those are
+     * other shader variants than drawing straight to the screen. compileAsync picks the
+     * variant from the current render target in its synchronous part, so set it around it.
+     */
+    compile(obj, cam, target) {
+      const was = renderer.getRenderTarget();
+      renderer.setRenderTarget(composer.readBuffer);
+      const done = renderer.compileAsync(obj, cam, target);
+      renderer.setRenderTarget(was);
+      return done;
+    },
   };
 }

@@ -63,6 +63,11 @@ export class TextureLibrary {
    * Put a texture set (colour, normal, occlusion/roughness) on a material once loaded.
    * Geometry UVs are in metres; `size` overrides the texture's real-world size.
    * Each call clones the textures so materials can use different scales.
+   *
+   * The slots get 1×1 stand-ins straight away (white; flat normal; no occlusion and the
+   * material's own roughness), so the shader is compiled with its final set of maps while
+   * the loading screen is up (renderer.compileAsync). The real textures only replace the
+   * stand-ins: same shader, no compile stall mid-drive when a texture arrives late.
    */
   apply(material, id, { size, normalScale = 1, aoIntensity = 0.6, onLoad } = {}) {
     if (!this.available || !this.has(id)) return Promise.resolve(false);
@@ -74,19 +79,50 @@ export class TextureLibrary {
       this.tier.normalMaps ? ['normalMap', pick('normal')] : null,
       ['roughnessMap', pick('orm')],
     ].filter((j) => j && j[1]);
+    for (const [slot] of jobs) {
+      if (slot === 'map') material.map = placeholder('color');
+      if (slot === 'normalMap') { material.normalMap = placeholder('normal'); material.normalScale.set(normalScale, normalScale); }
+      if (slot === 'roughnessMap') {
+        material.roughnessMap = material.aoMap = placeholder('orm', material.roughness);
+        material.aoMapIntensity = aoIntensity;
+        material.roughness = 1;
+      }
+    }
+    material.needsUpdate = true;
     return Promise.all(jobs.map(([slot, f]) => this.load(f).then((t) => [slot, t]))).then((loaded) => {
       for (const [slot, tex] of loaded) {
         const t = tex.clone();
         t.repeat.set(repeat, repeat);
         material[slot] = t;
-        if (slot === 'roughnessMap') { material.aoMap = t; material.aoMapIntensity = aoIntensity; material.roughness = 1; }
-        if (slot === 'normalMap') material.normalScale.set(normalScale, normalScale);
+        if (slot === 'roughnessMap') material.aoMap = t;
       }
+      // Same maps as the stand-ins, so the program cache key is unchanged: this finds the
+      // already-compiled shader rather than compiling a new one.
       material.needsUpdate = true;
       onLoad?.(material);
       return true;
     }).catch((e) => { console.warn(`Texture ${id} failed`, e); return false; });
   }
+}
+
+const stand = new Map();
+/**
+ * 1×1 stand-in textures (shared): 'color' white (sRGB), 'normal' flat (128, 128, 255),
+ * 'orm' no occlusion (red 255) with green = the roughness the material had, blue 0.
+ * Plain RGBA like the transcoded KTX2 textures (a packed RG normal map would change the shader).
+ */
+function placeholder(kind, roughness = 1) {
+  const g = Math.round(THREE.MathUtils.clamp(roughness, 0, 1) * 255);
+  const key = kind === 'orm' ? `orm${g}` : kind;
+  if (!stand.has(key)) {
+    const px = { color: [255, 255, 255, 255], normal: [128, 128, 255, 255], [`orm${g}`]: [255, g, 0, 255] }[key];
+    const t = new THREE.DataTexture(new Uint8Array(px), 1, 1, THREE.RGBAFormat);
+    if (kind === 'color') t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.needsUpdate = true;
+    stand.set(key, t);
+  }
+  return stand.get(key);
 }
 
 let noiseTex = null;

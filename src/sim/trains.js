@@ -267,7 +267,8 @@ export class Trains {
     if (!json.lines?.length) return null;
     const t = new Trains(ctx, json);
     // Compile the coach shader before the first train comes into view (no hitch then).
-    await ctx.renderer?.compileAsync?.(t.mesh, ctx.camera, ctx.scene).catch(() => {});
+    // ctx.compile (post.compile) picks the variant the post-processing pipeline draws.
+    await (ctx.compile ? ctx.compile(t.mesh) : ctx.renderer?.compileAsync?.(t.mesh, ctx.camera, ctx.scene))?.catch(() => {});
     return t;
   }
 

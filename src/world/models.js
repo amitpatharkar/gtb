@@ -8,6 +8,13 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const loader = new GLTFLoader();
 const cache = new Map();
+let precompile = null;
+/**
+ * Models arrive during play (after the loading screen). main.js hands in
+ * renderer.compileAsync, so their shaders compile in the background (parallel where the
+ * browser can) before they are shown, instead of stalling the frame that first draws them.
+ */
+export function setPrecompile(fn) { precompile = fn; }
 
 /** Load a model and return [{ geometry, material }] in metres (base at y = 0, centred). */
 export function loadParts(url, { size, axis = 'height', node = null, keepMaps = ['map', 'normalMap'] } = {}) {
@@ -62,6 +69,10 @@ export class Instancer {
       scene.add(m);
       return m;
     });
+    if (precompile) {
+      for (const m of this.meshes) m.visible = false;
+      Promise.all(this.meshes.map((m) => precompile(m))).catch(() => {}).finally(() => { for (const m of this.meshes) m.visible = true; });
+    }
     this.max = max;
     this.n = 0;
   }

@@ -29,6 +29,7 @@ import { CityMap } from './ui/cityMap.js';
 import { Navigator } from './ui/navigator.js';
 import { Landmarks } from './world/landmarks.js';
 import { StreetProps } from './world/streetProps.js';
+import { setPrecompile } from './world/models.js';
 import { Radio } from './radio.js';
 import { Characters } from './sim/characters.js';
 import { Cheats } from './game/cheats.js';
@@ -426,7 +427,9 @@ loader.progress(0.97, 'Painting the streets…');
 await Promise.race([lib.idle(), new Promise((r) => setTimeout(r, 2000))]);
 // Compile the shaders now (in parallel where the browser can) rather than stalling the first frames.
 placeCamera(0);
-await renderer.compileAsync(scene, camera).catch(() => {});
+await post.compile(scene, camera).catch(() => {}); // the variants the post-processing pipeline draws
+setPrecompile((obj) => post.compile(obj, camera, scene)); // models loaded during play
+post.render(); // warm-up frame behind the loading screen: shadow-map and post-processing shaders
 $('loading').remove();
 loader.done();
 performance.mark('gtb-playable');
@@ -648,7 +651,7 @@ function setResolutionScale(k) {
 }
 renderer.setAnimationLoop((time) => {
   timer.update(time);
-  const raw = timer.getDelta(), dt = Math.min(raw, 0.05);
+  const raw = Math.max(0, timer.getDelta()), dt = Math.min(raw, 0.05); // a frame stamped before a long task ended can give a negative delta
   if (cityMap.open || paused) return; // paused while the map or the pause menu is open
   if (dynRes.on && raw < 0.5) {
     dynRes.acc += raw; dynRes.frames++;
@@ -807,7 +810,7 @@ window.__gtb.step = step;
 // than any car; their stations show on the map; E on foot at a station sells tickets.
 let trains = null;
 started.then(() => import('./sim/trains.js'))
-  .then(({ Trains }) => Trains.create({ base: BASE, scene, renderer, camera, tiles, traffic, street, people, bubbles, audio, hud, state, clock, walker, player, view, snap: () => placeCamera(0) }))
+  .then(({ Trains }) => Trains.create({ base: BASE, scene, renderer, camera, compile: (o) => post.compile(o, camera, scene), tiles, traffic, street, people, bubbles, audio, hud, state, clock, walker, player, view, snap: () => placeCamera(0) }))
   .then((t) => { trains = window.__gtb.trains = t; })
   .catch((err) => console.warn('Local trains are not available:', err));
 for (const w of [world, footWorld]) { const hits = w.hits; w.hits = (x, z, r) => hits(x, z, r) || !!trains?.hits(x, z, r); }
