@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { endKey, keyXZ } from './roadKeys.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { POSE, FLAG, outfit } from './people.js';
 import { LIGHT } from './signals.js';
@@ -29,7 +30,7 @@ const DRIVER_SAYS = { sorry: ['Sorry saheb!', 'Galti ho gayi…', 'Jaldi mein th
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const hash = (x, z) => { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); };
 const rupees = (n) => `₹${Math.round(n).toLocaleString('en-IN')}`;
-const nodeKey = (x, z) => `${Math.round(x * 2)},${Math.round(z * 2)}`;
+const nodeKey = endKey;
 
 /** Min-heap for A*. */
 class Heap {
@@ -400,7 +401,7 @@ export class Police {
     for (const [k, list] of this.traffic.ends) {
       let n = byList.get(list);
       if (!n) {
-        const [x, z] = k.split(',').map((v) => Number(v) / 2);
+        const [x, z] = keyXZ(k);
         n = { x, z, adj: [], comp: 0 };
         byList.set(list, n);
       }
@@ -429,6 +430,7 @@ export class Police {
   }
 
   nearestNode(x, z, r = 60) {
+    if (this.graphVersion !== this.traffic.graphVersion) this.buildGraph(); // built lazily
     let best = null, bd = r * r;
     for (let gx = Math.floor((x - r) / 30); gx <= Math.floor((x + r) / 30); gx++) for (let gz = Math.floor((z - r) / 30); gz <= Math.floor((z + r) / 30); gz++) {
       for (const n of this.grid.get(`${gx},${gz}`) || []) { const d = (n.x - x) ** 2 + (n.z - z) ** 2; if (d < bd) { bd = d; best = n; } }
@@ -596,8 +598,9 @@ export class Police {
     }
 
     // Patrol cars: one after you evade, two at four stars.
-    if (this.graphVersion !== this.traffic.graphVersion) this.buildGraph();
     const want = this.flagger ? 0 : this.stars >= 4 ? 2 : this.stars >= 2 ? 1 : 0;
+    // The patrol road graph is only needed while patrols are out (it used to be rebuilt on every tile load).
+    if ((want || this.patrols.length) && this.graphVersion !== this.traffic.graphVersion) this.buildGraph();
     const chasing = this.patrols.filter((p) => p.mode === 'chase').length;
     if (chasing < want && Math.random() < dt * 0.6) this.spawnPatrol(player);
     const world = {

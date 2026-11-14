@@ -569,6 +569,7 @@ function choice(title, options) {
 // ------------------------------------------------------------------ loop
 window.__gtb = { THREE, garage, crackers, stars, eggs, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
 window.__gtb.skyline = skyline;
+window.__gtb.navigator = navigator;
 window.__gtb.birds = birds;
 { const startle = crackers.startle.bind(crackers); crackers.startle = (x, z, r, by) => { birds.scare(x, z, r); return startle(x, z, r, by); }; } // crackers scare the pigeons too
 window.__gtb.interiors = interiors;
@@ -591,7 +592,10 @@ renderer.setAnimationLoop((time) => {
   document.body.classList.toggle('cutscene', !!story.camera);
   if (input.reset) { input.reset = false; teleportHome(); }
   step(dt);
-  renderer.shadowMap.needsUpdate = tier.name === 'High' || (frameNo++ & 1) === 0;
+  // Shadows every frame while anything near the camera moves fast (otherwise a moving car's own
+  // shadow jumps behind it on alternate frames and the drive looks juddery); half rate when still.
+  const moving = Math.abs(onFoot ? walker.speed || 0 : player.speed) > 1.5;
+  renderer.shadowMap.needsUpdate = tier.name === 'High' || moving || (frameNo++ & 1) === 0;
   post.render();
 });
 

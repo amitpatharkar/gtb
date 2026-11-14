@@ -18,9 +18,10 @@ export class Navigator {
     this.said = new Set();
     this.lastWaypoint = null;
     const shape = new THREE.Shape([[-0.9, -0.5], [0, 0.45], [0.9, -0.5], [0.9, -0.05], [0, 0.85], [-0.9, -0.05]].map(([x, y]) => new THREE.Vector2(x, y)));
-    const geo = new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2);
+    // Laid flat facing up; the tip must point along +z (heading 0), so turn it round after laying it down.
+    const geo = new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2).rotateY(Math.PI).scale(1.25, 1, 2.2); // long, so they read from a low driving camera
     this.max = 14;
-    this.arrows = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0xc13bd9).multiplyScalar(1.6), transparent: true, opacity: 0.75, depthWrite: false }), this.max);
+    this.arrows = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0xc13bd9).multiplyScalar(1.6), transparent: true, opacity: 0.88, depthWrite: false }), this.max);
     this.arrows.count = 0;
     this.arrows.frustumCulled = false;
     this.arrows.renderOrder = 2;
@@ -85,7 +86,11 @@ export class Navigator {
     let n = 0;
     if (driving) {
       for (let s = 8; s < Math.min(total - 2, 110) && n < this.max; s += 8) {
-        const [x, z, h] = this.at(route, cum, s);
+        let [x, z, h] = this.at(route, cum, s);
+        // The route runs along the road's centre line; India keeps left, so draw it in the left lane.
+        const r = this.tiles.roadAt?.(x, z, 3, true), hw = r ? this.tiles.segment(r.tile, r.index)[4] : 4;
+        const off = Math.min(1.8, hw * 0.45);
+        x += Math.cos(h) * off; z -= Math.sin(h) * off;
         this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, h);
         this.m.compose(this.p.set(x, this.tiles.groundHeight(x, z) + 0.07, z), this.q, this.one);
         this.arrows.setMatrixAt(n++, this.m);

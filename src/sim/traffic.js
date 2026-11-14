@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { LIGHT } from './signals.js';
 import { buildFleet } from '../vehicles/fleet.js';
 import { MASS } from '../vehicles/garage.js';
+import { endKey, keyXZ } from './roadKeys.js';
 
 // Ambient traffic, Rockstar style: a few dozen vehicles live only near the player,
 // driving on the LEFT along the real road network, slowing behind each other and for
@@ -10,6 +11,26 @@ import { MASS } from '../vehicles/garage.js';
 const LEFT = (fx, fz) => [fz, -fx]; // left-hand perpendicular of a heading (x east, z south)
 
 const FORWARD = new THREE.Vector3(0, 0, 1);
+
+/**
+ * Lanes of a segment for traffic going `dir` along it, as painted by the converter
+ * (scripts/lib/streets.mjs): one-way roads have round(width / 3.4) lanes, two-way roads
+ * 2 × round(width / 7). India keeps LEFT: our lanes lie left of the centre line; lane 0 is the
+ * kerb lane (two-wheelers, autos, buses), the highest is next to the centre line (overtaking).
+ * Parked cars take the kerb lane on wide streets (as in traffic.placeParked).
+ * Returns { n, w, lo, hi }: lane count, lane width, lowest and highest usable lane.
+ */
+function lanesOf(seg, dir) {
+  const s = seg.s, hw = s[4], oneway = !!(s[5] & 2);
+  const n = oneway ? Math.max(1, Math.min(8, Math.round((hw * 2) / 3.4))) : Math.max(1, Math.min(4, Math.round((hw * 2) / 7)));
+  const w = oneway ? (hw * 2) / n : hw / n;
+  const parks = hw >= 4.5 && seg.len >= 22;
+  const parkLeft = parks && (dir > 0 || oneway || hw >= 6), parkRight = parks && oneway;
+  const lo = parkLeft && n > 1 ? 1 : 0, hi = parkRight && n - 2 >= lo ? n - 2 : n - 1;
+  return { n, w, lo, hi, parkLeft: parkLeft && n === 1 };
+}
+/** Offset (left of travel, metres from the centre line) of lane i. */
+const laneOffset = (seg, L, i) => seg.s[4] - (i + 0.5) * L.w;
 
 function riderLook() {
   const shirts = [0xc0392b, 0x2e86c1, 0xf2f2f2, 0x34495e, 0x27ae60, 0x7f8c8d, 0xe67e22];
@@ -88,50 +109,60 @@ export class Traffic {
     this.night = 0;
   }
 
-  /** Junction graph: segment ends that meet (0.5 m grid) across all loaded tiles. */
+  /**
+   * Junction graph: segment ends that meet (0.5 m grid) across all loaded tiles. Runs every
+   * time a tile loads or unloads, so it must be cheap: each tile's segments (with their end
+   * keys and end records) are made once and cached on the tile; keys are numbers.
+   */
   rebuildGraph() {
-    this.ends = new Map();
-    this.segList = [];
+    const ends = new Map(), segList = [];
     for (const t of this.tiles.tiles.values()) {
-      const rd = t.collide.roads;
-      for (let i = 0; i < rd.count; i++) {
-        const s = this.tiles.segment(t, i);
-        if (!(s[5] & 1)) continue;
-        const seg = { t, i, s, len: Math.hypot(s[2] - s[0], s[3] - s[1]) };
-        if (seg.len < 0.3) continue;
-        this.segList.push(seg);
-        for (const end of [0, 1]) {
-          const k = `${Math.round(s[end * 2] * 2)},${Math.round(s[end * 2 + 1] * 2)}`;
-          (this.ends.get(k) || this.ends.set(k, []).get(k)).push({ seg, end });
+      let g = t.graph;
+      if (!g) {
+        g = t.graph = [];
+        const rd = t.collide.roads;
+        for (let i = 0; i < rd.count; i++) {
+          const s = this.tiles.segment(t, i);
+          if (!(s[5] & 1)) continue;
+          const len = Math.hypot(s[2] - s[0], s[3] - s[1]);
+          if (len < 0.3) continue;
+          const seg = { t, i, s, len, k0: endKey(s[0], s[1]), k1: endKey(s[2], s[3]) };
+          seg.e0 = { seg, end: 0 }; seg.e1 = { seg, end: 1 };
+          g.push(seg);
         }
+      }
+      for (const seg of g) {
+        segList.push(seg);
+        let l = ends.get(seg.k0); if (!l) ends.set(seg.k0, (l = [])); l.push(seg.e0);
+        l = ends.get(seg.k1); if (!l) ends.set(seg.k1, (l = [])); l.push(seg.e1);
       }
     }
     // Join loose ends that almost touch (tile seams, slightly offset OSM nodes) so cars and
     // police don't hit invisible dead ends: both keys then share one list of segment ends.
+    // The grid holds keys only; lists are always looked up again (they change as ends join).
+    const cell = (x, z) => (Math.floor(x / 5) + 32768) * 65536 + (Math.floor(z / 5) + 32768);
     const grid = new Map();
-    for (const [k, list] of this.ends) {
-      const [x, z] = k.split(',').map(Number);
-      const g = `${Math.floor(x / 10)},${Math.floor(z / 10)}`; // 5 m cells (keys are in half metres)
-      (grid.get(g) || grid.set(g, []).get(g)).push([k, x, z, list]);
+    for (const k of ends.keys()) {
+      const [x, z] = keyXZ(k), c = cell(x, z);
+      let a = grid.get(c); if (!a) grid.set(c, (a = [])); a.push(k);
     }
-    for (const [k, list] of this.ends) {
+    for (const [k, list] of ends) {
       if (list.length !== 1) continue;
-      const [x, z] = k.split(',').map(Number);
-      let best = null, bd = 25; // within 2.5 m (5 half-metres)
-      for (let gx = Math.floor(x / 10) - 1; gx <= Math.floor(x / 10) + 1; gx++) for (let gz = Math.floor(z / 10) - 1; gz <= Math.floor(z / 10) + 1; gz++) {
-        for (const [k2, x2, z2, l2] of grid.get(`${gx},${gz}`) || []) {
-          if (k2 === k || l2 === list || l2.some((e) => e.seg === list[0].seg)) continue;
-          const d = (x2 - x) ** 2 + (z2 - z) ** 2;
+      const [x, z] = keyXZ(k), seg = list[0].seg;
+      let best = null, bd = 6.25; // within 2.5 m
+      for (let gx = -1; gx <= 1; gx++) for (let gz = -1; gz <= 1; gz++) {
+        for (const k2 of grid.get(cell(x + gx * 5, z + gz * 5)) || []) {
+          if (k2 === k) continue;
+          const l2 = ends.get(k2);
+          if (l2 === list || l2.some((e) => e.seg === seg)) continue;
+          const [x2, z2] = keyXZ(k2), d = (x2 - x) ** 2 + (z2 - z) ** 2;
           if (d < bd) { bd = d; best = k2; }
         }
       }
-      if (best) {
-        const other = this.ends.get(best);
-        other.push(...list);
-        this.ends.set(k, other);
-        for (const cell of grid.values()) for (const e of cell) if (e[3] === list) e[3] = other;
-      }
+      if (best !== null) { const other = ends.get(best); other.push(...list); ends.set(k, other); }
     }
+    this.ends = ends;
+    this.segList = segList;
     this.graphVersion = this.tiles.version;
   }
 
@@ -173,8 +204,10 @@ export class Traffic {
         type, seg, dir, t: Math.random(), speed: 0, tint: new THREE.Color(tints[Math.floor(Math.random() * tints.length)]), wait: 0, x: mx, z: mz, heading: 0,
         // Some drivers jump red lights (more at night, never buses); many stop on the zebra.
         jumper: !this.types[type].big && Math.random() < 0.1 + this.night * 0.12, creep: Math.random() < 0.35 ? 2.5 : 0,
-        pulled: null, boost: 0, lane: oneway ? 0 : Math.min(s[4] * 0.5, 1.9), lastSig: null, lastDist: 0,
-        kerb: this.types[type].rider ? 0.6 + Math.random() * 0.8 : this.types[type].open ? 0.5 : 0, // two-wheelers keep further left and squeeze through
+        pulled: null, boost: 0, lane: 0, laneIdx: -1, lastSig: null, lastDist: 0,
+        kerb: this.types[type].rider ? 0.3 + Math.random() * 0.6 : this.types[type].open ? 0.25 : 0, // two-wheelers hug the left of their lane
+        // Preferred lane: slow and big vehicles keep to the kerb lane, cars spread over the rest.
+        pref: this.types[type].rider || this.types[type].open || this.types[type].big || this.types[type].slow ? 0 : Math.random() < 0.45 ? 0 : Math.random() < 0.6 ? 1 : 2,
         look: this.types[type].rider || this.types[type].open ? driverLook(this.types[type]) : null,
         pax: this.types[type].pax && Math.random() < 0.6 ? paxLook() : null,
       };
@@ -184,11 +217,38 @@ export class Traffic {
     }
   }
 
+  /** Is the lane at `offset` (left of travel) free of same-direction traffic close behind and ahead? */
+  laneFree(car, fx, fz, offset) {
+    const lx = fz, lz = -fx;
+    for (const o of this.cars) {
+      if (o === car) continue;
+      const dx = o.x - car.x, dz = o.z - car.z;
+      if (dx * dx + dz * dz > 900) continue;
+      const along = dx * fx + dz * fz, side = car.lane + dx * lx + dz * lz;
+      if (Math.sin(o.heading) * fx + Math.cos(o.heading) * fz < 0.3) continue; // not going our way
+      if (along > -8 && along < 14 && Math.abs(side - offset) < 1.6) return false;
+    }
+    return true;
+  }
+
+  /** No oncoming traffic within `dist` metres ahead (for overtaking on a two-lane road). */
+  oncomingClear(car, fx, fz, dist) {
+    const lx = fz, lz = -fx;
+    for (const o of this.cars) {
+      if (o === car) continue;
+      const dx = o.x - car.x, dz = o.z - car.z, along = dx * fx + dz * fz;
+      if (along < -2 || along > dist) continue;
+      if (Math.sin(o.heading) * fx + Math.cos(o.heading) * fz > -0.3) continue;
+      if (car.lane + dx * lx + dz * lz < 1.5) return false; // on our right: the oncoming lane
+    }
+    return true;
+  }
+
   /** Continue onto a connected segment at the end we are driving towards (prefer straight on). */
   advance(car) {
     const s = car.seg.s;
     const endIdx = car.dir > 0 ? 1 : 0;
-    const k = `${Math.round(s[endIdx * 2] * 2)},${Math.round(s[endIdx * 2 + 1] * 2)}`;
+    const k = endKey(s[endIdx * 2], s[endIdx * 2 + 1]);
     const fx = (s[2] - s[0]) * car.dir, fz = (s[3] - s[1]) * car.dir, fl = Math.hypot(fx, fz) || 1;
     const options = (this.ends.get(k) || []).filter((o) => o.seg !== car.seg).map((o) => {
       const dir = o.end === 0 ? 1 : -1;
@@ -238,7 +298,7 @@ export class Traffic {
       const check = (x, z, len, slow) => {
         const dx = x - car.x, dz = z - car.z;
         const along = dx * fx + dz * fz, lateral = Math.abs(dx * fz - dz * fx);
-        if (along > 0 && lateral < (car.squeeze ? 1.3 : 1.9)) { const g = along - (type.len + len) / 2; if (g < gap) { gap = g; slowAhead = !!slow; } }
+        if (along > 0 && lateral < (type.rider ? 1.0 : 1.6)) { const g = along - (type.len + len) / 2; if (g < gap) { gap = g; slowAhead = !!slow; } }
       };
       for (const o of this.cars) if (o !== car) check(o.x, o.z, this.types[o.type].len, this.types[o.type].slow && !type.slow);
       check(player.pos.x, player.pos.z, 3.7);
@@ -274,11 +334,23 @@ export class Traffic {
       car.speed += THREE.MathUtils.clamp(want - car.speed, -decel * dt, 2.5 * dt);
       car.wait = car.speed < 0.5 && gap < 6 && !atRed && !car.pulled ? car.wait + dt : 0;
       if (car.wait > 2.5) { this.honks.push([car.x, car.z]); car.wait = -4; }
-      // Mumbai driving: stuck behind someone (not at a red light)? Squeeze past on the right,
-      // into the oncoming lane if need be. And honk for no reason now and then.
-      if (gap < 7 && (car.speed < 2.5 || (slowAhead && !type.big)) && !atRed && !car.pulled && type.len < 6) car.blockedT = (car.blockedT || 0) + dt; else car.blockedT = Math.max(0, (car.blockedT || 0) - dt * 0.5);
-      if (car.blockedT > (slowAhead ? 0.5 : 1.8) && !car.squeeze) { car.squeeze = 4 + Math.random() * 3; if (Math.random() < 0.6) this.honks.push([car.x, car.z]); }
-      if (car.squeeze) { car.squeeze -= dt; if (car.squeeze <= 0) car.squeeze = 0; }
+      // Stuck behind someone slower (not at a red light)? Overtake on the RIGHT, as in India:
+      // into the next lane if it is free, or — on a two-lane road — into the oncoming lane only
+      // when nothing is coming. Otherwise wait and honk. Drift back left when there is room.
+      if (gap < 9 && (car.speed < 2.5 || slowAhead) && !atRed && !car.pulled && !type.big) car.blockedT = (car.blockedT || 0) + dt; else car.blockedT = Math.max(0, (car.blockedT || 0) - dt * 0.5);
+      if (car.blockedT > (slowAhead ? 0.6 : 2) && !car.overtake) {
+        const L = lanesOf(car.seg, car.dir);
+        if (car.laneIdx < L.hi && this.laneFree(car, fx, fz, laneOffset(car.seg, L, car.laneIdx + 1))) { car.laneIdx++; car.blockedT = 0; }
+        else if (!(s[5] & 2) && car.laneIdx >= L.hi && this.oncomingClear(car, fx, fz, 55)) { car.overtake = 3.5 + Math.random() * 1.5; car.blockedT = 0; }
+        else if (Math.random() < 0.6) { this.honks.push([car.x, car.z]); car.blockedT = -1.5; }
+      }
+      if (car.overtake) { car.overtake -= dt; if (car.overtake <= 0) car.overtake = 0; }
+      car.keepLeftT = (car.keepLeftT || 0) - dt;
+      if (car.keepLeftT <= 0) {
+        car.keepLeftT = 2 + Math.random() * 2;
+        const L = lanesOf(car.seg, car.dir);
+        if (car.laneIdx > Math.max(L.lo, Math.min(car.pref, L.hi)) && this.laneFree(car, fx, fz, laneOffset(car.seg, L, car.laneIdx - 1))) car.laneIdx--;
+      }
       if (Math.random() < dt * 0.015 * (0.3 + jam)) this.honks.push([car.x, car.z]);
       car.t += (car.speed * dt) / car.seg.len;
       while (car.t >= 1) { car.t -= 1; this.advance(car); }
@@ -288,11 +360,14 @@ export class Traffic {
       const [lx, lz] = LEFT(gx, gz);
       const two = !(s2[5] & 2);
       if (car.yield) { car.yield = Math.max(0, car.yield - dt); }
-      const laneWant = car.pulled ? Math.max(0, s2[4] - type.wid / 2 - 0.25)
-        : car.yield ? Math.max(0, s2[4] - type.wid / 2 - 0.3)
-        : car.squeeze ? (two ? Math.min(s2[4] * 0.5, 1.9) : 0) - 2.4
-        : (two ? Math.min(s2[4] * 0.5, 1.9) : 0) + Math.min(car.kerb, Math.max(0, s2[4] - 1.2));
-      car.lane += (laneWant - car.lane) * Math.min(1, dt * 1.5);
+      const L = lanesOf(car.seg, car.dir);
+      if (car.laneIdx < 0) car.laneIdx = Math.min(Math.max(car.pref, L.lo), L.hi); // first placement
+      car.laneIdx = Math.min(Math.max(car.laneIdx, L.lo), L.hi);
+      let laneWant = laneOffset(car.seg, L, car.laneIdx) + Math.min(car.kerb, L.w * 0.25);
+      if (L.parkLeft) laneWant = Math.min(laneWant, s2[4] - 2.2 - type.wid / 2); // single lane past parked cars
+      if (car.overtake) laneWant = two ? -Math.min(L.w * 0.5, 1.8) : laneWant;   // round the slow one, on the right
+      if (car.pulled || car.yield) laneWant = Math.max(0, s2[4] - type.wid / 2 - 0.3); // pull over to the left kerb
+      car.lane += (laneWant - car.lane) * Math.min(1, dt * 1.2);
       const lane = car.lane;
       const px = s2[0] + (s2[2] - s2[0]) * t + lx * lane, pz = s2[1] + (s2[3] - s2[1]) * t + lz * lane;
       // Smooth position and heading through corners.

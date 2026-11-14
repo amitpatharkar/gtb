@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { endKey, keyXZ } from './roadKeys.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { POINT } from '../world/tileFormat.js';
 
@@ -10,7 +11,7 @@ import { POINT } from '../world/tileFormat.js';
 const GREEN_A = 17, GREEN_B = 13, AMBER = 3, ALL_RED = 2;
 export const LIGHT = { GREEN: 0, AMBER: 1, RED: 2 };
 
-const key = (x, z) => `${Math.round(x * 2)},${Math.round(z * 2)}`;
+const key = endKey;
 const hash = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); };
 
 function digitsTexture() {
@@ -92,7 +93,7 @@ export class Signals {
     // Graph nodes: junctions have 3+ segment ends; mid-block crossings have 2.
     const nodes = [];
     for (const [k, list] of traffic.ends) {
-      const [kx, kz] = k.split(',').map((v) => Number(v) / 2);
+      const [kx, kz] = keyXZ(k);
       nodes.push({ k, x: kx, z: kz, list });
     }
     const grid = new Map();
@@ -187,7 +188,9 @@ export class Signals {
 
   update(dt, tiles, traffic, focus, night = 0) {
     this.time += dt;
-    if (this.version !== traffic.graphVersion) this.rebuild(tiles, traffic);
+    // Rebuild after the traffic graph changed — but not in the same frame as the traffic
+    // rebuild itself, so two big jobs never land on one frame.
+    if (this.version !== traffic.graphVersion) { if (this.waited) { this.waited = false; this.rebuild(tiles, traffic); } else this.waited = true; }
     // Draw poles near the focus (instanced; all lights in view range).
     let n = 0;
     const on = [new THREE.Color(5, 0.35, 0.2), new THREE.Color(4.5, 2.2, 0.1), new THREE.Color(0.2, 4, 1.4)];

@@ -101,7 +101,12 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   18–20) and `jam` (slower cruising at peaks)
 - `src/sim/traffic.js` — ambient traffic near the player (fleet from `src/vehicles/fleet.js`: taxis, hatchbacks,
   sedans, SUVs, BEST buses on main roads, tempos (more at night), motorbikes with riders), keeps LEFT, follows the
-  road graph (loose ends within 2.5 m joined), respects one-ways, stops at red (jumpers, amber gamblers, zebra creepers),
+  road graph (loose ends within 2.5 m joined; per-tile segment data cached on `tile.graph`, numeric junction keys
+  from `src/sim/roadKeys.js` — the rebuild runs on every tile load, keep it cheap; police build their graph lazily
+  only while patrols are out, signals rebuild one frame later), lanes as painted by the converter (`lanesOf`: kerb
+  lane 0 for two-wheelers/autos/buses, parked cars take the kerb lane on wide streets), overtakes on the RIGHT into a
+  free lane or, on two-lane roads, into the oncoming lane only when clear (`laneFree`, `oncomingClear`), drifts back
+  left; respects one-ways, stops at red (jumpers, amber gamblers, zebra creepers),
   stops for `obstacles` (cows, cricket, jaywalkers), draws `extras` (broken-down taxi), pull-overs, honks
 - `src/vehicles/fleet.js` + `loft.js` — Indian traffic at real sizes with parody names (Alto, WagonR, Swift, i10,
   Dzire, City, Ertiga, Innova, Bolero, Creta, Eeco, WagonR/Santro kaali-peelis, white app cabs with yellow plates,

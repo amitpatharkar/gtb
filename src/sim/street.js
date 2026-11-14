@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { endKey } from './roadKeys.js';
 import { POSE, FLAG, outfit } from './people.js';
 import { APOSE, DOG_COATS, COW_COATS } from './animals.js';
 import { LIGHT } from './signals.js';
@@ -128,7 +129,7 @@ export class StreetLife {
   nextSeg(p) {
     const s = p.seg.s;
     const endIdx = p.dir > 0 ? 1 : 0;
-    const k = `${Math.round(s[endIdx * 2] * 2)},${Math.round(s[endIdx * 2 + 1] * 2)}`;
+    const k = endKey(s[endIdx * 2], s[endIdx * 2 + 1]);
     const opts = (this.traffic.ends.get(k) || []).filter((o) => o.seg !== p.seg);
     if (!opts.length) { p.dir = -p.dir; p.side = -p.side; p.t = 0; return; }
     const o = pick(opts);
