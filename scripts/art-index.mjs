@@ -110,24 +110,56 @@ for (const f of files) {
   models.push({ id, file, bytes: fs.statSync(path.join(ART, file)).size, v: hashOf(path.join(ART, file)) });
 }
 
-// Vehicles: fleet lengths for scaling replacements of existing types.
+// Vehicles: only files with a credit line in public/art/CREDITS.md under a free licence (CC0 or
+// CC BY) are used; a file named as downloaded is matched to a game type (FILE_TYPES in
+// src/vehicles/vehicleModels.js), and where several files match one type the best one is kept
+// (believable proportions, a body to paint, fewer triangles). `--preview` ignores the credit
+// check for a local look (never in the deploy).
 const vehicles = [];
 if (vfiles.length) {
   const { buildFleet } = await import('../src/vehicles/fleet.js');
-  const T = buildFleet(), fleetLen = Object.fromEntries(Object.entries(T).map(([k, v]) => [k, v.len]));
+  const { typeForFile, VEHICLE_ART } = await import('../src/vehicles/vehicleModels.js');
+  const T = buildFleet(), fleetLen = Object.fromEntries(Object.entries(T).map(([k, v]) => [k, v.len])), fleetIds = Object.keys(T);
+  const creditsText = fs.existsSync(path.join(ART, 'CREDITS.md')) ? fs.readFileSync(path.join(ART, 'CREDITS.md'), 'utf8') : '';
+  const credited = (f) => {
+    const line = creditsText.split('\n').find((l) => l.includes(`vehicles/${f}`));
+    if (!line) return 'no credit line';
+    if (/\bNC\b|non-?commercial|\bND\b|no-?deriv|editorial|standard licen[cs]e/i.test(line)) return 'licence not free enough';
+    return /CC0|public domain|CC[ -]?BY|Attribution/i.test(line) ? '' : 'licence not stated';
+  };
+  const preview = process.argv.includes('--preview');
+  const byType = new Map(), waiting = [];
   for (const f of vfiles) {
-    const id = f.replace(/\.glb$/i, '').toLowerCase(), src = path.join(vdir, f);
-    const near = path.join(optDir, 'vehicles', `${id}.glb`), far = path.join(optDir, 'vehicles', `${id}-far.glb`), meta = path.join(optDir, 'vehicles', `${id}.json`);
-    try {
-      if (stale(src, near, far, meta)) {
-        const r = await buildVehicle(fs.readFileSync(src), id, fleetLen);
-        fs.writeFileSync(near, r.near); fs.writeFileSync(far, r.far); fs.writeFileSync(meta, JSON.stringify(r.info));
-        const sum = (c) => Object.values(c).reduce((s, x) => s + x, 0);
-        console.log(`art: vehicle ${f} → ${r.info.len} × ${r.info.wid} × ${r.info.hgt} m, ${sum(r.info.near)} / ${sum(r.info.far)} triangles${r.info.paint ? '' : ', no paint part found'}${r.info.notes.length ? ` (${r.info.notes.join(', ')})` : ''}`);
-      }
-      const info = JSON.parse(fs.readFileSync(meta, 'utf8'));
-      vehicles.push({ id, near: `opt/vehicles/${id}.glb`, far: `opt/vehicles/${id}-far.glb`, v: hashOf(near) + hashOf(far).slice(0, 4), len: info.len, wid: info.wid, hgt: info.hgt });
-    } catch (e) { console.warn(`art: vehicle ${f} left out (${e.message})`); }
+    const type = typeForFile(f, fleetIds);
+    if (!type) continue;
+    const why = credited(f);
+    if (why && !preview) { waiting.push(`${f} (${why})`); continue; }
+    (byType.get(type) || byType.set(type, []).get(type)).push(f);
+  }
+  if (waiting.length) console.log(`art: ${waiting.length} vehicle file(s) not used yet — add a line to public/art/CREDITS.md: ${waiting.slice(0, 6).join('; ')}${waiting.length > 6 ? ' …' : ''}`);
+  for (const [type, files] of byType) {
+    const cands = [];
+    for (const f of files) {
+      const base = f.replace(/\.glb$/i, '').toLowerCase().replace(/[^a-z0-9_-]+/g, '_'), src = path.join(vdir, f);
+      const near = path.join(optDir, 'vehicles', `${base}.glb`), far = path.join(optDir, 'vehicles', `${base}-far.glb`), meta = path.join(optDir, 'vehicles', `${base}.json`);
+      try {
+        if (stale(src, near, far, meta)) {
+          const r = await buildVehicle(fs.readFileSync(src), type, fleetLen);
+          fs.writeFileSync(near, r.near); fs.writeFileSync(far, r.far); fs.writeFileSync(meta, JSON.stringify(r.info));
+        }
+        const info = JSON.parse(fs.readFileSync(meta, 'utf8'));
+        const tris = Object.values(info.near).reduce((s, x) => s + x, 0);
+        // Lower is better: odd proportions, no paintable body, too many triangles.
+        const score = Math.abs(info.wid / info.len - 0.44) * 6 + Math.abs(info.hgt / info.len - 0.4) * 4 + (info.paint ? 0 : 0.6) + (tris > 9000 ? 0.4 : 0);
+        cands.push({ f, base, info, tris, score, v: hashOf(near) + hashOf(far).slice(0, 4) });
+      } catch (e) { console.warn(`art: vehicle ${f} left out (${e.message})`); }
+    }
+    cands.sort((a, b) => a.score - b.score);
+    const best = cands[0];
+    if (!best) continue;
+    if (best.score > 1.6) { console.warn(`art: ${type} — no usable model (best ${best.f}: ${best.info.len} × ${best.info.wid} × ${best.info.hgt} m)`); continue; }
+    vehicles.push({ id: type, file: `vehicles/${best.f}`, near: `opt/vehicles/${best.base}.glb`, far: `opt/vehicles/${best.base}-far.glb`, v: best.v, len: best.info.len, wid: best.info.wid, hgt: best.info.hgt });
+    console.log(`art: ${type} ← ${best.f} (${best.info.len} × ${best.info.wid} × ${best.info.hgt} m, ${best.tris} triangles${best.info.paint ? '' : ', no paint part'}${cands.length > 1 ? `; ${cands.length - 1} other file(s) not used` : ''})`);
   }
 }
 fs.writeFileSync(path.join(ART, 'index.json'), JSON.stringify({ models, vehicles }, null, 1));
