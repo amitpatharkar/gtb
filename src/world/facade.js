@@ -76,13 +76,20 @@ const GLSL = `
     vec3 h = hit.xyz;
     vec3 c;
     if (hit.w < 1.5) {
-      // Shelves of goods on the back and side walls.
+      // Shelves of goods on the back and side walls: packets 8–12 cm wide (one width per
+      // shelf), of different heights, in muted printed colours, against a dark shelf back.
       float along = hit.w < 0.5 ? h.x : h.z;
+      int row = int(floor(h.y / 0.48));
       float shelf = fract(h.y / 0.48);
-      vec3 goods = vec3(cellHash(int(floor(along / 0.22)), int(floor(h.y / 0.48)), seed + unit, 11),
-                        cellHash(int(floor(along / 0.22)), int(floor(h.y / 0.48)), seed + unit, 12),
-                        cellHash(int(floor(along / 0.22)), int(floor(h.y / 0.48)), seed + unit, 13));
-      c = shelf < 0.1 ? vec3(0.5, 0.42, 0.32) : mix(goods * 0.9 + 0.1, vec3(0.75), 0.25) * step(0.18, fract(along / 0.22) + 0.2);
+      float gw = 0.08 + 0.04 * cellHash(row, -3, seed + unit, 14);
+      int gi = int(floor(along / gw));
+      vec3 goods = vec3(cellHash(gi, row, seed + unit, 11), cellHash(gi, row, seed + unit, 12), cellHash(gi, row, seed + unit, 13));
+      goods = mix(vec3(dot(goods, vec3(0.3, 0.59, 0.11))), goods, 0.45) * 0.62 + 0.1;
+      float top = 0.5 + 0.42 * cellHash(gi, row, seed + unit, 15);
+      bool packet = fract(along / gw) > 0.1 && shelf > 0.1 && shelf < top;
+      c = shelf < 0.1 ? vec3(0.46, 0.39, 0.3) : packet ? goods : vec3(0.24, 0.22, 0.2);
+      // Packets smaller than a pixel shimmer: further than ~15–35 m, their average instead.
+      c = mix(c, vec3(0.36, 0.34, 0.31), smoothstep(15.0, 35.0, length(vViewPosition)));
       if (h.y > 2.3) c = vec3(0.85, 0.83, 0.78);
     } else if (hit.w < 2.5) {
       c = mix(vec3(0.6, 0.58, 0.55), vec3(0.5, 0.48, 0.45), mod(floor(h.x / 0.5) + floor(h.z / 0.5), 2.0));
@@ -174,7 +181,7 @@ export function makeFacadeMaterial(signAtlas) {
                   diffuseColor.rgb = vec3(0.0);
                   roughnessFactor = 1.0;
                   flatNormal = 1.0;
-                  facadeEmissive = c * (0.32 + 0.5 * uNight);
+                  facadeEmissive = c * (0.12 + 0.5 * uNight); // by day a shop is dimmer than the street outside
                 } else {
                   float sh = cellHash(unit, -1, seed, ${K.SHUTTER});
                   vec3 shc = sh < 0.4 ? vec3(0.42, 0.44, 0.45) : sh < 0.7 ? vec3(0.22, 0.38, 0.30) : vec3(0.24, 0.32, 0.48);
