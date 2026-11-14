@@ -221,6 +221,7 @@ export class TrainRide {
     const w = this.walker;
     const p = L.at(last.d), side = last.side === 1 || last.side === -1 ? last.side : 1, off = last.off + 0.8;
     const x = p[0] - p[3] * side * off, z = p[1] + p[2] * side * off;
+    this.stations?.()?.buildNow(x, z);
     w.pos.set(x, this.structures ? this.structures.groundHeight(x, z, 2, this.tiles.groundHeight(x, z)) : this.tiles.groundHeight(x, z), z);
     this.hud.message(`This local runs on to ${L.to} — beyond the edge of the map. You got off at ${last.name}.`);
     this.leave(r, last.name);
@@ -250,6 +251,7 @@ export class TrainRide {
     // The stops on the way: checkers may get on at any of them.
     for (const s of L.stations) if (s.i > (r.lastStop ?? -1) && s.i < dest.i && s.name !== r.from && this.r) this.atStation(s);
     await this.tiles.whenReady(dest.x, dest.z, Math.min(300, (this.tiles.loadRadius || 500) - 40));
+    this.stations?.()?.buildNow(dest.x, dest.z);
     this.T.fresh = true; this.T.scanT = 0;
     fade?.classList.remove('on');
     this.busy = false;

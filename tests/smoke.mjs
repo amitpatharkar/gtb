@@ -336,6 +336,50 @@ await check('ride', async () => {
   return { info, fails };
 });
 
+await check('stations', async () => {
+  // Raised platforms and foot overbridges: stand on a platform at its real height, climb a stair
+  // to the bridge deck; building the biggest stations (Dadar, CSMT) costs no stutter.
+  const { page, errors } = await game('hour=10');
+  await page.waitForFunction(() => window.__gtb.stations && window.__gtb.trains, null, { timeout: 90000 });
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, S = g.stations, st = S.list.find((s) => s.name === 'Charni Road');
+    if (!st) return { station: null };
+    const all = st.decks.flatMap((d) => d.stairs);
+    const s = all.find((q) => q.y1 > 1 && !q.gen) || all.find((q) => q.y1 > 1);
+    g.player.pos.set(s.x1 + 30, 0.02, s.z1 + 30);
+    await g.tiles.whenReady(s.x1, s.z1, 300);
+    g.toggleFoot();
+    S.buildNow(s.x1, s.z1);
+    const L = Math.hypot(s.x0 - s.x1, s.z0 - s.z1), ux = (s.x0 - s.x1) / L, uz = (s.z0 - s.z1) / L;
+    g.walker.pos.set(s.x1 - ux * 1.5, s.y1, s.z1 - uz * 1.5);
+    for (let i = 0; i < 30; i++) g.step(0.05);
+    const onPlatform = +g.walker.pos.y.toFixed(2);
+    g.view.yaw = Math.atan2(ux, uz); g.input.fwd = true;
+    for (let i = 0; i < 300; i++) g.step(0.05);
+    g.input.fwd = false;
+    const onDeck = +g.walker.pos.y.toFixed(2);
+    // The big ones: no step over 60 ms while they are built.
+    let worst = 0;
+    for (const name of ['Dadar', 'Chhatrapati Chai Terminus', 'Churchgate']) {
+      const b = S.list.find((q) => q.name === name);
+      if (!b) continue;
+      g.walker.pos.set(b.cx, 0.3, b.cz);
+      await g.tiles.whenReady(b.cx, b.cz, 250);
+      for (let i = 0; i < 40; i++) { const t0 = performance.now(); g.step(0.05); worst = Math.max(worst, performance.now() - t0); }
+    }
+    return { station: st.name, onPlatform, onDeck, built: S.list.filter((q) => q.built).length, worstMs: +worst.toFixed(1) };
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (!info.station) fails.push('no Charni Road station');
+  else {
+    if (Math.abs(info.onPlatform - 1.3) > 0.1) fails.push(`platform height ${info.onPlatform}, expected 1.3`);
+    if (info.onDeck < 7.4) fails.push(`did not climb to the footbridge (y ${info.onDeck})`);
+    if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms while building stations`);
+  }
+  return { info, fails };
+});
+
 await check('night', async () => {
   // At 10 pm the road ahead must be visible (lamp pools, headlights).
   const { page, errors } = await game('hour=22');

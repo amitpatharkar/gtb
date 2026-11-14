@@ -804,6 +804,7 @@ function step(dt) {
   story.update(dt, { player, onFoot, walker });
   trains?.update(dt, active, onFoot); // local trains (after street life: they add level-crossing stops and doorway commuters)
   trains?.ride?.update(dt, onFoot && !indoors); // boarding, riding in the doorway, ticket checkers
+  stations?.update(dt, active.pos); // platforms, footbridges and stairs near the player
   if (onFoot) walker.draw(people, combat.weapon);
   else if (garage.seated) {
     // Riding a two-wheeler or driving an auto: the player can be seen in the seat.
@@ -876,11 +877,20 @@ window.__gtb.step = step;
 // than any car; their stations show on the map; E on foot at a station sells tickets.
 let trains = null;
 started.then(() => Promise.all([import('./sim/trains.js'), import('./sim/trainRide.js')]))
-  .then(([{ Trains }, { TrainRide }]) => Trains.create({ base: BASE, scene, renderer, camera, compile: (o) => post.compile(o, camera, scene), tiles, traffic, street, people, bubbles, audio, hud, state, clock, walker, player, view, structures, tickets, tier, snap: () => placeCamera(0) })
-    .then((t) => { if (t) t.ride = new TrainRide(t, { walker, tiles, structures, tickets, hud, bubbles, clock, audio, view, people, snap: () => placeCamera(0) }); return t; }))
+  .then(([{ Trains }, { TrainRide }]) => Trains.create({ base: BASE, scene, renderer, camera, compile: (o) => post.compile(o, camera, scene), tiles, traffic, street, people, bubbles, audio, hud, state, clock, walker, player, view, structures, tickets, tier, stations: () => stations, snap: () => placeCamera(0) })
+    .then((t) => { if (t) t.ride = new TrainRide(t, { walker, tiles, structures, tickets, hud, bubbles, clock, audio, view, people, stations: () => stations, snap: () => placeCamera(0) }); return t; }))
   .then((t) => { trains = window.__gtb.trains = t; })
   .catch((err) => console.warn('Local trains are not available:', err));
 for (const w of [world, footWorld]) { const hits = w.hits; w.hits = (x, z, r, y) => hits(x, z, r, y) || !!trains?.hits(x, z, r); }
+
+// ------------------------------------------------------------------ stations
+// Raised platforms, foot overbridges, stairs, roofs, boards and indicators near the player
+// (tiles/stations.json → src/world/stations.js); walkable through `structures`.
+let stations = null;
+started.then(() => import('./world/stations.js'))
+  .then(({ Stations }) => Stations.create({ scene, tiles, structures, materials, clock, tier, trains: () => trains }))
+  .then((s) => { stations = window.__gtb.stations = s; })
+  .catch((err) => console.warn('Stations are not available:', err));
 {
   const bodyAt = world.bodyAt, markers = cityMap.markers;
   world.bodyAt = (x, z, r) => trains?.bodyAt(x, z, r) || bodyAt(x, z, r);

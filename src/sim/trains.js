@@ -33,7 +33,7 @@ export const COACH_CLASS = {
   H: [5, 0, 1, 2, 0, 4, 1, 0, 3, 0, 1, 5],
 };
 export const CLASS_NAME = ['General', 'First class', 'Ladies', 'Ladies first class', 'Luggage', 'Disabled'];
-const AC_SHARE = { W: 0.09, C: 0.07, H: 0.04 };
+const AC_SHARE = { W: 0.1, C: 0.1, H: 0.05 };              // about 147 of Western Railway's 1,414 weekday services are AC (2026); Central 92 + 28 Harbour of 1,820
 const ROUTE_NO = { W: 1, C: 2, H: 3 };            // about 109 of Western Railway's 1,406 weekday services are AC
 const LIVERY = { W: 0x6b3fa0, C: 0x1d5ea8, H: 0x8c2b2b };  // violet, blue, maroon bands on white
 const MAP_COLOUR = { W: '#7a3fb0', C: '#1f6fbf', H: '#9b2f2f' };
@@ -1064,6 +1064,7 @@ export class Trains {
     w.speed = 0; w.vx = w.vz = 0;
     this.clock.hour += (o.mins || 10) / 60;
     await this.tiles.whenReady(best.x, best.z, Math.min(300, (this.tiles.loadRadius || 500) - 40));
+    this.stations?.()?.buildNow(best.x, best.z);
     const L = best.line, sides = best.side === 1 || best.side === -1 ? [best.side, -best.side] : [1, -1];
     let spot = null;
     search: for (const along of [0, 18, -18, 40, -40, 70, -70]) for (const side of sides) for (const off of [best.off, best.off + 1.2, best.off + 2.6]) {
