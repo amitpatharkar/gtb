@@ -7,6 +7,7 @@ import { setupCredits } from './credits.js';
 import { TIERS, pickTier, query } from './settings.js';
 import { TextureLibrary } from './world/textures.js';
 import { createPost } from './render/post.js';
+import { creditedPhoto } from './render/photo.js';
 import { facadeDebug, facadeNight } from './world/facade.js';
 import { createTaxi } from './vehicles/taxi.js';
 import { Car } from './vehicles/car.js';
@@ -560,12 +561,12 @@ $('btn-phone').addEventListener('click', (e) => { e.preventDefault(); audio.star
 function takePhoto() {
   document.body.classList.add('photo');
   post.render();
-  renderer.domElement.toBlob((blob) => {
+  creditedPhoto(renderer.domElement, post.grade).then((blob) => { // with the OpenStreetMap credit burnt in
     document.body.classList.remove('photo');
     if (!blob) return;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `gtb-mumbai-${Date.now()}.png`;
+    a.download = `bombay-bawaal-${Date.now()}.png`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     say('Photo saved', 2);
