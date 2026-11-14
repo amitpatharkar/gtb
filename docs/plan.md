@@ -44,6 +44,7 @@ Effort: S small, M medium, L large. ✅ done · 🟡 in progress · ⬜ to do.
 | R7 | Adult characters and body builds: the pack's child proportions rebuilt on the skeleton (legs ×1.45 with re-baked foot and pelvis animation, head ×0.56, shorter torso, wider shoulders, longer arms); builds slim, average, fit (player), muscular, heavy, stocky, lanky, kid; men 1.73 m, women 1.6 m | M | ✅ |
 | R8 | Name: the game is "Bombay Bawaal" (`src/brand.js`); GTB stays as the code name, web address and save keys | S | ✅ |
 | R9 | Sun glare: the sky photo's sun disk is capped, so facing the sun no longer whites out the screen with bloom on Medium/High | S | ✅ |
+| R10 | Phone controls like mobile open-world games (`src/ui/touch.js`, 2026-11-14): floating joystick on foot (full push runs), one ◀ ▶ steering pad (slide across), brake/REV and gas pedals with handbrake, horn, door, radio and TAXI duty above; on foot a big attack button (drag to aim while spraying) with aim/block, kick or colour, weapon swap, pressure, crackers and insults in an arc; yellow context buttons only when they apply (get in / steal with a 👮 warning, fill up, snack, enter/exit/buy indoors, train ticket, skip an hour for a waiting mission); hidden indoors and in cutscenes; pause (skip an hour, tow truck) and full screen buttons; smoke check `touch` | M | ✅ |
 | R4 | Better rendering: continues in Phase 2 (lighting ✅, window depth ✅, facades, clutter, people) | — | 🟡 |
 
 ## Phase 2 — Look and feel of Mumbai at street level

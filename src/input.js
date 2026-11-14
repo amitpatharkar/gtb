@@ -1,5 +1,6 @@
-// Keyboard + touch input, exposed as simple booleans.
-export const input = { fwd: false, back: false, left: false, right: false, brake: false, run: false, reset: false };
+// Keyboard input, exposed as simple booleans. Touch screens set the same fields from
+// src/ui/touch.js, plus the joystick's analogue push (moveX right, moveY away; analog while held).
+export const input = { fwd: false, back: false, left: false, right: false, brake: false, run: false, reset: false, fire: false, aim: false, moveX: 0, moveY: 0, analog: false };
 
 const keyMap = {
   KeyW: 'fwd', ArrowUp: 'fwd',
@@ -22,11 +23,3 @@ addEventListener('keyup', (e) => {
   if (k && k !== 'reset') input[k] = false; // reset is cleared by the game once handled
 });
 
-for (const btn of document.querySelectorAll('#touch button')) {
-  const k = btn.dataset.key;
-  const set = (v) => (e) => { e.preventDefault(); input[k] = v; btn.classList.toggle('on', v); };
-  btn.addEventListener('pointerdown', set(true));
-  btn.addEventListener('pointerup', set(false));
-  btn.addEventListener('pointerleave', set(false));
-  btn.addEventListener('pointercancel', set(false));
-}

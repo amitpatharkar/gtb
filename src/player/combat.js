@@ -32,7 +32,9 @@ export class Combat {
 
   setWeapon(w) {
     this.weapon = w;
-    this.hud.message(w === 'pichkari' ? `Pichkari (${this.pichkari.colourName}) — left mouse or Space to spray, right mouse to aim` : 'Fists — left mouse to punch, V to kick, G to insult');
+    this.hud.message(this.touch // touch screens: the buttons say it (src/ui/touch.js)
+      ? (w === 'pichkari' ? `💦 Pichkari (${this.pichkari.colourName}) — hold to spray, drag it to aim` : '👊 Fists — tap to punch, hold 🛡️ to block')
+      : w === 'pichkari' ? `Pichkari (${this.pichkari.colourName}) — left mouse or Space to spray, right mouse to aim` : 'Fists — left mouse to punch, V to kick, G to insult');
   }
   toggleWeapon() { this.setWeapon(this.weapon === 'fists' ? 'pichkari' : 'fists'); }
 
