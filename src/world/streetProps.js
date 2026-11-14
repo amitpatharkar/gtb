@@ -24,9 +24,9 @@ export class StreetProps {
     load('chair', 'prop-ph-plastic-monobloc-chair-01', 'plastic_monobloc_chair_01_1k.gltf', { size: 0.82 }, 260);
     load('crate', 'prop-ph-plastic-crate-02', 'plastic_crate_02_1k.gltf', { size: 0.3 }, 260);
     load('bag', 'prop-ph-trashbag', 'trashbag_1k.gltf', { size: 0.55 }, 400);
+    load('bin', 'prop-ph-metal-trash-can', 'metal_trash_can_1k.gltf', { size: 0.95 }, 120);
+    load('box', 'prop-ph-utility-box-01', 'utility_box_01_1k.gltf', { size: 1.25 }, 120);
     if (tier.name !== 'Low') {
-      load('bin', 'prop-ph-metal-trash-can', 'metal_trash_can_1k.gltf', { size: 0.95 }, 120);
-      load('box', 'prop-ph-utility-box-01', 'utility_box_01_1k.gltf', { size: 1.25 }, 120);
       load('wcrate', 'prop-ph-wooden-crate-02', 'wooden_crate_02_1k.gltf', { size: 0.45 }, 200);
     }
     this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.s = new THREE.Vector3(1, 1, 1); this.p = new THREE.Vector3();

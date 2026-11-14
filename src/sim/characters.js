@@ -136,6 +136,40 @@ const slotOf = (name) => {
   return /^skin/.test(n) ? SLOT.skin : /^(shirt|clothes|main|top|vest)/.test(n) ? SLOT.shirt : /^(pants|trousers|skirt)/.test(n) ? SLOT.pants : /^hair/.test(n) ? SLOT.hair : /^face/.test(n) ? SLOT.face : SLOT.other;
 };
 
+/**
+ * Auto-smooth a non-indexed mesh: each vertex gets the average of the face normals around it
+ * that are within `angle` of its own face (sharp creases stay sharp). The pack's characters
+ * are flat-shaded, which is most of what makes them look low-poly.
+ */
+function autoSmooth(g, angle = 62) {
+  const p = g.attributes.position, n = p.count, cos = Math.cos((angle * Math.PI) / 180);
+  const fn = new Float32Array(n * 3), out = new Float32Array(n * 3);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let i = 0; i < n; i += 3) {
+    a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
+    b.sub(a); c.sub(a); b.cross(c); // area-weighted face normal
+    for (let k = 0; k < 3; k++) fn.set([b.x, b.y, b.z], (i + k) * 3);
+  }
+  const bins = new Map(), q = (v) => Math.round(v * 1e4);
+  for (let i = 0; i < n; i++) {
+    const key = `${q(p.getX(i))},${q(p.getY(i))},${q(p.getZ(i))}`;
+    let l = bins.get(key); if (!l) bins.set(key, (l = [])); l.push(i);
+  }
+  for (const list of bins.values()) {
+    for (const i of list) {
+      const ix = fn[i * 3], iy = fn[i * 3 + 1], iz = fn[i * 3 + 2], il = Math.hypot(ix, iy, iz) || 1;
+      let sx = 0, sy = 0, sz = 0;
+      for (const j of list) {
+        const jx = fn[j * 3], jy = fn[j * 3 + 1], jz = fn[j * 3 + 2], jl = Math.hypot(jx, jy, jz) || 1;
+        if ((ix * jx + iy * jy + iz * jz) / (il * jl) >= cos) { sx += jx; sy += jy; sz += jz; }
+      }
+      const l = Math.hypot(sx, sy, sz) || 1;
+      out[i * 3] = sx / l; out[i * 3 + 1] = sy / l; out[i * 3 + 2] = sz / l;
+    }
+  }
+  g.setAttribute('normal', new THREE.BufferAttribute(out, 3));
+}
+
 /** One material per character: the same program, different part colours. */
 function characterMaterial() {
   const m = new THREE.MeshStandardMaterial({ roughness: 0.82, metalness: 0 });
@@ -247,6 +281,7 @@ export class Characters {
     }
     const merged = geos.length > 1 ? mergeGeometries(geos) : geos[0];
     if (!merged) throw new Error('merge failed');
+    autoSmooth(merged);
     // The pack's people wear shorts and no shoes. Bare skin on the legs becomes its own slot
     // (trouser legs for adults, skin for children) and the feet become footwear.
     {

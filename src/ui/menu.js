@@ -3,9 +3,10 @@
 
 import { CHEATS } from '../game/cheats.js';
 import { GAME } from '../brand.js';
+import { pickTier } from '../settings.js';
 
 const KEY = 'gtb.settings';
-export const DEFAULTS = { tier: 'low', volume: 0.8, sens: 1, invertY: false, hints: true, radio: true, speech: true };
+export const DEFAULTS = { tier: pickTier(), volume: 0.8, sens: 1, invertY: false, hints: true, radio: true, speech: true };
 
 export function loadSettings() {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { ...DEFAULTS }; }
@@ -97,7 +98,7 @@ export function titleScreen({ save }) {
     const panel = root.querySelector('.panel');
     const showPanel = (html) => { panel.innerHTML = `<button class="close" data-a="close">✕</button>${html}`; panel.hidden = false; };
     const settingsHtml = () => `<h2>Settings</h2>
-      <label>Graphics <select data-s="tier"><option value="low">Low (fastest, recommended)</option><option value="medium">Medium</option><option value="high">High (strong GPU)</option></select></label>
+      <label>Graphics <select data-s="tier"><option value="low">Low (fastest; phones, office laptops)</option><option value="medium">Medium (most computers)</option><option value="high">High (strong graphics card)</option></select></label>
       <label>Volume <input data-s="volume" type="range" min="0" max="1" step="0.05"></label>
       <label>Mouse sensitivity <input data-s="sens" type="range" min="0.3" max="2.5" step="0.1"></label>
       <label><input data-s="invertY" type="checkbox"> Invert mouse up/down</label>

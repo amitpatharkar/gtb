@@ -627,10 +627,28 @@ renderer.shadowMap.autoUpdate = false;
 let frameNo = 0;
 const crosshair = $('crosshair');
 let hudTimer = 0, lampTimer = 0, seaFactor = 0;
+// Dynamic resolution: when the graphics chip struggles, render fewer pixels rather than drop
+// frames (and give them back when there is room). Off in automated tests (fixed screenshots).
+const dynRes = { base: Math.min(devicePixelRatio, tier.pixelRatio), scale: 1, acc: 0, frames: 0, on: !navigator.webdriver && !query.has('fixedres') };
+function setResolutionScale(k) {
+  dynRes.scale = k;
+  renderer.setPixelRatio(dynRes.base * k);
+  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  post.setSize(size.x, size.y);
+}
 renderer.setAnimationLoop((time) => {
   timer.update(time);
-  const dt = Math.min(timer.getDelta(), 0.05);
+  const raw = timer.getDelta(), dt = Math.min(raw, 0.05);
   if (cityMap.open || paused) return; // paused while the map or the pause menu is open
+  if (dynRes.on && raw < 0.5) {
+    dynRes.acc += raw; dynRes.frames++;
+    if (dynRes.acc >= 2) {
+      const fps = dynRes.frames / dynRes.acc;
+      dynRes.acc = 0; dynRes.frames = 0;
+      if (fps < 34 && dynRes.scale > 0.6) setResolutionScale(Math.max(0.6, dynRes.scale - 0.1));
+      else if (fps > 56 && dynRes.scale < 1) setResolutionScale(Math.min(1, dynRes.scale + 0.05));
+    }
+  }
   if (helpTimer > 0) { helpTimer -= dt; if (helpTimer <= 0) $('help').classList.remove('show'); }
   crosshair.hidden = !(onFoot && (view.aim || (combat.weapon === 'pichkari' && view.locked)));
   document.body.classList.toggle('onfoot', onFoot);
@@ -885,6 +903,7 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  dynRes.base = Math.min(devicePixelRatio, tier.pixelRatio); renderer.setPixelRatio(dynRes.base * dynRes.scale);
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
   post.setSize(size.x, size.y);
 });

@@ -60,8 +60,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/main.js` — boot order (texture library → tiles → sky → post-processing → clock, traffic, audio, minimap),
   chase camera, `step(dt)` simulation (also called by headless tests via `window.__gtb.step`), night lights near the
   player, refuelling, HUD. URL options: `?quality=high|medium|low`, `?hour=20.5`.
-- `src/settings.js` — quality tiers (High: ambient occlusion, 4096 shadows, normal maps; Medium (phones): no AO,
-  no normal maps; Low: no post-processing). Q key / Graphics link cycles and reloads.
+- `src/settings.js` — quality tiers (High: ambient occlusion, 4096 shadows, normal maps; Medium: no AO, normal maps,
+  bloom; Low: no post-processing, 3D facade parts within 45 m). First run: `detectTier()` picks Medium on dedicated or
+  Apple-silicon graphics, Low elsewhere; main.js lowers the resolution on the fly when the frame rate drops
+  (`dynRes`, off under automation). Q key / Graphics link cycles and reloads.
 - `src/render/post.js` — composer: scene (MSAA, half-float) → GTAO ambient occlusion from depth only → bloom →
   ACES tone mapping → colour grade/vignette
 - `src/world/environment.js` — HDRI sky (rotated so its sun follows the clock), sun-free copy for lighting, sun +
@@ -198,6 +200,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   the manifest; Low loads 2+2 models, Medium 4+4, High all) for the player and everyone near the camera (pool
   11/20/30 within 34–46 m); people.js draws in two phases (`beforeEnd` picks heroes). Each character is ONE skinned
   mesh / draw call (merged in `prepare()`, `aSlot`/`aBase` attributes, per-character colour uniforms; "Face" = eyes).
+  `autoSmooth()` replaces the pack's flat shading with smooth normals (creases over 62° stay sharp).
   The pack's models wear shorts and no shoes: bare leg skin gets slot `leg` (trouser colour for adults, skin for
   the `kid` build) and feet slot `shoe`, by dominant skin bone. About 62 % of women wear a sari: `sariGeometry()` (skirt +
   pallu, a rigid mesh in metres on the character's holder, border colour per person; hidden when sitting or down).
