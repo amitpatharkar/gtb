@@ -47,7 +47,7 @@ export class CityMap {
     this.canvas = this.el.querySelector('canvas');
     this.g = this.canvas.getContext('2d');
     this.el.querySelector('.map-close').onclick = () => this.toggle(false);
-    this.el.querySelector('.map-clear').onclick = () => { this.setWaypoint(null); this.draw(); };
+    this.el.querySelector('.map-clear').onclick = () => { this.setWaypoint(null, this.waypoint?.owner); this.draw(); };
     this.view = { x: 0, z: 0, scale: 0.12 };
     this.bindInput();
     addEventListener('resize', () => this.open && this.resize());
@@ -93,8 +93,14 @@ export class CityMap {
     return this.call('random', { x, z, min, max });
   }
 
-  setWaypoint(p) {
-    this.waypoint = p;
+  /**
+   * Several things can want the GPS at once (a mission, a taxi fare, a place you tapped): each
+   * owner keeps its own target, the newest one shows, and when it is done the one before returns.
+   */
+  setWaypoint(p, owner = 'user') {
+    this.targets = (this.targets || []).filter((t) => t.owner !== owner);
+    if (p) this.targets.push({ ...p, owner });
+    this.waypoint = this.targets[this.targets.length - 1] || null;
     this.route = null;
     this.routeT = 0;
     this.routeSeq++;
@@ -105,7 +111,7 @@ export class CityMap {
     if (!this.waypoint || !this.data) return;
     if (Math.hypot(player.pos.x - this.waypoint.x, player.pos.z - this.waypoint.z) < 25) {
       this.hud.message(this.waypoint.label ? `Arrived: ${this.waypoint.label}` : 'You have arrived');
-      this.setWaypoint(null);
+      this.setWaypoint(null, this.waypoint.owner);
       return;
     }
     this.routeT -= dt;
@@ -128,9 +134,9 @@ export class CityMap {
   }
 
   /** Route to a place from outside the map (phone apps, missions). */
-  async routeTo(x, z, label) {
+  async routeTo(x, z, label, owner = 'user') {
     try { await this.load(); } catch { this.hud.message('GPS unavailable right now'); return; }
-    this.setWaypoint({ x, z, label });
+    this.setWaypoint({ x, z, label }, owner);
   }
 
   // ------------------------------------------------------------------ screen

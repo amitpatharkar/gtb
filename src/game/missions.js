@@ -29,7 +29,8 @@ export function buildMissions(index, home) {
   const term = L('terminus'), gw = L('gateway');
   const P = {
     // The first marker sits a short drive ahead of where the taxi starts.
-    start: index.spawn ? [index.spawn.x + Math.sin(index.spawn.heading || 0) * 14, index.spawn.z + Math.cos(index.spawn.heading || 0) * 14] : [0, 0],
+    // 40 m up the road from the spawn: in view at the start, but not under the taxi before you have looked around.
+    start: index.spawn ? [index.spawn.x + Math.sin(index.spawn.heading || 0) * 40, index.spawn.z + Math.cos(index.spawn.heading || 0) * 40] : [0, 0],
     crawford: ll(index, 18.9475, 72.8340),
     terminus: term ? [term.x, term.z] : ll(index, 18.9400, 72.8355),
     terminusRoad: ll(index, 18.9393, 72.8347),

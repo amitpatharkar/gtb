@@ -24,9 +24,9 @@ const GUIDE = `
 <h3>Police</h3>
 <p>Red lights, wrong way on one-ways, driving on the footpath and street fights earn challan stars — but only if a constable or patrol car sees it. Stop by the constable to pay, or lose them by staying out of sight.</p>
 <h3>Map</h3>
-<p><b>Tab</b> (or tap the radar): the city map. Tap anywhere for a waypoint; the GPS shows the way. <b>T</b> skips an hour, <b>M</b> mutes, <b>R</b> resets to the start, <b>?</b> shows the key list.</p>
+<p><b>Tab</b> (or tap the radar): the city map. Tap anywhere for a waypoint; the GPS shows the way. <b>T</b> skips an hour, <b>M</b> mutes, <b>R</b> twice calls a tow truck back to the Gateway (₹300 from far away), <b>Q</b> twice changes the graphics, <b>?</b> shows the key list.</p>
 <h3>Vehicles and crackers</h3>
-<p>On foot, <b>F</b> within a few metres of any vehicle steals it, GTA-style: you run to the driver's door (the right side — India drives on the left), the car stops and the driver is pulled out. Your own taxi too, of course. Drivers object, and so do the police if a constable sees it. Your taxi stays where you left it; <b>R</b> tows you back to it. <b>Space</b> while steering at speed is a handbrake turn.</p>
+<p>On foot, <b>F</b> within a few metres of any vehicle steals it: you run to the driver's door (the right side — India drives on the left), the car stops and the driver is pulled out. Your own taxi too, of course. Drivers object, and so do the police if a constable sees it. Your taxi stays where you left it (it shows on the map); <b>R</b> twice tows you and the taxi back to the Gateway. <b>Space</b> while steering at speed is a handbrake turn.</p>
 <p><b>X</b> lights a firecracker a step ahead, <b>Z</b> changes the type: anar, chakri, ladi, sutli bomb, sky shot. No crackers after 10 pm if a constable is watching.</p>
 <h3>Local trains</h3>
 <p>Suburban locals run on the Western, Central and Harbour lines, every minute or two at rush hour and not at all from 1:15 to 4:15 at night, and they do not stop for taxis on the track. On foot at a station (🚆 on the map), <b>E</b> opens the ticket window: pick a stop, pay ₹5 to ₹20 and step off there a few minutes later.</p>

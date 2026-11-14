@@ -183,13 +183,13 @@ export class Traffic {
   }
 
   /**
-   * North of the Bandra–Sion line (about 19.046° N) is "the suburbs": autos are allowed there
+   * North of the Mahim creek–Sion line (about 19.042° N: all of Bandra, Bandstand included) is "the suburbs": autos are allowed there
    * and only there, and they take most of the kaali-peelis' work.
    */
   inSuburbs(z) {
     if (this.suburbZ === undefined) {
       const ix = this.tiles.index;
-      this.suburbZ = ix?.origin ? -(19.046 - ix.origin.lat) * ix.metresPerDegree.lat : -1e9;
+      this.suburbZ = ix?.origin ? -(19.042 - ix.origin.lat) * ix.metresPerDegree.lat : -1e9;
     }
     return z < this.suburbZ;
   }

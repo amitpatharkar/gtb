@@ -70,7 +70,8 @@ canvas { display: block; }
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s;
-  white-space: nowrap;
+  max-width: min(92vw, 680px);
+  text-align: center;
 }
 
 #loading {
@@ -356,3 +357,28 @@ body.cutscene #hud, body.cutscene #status, body.cutscene #radar, body.cutscene #
 #foe i b { display: block; height: 100%; background: #e74c3c; }
 body.hurt::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 30; box-shadow: inset 0 0 140px rgba(210, 40, 30, 0.55); }
 body.cutscene #foe { display: none !important; }
+
+/* Layout fixes for phones and small screens */
+/* The mission objective and the fare panel stack instead of overlapping. */
+body:has(#objective:not([hidden])) #job { top: 172px; }
+@media (pointer: coarse) {
+  #help.show { display: none; } /* the keyboard list means nothing on a touch screen */
+  /* Beside the radar (top 70 px, 110 px wide; the meters sit under it), clear of the phone button. */
+  #objective { top: 70px; left: 128px; max-width: calc(100vw - 196px); font-size: 12px; }
+  #job { top: 70px; left: 128px; font-size: 12px; min-width: 0; max-width: calc(100vw - 196px); }
+  body:has(#objective:not([hidden])) #job { top: 136px; }
+  #btn-phone { bottom: auto; top: 112px; right: 10px; }
+}
+/* Portrait phones: horn/E/door on their own row so ◀ ▶ and ■ ▼ ▲ fit on screen. */
+@media (pointer: coarse) and (max-width: 600px) {
+  #touch { flex-wrap: wrap; row-gap: 10px; left: 10px; right: 10px; bottom: 14px; }
+  #touch .pad.mid { order: -1; width: 100%; justify-content: center; }
+  #touch .pad.left button, #touch .pad.right button { width: 56px; height: 56px; }
+  #touch .pad.right, #touch .pad.left { gap: 8px; }
+  body.onfoot #touch .pad.combat { grid-template-columns: repeat(3, 46px); }
+  body.onfoot #touch .pad.combat button { width: 46px; height: 46px; font-size: 18px; }
+  #message { bottom: 160px; }
+  #objective, #job { top: 100px; } /* under the money line */
+  body:has(#objective:not([hidden])) #job { top: 166px; }
+}
+

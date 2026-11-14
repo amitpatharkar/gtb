@@ -358,7 +358,7 @@ export class Police {
   /** Argue with the hawaldar: sometimes he lets you off with a warning, often it costs more. */
   argue(f, player) {
     this.deciding = false;
-    if (Math.random() < 0.35) {
+    if (Math.random() < (this.argueOdds?.() ?? 0.35)) {
       this.bubbles.say(f, pick(['Chalo, is baar chhod raha hoon. Agli baar nahi!', 'Theek hai, theek hai. Jao!']), 3, 'cop');
       this.hud.message('Talked your way out of it!');
       this.stars = 0; this.fines = 0; this.stopT = 0; this.flagger = null;

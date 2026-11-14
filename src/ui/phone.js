@@ -1,4 +1,5 @@
 import { HOME } from '../game/state.js';
+import { FARE_BASE, FARE_KM, AUTO_BASE, AUTO_KM } from '../game/jobs.js';
 
 // The player's phone (P, or the phone button): parody apps for maps, taxi duty, food
 // delivery, 10-minute groceries, online shopping, UPI payments, messages, a camera
@@ -22,7 +23,7 @@ const QUICK = [
   { id: 'fuelcan', name: 'Petrol can 5 L', price: 560, fuel: 0.15 },
   { id: 'tyrekit', name: 'Puncture kit + coolant', price: 450, repair: 0.25 },
   { id: 'icecream', name: 'Kulfi', price: 50, hunger: 0.1, energy: 0.1 },
-  { id: 'charger', name: 'Car phone charger', price: 299 },
+  { id: 'charger', name: 'Car phone charger', price: 299, keep: true, desc: 'Kidhar requests reach you sooner.' },
 ];
 const SHOP = [
   { id: 'perfume', name: 'Car perfume (sandalwood)', price: 399, desc: 'Passengers are a bit more forgiving.' },
@@ -117,7 +118,13 @@ export class Phone {
     }
     if (act === 'tier') this.onTier();
     if (act === 'mute') { this.audio.toggleMute(); this.render(); }
-    if (act === 'reset' && confirm('Start over? Money, purchases and ratings will be reset.')) { s.reset(); this.render(); }
+    if (act === 'reset' && confirm('Start over? Money, purchases, ratings, missions and finds will be reset.')) {
+      // A fresh save and a fresh start (missions, finds and the world all begin again).
+      s.beforeSave = null; // not the current world either: back to the start
+      s.reset();
+      s.save = () => {}; // nothing more is written by the old session before the page reloads
+      location.reload();
+    }
   }
 
   toast(text) {
@@ -169,7 +176,7 @@ export class Phone {
           <div class="big">${j.onDuty ? '🟢 On duty' : '⚪ Off duty'}</div>
           <button class="primary" data-act="duty">${j.onDuty ? 'Go off duty' : 'Go on duty (J)'}</button>
           <p>Rides: <b>${d.rides}</b> · Rating: <b>${s.rating ? s.rating.toFixed(2) : '–'}★</b> · Earned: <b>${rupees(d.earned)}</b></p>
-          <p class="small">Meter: ₹28 for the first 1.5 km, then ₹18.7 per km. Smooth, quick rides earn tips; hard braking, crashes, potholes, horn spam, red lights and police chases cost you.</p></div>`;
+          <p class="small">Meter: ₹${FARE_BASE} for the first 1.5 km, then ₹${FARE_KM} per km (auto: ₹${AUTO_BASE}, then ₹${AUTO_KM}). Smooth, quick rides earn tips; hard braking, crashes, potholes, horn spam, red lights and police chases cost you.</p></div>`;
         break;
       }
       case 'bhookh': case 'jhatpat': {
@@ -178,7 +185,7 @@ export class Phone {
         html = `${head(this.app === 'bhookh' ? 'Bhookh · food delivery' : 'JhatPat · 10-minute delivery', this.app === 'bhookh' ? '#f26722' : '#2e9e44')}
           <div class="pad">${this.app === 'bhookh' ? `<button class="primary" data-act="partner">${this.jobs.onDuty && this.jobs.mode === 'delivery' ? 'Go offline as delivery partner' : 'Earn: deliver for Bhookh'}</button><p class="small">Partners pick orders up at thelas and deliver them hot: ₹45 + ₹12/km, tips for fast, smooth deliveries.</p><hr>` : ''}
           <p class="small">Delivering to: your current location (taxi)</p>
-          ${list.map((i) => `<div class="row"><span>${i.name}</span><b>${rupees(i.price)}</b><button data-act="add:${i.id}">Add</button></div>`).join('')}
+          ${list.map((i) => `<div class="row"><span>${i.name}${i.desc ? `<br><small>${i.desc}</small>` : ''}</span><b>${rupees(i.price)}</b><button data-act="add:${i.id}">Add</button></div>`).join('')}
           <div class="cart">Cart: ${this.cart.length ? this.cart.map((i) => i.name).join(', ') : 'empty'}<br>Total ${rupees(total)} + ${this.app === 'bhookh' ? '₹35 delivery' : '₹15 handling'}</div>
           <button class="primary" data-act="order">Place order</button> <button data-act="clear">Clear</button></div>`;
         break;

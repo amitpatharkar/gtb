@@ -125,7 +125,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   Splendor, Bullet). Bodies are lofted cross-sections (bonnet, raked glass, wheel arches, tumblehome); each type has
   near + far (LOD) geometry; traffic.js draws the whole fleet with one BatchedMesh per part (paint tinted per car,
   glass, trim with vertex colours, lamps) = 4 draw calls. Type fields: weight, night, mainRoad, big, rider, seat.
-  Also: auto-rickshaw (`city: 0` = suburbs only, north of ~19.046° N, `traffic.inSuburbs(z)`; `open` + `seat` +
+  Also: auto-rickshaw (`city: 0` = suburbs only, north of ~19.042° N (Mahim creek–Sion), `traffic.inSuburbs(z)`; `open` + `seat` +
   `seatZ` = visible khaki driver, `pax` = passenger on the bench), water tanker, garbage truck, ambulance, school
   bus, bicycle and dabbawala cycle (`slow` = others overtake, `pedal` = POSE.PEDAL). The batches must keep
   `frustumCulled = false` (their bounding sphere is computed once; traffic vanished far from the start).
@@ -249,7 +249,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `story.playScene()` runs ad-hoc cutscenes. Saved in `state.s.story` (mission + step; re-entered after a reload).
   Titles tip their hat to Hindi films with a twist — never real titles, lines, songs or characters.
 - `src/ui/minimap.js` — rotating radar (land, roads, traffic, petrol pumps, GPS route); `src/ui/cityMap.js` — full map
-  (Tab / tap radar; pan, zoom, tap for a waypoint; game pauses). Map and GPS use `tiles/overview.bin.gz` (roads +
+  (Tab / tap radar; pan, zoom, tap for a waypoint; game pauses; parked-taxi marker). GPS targets have owners
+  (`routeTo(x, z, label, owner)`: 'mission', 'fare', 'user'): the newest shows, clearing one brings back the previous;
+  no new fares while a mission is on (`jobs.paused`). Map and GPS use `tiles/overview.bin.gz` (roads +
   simplified land, ~0.5 MB, format in `src/world/overviewFormat.js`), loaded on first use by `src/ui/mapWorker.js`,
   which builds the road graph and runs A* off the main thread (one-ways respected, no step cap), picks random taxi
   destinations (`cityMap.randomPlace`) and cuts the drawing data into 1 km chunks;
@@ -262,7 +264,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/input.js` — keyboard and touch (Shift = run, fire/aim touch buttons); keys in main.js: H horn, E interact
   (refuel + repair menu / snack), F out/in of the taxi, Tab map, P phone, J taxi duty, N radio, Esc pause, ? key list,
   on foot 1 fists / 2 pichkari, V kick, G insult, C colour, [ ] pressure, X light a cracker, Z cracker type,
-  F into the nearest vehicle (anyone's); ` cheat console; T +1 hour, M mute, Q graphics, R reset
+  F into the nearest vehicle (anyone's; `vehicleChoice()` decides for F and its prompt); ` cheat console; T +1 hour,
+  M mute, Q twice graphics, R twice tow to the Gateway (`pressedTwice`). Touch screens (`TOUCH`) get touch hints only
 - `scripts/build-tiles.mjs` — converter (`npm run tiles`, ~55 s for the shipped box 18.890,72.795 → 19.140,72.920;
   `--bbox S,W,N,E`, fixed world origin `--origin` = Mahim 19.03,72.85 so coordinates never move as the map grows;
   writes `overview.bin.gz` and `skyline.bin.gz`; ground UVs wrap every 1,872 m (`UV_PERIOD` in tileWorker.js, a common multiple of the

@@ -129,7 +129,7 @@ export class Story {
   fail(why) {
     this.hud.message(`Mission failed: ${why || 'try again'} — go back to the marker to retry`);
     this.s.active = null; this.s.step = 0;
-    this.cityMap.setWaypoint(null);
+    this.cityMap.setWaypoint(null, 'mission');
     this.cast = {};
     this.clearStep();
   }
@@ -183,12 +183,12 @@ export class Story {
     this.stepT = 0; this.armed = false; this.target = null; this.todo = null; this.lit = null;
     if (resume) { this.cargo = this.cargoBefore(m, this.s.step); const type = this.lendBefore(m, this.s.step); if (type) this.lend(type, null, ctx); }
     if (st?.lend) this.lend(st.lend, typeof st.at === 'function' ? st.at(this.world) : st.at, ctx);
-    if (!st) { this.s.done.push(m.id); this.s.active = null; this.cast = {}; this.clearStep(); this.cityMap.setWaypoint(null); this.hud.message(`Mission complete: ${m.title}`); this.state.save(); return; }
-    if (st.goto) { this.target = [...(typeof st.goto === 'function' ? st.goto(this.world) : st.goto)]; this.cityMap.routeTo(this.target[0], this.target[1], st.label); }
+    if (!st) { this.s.done.push(m.id); this.s.active = null; this.cast = {}; this.clearStep(); this.cityMap.setWaypoint(null, 'mission'); this.hud.message(`Mission complete: ${m.title}`); this.state.save(); return; }
+    if (st.goto) { this.target = [...(typeof st.goto === 'function' ? st.goto(this.world) : st.goto)]; this.cityMap.routeTo(this.target[0], this.target[1], st.label, 'mission'); }
     if (st.cut) { this.lines = st.cut.slice(); this.lineT = 0; this.showLine(ctx); }
     if ('cargo' in st) { this.cargo = st.cargo ? { ...st.cargo, v: 1 } : null; this.lastSp = undefined; }
     if (st.visit) { this.todo = st.visit.map(([x, z, label]) => ({ x, z, label, done: false })); this.routeNearest(ctx); }
-    if (st.race) { this.cp = 0; this.cps = st.race.map((c) => [...c]); this.cityMap.routeTo(st.race[0][0], st.race[0][1], 'Checkpoint 1'); }
+    if (st.race) { this.cp = 0; this.cps = st.race.map((c) => [...c]); this.cityMap.routeTo(st.race[0][0], st.race[0][1], 'Checkpoint 1', 'mission'); }
     if (st.catch) this.spawnRunner(st);
     if (st.task === 'rides') { this.base = { rides: this.state.s.rides, sum: this.state.s.ratingSum }; if (!this.jobs.onDuty) this.jobs.toggleDuty(ctx.player, 'taxi'); }
     if (st.task === 'colour') this.coloured = new Set();
@@ -202,7 +202,7 @@ export class Story {
         this.place(p, x, z);
       }
       p.inTaxi = false;
-      this.cityMap.routeTo(p.x, p.z, p.name);
+      this.cityMap.routeTo(p.x, p.z, p.name, 'mission');
     }
     if (st.reward && !resume) {
       this.state.earn(st.reward, `Mission: ${m.title}`);
@@ -215,7 +215,7 @@ export class Story {
   routeNearest(ctx) {
     const me = ctx.onFoot ? ctx.walker : ctx.player;
     const left = this.todo.filter((t) => !t.done).sort((a, b) => Math.hypot(a.x - me.pos.x, a.z - me.pos.z) - Math.hypot(b.x - me.pos.x, b.z - me.pos.z));
-    if (left[0]) this.cityMap.routeTo(left[0].x, left[0].z, left[0].label);
+    if (left[0]) this.cityMap.routeTo(left[0].x, left[0].z, left[0].label, 'mission');
   }
 
   showLine(ctx) {
@@ -467,7 +467,7 @@ export class Story {
           this.cp++;
           this.audio?.whistle?.(0.15);
           if (this.cp >= st.race.length) { this.hud.message(`Finished with ${Math.ceil(st.limit - this.stepT)} s to spare!`); this.next(ctx); }
-          else this.cityMap.routeTo(this.cps[this.cp][0], this.cps[this.cp][1], `Checkpoint ${this.cp + 1}`);
+          else this.cityMap.routeTo(this.cps[this.cp][0], this.cps[this.cp][1], `Checkpoint ${this.cp + 1}`, 'mission');
         }
       }
     } else if (st.catch) {
@@ -514,6 +514,8 @@ export class Story {
         if (!g.placed && d < 90) { const [px, pz] = this.spotNear(x, z); this.place(g, px, pz); }
         if (g.placed) { g.heading = Math.atan2(me.pos.x - g.x, me.pos.z - g.z); g.phase += dt * 2; g.pose = d < 25 ? POSE.WAVE : POSE.STAND; this.people.add(g); }
       }
+      // Rolling through the ring doesn't start it: say so (new players drive straight past).
+      if (d < 24 && Math.abs(ctx.player.speed) >= 3 && (this.stopSay || 0) < this.markerT) { this.stopSay = this.markerT + 8; this.hud.message(`Stop inside the ${m.strand === 'story' ? 'yellow' : 'blue'} ring to start "${m.title}"`); }
       if (d < 7 && Math.abs(ctx.player.speed) < 3) {
         if (m.hours && !inHours(this.clock.hour, m.hours)) {
           if ((this.hoursSay || 0) < this.markerT) { this.hoursSay = this.markerT + 6; this.hud.message(`${m.title}: come back between ${clockText(m.hours[0])} and ${clockText(m.hours[1])} (T skips an hour)`); }

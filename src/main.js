@@ -53,6 +53,7 @@ import { POINT } from './world/tileFormat.js';
 import { titleScreen, loadingScreen, pauseMenu, loadSettings } from './ui/menu.js';
 
 const BASE = import.meta.env.BASE_URL;
+const TOUCH = matchMedia('(pointer: coarse)').matches; // a touch screen: no keyboard hints
 
 // ------------------------------------------------------------------ title screen
 // A quality change mid-game saves where you are and reloads straight back into the game.
@@ -171,6 +172,9 @@ let combat = null; // created once the camera control exists (below)
 const jobs = new Jobs({ scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street });
 jobs.taxi = player;
 const story = new Story({ scene, tiles, index, state, cityMap, hud, bubbles, people, jobs, street, clock, audio });
+jobs.paused = () => !!story.s.active; // no new fares while a mission is on (they share the GPS)
+jobs.canFare = () => garage.inTaxi || garage.type === 'auto';
+police.argueOdds = () => (state.owns('dashcam') ? 0.6 : 0.35); // the dashcam footage helps
 const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => changeQuality(nextTier(tierKey)), onPhoto: () => takePhoto() });
 const propPhysics = new PropPhysics(scene, tiles, { bubbles, hud, state, audio });
 const world = {
@@ -195,7 +199,9 @@ state.beforeSave = () => {
     orders: jobs.riders.filter((r) => r.state === 'coming').map((r) => ({ app: r.app, items: r.items, eta: Math.max(20, r.eta - r.t) })),
   };
 };
-const saved = !newGame && !resume && state.s.world;
+// After a graphics change (resume) the taxi spot comes from the resume record, but challans,
+// fines and orders still come from the save written just before the reload.
+const saved = !newGame && state.s.world;
 // Positions only make sense on the same map grid (the origin moves if the map is rebuilt differently).
 if (saved && Number.isFinite(saved.x) && saved.origin === JSON.stringify(index.origin) && tiles.walkable(saved.x, saved.z)) {
   player.pos.set(saved.x, 0.02, saved.z);
@@ -284,20 +290,14 @@ function toggleFoot() {
     onFoot = true;
     if (jobs.ride?.stage === 'ride') say('Your passenger is waiting in the taxi!', 3);
     // The long reminder only the first couple of times: it hides door prompts while it is up.
-    if ((footHints = (footHints || 0) + 1) <= 2) say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · X light a cracker (Z changes it) · E at a glowing door goes in · F near any vehicle steals it (run to the driver\'s door, pull them out)', 6);
+    if ((footHints = (footHints || 0) + 1) <= 2 && TOUCH) say('On foot: drag to look · arrows walk · 👊💦 punch or spray · 🎯 aim · 🔁 fists/pichkari · 🚪 by any vehicle takes it (the driver gets pulled out)', 6);
+    else if (footHints <= 2) say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · X light a cracker (Z changes it) · E at a glowing door goes in · F near any vehicle steals it (run to the driver\'s door, pull them out)', 6);
   } else {
-    // Nearest of: what you were driving, your parked taxi, anything else on the street.
-    const wx = walker.pos.x, wz = walker.pos.z;
-    const mine = Math.hypot(wx - player.pos.x, wz - player.pos.z) - player.radius - player.halfLength * 0.6;
-    const home = garage.home ? Math.hypot(wx - garage.home.x, wz - garage.home.z) - 1.4 : Infinity;
-    const other = garage.nearest(wx, wz, JACK_REACH);
-    // Your own vehicles come first when you are standing next to them — unless something else
-    // is clearly closer, or it is a vehicle lent to you for a mission.
-    const own = Math.min(mine, home);
-    if (own > 2.6 && !other) { say('Walk up to a vehicle to get in (F within a few metres)', 1.5); return; }
-    if (own <= 2.6 && !(other && (other.v.lent || other.d < own - 0.6))) { if (home < mine) garage.toTaxi(); }
-    else if (other.d > 1.2) { startJack(other); return; } // GTA-style: run to the driver's door first
-    else takeVehicle(other);
+    const c = vehicleChoice();
+    if (!c) { say('Walk up to a vehicle to get in (F within a few metres)', 1.5); return; }
+    if (c.own) { if (c.taxi && !garage.inTaxi) garage.toTaxi(); }
+    else if (c.other.d > 1.2) { startJack(c.other); return; } // run to the driver's door first
+    else takeVehicle(c.other);
     onFoot = false;
     walker.spraying = false;
   }
@@ -337,12 +337,28 @@ function updateJack(dt) {
   walker.phase += dt * 5.2 * 4.3;
 }
 /** HUD prompt on foot next to a vehicle. */
+/**
+ * What F does on foot (the prompt shows the same): { own, taxi } = get back into what you were
+ * driving (taxi: your parked kaali-peeli), { other } = take that vehicle, null = nothing in reach.
+ * Your own vehicles come first when you stand next to them, unless something else is clearly
+ * closer or it is a vehicle lent to you for a mission.
+ */
+function vehicleChoice() {
+  const wx = walker.pos.x, wz = walker.pos.z;
+  const mine = Math.hypot(wx - player.pos.x, wz - player.pos.z) - player.radius - player.halfLength * 0.6;
+  const home = garage.home ? Math.hypot(wx - garage.home.x, wz - garage.home.z) - 1.4 : Infinity;
+  const other = garage.nearest(wx, wz, JACK_REACH);
+  const own = Math.min(mine, home);
+  if (own > 2.6 && !other) return null;
+  if (own <= 2.6 && !(other && (other.v.lent || other.d < own - 0.6))) return { own: true, taxi: home < mine || garage.inTaxi };
+  return { other };
+}
 function vehiclePrompt() {
   if (!onFoot || interiors?.inside || jack) return '';
-  const t = garage.nearest(walker.pos.x, walker.pos.z, JACK_REACH);
-  const homeD = garage.home ? Math.hypot(walker.pos.x - garage.home.x, walker.pos.z - garage.home.z) : Infinity;
-  if (homeD < 4 && (!t || t.d > homeD - 1.4)) return 'F: get in your kaali-peeli';
-  if (!t) return '';
+  const c = vehicleChoice();
+  if (!c) return '';
+  if (c.own) return c.taxi ? 'F: get in your kaali-peeli' : `F: get back in the ${garage.name}`;
+  const t = c.other;
   const name = traffic.types[t.v.type]?.name || 'vehicle';
   if (t.v.lent) return `F: take the ${name} (lent to you)`;
   if (t.v.taken) return `F: get back in the ${name}`;
@@ -407,7 +423,9 @@ interiors = new Interiors({ scene, camera, renderer, tiles, index, lib, tier, en
 // Hidden golden cutting-chai glasses and easter eggs.
 const eggs = new Eggs({ scene, tiles, index, state, hud, bubbles, people, audio, clock, damage });
 combat.giveRose = (foe) => eggs.useRose(foe, (o, text) => bubbles.say(o, text, 3)); // Gandhigiri: G with a rose ends a fight
-cityMap.markers = () => [...stars.markers(), ...story.markers(), ...eggs.markers(onFoot ? walker : player), ...interiors.markers()];
+// Your parked kaali-peeli shows on the map while you are on foot or driving something else.
+const taxiMarker = () => (garage.home ? [{ x: garage.home.x, z: garage.home.z, color: '#f2c200', icon: '🚕', r: 9 }] : []);
+cityMap.markers = () => [...taxiMarker(), ...stars.markers(), ...story.markers(), ...eggs.markers(onFoot ? walker : player), ...interiors.markers()];
 // Missions can reach into these systems (vehicle requirements, cracker counts, calling a star out, clearing challans).
 Object.assign(story.world, { stars, garage, crackers, police });
 crackers.onLit = (kind) => story.event('cracker', kind);
@@ -450,6 +468,16 @@ async function teleportHome() {
   teleporting = false;
 }
 let message = '', messageTimer = 0;
+let weaponHtml = '';
+/** Keys that throw away where you are (R tow, Q graphics reload) need a second press within 3 s. */
+let armed = null;
+function pressedTwice(key, hint) {
+  const now = performance.now();
+  if (armed && armed.key === key && now - armed.t < 3000) { armed = null; return true; }
+  armed = { key, t: now };
+  say(hint, 3);
+  return false;
+}
 const say = (text, seconds = 3) => { message = text; messageTimer = seconds; };
 // The hawaldar waves you over and walks up: pay, argue or run.
 police.onFlagGone = () => closeChoice?.(-1);
@@ -493,11 +521,11 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && cityMap.open) { cityMap.toggle(false); return; }
   if (cityMap.open) return;
   if (interiors.blocks(e.code)) return; // indoors: no vehicles, taxi duty, crackers, kicks or insults
-  if (e.code === 'KeyQ') changeQuality(nextTier(tierKey));
+  if (e.code === 'KeyQ' && pressedTwice('Q', `Press Q again to switch graphics to ${nextTier(tierKey)} (the game reloads where you are)`)) changeQuality(nextTier(tierKey));
   if (e.code === 'KeyH') honk();
   if (e.code === 'KeyP') { view.release(); phone.toggle(); }
   if (e.code === 'Escape' && phone.open) phone.toggle(false);
-  if (e.code === 'KeyJ') { if (garage.inTaxi || garage.type === 'auto' || jobs.onDuty) jobs.toggleDuty(player); else say('Fare duty needs your kaali-peeli — or an auto-rickshaw in the suburbs', 2.5); }
+  if (e.code === 'KeyJ') jobs.toggleDuty(player, jobs.onDuty ? jobs.mode : 'taxi'); // J ends whichever duty is on (fares or Bhookh deliveries)
   if (e.code === 'KeyF') toggleFoot();
   if (e.code === 'KeyN' && !onFoot) radio.next();
   if (e.code === 'KeyC' && onFoot) { pichkari.nextColour(e.shiftKey ? -1 : 1); if (combat.weapon !== 'pichkari') combat.setWeapon('pichkari'); }
@@ -662,7 +690,7 @@ renderer.setAnimationLoop((time) => {
   crosshair.hidden = !(onFoot && (view.aim || (combat.weapon === 'pichkari' && view.locked)));
   document.body.classList.toggle('onfoot', onFoot);
   document.body.classList.toggle('cutscene', !!story.camera);
-  if (input.reset) { input.reset = false; teleportHome(); }
+  if (input.reset) { input.reset = false; if (pressedTwice('R', 'Press R again: a tow truck takes you and your taxi back to the Gateway (₹300 from far away)')) teleportHome(); }
   step(dt);
   // Shadows every frame while anything near the camera moves fast (otherwise a moving car's own
   // shadow jumps behind it on alternate frames and the drive looks juddery); half rate when still.
@@ -725,7 +753,7 @@ function step(dt) {
   police.update(dt, active, clock);
   street.onFoot = onFoot;
   street.update(dt, active, clock);
-  const fire = (input.fire || input.brake) && !indoors; // fists and pichkari stay holstered indoors
+  const fire = (input.fire || input.brake) && !indoors && !cutscene; // holstered indoors; Space skips cutscenes, it doesn't shoot
   combat.update(dt, { fire }, onFoot);
   if (!onFoot && !cutscene) combat.carVsPeople(player);
   crackers.update(dt, clock, active.pos, camera.position, onFoot ? walker : null);
@@ -889,11 +917,12 @@ function updateHud() {
   $('cond-bar').style.width = `${Math.round((onFoot ? walker.health : player.condition) * 100)}%`;
   $('weapon').hidden = !onFoot;
   if (onFoot) {
-    $('weapon').innerHTML = combat.weapon === 'pichkari'
+    // Key help only with a keyboard; written only when it changes.
+    const html = (combat.weapon === 'pichkari'
       ? `💦 <b>Pichkari</b> <i style="background:#${HOLI[pichkari.colour].getHexString()}"></i>${pichkari.colourName} · Pressure ${'●'.repeat(pichkari.pressure)}${'○'.repeat(5 - pichkari.pressure)} · Tank ${Math.round(pichkari.tank * 100)}%`
-      : '👊 <b>Fists</b> · click punch · V kick · G insult';
-    $('weapon').innerHTML += ` · 🎆 X: ${crackers.current.name.split(' (')[0]}`;
-    if (combat.weapon === 'fists') $('weapon').innerHTML = $('weapon').innerHTML.replace('click punch', 'click punch ×3 combo · right mouse block');
+      : TOUCH ? '👊 <b>Fists</b>' : '👊 <b>Fists</b> · click punch ×3 combo · right mouse block · V kick · G insult')
+      + (TOUCH ? '' : ` · 🎆 X: ${crackers.current.name.split(' (')[0]}`);
+    if (html !== weaponHtml) $('weapon').innerHTML = weaponHtml = html;
   }
   const foe = onFoot ? combat.foe : null;
   $('foe').hidden = !foe;

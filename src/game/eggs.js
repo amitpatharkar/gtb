@@ -52,7 +52,8 @@ export class Eggs {
     ];
   }
 
-  get s() { return this.state.s.eggs; }
+  // A reset (phone → Settings) replaces the whole save: start a fresh record instead of crashing.
+  get s() { return (this.state.s.eggs ||= { chai: [], found: {}, roses: 0 }); }
   get chaiFound() { return this.s.chai.length; }
   get eggsFound() { return Object.keys(this.s.found).length; }
 

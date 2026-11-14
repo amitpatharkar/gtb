@@ -11,15 +11,15 @@ import { POINT } from '../world/tileFormat.js';
 // - Delivery riders bring food (Bhookh) and quick-commerce orders (JhatPat) to your window.
 // - Stop next to a thela and press E to buy a snack.
 
-const FARE_BASE = 33, FARE_KM = 22; // Mumbai kaali-peeli tariff (Sept 2026): ₹33 for the first 1.5 km
-const AUTO_BASE = 26, AUTO_KM = 17; // auto-rickshaw tariff: ₹26 for the first 1.5 km, then about ₹17 a km
+export const FARE_BASE = 33, FARE_KM = 22; // Mumbai kaali-peeli tariff (Sept 2026): ₹33 for the first 1.5 km
+export const AUTO_BASE = 26, AUTO_KM = 17; // auto-rickshaw tariff: ₹26 for the first 1.5 km, then about ₹17 a km
 const rupees = (n) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
 const PASSENGERS = [
   { kind: 'office', who: 'Office-goer in a hurry', hurry: 1.6, care: 0.8, tip: 1, lines: { hail: 'Taxi! Churchgate chaloge?', late: 'Jaldi chalo bhai, meeting hai!', rough: 'Arre aaraam se!', good: 'Badhiya, time pe pahuncha diya!' } },
   { kind: 'sari', who: 'Aunty with shopping bags', hurry: 0.7, care: 1.6, tip: 0.8, lines: { hail: 'Taxi! Bhaiya, meter se chalo.', late: 'Itna ghuma kyun rahe ho?', rough: 'Dheere! Saaman gir jayega!', good: 'Jeete raho beta!' } },
-  { kind: 'casual', who: 'College student', hurry: 1.1, care: 0.9, tip: 0.3, lines: { hail: 'Taxi! Bhai, sasta mein chalo na.', late: 'Lecture miss ho jayega yaar!', rough: 'Bhai, Need for Speed nahi hai!', good: 'Mast chalaya bhai!' } },
+  { kind: 'casual', who: 'College student', hurry: 1.1, care: 0.9, tip: 0.3, lines: { hail: 'Taxi! Bhai, sasta mein chalo na.', late: 'Lecture miss ho jayega yaar!', rough: 'Bhai, yeh race nahi hai!', good: 'Mast chalaya bhai!' } },
   { kind: 'office', who: 'Businessman', hurry: 1.3, care: 1.2, tip: 2.2, lines: { hail: 'Taxi! Jaldi, important deal hai.', late: 'Time is money, bhai!', rough: 'Phone pe hoon, dhyan se!', good: 'Keep the change. Shabash!' } },
   { kind: 'casual', who: 'Tourist', hurry: 0.6, care: 1.1, tip: 1.6, lines: { hail: 'Taxi! Gateway of India… far?', late: 'Long way around, no?', rough: 'Whoa! Easy!', good: 'Amazing city! Thank you!' } },
 ];
@@ -47,13 +47,15 @@ export class Jobs {
 
   // ------------------------------------------------------------------ taxi duty
   toggleDuty(player, mode = 'taxi') {
-    if (this.onDuty && this.mode !== mode) { this.onDuty = false; this.ride = null; this.cityMap.setWaypoint(null); }
+    // Fares need the kaali-peeli (or an auto in the suburbs): checked here for the phone and J alike.
+    if (!this.onDuty && mode === 'taxi' && this.canFare && !this.canFare()) { this.hud.message('Fare duty needs your kaali-peeli — or an auto-rickshaw in the suburbs'); return; }
+    if (this.onDuty && this.mode !== mode) { this.onDuty = false; this.ride = null; this.cityMap.setWaypoint(null, 'fare'); }
     this.mode = mode;
     if (this.onDuty) {
       if (this.ride?.stage === 'ride') this.endRide(player, 'abandon');
       this.ride = null;
       this.onDuty = false;
-      this.cityMap.setWaypoint(null);
+      this.cityMap.setWaypoint(null, 'fare');
       this.hud.message('Off duty. Meter up.');
     } else {
       this.onDuty = true;
@@ -153,7 +155,7 @@ export class Jobs {
     const type = delivery ? DELIVERY : pick(PASSENGERS);
     const person = { ...outfit(type.kind), x: spot.x, z: spot.z, y: this.tiles.groundHeight(spot.x, spot.z), heading: spot.heading, phase: 0, pose: POSE.WAVE, amp: 1, flags: type.kind === 'sari' ? 2 : 0, scale: 1, h: 2.2 };
     this.ride = { stage: 'pickup', type, person, spot, t: 0, wait: 0 };
-    this.cityMap.routeTo(spot.roadX, spot.roadZ, 'Passenger');
+    this.cityMap.routeTo(spot.roadX, spot.roadZ, delivery ? 'Pick-up' : 'Passenger', 'fare');
     const dist = Math.round(Math.hypot(spot.x - player.pos.x, spot.z - player.pos.z));
     this.hud.message(delivery ? 'New Bhookh order! Pick it up at the thela (GPS).' : `Fare request: ${type.who}. Follow the GPS to pick them up.`);
     this.state.message(delivery ? 'Bhookh Partner' : 'Kidhar Partner', delivery ? `New order to pick up, ${dist} m away.` : `New ride request: ${type.who}, ${dist} m away.`);
@@ -162,7 +164,13 @@ export class Jobs {
   async startRide(player) {
     const r = this.ride;
     const dest = await this.findDestination(player);
-    if (!dest || this.ride !== r) return;
+    if (this.ride !== r) return;
+    if (!dest) {
+      // No destination could be found (GPS data missing): don't leave them sitting in the taxi.
+      this.hud.message(r.type.delivery ? 'The order was cancelled. Next one soon.' : 'The passenger changed their mind and got out. Next fare soon.');
+      this.ride = null; this.cooldown = 6; this.cityMap.setWaypoint(null, 'fare');
+      return;
+    }
     r.stage = 'ride';
     r.auto = this.inAuto;
     r.dest = dest;
@@ -173,7 +181,7 @@ export class Jobs {
     const straight = Math.hypot(dest.x - player.pos.x, dest.z - player.pos.z);
     r.eta = (straight * 1.35) / 7.5 + 25; // seconds at a normal city pace
     r.last = { speed: player.speed, heading: player.heading, x: player.pos.x, z: player.pos.z };
-    await this.cityMap.routeTo(dest.x, dest.z, dest.name);
+    await this.cityMap.routeTo(dest.x, dest.z, dest.name, 'fare');
     if (r.type.delivery) { this.bubbles.say(r.person, 'Yeh lo, garam hai! Jaldi pahunchana!', 2.6, 'vendor'); this.hud.message(`Order picked up. Deliver to ${dest.name} — drive smoothly, it's hot food.`); }
     else { this.bubbles.say(player.pos, `${dest.name} chalo!`, 2.6, 'driver'); this.hud.message(`Take them to ${dest.name}. Meter down!`); }
   }
@@ -206,7 +214,7 @@ export class Jobs {
         r.person.phase += dt * 5;
         if ((l < 1.6 || r.wait > 4) && !r.starting) { r.starting = true; this.startRide(player); }
       } else r.wait = 0;
-      if (r.t > 150) { this.hud.message('The passenger got tired of waiting and took another taxi.'); this.ride = null; this.cooldown = 8; this.cityMap.setWaypoint(null); }
+      if (r.t > 150) { this.hud.message('The passenger got tired of waiting and took another taxi.'); this.ride = null; this.cooldown = 8; this.cityMap.setWaypoint(null, 'fare'); }
       if (r.stage === 'pickup' && !r.starting) this.people.add(r.person); // once they get in, they're in the taxi
       return;
     }
@@ -242,8 +250,8 @@ export class Jobs {
   endRide(player, how) {
     const r = this.ride;
     this.ride = null;
-    this.cityMap.setWaypoint(null);
-    this.cooldown = 6 + Math.random() * 10;
+    this.cityMap.setWaypoint(null, 'fare');
+    this.cooldown = (6 + Math.random() * 10) * (this.state.owns('charger') ? 0.6 : 1); // a charged phone catches requests sooner
     if (how === 'abandon') {
       this.hud.message('The passenger got out angry. No fare.');
       this.state.s.rides++; this.state.s.ratingSum += 1;
@@ -314,6 +322,7 @@ export class Jobs {
       const taxi = this.taxi || player;
       if (it.fuel) taxi.fuel = Math.min(1, taxi.fuel + it.fuel);
       if (it.repair) taxi.condition = Math.min(1, taxi.condition + it.repair);
+      if (it.keep && !this.state.owns(it.id)) this.state.s.owned.push(it.id); // kept for good (the phone charger)
       notes.push(it.name);
     }
     this.hud.message(`Delivered: ${notes.join(', ')}`);
@@ -340,7 +349,7 @@ export class Jobs {
   // ------------------------------------------------------------------ frame
   update(dt, player) {
     this.lastPlayerPos = player.pos;
-    if (this.onDuty && !this.ride) {
+    if (this.onDuty && !this.ride && !this.paused?.()) { // no new fares while a mission is on
       this.cooldown -= dt;
       if (this.cooldown <= 0) { this.cooldown = 5; this.spawnFare(player); }
     }
