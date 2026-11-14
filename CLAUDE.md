@@ -100,7 +100,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   thela with umbrella, petrol pump canopy, sea-wall tetrapods, median hedge (`POINT.HEDGE`: size = length, from the
   street library's planted medians, `streets.mjs`)
 - `src/world/tiles.js` — `TileManager`: streams tiles, builds meshes/props, collisions (`hits`), `walkable`,
-  `groundHeight` (asphalt 0.02 m, kerb level 0.2 m), `roadAt`, `roadNameAt`, `segment()`; `version` bumps on load/unload
+  `groundHeight` (asphalt 0.02 m, kerb level 0.2 m), `roadAt`, `roadNameAt`, `segment()`; `version` bumps on load/unload.
+  Collision queries allocate nothing: numeric `tileKey` maps (`byKey`, `availableKeys`), `nearInto()` fills `tiles.near`;
+  `roadHit(x, z, slack, vehicleOnly)` leaves its answer in `roadTile`/`roadIndex`/`roadDist` (`roadAt` wraps it)
 - `src/world/tileWorker.js` + `src/world/mesh/` — worker: `ground.js` (ground layers, kerbs with paint strip, sea walls,
   parapet, tetrapods, markings, footways, rails), `buildings.js` (per-style walls with facade data, parapets, stair
   rooms, roof types, water tanks), `builder.js` (mesh helpers). Road segments: 6 floats `x0 z0 x1 z1 halfWidth flags`
@@ -114,11 +116,18 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `NETTING`, areas incl. PLOT/ROAD/FOOTPATH, roads with kerb/median flags and a street-profile byte, rails, markings,
   points); `src/world/levels.js` — ground heights
 - `src/vehicles/taxi.js` + `car.js` — procedural kaali-peeli taxi (Premier Padmini proportions, clear-coat paint) and car
-  handling (bicycle steering, two collision circles, kerb bumps, body roll/pitch, fuel ~40 km per tank, condition)
+  handling (bicycle steering, two collision circles, kerb bumps, body roll/pitch, fuel ~40 km per tank, condition);
+  kerb and pothole jolts fire once per wheel event (`prevGF`/`prevGR`: kerb 7 % per axle, pothole 3 % per wheel +
+  damage above 9 m/s), so the loss is the same at any frame rate
 - `src/sim/clock.js` — 24-hour clock (1 real s = 1 game min, T = +1 h), real sun path for Mumbai in December,
   daylight/night/twilight, AQI by hour (CPCB scale), traffic density table by hour (≈5 % at 3 am, 100 % 9–11 and
   18–20) and `jam` (slower cruising at peaks)
-- `src/sim/traffic.js` — ambient traffic near the player (fleet from `src/vehicles/fleet.js`: taxis, hatchbacks,
+- `src/sim/traffic.js` — **new per-car fields must be added to the spawn object, and fleet types keep one shape
+  (`sameShape()`)**: mixed object shapes made every numeric read allocate. `driveCar` (per car), `gapAhead`
+  (look-ahead), `gatherBlockers` (player at real length, the vehicle left while on foot = `traffic.car`, parked taxi,
+  `left`, patrols via `traffic.police`, obstacles); `lanesOf` cached per segment (`seg.lanes`); vehicle mix cached per
+  quarter hour (`pickType`).
+- `src/sim/traffic.js` (continued) — ambient traffic near the player (fleet from `src/vehicles/fleet.js`: taxis, hatchbacks,
   sedans, SUVs, BEST buses on main roads, tempos (more at night), motorbikes with riders), keeps LEFT, follows the
   road graph (loose ends within 2.5 m joined; per-tile segment data cached on `tile.graph`, numeric junction keys
   from `src/sim/roadKeys.js` — the rebuild runs on every tile load, keep it cheap; police build their graph lazily
@@ -140,7 +149,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/vehicles/skids.js` (tyre marks), `damage.js` (dents, loose bumpers, dying lamps, bonnet smoke; repair at pumps)
 - `src/sim/signals.js` — working signals at OSM signal junctions: poles on the left kerb per approach, lamps and
   red/green countdowns, two phase groups; `ahead(x, z, fx, fz)` gives the next stop line and its light
-- `src/sim/police.js` — traffic constables (umbrella, 8 am–11 pm) at about half the main junctions catch or miss
+- `src/sim/police.js` — (patrol car models pooled in `modelPool`; `buildGraph` clears patrol routes; `cancelStop()`
+  when the hawaldar dialog is closed with Esc/click outside — `choice(title, options, onCancel)` in main.js) traffic constables (umbrella, 8 am–11 pm) at about half the main junctions catch or miss
   red-light jumpers; player offences (signal jump, wrong way on one-way, footpath driving, hit-and-run, colouring a
   policeman) count only when seen → challan stars and fines; stop by the constable to pay, or a fictional
   "Mumbai City Police" patrol car chases (A* on the road graph, siren, light bar); out of sight → stars fade
@@ -359,6 +369,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 
 ## Testing in the session
 - `npm run build` must pass (it runs the converter first).
+- Allocation per step: the browser's sampling heap profiler (`HeapProfiler.startSampling` with
+  `includeObjectsCollectedByMajorGC`/`MinorGC` true) through Playwright's CDP session.
 - `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night`,
   `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
   wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, or a too-dark night. It also runs in

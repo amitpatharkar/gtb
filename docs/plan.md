@@ -30,7 +30,7 @@ Effort: S small, M medium, L large. ✅ done · 🟡 in progress · ⬜ to do.
 | 1.5 | Physics engine: keep custom car physics; add Rapier 0.19.3 (≈0.8 MB, lazily after the city appears) for debris, thelas, bins, garbage and "ragdoll-lite" knock-downs | M | ⬜ |
 | 1.6 | Loading: map index, manifest and sky prefetched during the title screen; texture downloads gated until sky + nearby tiles are in; characters, street-prop models and sign fonts load after play starts; shaders compiled during the loading screen (`compileAsync`). Low at 20 Mbps: playable at 5.3 s after ~6.5 MB (was 18.9 MB before play). Still to do: service worker cache | S | 🟡 |
 | 1.7 | Download size: Poly Haven AC model dropped (−1.2M triangles, −7 MB; facade ACs stay procedural) ✅; still to do: simplify trash bag, KTX2 + meshopt for every glTF in the pipeline (models 34 → ~6 MB on High), re-encode normal maps (High back under 45 MB), subset fonts, mono ambience | S–M | ⬜ |
-| 1.8 | Per-frame performance: incremental road graphs with numeric keys ✅, map/GPS from a small overview file in a worker ✅ (3.1); in progress (review 2026-11-14): numeric tile lookups, fewer allocations per step, throttled HTML writes | M | 🟡 |
+| 1.8 | Per-frame performance: incremental road graphs with numeric keys ✅, map/GPS from a small overview file in a worker ✅ (3.1); numeric tile lookups, ~70 % less garbage per step (one object shape for cars and types), HTML panels written only on change ✅ (review 2026-11-14); still allocating: trains `shove`, people `occludes`, `updatePeds`, graph rebuilds | M | ✅ |
 | 1.9 | Developer cheat console (` key) | S | ✅ |
 
 ## Owner requests added 2026-11-13 (evening)
