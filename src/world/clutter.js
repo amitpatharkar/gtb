@@ -476,7 +476,8 @@ export class StreetClutter {
   update(dt, focus, night = 0) {
     this.timer -= dt;
     const changed = this.version !== this.tiles.version;
-    if (!changed && (this.timer > 0 || this.at.distanceToSquared(focus.pos) < 144)) return;
+    if (!changed && this.timer > 0) return;
+    if (!changed && !this.pending && this.at.distanceToSquared(focus.pos) < 144) return; // pending: board text still to draw
     this.timer = 0.5;
     this.at.copy(focus.pos);
     this.version = this.tiles.version;
@@ -546,7 +547,7 @@ export class StreetClutter {
     for (const k in counts) counts[k] = 0;
     const budget = { n: 14 }; // new atlas cells drawn per refresh (no hitch while driving)
     const Rb = this.R.big, Rn = this.R.near;
-    const labelled = []; // boards wait until every label near the player has a cell (nearest first)
+    const labelled = [], shops = []; // boards (nearest first: their text needs atlas cells), then shopfront awnings
     for (const t of T.tiles.values()) {
       const [x0, z0, x1, z1] = t.clip;
       const gap = Math.max(x0 - px, 0, px - x1, z0 - pz, 0, pz - z1);
@@ -568,17 +569,19 @@ export class StreetClutter {
       }
       // Awnings and tarps over shopfronts, from the worker's shutter boxes (one per shop bay).
       const sb = t.facadeParts?.shutterBox;
-      if (sb && gap < this.R.awn) this.awnings(sb, ox, oz, px, pz);
+      if (sb && gap < this.R.awn) shops.push(t);
     }
     labelled.sort((a, b) => a.d2 - b.d2);
     for (const L of labelled) this.addBoard(L, stamp, budget);
+    for (const t of shops) this.awnings(t.facadeParts.shutterBox, t.origin[0], t.origin[1], px, pz);
     this.finish(this.solid); this.finish(this.cloth);
     this.boards.count = this.nb; this.boards.instanceMatrix.needsUpdate = true; this.rect.needsUpdate = true;
     this.ads.count = this.na; this.ads.instanceMatrix.needsUpdate = true; this.adIdx.needsUpdate = true;
     // People who are no longer near go.
     for (const [k, p] of this.folk) if (p.seen !== stamp) this.folk.delete(k);
     this.indexSolids();
-    if (budget.n <= 0) this.timer = 0.15; // more labels waiting: come back soon
+    this.pending = budget.n <= 0;
+    if (this.pending) this.timer = 0.15; // more labels waiting: come back soon
   }
 
   finish(B) {
