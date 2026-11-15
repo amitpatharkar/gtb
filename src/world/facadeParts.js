@@ -108,7 +108,7 @@ function shutterGeometry() {
 }
 
 /** Outline of an arched opening in the unit square (x, y in -0.5..0.5), from the left foot round to the right foot. */
-export function archOutline(pointed, segs = 8) {
+export function archOutline(pointed, segs = 5) {
   const s = ARCH_SPRING, pts = [[0, 0], [0, s]];
   if (pointed) {
     const kk = (1 - s) / 0.866;

@@ -430,7 +430,7 @@ export function buildBuildings(t, ox, oz, toWorld) {
     if (roofKind) {
       // Pitched roof: Mangalore clay tiles (chawls, cottages) or slate / tiles on Gothic blocks.
       const slate = roofKind === 'gothic' && rh < 0.3;
-      const tile = linear(slate ? 0x59626b : rh < 0.7 ? 0xa4532f : 0x8a4630, 0.85 + rand(bi, 5) * 0.25);
+      const tile = linear(slate ? 0x5f6367 : rh < 0.7 ? 0xa4532f : 0x8a4630, 0.85 + rand(bi, 5) * 0.25);
       const rise = rect.short * (roofKind === 'gothic' ? 0.55 : 0.27);
       pitchedRoof(m, get('roof'), rect, h, rise, roofKind === 'gothic' ? 0.25 : 0.5, tile, low, base, roofKind === 'gothic' ? CODE.GABLE : cellHash(-9, -9, seedInt, K.GABLE) < 0.5 ? CODE.GABLE : CODE.BLANK, linear(0x5a4636));
       setCur();
@@ -497,7 +497,7 @@ export function buildBuildings(t, ox, oz, toWorld) {
 
     // Gothic: stone street gables with steep roofs behind them, and slate-spired corner turrets.
     if (gothic) {
-      const slateCol = linear(rh < 0.5 ? 0x59626b : 0x7a4430, 0.9);
+      const slateCol = linear(rh < 0.5 ? 0x5f6367 : 0x7a4430, 0.9);
       const gTop = roofKind ? h : top;
       if (!roofKind) {
         for (let i = 0; i < n0; i++) {
