@@ -116,7 +116,8 @@ export function buildBridges(t, ox, oz, get, spans = []) {
       // Each side: skipped where another deck at this level continues (junctions, merging ramps).
       for (const side of [1, -1]) {
         const ex = (x[i] + x[i + 1]) / 2 + ((lx[i] + lx[i + 1]) / 2) * side * hw, ez = (z[i] + z[i + 1]) / 2 + ((lz[i] + lz[i + 1]) / 2) * side * hw;
-        const open = footprintAt(ex, ez, (y[i] + y[i + 1]) / 2, L, 0.25) !== null;
+        // (a side well inside another deck: a junction or a merging ramp; decks side by side keep a median barrier each)
+        const open = footprintAt(ex, ez, (y[i] + y[i + 1]) / 2, L, 1.6) !== null;
         const S = (o) => o * side;
         const q = (o0, d0, o1, d1, no, ny, col, d0b = d0, d1b = d1) => {
           // A strip of the cross-section between (o0, d0) and (o1, d1), along this interval.

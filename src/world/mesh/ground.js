@@ -74,6 +74,21 @@ export function buildGround(t, ox, oz) {
     }
     return best === null ? null : [segs[best + 5], segs[best + 6], bd];
   };
+  // Open cuts (tunnel approaches): the asphalt stops at the hole, with no kerb across the road there.
+  const cuts = [];
+  for (const r of t.roads || []) {
+    const H = r.heights;
+    if (!H) continue;
+    for (let i = 0; i + 1 < H.length; i++) if ((H[i] < -0.1 || H[i + 1] < -0.1) && Math.max(H[i], H[i + 1]) > STRUCT.COVER) cuts.push(r.line[i * 2], r.line[i * 2 + 1], r.line[i * 2 + 2], r.line[i * 2 + 3], r.width / 2 + 1);
+  }
+  const atCut = (x, z) => {
+    for (let i = 0; i < cuts.length; i += 5) {
+      const ax = cuts[i], az = cuts[i + 1], dx = cuts[i + 2] - ax, dz = cuts[i + 3] - az, l2 = dx * dx + dz * dz || 1;
+      const k = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+      if (Math.hypot(ax + k * dx - x, az + k * dz - z) < cuts[i + 4]) return true;
+    }
+    return false;
+  };
   /** Kerb paint for an edge at (x, z) whose outer side (away from the road) is (ox, oz): 0 plain, 1 black-yellow, 2 black-white. */
   const kerbMode = (x, z, ox, oz) => {
     const own = nearestRoad(x, z, 3);
@@ -100,7 +115,7 @@ export function buildGround(t, ox, oz) {
           const ax = ring[i * 2], az = ring[i * 2 + 1], bx = ring[j * 2], bz = ring[j * 2 + 1];
           const len = Math.hypot(bx - ax, bz - az);
           if (len < 0.02) continue;
-          if (onClip(ax, az) & onClip(bx, bz)) { u += len; continue; }
+          if (onClip(ax, az) & onClip(bx, bz) || (cuts.length && atCut((ax + bx) / 2, (az + bz) / 2))) { u += len; continue; }
           const ix = -(bz - az) / len, iz = (bx - ax) / len; // into the road (outer rings are positive area)
           const mode = kerbMode((ax + bx) / 2, (az + bz) / 2, -ix, -iz), main = mode > 0;
           const kerb = mode === 2 ? bw : mode === 1 ? painted : plain;
