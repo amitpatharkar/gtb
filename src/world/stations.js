@@ -24,7 +24,7 @@ const DEVA = { 'Chhatrapati Chai Terminus': ['छत्रपती चाय �
 const CODE = { Churchgate: 'CCG', Virar: 'VR', Borivali: 'BO', 'Chhatrapati Chai Terminus': 'CSMT', 'Kalyan Junction': 'K', Kalyan: 'K', Panvel: 'PL', Goregaon: 'GN', Andheri: 'A', Thane: 'T' };
 
 /** Grey corrugated roof sheeting (ribs every 0.2 m), weathered in streaks. */
-function corrugated() {
+export function corrugated() {
   const c = document.createElement('canvas');
   c.width = 64; c.height = 256;
   const g = c.getContext('2d');
@@ -39,7 +39,7 @@ function corrugated() {
 const COLOURS = new Map();
 const rgbOf = (hex) => { let c = COLOURS.get(hex); if (!c) { const k = new THREE.Color(hex); COLOURS.set(hex, c = [k.r, k.g, k.b]); } return c; };
 
-class Buf {
+export class Buf {
   constructor() { this.p = []; this.n = []; this.c = []; this.u = []; }
   tri(a, b, c, col) {
     const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];

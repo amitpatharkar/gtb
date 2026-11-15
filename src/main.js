@@ -294,6 +294,7 @@ let footHints = 0;
 function toggleFoot() {
   if (interiors?.inside) { say('Step outside first', 1.5); return; } // no vehicles indoors
   if (onFoot && trains?.ride) { if (trains.ride.active) { trains.ride.alight(); return; } if (trains.ride.tryBoard()) return; } // a local's open door
+  if (onFoot && metro) { if (metro.r) { metro.alight(); return; } if (metro.tryBoard()) return; } // a metro train's open door
   if (!onFoot) {
     if (Math.abs(player.speed) > 2) { say('Slow down to get out', 1.5); return; }
     const h = player.heading, rx = -Math.cos(h), rz = Math.sin(h), side = player.radius + 0.8;
@@ -580,6 +581,7 @@ for (const id of ['btn-horn', 'btn-fuel']) {
 function interact() {
   if (onFoot && interiors.interact()) return; // a door, or something to use indoors
   if (onFoot && trains?.ride?.active) { trains.ride.alight(); return; }
+  if (onFoot && metro?.interact()) return; // metro: ticket counter, Line 3 entrance
   if (onFoot && trains?.interact()) return; // local trains: the ticket window at a station
   if (!onFoot) {
     const p = nearestPump();
@@ -772,7 +774,7 @@ function step(dt) {
   propPhysics.update(dt, onFoot ? null : player);
   if (garage.inTaxi && player.condition > 0.97 && (damage.front || damage.rear)) damage.repair();
   if (onFoot && jack) updateJack(dt);
-  const riding = !!trains?.ride?.active; // standing in a local's doorway: the train carries the walker
+  const riding = !!trains?.ride?.active || !!metro?.r; // on a train: it carries the walker
   if (onFoot && !jack && !riding) {
     walker.update(dt, cutscene ? NO_INPUT : input, indoors ? interiors.world : footWorld, state.s.energy, clock.aqi, view);
     // Careless drivers knock you over.
@@ -794,7 +796,7 @@ function step(dt) {
   police.update(dt, active, clock);
   street.onFoot = onFoot;
   street.update(dt, active, clock);
-  const fire = (input.fire || input.brake) && !indoors && !cutscene && !trains?.ride?.active; // holstered indoors; Space skips cutscenes, it doesn't shoot
+  const fire = (input.fire || input.brake) && !indoors && !cutscene && !trains?.ride?.active && !metro?.r; // holstered indoors; Space skips cutscenes, it doesn't shoot
   combat.update(dt, { fire }, onFoot);
   if (!onFoot && !cutscene) combat.carVsPeople(player);
   crackers.update(dt, clock, active.pos, camera.position, onFoot ? walker : null);
@@ -805,6 +807,7 @@ function step(dt) {
   trains?.update(dt, active, onFoot); // local trains (after street life: they add level-crossing stops and doorway commuters)
   trains?.ride?.update(dt, onFoot && !indoors); // boarding, riding in the doorway, ticket checkers
   stations?.update(dt, active.pos); // platforms, footbridges and stairs near the player
+  metro?.update(dt, active, onFoot && !indoors); // metro viaducts, stations, trains; the player's metro ride
   if (onFoot) walker.draw(people, combat.weapon);
   else if (garage.seated) {
     // Riding a two-wheeler or driving an auto: the player can be seen in the seat.
@@ -891,6 +894,18 @@ started.then(() => import('./world/stations.js'))
   .then(({ Stations }) => Stations.create({ scene, tiles, structures, materials, clock, tier, trains: () => trains }))
   .then((s) => { stations = window.__gtb.stations = s; })
   .catch((err) => console.warn('Stations are not available:', err));
+
+// ------------------------------------------------------------------ metro and monorail
+// Line 1 and the ends of 2A, 7 and 2B on viaducts with walkable stations, fare gates and running
+// trains; Line 3's street entrances (underground rides); the closed monorail (src/world/metro.js).
+let metro = null;
+started.then(() => import('./world/metro.js'))
+  .then(({ Metro }) => Metro.create({ scene, tiles, structures, materials, clock, tier, state, tickets, hud, bubbles, people, walker, view, audio, compile: (o) => post.compile(o, camera, scene), snap: () => placeCamera(0) }))
+  .then((m) => {
+    metro = window.__gtb.metro = m;
+    if (m) { const markers = cityMap.markers; cityMap.markers = () => [...markers(), ...m.markers()]; }
+  })
+  .catch((err) => console.warn('Metro is not available:', err));
 {
   const bodyAt = world.bodyAt, markers = cityMap.markers;
   world.bodyAt = (x, z, r) => trains?.bodyAt(x, z, r) || bodyAt(x, z, r);
@@ -1002,7 +1017,8 @@ function updateHud() {
       state.s.hunger < 0.15 ? 'Pet mein chuhe daud rahe hain! Eat at a thela (E) or order on Bhookh (P)' :
       state.s.energy < 0.12 ? 'So tired… have a cutting chai (E at a thela)' : '';
     if (interiors.prompt && !police.flagger) message = interiors.prompt; // "E: enter …" at a door, things to use indoors
-    if (trains?.ride?.prompt && !police.flagger) message = trains.ride.prompt; // "F: board", "F: get off" 
+    if (trains?.ride?.prompt && !police.flagger) message = trains.ride.prompt; // "F: board", "F: get off"
+    if (metro?.prompt && !police.flagger) message = metro.prompt; // metro: gates, counters, boarding
     if (!message && !police.flagger) message = vehiclePrompt();
   }
   $('message').textContent = message;

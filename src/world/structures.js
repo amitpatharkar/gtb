@@ -116,6 +116,7 @@ export class Structures {
       for (let i = 0; i < list.length; i++) {
         const p = list[i];
         if (p.kind < 2 || p.y1 <= lo || p.y0 >= hi || x + r < p.x0 || x - r > p.x1 || z + r < p.z0 || z - r > p.z1) continue;
+        if (p.pass && p.pass()) continue; // a fare gate that is open for this traveller
         if (p.kind === 2) {
           const dx = p.bx - p.ax, dz = p.bz - p.az, l2 = dx * dx + dz * dz || 1;
           const t = Math.max(0, Math.min(1, ((x - p.ax) * dx + (z - p.az) * dz) / l2)), ex = x - p.ax - dx * t, ez = z - p.az - dz * t;
