@@ -33,6 +33,7 @@ import { buildSkyline } from './lib/skyline.mjs';
 import { loadStreetLibrary, LAMP, lampSize } from './lib/streetLibrary.mjs';
 import { isTrainRoute, buildTrainLines } from './lib/trains.mjs';
 import { buildStations, PLATFORM_TOP } from './lib/stations.mjs';
+import { isMetroRoute, buildMetro } from './lib/metro.mjs';
 import { infill } from './lib/infill.mjs';
 import { compoundWalls, siteFence, WALL } from './lib/walls.mjs';
 import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, POINT, MAGIC, TILE_VERSION, DM } from '../src/world/tileFormat.js';
@@ -305,8 +306,14 @@ log(`Reading ${path.relative(root, CFG.input)} for ${CFG.name} [${CFG.bbox.join(
 const relations = [];
 const relWays = new Set();
 const trainRoutes = [], trainWays = new Set(), trainStopIds = new Set();
+const metroRoutes = [], metroWays = new Set(), metroStopIds = new Set(); // for metro.json
 readOsmPbf(CFG.input, {
   relation(id, tags, members) {
+    if (isMetroRoute(tags)) {
+      metroRoutes.push({ id, tags, members });
+      for (const m of members) if (m.type === 'way') metroWays.add(m.ref); else if (m.type === 'node') metroStopIds.add(m.ref);
+      return;
+    }
     if (isTrainRoute(tags)) {
       trainRoutes.push({ id, tags, members });
       for (const m of members) if (m.type === 'way') trainWays.add(m.ref); else if (m.type === 'node') trainStopIds.add(m.ref);
@@ -336,6 +343,7 @@ const aeroLines = [];     // runway and taxiway centre lines: { pts, width, runw
 const treeNodes = [], signalNodes = [], signalIds = new Set(), crossingIds = new Set(), busStops = [], fuel = [];
 const trainWayRefs = new Map(), trainStops = new Map(), stationNodes = [], platformEdges = []; // for trains.json
 const platformAreas = [], footBridges = [], stepsWays = []; // for stations.json (raised platforms, foot overbridges, stairs)
+const metroWayInfo = new Map(), metroStops = new Map(), metroStationNodes = [], metroEntrances = []; // for metro.json
 const FOOT_HW = new Set(['footway', 'path', 'pedestrian', 'steps', 'corridor', 'cycleway']);
 readOsmPbf(CFG.input, {
   nodeTags: true,
@@ -345,6 +353,9 @@ readOsmPbf(CFG.input, {
     nodeX.set(id, x);
     nodeZ.set(id, z);
     if (trainStopIds.has(id)) trainStops.set(id, { x, z, name: tags?.name || tags?.['name:en'] || '' });
+    if (metroStopIds.has(id)) metroStops.set(id, { x, z, name: tags?.name || tags?.['name:en'] || '' });
+    if (tags && (tags.railway === 'station' || tags.public_transport === 'station') && tags.name) metroStationNodes.push([x, z, tags.name, tags['name:mr'] || '', tags['name:hi'] || '']); // metro.mjs prefers nodes of the same name
+    if (tags && tags.railway === 'subway_entrance') metroEntrances.push([x, z, tags.ref || tags['railway:ref'] || '', tags.name || '']);
     if (tags && (tags.railway === 'station' || tags.railway === 'halt') && tags.name) stationNodes.push([x, z, tags.name, tags['name:mr'] || '', tags['name:hi'] || '', /subway|monorail|light_rail/.test(tags.station || '') || tags.subway === 'yes' || tags.monorail === 'yes' ? 1 : 0]);
     if (!tags || !inBox([x, z])) return;
     if (tags.natural === 'tree') treeNodes.push([x, z, id]);
@@ -356,6 +367,7 @@ readOsmPbf(CFG.input, {
   way(id, tags, refs) {
     if (relWays.has(id)) wayRefs.set(id, refs);
     if (trainWays.has(id)) trainWayRefs.set(id, refs);
+    if (metroWays.has(id)) metroWayInfo.set(id, { refs, tags });
     let any = false;
     for (const r of refs) if (nodeX.has(r)) { any = true; break; }
     if (!any) return;
@@ -462,6 +474,9 @@ if (trainNet.shift) for (const r of railsRaw) {
   });
   r.pts = pts.map(([x, z]) => { const [dx, dz] = trainNet.shift(x, z); return [x + dx, z + dz]; });
 }
+
+// Metro and monorail lines with their stations and entrances (metro.json, src/world/metro.js).
+const metroNet = buildMetro({ routes: metroRoutes, ways: metroWayInfo, nodePos: (r) => (nodeX.has(r) ? [nodeX.get(r), nodeZ.get(r)] : undefined), stops: metroStops, stationNodes: metroStationNodes, entrances: metroEntrances, box: BOX, log });
 
 // Stations: raised platforms, foot overbridges and stairs (stations.json); their flat footways are not drawn.
 const stationNet = buildStations({
@@ -1315,6 +1330,12 @@ const stationsFile = (() => {
   log(`stations.json: ${(text.length / 1024).toFixed(0)} KB (${(zlib.gzipSync(text, { level: 9 }).length / 1024).toFixed(1)} KB gzipped)`);
   return { file: 'stations.json', count: stationNet.json.stations.length };
 })();
+const metroFile = (() => {
+  const text = JSON.stringify(metroNet.json);
+  fs.writeFileSync(path.join(CFG.out, 'metro.json'), text);
+  log(`metro.json: ${(text.length / 1024).toFixed(0)} KB (${(zlib.gzipSync(text, { level: 9 }).length / 1024).toFixed(1)} KB gzipped)`);
+  return { file: 'metro.json', lines: metroNet.json.lines.length };
+})();
 
 const meta = {
   format: TILE_VERSION,
@@ -1334,6 +1355,7 @@ const meta = {
   profiles: streetLib ? streetLib.runtimeTable() : [],
   trains,
   stations: stationsFile,
+  metro: metroFile,
   fuel: fuelStations,
   landmarks,
   tiles: index,
