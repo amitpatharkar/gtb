@@ -886,6 +886,33 @@ started.then(() => Promise.all([import('./sim/trains.js'), import('./sim/trainRi
   .catch((err) => console.warn('Local trains are not available:', err));
 for (const w of [world, footWorld]) { const hits = w.hits; w.hits = (x, z, r, y) => hits(x, z, r, y) || !!trains?.hits(x, z, r); }
 
+// ------------------------------------------------------------------ Tikitwala (phone ticket app)
+// Local tickets from the nearest station (not within about 30 m of the tracks, as with the real
+// app), metro QR tickets from the nearest metro station, the next trains, the tickets held.
+phone.tikitHtml = () => {
+  const P = onFoot ? walker.pos : player.pos, rows = [];
+  const near = trains?.nearestStation(P.x, P.z), m = metro?.stations.filter((s) => s.kind !== 'monorail' && s.ref !== 'Mono 1').reduce((b, s) => { const d = Math.hypot(s.x - P.x, s.z - P.z); return !b || d < b.d ? { s, d } : b; }, null);
+  if (near) {
+    const next = trains.nextTrains(near.name).slice(0, 3).map(([sec, L]) => `${L.to} ${L.fast ? 'F' : 'S'} ${sec < 20 ? 'now' : `${Math.ceil(sec / 60)} min`}`).join(' · ');
+    rows.push(`<h4>🚆 Local · ${near.name} (${(near.d / 1000).toFixed(1)} km)</h4><p class="small">Next: ${next || 'no trains now (1:15–4:15 am)'}</p>
+      <button class="primary" data-act="tikit:local" ${near.d < 35 ? 'disabled' : ''}>${near.d < 35 ? 'Too close to the tracks to book (step out of the station)' : 'Book a local ticket or pass'}</button>`);
+  }
+  if (m) rows.push(`<h4>🚇 Metro · ${m.s.name} (${metro.lineName(m.s)}, ${(m.d / 1000).toFixed(1)} km)</h4><p class="small">Next train ${metro.nextTrain(m.s)}</p><button class="primary" data-act="tikit:metro">Book a QR ticket</button>`);
+  rows.push(`<h4>My tickets</h4><p class="small">${tickets.describe()}</p>`);
+  return rows.join('');
+};
+phone.onTikit = (what) => {
+  const P = onFoot ? walker.pos : player.pos;
+  if (what === 'local' && trains) {
+    const near = trains.nearestStation(P.x, P.z);
+    if (near) tickets.open({ title: `🎫 Tikitwala — from ${near.name}`, sub: 'App ticket: show it on the phone when the checker asks.', sys: 'local', from: near.name, groups: trains.ticketGroups(near.name), where: 'app' });
+  }
+  if (what === 'metro' && metro) {
+    const m = metro.stations.filter((s) => s.ref !== 'Mono 1').reduce((b, s) => { const d = Math.hypot(s.x - P.x, s.z - P.z); return !b || d < b.d ? { s, d } : b; }, null);
+    if (m) tickets.open({ title: `🎫 Tikitwala — metro QR from ${m.s.name}`, sub: `${metro.lineName(m.s)}. Scan it at the gate.`, sys: 'metro', from: m.s.name, groups: metro.groups(m.s), where: 'app' });
+  }
+};
+
 // ------------------------------------------------------------------ stations
 // Raised platforms, foot overbridges, stairs, roofs, boards and indicators near the player
 // (tiles/stations.json → src/world/stations.js); walkable through `structures`.

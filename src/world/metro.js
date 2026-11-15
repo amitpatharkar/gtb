@@ -963,6 +963,8 @@ export class Metro {
     if (!groups.length) return;
     const q = service(this.lines.find((l) => l.ref === s.ref).spec, this.clock.hour);
     if (!q) { this.hud.message(`${s.name}: Line 3 is closed for the night. First train at 5:55 am.`); return; }
+    const held = this.tickets.findMetro(s.ref, s.name); // bought earlier (counter or Tikitwala): straight down
+    if (held) { this.underground(s, held); return; }
     this.tickets.open({
       title: `🚇 ${s.name} — Line 3 (underground)`, sub: 'Pick where you are going: QR ticket, security check, gates, and down to the platform.',
       sys: 'metro', from: s.name, groups, where: 'counter',
