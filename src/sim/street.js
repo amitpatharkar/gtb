@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { endKey } from './roadKeys.js';
+import { segEndKey } from './roadKeys.js';
 import { POSE, FLAG, outfit } from './people.js';
 import { APOSE, DOG_COATS, COW_COATS } from './animals.js';
 import { LIGHT } from './signals.js';
@@ -125,7 +125,7 @@ export class StreetLife {
       const seg = segs[Math.floor(Math.random() * segs.length)], s = seg.s;
       const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
       const d = Math.hypot(mx - player.pos.x, mz - player.pos.z);
-      if (d < 18 || d > 120 || seg.len < 6) continue;
+      if (d < 18 || d > 120 || seg.len < 6 || s[5] & 32) continue; // footpaths are at street level (not on flyovers)
       const side = Math.random() < 0.5 ? 1 : -1;
       const dir = Math.random() < 0.5 ? 1 : -1, t = Math.random();
       // Where exactly they would stand: not in plain sight of the camera, close up.
@@ -150,8 +150,8 @@ export class StreetLife {
   nextSeg(p) {
     const s = p.seg.s;
     const endIdx = p.dir > 0 ? 1 : 0;
-    const k = endKey(s[endIdx * 2], s[endIdx * 2 + 1]);
-    const opts = (this.traffic.ends.get(k) || []).filter((o) => o.seg !== p.seg);
+    const k = segEndKey(s, endIdx);
+    const opts = (this.traffic.ends.get(k) || []).filter((o) => o.seg !== p.seg && !(o.seg.s[5] & 32));
     if (!opts.length) { p.dir = -p.dir; p.side = -p.side; p.t = 0; return; }
     const o = pick(opts);
     p.seg = o.seg;
@@ -260,7 +260,7 @@ export class StreetLife {
       const s = seg.s;
       const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
       const d2 = (mx - px) ** 2 + (mz - pz) ** 2;
-      if (d2 > 170 * 170 || d2 < 50 * 50 || seg.len < 16) continue;
+      if (d2 > 170 * 170 || d2 < 50 * 50 || seg.len < 16 || s[5] & 32) continue; // no cows or cricket on flyovers
       const id = `seg:${Math.round(mx)},${Math.round(mz)}`;
       if (this.fixtures.has(id)) { seen.add(id); continue; }
       const r = hash(mx, mz, 7), main = s[5] & 4;

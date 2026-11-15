@@ -60,10 +60,12 @@ export class Walker {
     this.vx = (this.vx || 0) * Math.exp(-dt * 5); this.vz = (this.vz || 0) * Math.exp(-dt * 5);
     const dx = mvx * this.speed * dt + this.vx * dt, dz = mvz * this.speed * dt + this.vz * dt;
     // Slide along walls instead of stopping dead.
-    if (!world.hits(this.pos.x + dx, this.pos.z, 0.3)) this.pos.x += dx;
-    if (!world.hits(this.pos.x, this.pos.z + dz, 0.3)) this.pos.z += dz;
-    // The floor: the street, or the room's own (stairs included) when the world provides it.
-    const ground = world.groundHeight ? world.groundHeight(this.pos.x, this.pos.z) : this.tiles.groundHeight(this.pos.x, this.pos.z);
+    // (y: on a flyover or footbridge the walker keeps to it; on the street, decks overhead don't matter)
+    const y = this.pos.y;
+    if (!world.hits(this.pos.x + dx, this.pos.z, 0.3, y)) this.pos.x += dx;
+    if (!world.hits(this.pos.x, this.pos.z + dz, 0.3, y)) this.pos.z += dz;
+    // The floor: the street (or a deck, a skywalk's stairs), or the room's own (stairs included) when the world provides it.
+    const ground = world.groundHeight ? world.groundHeight(this.pos.x, this.pos.z, y) : this.tiles.groundHeight(this.pos.x, this.pos.z, y);
     this.pos.y += (ground - this.pos.y) * Math.min(1, dt * 15);
     this.phase += dt * Math.abs(this.speed) * 4.3;
     this.attacking = Math.max(0, (this.attacking || 0) - dt);

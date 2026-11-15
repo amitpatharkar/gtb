@@ -1,6 +1,6 @@
 // Ground and streets for one tile: asphalt, raised footpaths and plots, parks, kerbs with
 // black-yellow paint, lane markings, sea walls with a Marine Drive-style parapet, rails.
-import { AREA, ROAD, ROAD_FLAG } from '../tileFormat.js';
+import { AREA, ROAD, ROAD_FLAG, STRUCT } from '../tileFormat.js';
 import { Y } from '../levels.js';
 import { MeshBuilder, wall, flatPolygon, ribbon, linear, WHITE, inPolygon } from './builder.js';
 
@@ -48,7 +48,11 @@ export function buildGround(t, ox, oz) {
     const f = r.flags || 0;
     const mode = f & ROAD_FLAG.KERB_BW ? 2 : f & ROAD_FLAG.KERB_BY ? 1 : f & ROAD_FLAG.KERB_PLAIN ? 0 : r.cls <= ROAD.TERTIARY ? 1 : 0;
     const median = f & ROAD_FLAG.MEDIAN_BW || r.cls <= ROAD.TERTIARY ? 2 : 0;
-    for (let i = 0; i + 3 < r.line.length; i += 2) segs.push(r.line[i], r.line[i + 1], r.line[i + 2], r.line[i + 3], r.width / 2, mode, median);
+    const H = r.heights; // decks and tunnels have no kerbs at street level
+    for (let i = 0; i + 3 < r.line.length; i += 2) {
+      if (H && (Math.abs(H[i / 2]) > STRUCT.AT_GRADE || Math.abs(H[i / 2 + 1]) > STRUCT.AT_GRADE)) continue;
+      segs.push(r.line[i], r.line[i + 1], r.line[i + 2], r.line[i + 3], r.width / 2, mode, median);
+    }
   }
   const S = 7, CELL = 20, grid = new Map();
   for (let i = 0; i < segs.length; i += S) {
@@ -161,11 +165,12 @@ export function buildGround(t, ox, oz) {
   const walk = get('footway'), pier = get('pier');
   for (const r of t.roads) {
     if (r.cls !== ROAD.FOOTWAY && r.cls !== ROAD.PEDESTRIAN && r.cls !== ROAD.PIER) continue;
-    const L = r.line, keep = [];
+    const L = r.line, keep = [], H = r.heights;
     let cur = [];
     for (let i = 0; i < L.length / 2; i++) {
       const x = L[i * 2], z = L[i * 2 + 1];
-      if (roads.some((rd) => inPolygon(x, z, rd.rings))) { if (cur.length > 2) keep.push(cur); cur = []; continue; }
+      // (footbridges and skywalks are built by bridges.js)
+      if ((H && Math.abs(H[i]) > STRUCT.AT_GRADE) || roads.some((rd) => inPolygon(x, z, rd.rings))) { if (cur.length > 2) keep.push(cur); cur = []; continue; }
       cur.push(x, z);
     }
     if (cur.length > 2) keep.push(cur);

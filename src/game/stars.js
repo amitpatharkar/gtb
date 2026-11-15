@@ -64,7 +64,7 @@ export class Stars {
   /** Find a free spot beside the nearest road, build the gate and platform, gather the fans. */
   place(s) {
     // Try the roads around the site, nearest first, for a stretch with open ground beside it.
-    const segs = (this.traffic.segList || []).map((q) => q.s).filter((q) => q[4] >= 2.5)
+    const segs = (this.traffic.segList || []).map((q) => q.s).filter((q) => q[4] >= 2.5 && !(q[5] & 32))
       .map((q) => [q, Math.hypot((q[0] + q[2]) / 2 - s.x, (q[1] + q[3]) / 2 - s.z)]).filter(([, d]) => d < 230).sort((a, b) => a[1] - b[1]).slice(0, 60);
     let spot = null, fx = 0, fz = 0, hw = 3;
     for (const [sg] of segs) {

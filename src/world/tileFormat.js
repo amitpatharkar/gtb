@@ -5,19 +5,22 @@
 // Coordinates are decimetres relative to the tile centre; each ring/line stores
 // its first point relative to (0,0) and every next point as a delta.
 //
-// Layout (version 3):
+// Layout (version 4):
 //   "GTB1" magic, version, tx, tz, tileSize (m), clip rect x0 z0 x1 z1 (dm)
 //   names[]                                   (road names, referenced by index)
 //   buildings[]: height dm, minHeight dm, r g b (sRGB bytes), flags, style, levels,
 //                rings[], then a bitset over the outer ring's edges: 1 = faces a street
 //   areas[]:     kind, rings[]                (first ring outer, others holes)
-//   roads[]:     class, width dm, flags, name index + 1 (0 = none), layer, street profile (0 = none,
-//                else 1-based index into index.json `profiles`), line
+//   roads[]:     class, width dm, flags, name index + 1 (0 = none), OSM layer + 8, street profile (0 = none,
+//                else 1-based index into index.json `profiles`), line; with ROAD_FLAG.ELEVATED also the
+//                road surface height per vertex (svar cm, each a delta from the previous, 0 = at grade:
+//                flyover decks and ramps above, tunnels and open cuts below) and s0 (uvar dm: distance
+//                along the OpenStreetMap way to the first vertex, so piers keep one spacing across tiles)
 //   rails[]:     class, flags, line
 //   markings[]:  width cm, line               (white road paint)
 //   points[]:    kind, x dm, z dm, angle (0–255 = full turn), size (0–255 → 0.5–2.0)
 
-export const TILE_VERSION = 3;
+export const TILE_VERSION = 4;
 export const MAGIC = [0x47, 0x54, 0x42, 0x31]; // "GTB1"
 export const DM = 10; // units per metre
 
@@ -35,7 +38,14 @@ export const ROAD = {
   RESIDENTIAL: 6, LIVING: 7, SERVICE: 8, PEDESTRIAN: 9, FOOTWAY: 10, TRACK: 11, PIER: 12,
 };
 // KERB_*: how the kerbs along this road are painted (street library; none set = by road class).
-export const ROAD_FLAG = { BRIDGE: 1, ONEWAY: 2, KERB_BW: 4, KERB_BY: 8, KERB_PLAIN: 16, MEDIAN_BW: 32 };
+// ELEVATED: heights per vertex follow (scripts/lib/elevation.mjs); TUNNEL: OpenStreetMap tunnel (covered
+// where deeper than STRUCT.COVER, an open cut above that).
+export const ROAD_FLAG = { BRIDGE: 1, ONEWAY: 2, KERB_BW: 4, KERB_BY: 8, KERB_PLAIN: 16, MEDIAN_BW: 32, ELEVATED: 64, TUNNEL: 128 };
+// Elevated and sunken roads (converter, tile worker and collisions agree on these, metres):
+// AT_GRADE: parts within this of the ground are ordinary street (asphalt, kerbs, footpaths);
+// CLEAR: decks lower than this stand on solid walls (ramps), higher ones on piers with room beneath;
+// COVER: open cuts deeper than this become covered tunnel; CEILING: tunnel height over the road.
+export const STRUCT = { AT_GRADE: 0.22, CLEAR: 4.6, COVER: -5.6, CEILING: 5.4, DECK: 1.8 };
 export const RAIL = { MAIN: 0, SERVICE: 1 };
 export const RAIL_FLAG = { BRIDGE: 1 };
 export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2, SHOPS: 4, HIDDEN: 8, NETTING: 16, ARCADE: 32, WALL: 64 }; // WALL: compound wall, pillar, hoarding or fence (style = kind, lib/walls.mjs); // ARCADE: ground floor set back behind piers on street-facing walls (Fort, Causeway); // NETTING: under repair (green netting + scaffolding); // HIDDEN: collide only (a hand-built landmark stands there)
@@ -111,7 +121,14 @@ export function decodeTile(u8) {
   for (let i = r.uvar(); i > 0; i--) tile.areas.push({ kind: r.u8(), rings: r.rings() });
   tile.roads = [];
   for (let i = r.uvar(); i > 0; i--) {
-    tile.roads.push({ cls: r.u8(), width: r.uvar() / DM, flags: r.u8(), name: r.uvar() - 1, layer: r.u8(), profile: r.u8(), line: r.points() });
+    const road = { cls: r.u8(), width: r.uvar() / DM, flags: r.u8(), name: r.uvar() - 1, layer: r.u8() - 8, profile: r.u8(), line: r.points(), heights: null, s0: 0 };
+    if (road.flags & ROAD_FLAG.ELEVATED) {
+      const n = road.line.length / 2, h = (road.heights = new Float32Array(n));
+      let v = 0;
+      for (let k = 0; k < n; k++) { v += r.svar(); h[k] = v / 100; }
+      road.s0 = r.uvar() / DM;
+    }
+    tile.roads.push(road);
   }
   tile.rails = [];
   for (let i = r.uvar(); i > 0; i--) tile.rails.push({ cls: r.u8(), flags: r.u8(), line: r.points() });

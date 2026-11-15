@@ -329,6 +329,7 @@ export class Combat {
       if (!o || o.combat?.mode === 'down' || o.downT > 0) return;
       const dx = o.x - car.pos.x, dz = o.z - car.pos.z;
       if (Math.abs(dx) > 9 || Math.abs(dz) > 9 || car.vx * dx + car.vz * dz <= 0) return;
+      if (o.y !== undefined && Math.abs(o.y - car.pos.y) > 2) return; // a flyover over their heads
       const along = Math.max(-HL, Math.min(HL, dx * fx + dz * fz));
       let ex = dx - fx * along, ez = dz - fz * along;
       const d = Math.hypot(ex, ez);

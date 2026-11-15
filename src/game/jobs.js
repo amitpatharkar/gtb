@@ -70,7 +70,7 @@ export class Jobs {
     const segs = this.traffic.segList;
     for (let tries = 0; tries < 80 && segs.length; tries++) {
       const seg = segs[Math.floor(Math.random() * segs.length)], s = seg.s;
-      if (seg.len < 8) continue;
+      if (seg.len < 8 || s[5] & 32) continue; // passengers wait at street level
       const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
       const d = Math.hypot(mx - player.pos.x, mz - player.pos.z);
       if (d < min || d > max) continue;

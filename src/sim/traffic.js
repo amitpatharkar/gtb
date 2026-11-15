@@ -2,13 +2,16 @@ import * as THREE from 'three';
 import { LIGHT } from './signals.js';
 import { buildFleet } from '../vehicles/fleet.js';
 import { MASS } from '../vehicles/garage.js';
-import { endKey, keyXZ } from './roadKeys.js';
+import { keyXZ, keyY, segEndKey } from './roadKeys.js';
+import { Y } from '../world/levels.js';
 
 // Ambient traffic, Rockstar style: a few dozen vehicles live only near the player,
 // driving on the LEFT along the real road network, slowing behind each other and for
 // the player. Density follows the clock (rush hours). One instanced mesh per type.
 
-const FORWARD = new THREE.Vector3(0, 0, 1);
+const FORWARD = new THREE.Vector3(0, 0, 1), SIDEWAYS = new THREE.Vector3(1, 0, 0);
+/** Vehicles more than this apart in height are on different levels (a flyover and the street below). */
+const LEVEL_GAP = 2.5;
 const PARTS = ['paint', 'glass', 'trim', 'lamps']; // one BatchedMesh each
 
 /**
@@ -170,7 +173,7 @@ export class Traffic {
           if (!(s[5] & 1)) continue;
           const len = Math.hypot(s[2] - s[0], s[3] - s[1]);
           if (len < 0.3) continue;
-          const seg = { t, i, s, len, k0: endKey(s[0], s[1]), k1: endKey(s[2], s[3]) };
+          const seg = { t, i, s, len, k0: segEndKey(s, 0), k1: segEndKey(s, 1) };
           seg.e0 = { seg, end: 0 }; seg.e1 = { seg, end: 1 };
           g.push(seg);
         }
@@ -198,7 +201,7 @@ export class Traffic {
         for (const k2 of grid.get(cell(x + gx * 5, z + gz * 5)) || []) {
           if (k2 === k) continue;
           const l2 = ends.get(k2);
-          if (l2 === list || l2.some((e) => e.seg === seg)) continue;
+          if (l2 === list || l2.some((e) => e.seg === seg) || Math.abs(keyY(k2) - keyY(k)) > 0.8) continue; // same level only
           const [x2, z2] = keyXZ(k2), d = (x2 - x) ** 2 + (z2 - z) ** 2;
           if (d < bd) { bd = d; best = k2; }
         }
@@ -280,6 +283,7 @@ export class Traffic {
       const tints = this.types[type].tints;
       const car = {
         type, seg, dir, t: Math.random(), speed: 0, tint: new THREE.Color(tints[Math.floor(Math.random() * tints.length)]), wait: 0, x: mx, z: mz, heading: 0,
+        y: (s[6] + s[7]) / 2, pitch: 0, // on flyover decks and ramps, in tunnels
         // Some drivers jump red lights (more at night, never buses); many stop on the zebra.
         jumper: !this.types[type].big && Math.random() < 0.1 + this.night * 0.12, creep: Math.random() < 0.35 ? 2.5 : 0,
         pulled: null, boost: 0, lane: 0, laneIdx: -1, lastSig: null, lastDist: 0,
@@ -305,7 +309,7 @@ export class Traffic {
     for (const o of this.cars) {
       if (o === car) continue;
       const dx = o.x - car.x, dz = o.z - car.z;
-      if (dx * dx + dz * dz > 900) continue;
+      if (dx * dx + dz * dz > 900 || o.y - car.y > LEVEL_GAP || car.y - o.y > LEVEL_GAP) continue;
       const along = dx * fx + dz * fz, side = car.lane + dx * lx + dz * lz;
       if (Math.sin(o.heading) * fx + Math.cos(o.heading) * fz < 0.3) continue; // not going our way
       if (along > -8 && along < 14 && Math.abs(side - offset) < 1.6) return false;
@@ -319,7 +323,7 @@ export class Traffic {
     for (const o of this.cars) {
       if (o === car) continue;
       const dx = o.x - car.x, dz = o.z - car.z, along = dx * fx + dz * fz;
-      if (along < -2 || along > dist) continue;
+      if (along < -2 || along > dist || o.y - car.y > LEVEL_GAP || car.y - o.y > LEVEL_GAP) continue;
       if (Math.sin(o.heading) * fx + Math.cos(o.heading) * fz > -0.3) continue;
       if (car.lane + dx * lx + dz * lz < 1.5) return false; // on our right: the oncoming lane
     }
@@ -330,7 +334,7 @@ export class Traffic {
   advance(car) {
     const s = car.seg.s;
     const endIdx = car.dir > 0 ? 1 : 0;
-    const k = endKey(s[endIdx * 2], s[endIdx * 2 + 1]);
+    const k = segEndKey(s, endIdx);
     const fx = (s[2] - s[0]) * car.dir, fz = (s[3] - s[1]) * car.dir, fl = Math.hypot(fx, fz) || 1;
     const options = (this.ends.get(k) || []).filter((o) => o.seg !== car.seg).map((o) => {
       const dir = o.end === 0 ? 1 : -1;
@@ -386,8 +390,9 @@ export class Traffic {
       if (i >= this.cap || !this.types[v.type]) return;
       const lod = (v.x - px) ** 2 + (v.z - pz) ** 2 > 90 * 90 ? 1 : 0;
       this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, v.heading);
+      if (v.pitch) this.q.multiply(this.q2.setFromAxisAngle(SIDEWAYS, v.pitch)); // nose up or down a ramp
       if (v.roll) this.q.multiply(this.q2.setFromAxisAngle(FORWARD, v.roll)); // a two-wheeler lying on its side
-      this.matrix.compose(this.pos.set(v.x, v.roll ? 0.2 : 0.02, v.z), this.q, this.unit);
+      this.matrix.compose(this.pos.set(v.x, (v.y ?? Y.ROAD) + (v.roll ? 0.18 : 0), v.z), this.q, this.unit);
       for (let k = 0; k < PARTS.length; k++) {
         const part = PARTS[k], b = B[part];
         b.setGeometryIdAt(i, this.geo[part][v.type][lod]);
@@ -415,20 +420,20 @@ export class Traffic {
    */
   gapAhead(car, fx, fz, type, nBlock) {
     let gap = 40, slow = false;
-    const latMax = type.rider ? 1.0 : 1.6, half = type.len / 2, cx = car.x, cz = car.z, cars = this.cars, b = this.blockers;
+    const latMax = type.rider ? 1.0 : 1.6, half = type.len / 2, cx = car.x, cz = car.z, cy = car.y, cars = this.cars, b = this.blockers;
     for (let j = 0; j < cars.length; j++) {
       const o = cars[j];
       if (o === car) continue;
       const dx = o.x - cx, dz = o.z - cz, along = dx * fx + dz * fz;
-      if (along <= 0 || along > 60) continue;
+      if (along <= 0 || along > 60 || o.y - cy > LEVEL_GAP || cy - o.y > LEVEL_GAP) continue;
       const lat = dx * fz - dz * fx;
       if (lat >= latMax || lat <= -latMax) continue;
       const T = this.types[o.type], g = along - half - T.len / 2;
       if (g < gap) { gap = g; slow = !!T.slow && !type.slow; }
     }
-    for (let j = 0; j < nBlock; j += 3) {
+    for (let j = 0; j < nBlock; j += 4) {
       const dx = b[j] - cx, dz = b[j + 1] - cz, along = dx * fx + dz * fz;
-      if (along <= 0 || along > 60) continue;
+      if (along <= 0 || along > 60 || b[j + 3] - cy > LEVEL_GAP || cy - b[j + 3] > LEVEL_GAP) continue;
       const lat = dx * fz - dz * fx;
       if (lat >= latMax || lat <= -latMax) continue;
       const g = along - half - b[j + 2] / 2;
@@ -439,7 +444,7 @@ export class Traffic {
   }
 
   /**
-   * Things traffic must not drive into besides other traffic, as [x, z, length, …]: the player
+   * Things traffic must not drive into besides other traffic, as [x, z, length, height, …]: the player
    * (on foot or driving, at the real length of what they drive), the vehicle they stepped out
    * of, the parked kaali-peeli, vehicles left on the street, police patrol cars, and street
    * obstacles (cows, cricket, jaywalkers). Written into this.blockers (reused, never shrunk);
@@ -448,14 +453,14 @@ export class Traffic {
   gatherBlockers(active) {
     const out = this.blockers, car = this.car, px = active.pos.x, pz = active.pos.z;
     let n = 0;
-    const add = (x, z, len) => { out[n++] = x; out[n++] = z; out[n++] = len; };
+    const add = (x, z, len, y) => { out[n++] = x; out[n++] = z; out[n++] = len; out[n++] = y; };
     // Driving (a Car has a collision shape), or on foot / the stand-in at a door while indoors.
-    add(px, pz, active.halfLength !== undefined ? carLength(active) : 0.6);
-    if (car && car !== active) add(car.pos.x, car.pos.z, carLength(car)); // the vehicle they got out of
-    if (this.taxi && this.taxi !== car && this.taxi !== active) add(this.taxi.pos.x, this.taxi.pos.z, 3.7); // the parked taxi
-    for (const v of this.left) if ((v.x - px) ** 2 + (v.z - pz) ** 2 < 330 * 330 && this.types[v.type]) add(v.x, v.z, this.types[v.type].len);
-    if (this.police) for (const p of this.police.patrols) add(p.car.pos.x, p.car.pos.z, carLength(p.car));
-    for (const o of this.obstacles) add(o[0], o[1], o[2]);
+    add(px, pz, active.halfLength !== undefined ? carLength(active) : 0.6, active.pos.y);
+    if (car && car !== active) add(car.pos.x, car.pos.z, carLength(car), car.pos.y); // the vehicle they got out of
+    if (this.taxi && this.taxi !== car && this.taxi !== active) add(this.taxi.pos.x, this.taxi.pos.z, 3.7, this.taxi.pos.y); // the parked taxi
+    for (const v of this.left) if ((v.x - px) ** 2 + (v.z - pz) ** 2 < 330 * 330 && this.types[v.type]) add(v.x, v.z, this.types[v.type].len, v.y ?? Y.ROAD);
+    if (this.police) for (const p of this.police.patrols) add(p.car.pos.x, p.car.pos.z, carLength(p.car), p.car.pos.y);
+    for (const o of this.obstacles) add(o[0], o[1], o[2], Y.ROAD);
     return n;
   }
 
@@ -477,7 +482,8 @@ export class Traffic {
     const slowAhead = this.slowAhead;
     // Signals: stop at red (and at amber if there is room); jumpers just go.
     let atRed = false;
-    if (this.signals && !car.pulled) {
+    // (signals stand at street level: not for cars on a flyover passing over the junction, or in a tunnel)
+    if (this.signals && !car.pulled && car.y < Y.ROAD + 1.5 && car.y > Y.ROAD - 1.5) {
       const sig = this.signals.ahead(car.x, car.z, fx, fz, 40, this.sigOut);
       if (sig && sig.light !== LIGHT.GREEN) {
         const stopGap = sig.dist + car.creep - type.len / 2 - 0.3;
@@ -545,6 +551,9 @@ export class Traffic {
     // Smooth position and heading through corners.
     const k = Math.min(1, dt * (car.recover > 0 ? 1.6 : 8));
     car.x += (px - car.x) * k; car.z += (pz - car.z) * k;
+    // Height and slope from the road: decks, ramps and tunnels (y0/y1 at the segment's ends).
+    car.y += (s2[6] + (s2[7] - s2[6]) * t - car.y) * k;
+    car.pitch = -Math.atan(((s2[7] - s2[6]) / car.seg.len) * car.dir);
     const h = Math.atan2(gx, gz);
     let dh = h - car.heading;
     dh = Math.atan2(Math.sin(dh), Math.cos(dh));
@@ -579,7 +588,7 @@ export class Traffic {
     const tint = (type, h) => { const t = this.types[type].tints; return new THREE.Color(t[Math.floor(h * t.length) % t.length]); };
     for (const seg of this.segList || []) {
       const s = seg.s, hw = s[4];
-      if (hw < 3.4 || seg.len < 22) continue;
+      if (hw < 3.4 || seg.len < 22 || s[5] & 32) continue; // no parking on flyovers, ramps or in tunnels
       const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
       if (Math.hypot(mx - player.pos.x, mz - player.pos.z) > R + seg.len / 2) continue;
       const fx = (s[2] - s[0]) / seg.len, fz = (s[3] - s[1]) / seg.len;
@@ -610,7 +619,7 @@ export class Traffic {
               const type = twoTypes[Math.floor(rnd() * twoTypes.length)], o = hw - 0.9, th = rnd();
               const key = `${segKey}:${side}:${Math.round(d * 10)}:${k}`;
               if (this.movedKeys.has(key)) continue;
-              out.push({ type, x: x0 + fx * k * 0.85 + lx * o, z: z0 + fz * k * 0.85 + lz * o, heading: Math.atan2(lx, lz) + Math.PI + 0.5, tint: tint(type, th), parked: true, key });
+              out.push({ type, x: x0 + fx * k * 0.85 + lx * o, z: z0 + fz * k * 0.85 + lz * o, y: Y.ROAD, heading: Math.atan2(lx, lz) + Math.PI + 0.5, tint: tint(type, th), parked: true, key });
             }
             d += n * 0.85 + 1.5;
           } else {
@@ -618,7 +627,7 @@ export class Traffic {
             if (stand) stand--;
             const type = list[Math.floor(rnd() * list.length)], T = this.types[type], o = hw - T.wid / 2 - 0.25, th = rnd();
             const key = `${segKey}:${side}:${Math.round(d * 10)}`;
-            if (!this.movedKeys.has(key)) out.push({ type, x: x0 + fx * T.len / 2 + lx * o, z: z0 + fz * T.len / 2 + lz * o, heading, tint: tint(type, th), parked: true, key });
+            if (!this.movedKeys.has(key)) out.push({ type, x: x0 + fx * T.len / 2 + lx * o, z: z0 + fz * T.len / 2 + lz * o, y: Y.ROAD, heading, tint: tint(type, th), parked: true, key });
             d += T.len + 0.6 + rnd() * 1.2;
           }
         }
@@ -632,7 +641,7 @@ export class Traffic {
   /** A pushed vehicle slides and spins to a stop (friction), and stops dead against buildings. */
   slide(v, dt) {
     const nx = v.x + (v.pvx || 0) * dt, nz = v.z + (v.pvz || 0) * dt;
-    if (this.tiles.hits(nx, nz, this.types[v.type].wid / 2)) { v.pvx = v.pvz = 0; } else { v.x = nx; v.z = nz; }
+    if (this.tiles.hits(nx, nz, this.types[v.type].wid / 2, v.y ?? Y.ROAD, true)) { v.pvx = v.pvz = 0; } else { v.x = nx; v.z = nz; }
     v.heading += (v.spin || 0) * dt;
     const f = Math.exp(-2.6 * dt);
     v.pvx = (v.pvx || 0) * f; v.pvz = (v.pvz || 0) * f; v.spin = (v.spin || 0) * f;
@@ -643,10 +652,10 @@ export class Traffic {
    * The vehicle a circle touches, as a physics body for the player's car: its mass and
    * velocity, and push(dvx, dvz, cx, cz) to apply a change of velocity at a contact point.
    */
-  bodyAt(x, z, r) {
+  bodyAt(x, z, r, y = Y.ROAD) {
     const hit = (list) => {
       for (const car of list) {
-        if (Math.abs(x - car.x) > 8 || Math.abs(z - car.z) > 8) continue;
+        if (Math.abs(x - car.x) > 8 || Math.abs(z - car.z) > 8 || Math.abs((car.y ?? Y.ROAD) - y) > LEVEL_GAP) continue;
         const type = this.types[car.type];
         const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
         const along = THREE.MathUtils.clamp((x - car.x) * fx + (z - car.z) * fz, -type.len / 2 + type.wid / 2, type.len / 2 - type.wid / 2);
@@ -693,16 +702,16 @@ export class Traffic {
     }
   }
 
-  hits(x, z, r) {
-    return this.hitList(this.parked, x, z, r) || this.hitList(this.left, x, z, r) || this.hitCars(x, z, r);
+  hits(x, z, r, y = Y.ROAD) {
+    return this.hitList(this.parked, x, z, r, y) || this.hitList(this.left, x, z, r, y) || this.hitCars(x, z, r, y);
   }
 
   /** hitList for the moving traffic (its own copy: all cars share one shape, so this stays fast). */
-  hitCars(x, z, r) {
+  hitCars(x, z, r, y) {
     const list = this.cars, reach = r + 8;
     for (let i = 0; i < list.length; i++) {
       const car = list[i], dx = x - car.x, dz = z - car.z;
-      if (dx > reach || dx < -reach || dz > reach || dz < -reach) continue;
+      if (dx > reach || dx < -reach || dz > reach || dz < -reach || car.y - y > LEVEL_GAP || y - car.y > LEVEL_GAP) continue;
       const type = this.types[car.type];
       const fx = Math.sin(car.heading), fz = Math.cos(car.heading), end = type.len / 2 - type.wid / 2;
       let along = dx * fx + dz * fz;
@@ -714,11 +723,13 @@ export class Traffic {
   }
 
   /** Is a circle at (x, z) touching a vehicle of `list` (a capsule along its length)? */
-  hitList(list, x, z, r) {
+  hitList(list, x, z, r, y) {
     const reach = r + 8; // more than half the longest vehicle (an 11.6 m bus) plus half its width
     for (let i = 0; i < list.length; i++) {
       const car = list[i], dx = x - car.x, dz = z - car.z;
       if (dx > reach || dx < -reach || dz > reach || dz < -reach) continue;
+      const cy = car.y === undefined ? Y.ROAD : car.y;
+      if (cy - y > LEVEL_GAP || y - cy > LEVEL_GAP) continue;
       const type = this.types[car.type];
       if (!type) continue;
       const fx = Math.sin(car.heading), fz = Math.cos(car.heading), end = type.len / 2 - type.wid / 2;

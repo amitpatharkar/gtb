@@ -1,9 +1,14 @@
 // Web Worker: download a tile, unzip it, decode it and turn it into ready-to-upload
 // mesh arrays plus collision data, so the main thread only creates GPU buffers.
-import { decodeTile, AREA, ROAD, ROAD_FLAG, POINT } from './tileFormat.js';
+import { decodeTile, AREA, ROAD, ROAD_FLAG, POINT, STRUCT } from './tileFormat.js';
 import { Y } from './levels.js';
 import { buildGround } from './mesh/ground.js';
 import { buildBuildings } from './mesh/buildings.js';
+import { buildBridges } from './mesh/bridges.js';
+import { MeshBuilder } from './mesh/builder.js';
+
+// Cable-stayed spans (index.json bridges.pylons, sent by tiles.js before the first tile): no piers.
+let spans = [];
 
 const GRID_CELL = 16; // metres, collision grid
 // Ground UVs wrap every UV_PERIOD metres: a common multiple of the ground texture sizes in
@@ -75,6 +80,10 @@ function buildTile(t) {
 
   const { builders: ground, tetrapods } = buildGround(t, uvX, uvZ);
   const { builders, tanks, solid, parts } = buildBuildings(t, uvX, uvZ, toWorld);
+  // Flyovers, bridges and tunnels share the ground's and the buildings' meshes (road, paint, compound).
+  const shared = (key) => ground.get(key) || builders.get(key) || builders.set(key, new MeshBuilder()).get(key);
+  const decks = buildBridges(t, uvX, uvZ, shared, spans);
+  for (const rings of decks.solids) solid.push(rings.map(toWorld));
   const facadeParts = {};
   for (const k in parts) if (parts[k].length) { facadeParts[k] = new Float32Array(parts[k]); transfer.push(facadeParts[k].buffer); }
   const meshes = {};
@@ -84,28 +93,36 @@ function buildTile(t) {
   // [x, y, z, angle, size] per instance, tile-local.
   const points = {};
   for (const p of t.points) (points[p.kind] ||= []).push(p.x, Y.KERB, p.z, p.angle, p.size);
+  if (decks.lamps.length) (points[POINT.LIGHT] ||= []).push(...decks.lamps); // on flyover barriers
   if (tetrapods.length) points[POINT.TETRAPOD] = tetrapods;
   for (const k in points) { points[k] = new Float32Array(points[k]); transfer.push(points[k].buffer); }
 
   // Walkable ground: land and piers (roads over water are checked separately).
   const walkable = t.areas.filter((a) => a.kind === AREA.LAND || a.kind === AREA.PIER).map((a) => a.rings.map(toWorld));
 
-  // Road centre segments for collisions over water, road names and ground height.
-  const segs = [], segName = [], segBox = [];
+  // Road centre segments for collisions over water, road names and ground height, with the road
+  // surface height at both ends (decks, ramps, tunnels: tiles.js answers by level).
+  const segs = [], segName = [], segBox = [], deckBox = [], deckIdx = [];
   for (const r of t.roads) {
-    const hw = r.width / 2, n = r.line.length / 2;
+    const hw = r.width / 2, n = r.line.length / 2, H = r.heights;
     const vehicle = r.cls <= ROAD.SERVICE || r.cls === ROAD.TRACK;
     for (let i = 0; i + 1 < n; i++) {
       const x0 = r.line[i * 2] + ox, z0 = r.line[i * 2 + 1] + oz, x1 = r.line[i * 2 + 2] + ox, z1 = r.line[i * 2 + 3] + oz;
-      // Flags: 1 = vehicle road, 2 = one-way (in drawing direction), 4 = main road.
+      const h0 = H ? H[i] : 0, h1 = H ? H[i + 1] : 0;
+      // Flags: 1 = vehicle road, 2 = one-way (in drawing direction), 4 = main road, 8 worn, 16 rough,
+      // 32 = off the ground (a deck, ramp, cut or tunnel: see STRUCT), 64 = tunnel, 128 = covered.
       // Flags bits 8–15: the street-library profile (index into index.json `profiles`, 0 = none).
-      segs.push(x0, z0, x1, z1, hw, (vehicle ? 1 : 0) | (r.flags & ROAD_FLAG.ONEWAY ? 2 : 0) | (r.cls <= ROAD.TERTIARY ? 4 : 0) | (r.cls > ROAD.SECONDARY && r.cls <= ROAD.LINK ? 8 : 0) | (r.cls > ROAD.LINK ? 16 : 0) | ((r.profile || 0) << 8));
+      const struct = Math.abs(h0) > 0.05 || Math.abs(h1) > 0.05;
+      const covered = h0 <= STRUCT.COVER + 0.01 && h1 <= STRUCT.COVER + 0.01;
+      segs.push(x0, z0, x1, z1, hw, (vehicle ? 1 : 0) | (r.flags & ROAD_FLAG.ONEWAY ? 2 : 0) | (r.cls <= ROAD.TERTIARY ? 4 : 0) | (r.cls > ROAD.SECONDARY && r.cls <= ROAD.LINK ? 8 : 0) | (r.cls > ROAD.LINK ? 16 : 0)
+        | (struct ? 32 : 0) | (r.flags & ROAD_FLAG.TUNNEL ? 64 : 0) | (covered ? 128 : 0) | ((r.profile || 0) << 8), Y.ROAD + h0, Y.ROAD + h1);
       segName.push(vehicle ? r.name : -1);
       segBox.push(Math.min(x0, x1) - hw, Math.min(z0, z1) - hw, Math.max(x0, x1) + hw, Math.max(z0, z1) + hw);
+      if (struct) { deckIdx.push(segName.length - 1); deckBox.push(Math.min(x0, x1) - hw - 1, Math.min(z0, z1) - hw - 1, Math.max(x0, x1) + hw + 1, Math.max(z0, z1) + hw + 1); }
     }
   }
-  const segArr = new Float32Array(segs), segNameArr = new Int32Array(segName);
-  transfer.push(segArr.buffer, segNameArr.buffer);
+  const segArr = new Float32Array(segs), segNameArr = new Int32Array(segName), deckArr = new Uint32Array(deckIdx);
+  transfer.push(segArr.buffer, segNameArr.buffer, deckArr.buffer);
   const tankArr = new Float32Array(tanks);
   transfer.push(tankArr.buffer);
 
@@ -118,6 +135,8 @@ function buildTile(t) {
         solid: packPolys(solid, transfer),
         walkable: packPolys(walkable, transfer),
         roads: { segs: segArr, names: segNameArr, count: segName.length, grid: buildGrid(new Float32Array(segBox), segName.length, transfer) },
+        // Segments off the ground only (indices into roads.segs), for the level-aware queries.
+        decks: { index: deckArr, count: deckIdx.length, grid: buildGrid(new Float32Array(deckBox), deckIdx.length, transfer) },
       },
       stats: { buildings: t.buildings.length, roads: t.roads.length },
     },
@@ -133,6 +152,7 @@ async function gunzipIfNeeded(buf) {
 }
 
 self.onmessage = async (e) => {
+  if (e.data.spans) { spans = e.data.spans; return; }
   const { id, url } = e.data;
   try {
     const res = await fetch(url);

@@ -8,13 +8,16 @@
 //
 //   "GTBO" magic, version, quant (grid units per metre)
 //   names[]                    road names (referenced by index)
-//   roads[]:  class, flags (1 = one-way), name index + 1 (0 = none), line
+//   roads[]:  class, flags (1 = one-way, 2 = elevated: flyover or bridge deck, 4 = sunken: tunnel or
+//             open cut), name index + 1 (0 = none), line; with flag 2 or 4 also a level per point
+//             (svar: height in whole metres; crossing roads only join where their levels match)
 //   rails[]:  line
 //   layers[]: kind (OVERVIEW_LAYER), polygons[]: rings[] (outer first, with a positive signed
 //             area in (x, z) as in tile files; holes negative, so nonzero filling works)
 import { ByteReader } from './tileFormat.js';
 
-export const OVERVIEW_VERSION = 1;
+export const OVERVIEW_VERSION = 2;
+export const OVERVIEW_ROAD = { ONEWAY: 1, ELEVATED: 2, SUNKEN: 4 };
 export const OVERVIEW_MAGIC = [0x47, 0x54, 0x42, 0x4f]; // "GTBO"
 export const OVERVIEW_LAYER = { LAND: 0, WATER: 1, GREEN: 2, SAND: 3, PAVED: 4 };
 
@@ -38,7 +41,11 @@ export function decodeOverview(u8) {
   const names = [];
   for (let i = r.uvar(); i > 0; i--) names.push(r.string());
   const roads = [];
-  for (let i = r.uvar(); i > 0; i--) roads.push({ cls: r.u8(), flags: r.u8(), name: r.uvar() - 1, line: line() });
+  for (let i = r.uvar(); i > 0; i--) {
+    const road = { cls: r.u8(), flags: r.u8(), name: r.uvar() - 1, line: line(), levels: null };
+    if (road.flags & 6) { road.levels = new Int16Array(road.line.length / 2); for (let k = 0; k < road.levels.length; k++) road.levels[k] = r.svar(); }
+    roads.push(road);
+  }
   const rails = [];
   for (let i = r.uvar(); i > 0; i--) rails.push(line());
   const layers = [];
