@@ -106,23 +106,56 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/tiles.js` — `TileManager`: streams tiles, builds meshes/props, collisions (`hits`), `walkable`,
   `groundHeight` (asphalt 0.02 m, kerb level 0.2 m), `roadAt`, `roadNameAt`, `segment()`; `version` bumps on load/unload.
   Collision queries allocate nothing: numeric `tileKey` maps (`byKey`, `availableKeys`), `nearInto()` fills `tiles.near`;
-  `roadHit(x, z, slack, vehicleOnly)` leaves its answer in `roadTile`/`roadIndex`/`roadDist` (`roadAt` wraps it)
+  `roadHit(x, z, slack, vehicleOnly, y)` leaves its answer in `roadTile`/`roadIndex`/`roadDist` (`roadAt` wraps it).
+  **Levels (flyovers, tunnels):** `hits(x, z, r, y, vehicle)`, `groundHeight/wheelHeight(x, z, y)`, `walkable`,
+  `roadAt`, `roadNameAt` take the mover's height (default: street level). Off the street (y above kerb + 0.15 or
+  below road − 0.3) only `supported()` counts: inside a deck's barriers / tunnel walls at about that level (buildings
+  ignored); at street level also `structWall()` (ramp walls lower than `STRUCT.CLEAR`, open-cut edges) and pier
+  footprints (in `solid`). Surfaces: the highest deck/floor no more than `STEP` 0.9 m above y (`levelScan`: `surfY`,
+  `hole` = open cut, no street there); `ceilingAt()` keeps the camera under tunnel roofs; `configure()` sends the
+  cable-stayed spans to the worker. Cars pass `vehicle` (no climbing footbridge stairs)
 - `src/world/tileWorker.js` + `src/world/mesh/` — worker: `ground.js` (ground layers, kerbs with paint strip, sea walls,
   parapet, tetrapods, markings, footways, rails), `buildings.js` (per-style walls with facade data, parapets, stair
-  rooms, roof types, water tanks), `builder.js` (mesh helpers). Road segments: 6 floats `x0 z0 x1 z1 halfWidth flags`
-  (flags 1 vehicle, 2 one-way, 4 main road, bits 8–15 street profile). Kerb paint: the street profile's
+  rooms, roof types, water tanks), `bridges.js` (roads with heights: decks with New Jersey barriers, box-girder
+  soffit, lane markings and lamps on the barriers (`POINT.LIGHT` at deck height), piers every 30 m with hammerhead
+  caps off crossing roads and tracks (none under cable-stayed spans), ramps on solid walls below `STRUCT.CLEAR`,
+  open cuts with retaining walls, covered tunnels with tiled walls, ceiling and `tunnelLight` strips, portal walls;
+  footbridges/skywalks with railings and steel columns; concrete in mesh key `compound`, asphalt in `road`, paint in
+  `paint`: no new draw calls except tunnel lights; barriers are left out where another deck continues),
+  `builder.js` (mesh helpers). Road segments: 8 floats `x0 z0 x1 z1 halfWidth flags y0 y1` (flags 1 vehicle,
+  2 one-way, 4 main road, 8 worn, 16 rough, 32 off the ground, 64 tunnel, 128 covered, bits 8–15 street profile;
+  y0/y1 road surface height at the ends); `collide.decks` = grid of the off-the-ground segments. Kerb paint: the street profile's
   (`ROAD_FLAG.KERB_BW/BY/PLAIN`), else black-yellow near main roads (`kerbPlain` elsewhere); median kerbs (another
   carriageway within 6.5 m beyond the kerb) black-white (`kerbBW`). Netting buildings get a green mesh wall (`netting`);
   `BUILDING_FLAG.ARCADE` (street library `arcade`) street walls: upper floors on the line, shops 2.8 m back behind
   piers under a ceiling (`arcadeWall` in buildings.js; the footprint still collides). Every building gets a
   contact-shade band on the ground along its walls (mesh key `contact`).
-- `src/world/tileFormat.js` — binary tile format v3 (buildings with style/levels/street-facing walls and flags incl.
-  `NETTING`, areas incl. PLOT/ROAD/FOOTPATH, roads with kerb/median flags and a street-profile byte, rails, markings,
-  points); `src/world/levels.js` — ground heights
+- `src/world/tileFormat.js` — binary tile format v4 (buildings with style/levels/street-facing walls and flags incl.
+  `NETTING`, areas incl. PLOT/ROAD/FOOTPATH, roads with kerb/median flags, OSM layer, a street-profile byte and — with
+  `ROAD_FLAG.ELEVATED` — a height per vertex in cm plus `s0` (distance along the way, for pier spacing), rails,
+  markings, points); `STRUCT` (AT_GRADE 0.22, CLEAR 4.6, COVER −5.6, CEILING 5.4, DECK 1.8 m) is shared by converter,
+  worker and collisions; `src/world/levels.js` — ground heights
+- `scripts/lib/elevation.mjs` — heights for flyovers, bridges and tunnels (~290 km off the ground): each bridge chain's
+  deck from what it crosses (road/rail/lower deck → 7 m, 7.6 m over tracks, +6.5 m per layer; long over the sea →
+  9 m; creek 3.2 m; nothing → flyover if long and main, else a culvert at grade), tunnels −9 m (underpasses −6.6);
+  heights spread along the densified road graph at 5 % (ramps on the approach ways), at-grade junctions (two or more
+  ordinary roads) pinned with at most 6.5 % from them; side lanes that squash a flyover's ramp are cut off at its foot
+  (ground node of their own); a road mapped through a bridge's node keeps its own ground node; vertical-curve
+  smoothing; the sea link deck rises to 20 m / 13.5 m around its pylons (`PYLONS` in build-tiles.mjs, approximate
+  positions); footbridges are a second network (stairs up to 60 %). Converter: parts within `AT_GRADE` are street
+  (`groundParts` → `vparts`), the rest leaves asphalt, footpaths, markings, trees, frontage and parking; open cuts are
+  holes in the ground; `underDeck()` keeps infill, walls, trees, lamps, stalls, cranes and bus stops away; buildings
+  under decks are lowered to fit (or dropped in ramp footprints); index.json `bridges` (pylons + stats). The sea link
+  shows as "Bandra–Worli Sea Link" (`RENAME`)
+- `src/world/bridges.js` — the sea link's two inverted-Y pylons (legs past the deck edges, shaft, pinnacle) and four
+  planes of semi-harp stay cables (LineSegments) from `index.bridges.pylons`, built once on the main thread so they
+  stand on the skyline whatever tiles are loaded (2 draw calls; `Bridges.deckAt` = the converter's deck rise)
 - `src/vehicles/taxi.js` + `car.js` — procedural kaali-peeli taxi (Premier Padmini proportions, clear-coat paint) and car
   handling (bicycle steering, two collision circles, kerb bumps, body roll/pitch, fuel ~40 km per tank, condition);
   kerb and pothole jolts fire once per wheel event (`prevGF`/`prevGR`: kerb 7 % per axle, pothole 3 % per wheel +
-  damage above 9 m/s), so the loss is the same at any frame rate
+  damage above 9 m/s), so the loss is the same at any frame rate; `world.hits/groundHeight/bodyAt` get the car's `pos.y`
+  (up ramps, on decks, under them, in tunnels; pitch follows the slope). The walker, police patrols, the parked taxi
+  (`garage.home.y`), left vehicles (`v.y`) and saves/resume (`y`) keep their height too
 - `src/sim/clock.js` — 24-hour clock (1 real s = 1 game min, T = +1 h), real sun path for Mumbai in December,
   daylight/night/twilight, AQI by hour (CPCB scale), traffic density table by hour (≈5 % at 3 am, 100 % 9–11 and
   18–20) and `jam` (slower cruising at peaks)
@@ -133,8 +166,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   quarter hour (`pickType`); kerb parking forms kaali-peeli taxi ranks where the profile has `taxis` (`TAXI_RANK`).
 - `src/sim/traffic.js` (continued) — ambient traffic near the player (fleet from `src/vehicles/fleet.js`: taxis, hatchbacks,
   sedans, SUVs, BEST buses on main roads, tempos (more at night), motorbikes with riders), keeps LEFT, follows the
-  road graph (loose ends within 2.5 m joined; per-tile segment data cached on `tile.graph`, numeric junction keys
-  from `src/sim/roadKeys.js` — the rebuild runs on every tile load, keep it cheap; police build their graph lazily
+  road graph (loose ends within 2.5 m and 0.8 m of height joined; per-tile segment data cached on `tile.graph`, numeric
+  junction keys from `src/sim/roadKeys.js` with the road height in them (`segEndKey`, `keyY`: a flyover never joins the
+  street it crosses) — the rebuild runs on every tile load, keep it cheap; cars carry `y`/`pitch` from their segment,
+  look ahead/collide only within 2.5 m of height, ignore signals off the street, never park on decks; police build their graph lazily
   only while patrols are out, signals rebuild one frame later), lanes as painted by the converter (`lanesOf`: kerb
   lane 0 for two-wheelers/autos/buses, parked cars take the kerb lane on wide streets), overtakes on the RIGHT into a
   free lane or, on two-lane roads, into the oncoming lane only when clear (`laneFree`, `oncomingClear`), drifts back
@@ -274,7 +309,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   road once tiles are loaded. `story.world` gives missions access to stars, garage, crackers, police.
   `story.playScene()` runs ad-hoc cutscenes. Saved in `state.s.story` (mission + step; re-entered after a reload).
   Titles tip their hat to Hindi films with a twist — never real titles, lines, songs or characters.
-- `src/ui/minimap.js` — rotating radar (land, roads, traffic, petrol pumps, GPS route); `src/ui/cityMap.js` — full map
+- `src/ui/minimap.js` — rotating radar (land, roads, traffic, petrol pumps, GPS route; flyovers on top with a dark
+  edge, tunnels dashed); `src/ui/cityMap.js` — full map (overview v2: elevated runs in `deck0/1`, tunnels dashed,
+  per-point levels so the GPS graph never joins crossing roads at different heights)
   (Tab / tap radar; pan, zoom, tap for a waypoint; game pauses; parked-taxi marker). GPS targets have owners
   (`routeTo(x, z, label, owner)`: 'mission', 'fare', 'user'): the newest shows, clearing one brings back the previous;
   no new fares while a mission is on (`jobs.paused`). Map and GPS use `tiles/overview.bin.gz` (roads +
@@ -298,6 +335,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   road surface union, footpaths by class, plots, parks cut out of plots), markings/crossings/trees/lights/stalls/
   garbage/potholes/puddles (`lib/streets.mjs`), building style + colour by district (`lib/districts.mjs`, from the
   research guide), OSM trees/signals/crossings/bus stops/petrol pumps from node tags. Index has `fuel` positions.
+  Road tunnels are kept (`ROAD_FLAG.TUNNEL`) and every road gets heights from `lib/elevation.mjs` before the streets step.
 - `scripts/lib/` — PBF reader (with optional node tags), geometry, Clipper helpers, byte writer
 - `scripts/lib/infill.mjs` — buildings on empty street frontage in the dense districts (OpenStreetMap misses many
   outlines there): `DENSITY`/`GRAIN` by district name (bazaar 5–10 m fronts, low-rise 3.5–6 m with 1–3 storeys,
@@ -395,9 +433,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `manifest.shipped.version`). Site about 80 MB.
 - Allocation per step: the browser's sampling heap profiler (`HeapProfiler.startSampling` with
   `includeObjectsCollectedByMajorGC`/`MinorGC` true) through Playwright's CDP session.
-- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night`,
+- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night,flyover`,
   `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
-  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, or a too-dark night. In GitHub Actions
+  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, a too-dark night, or a car that cannot climb a flyover ramp / falls through a deck / sea-link traffic off its deck height. In GitHub Actions
   `deploy.yml` runs build → smoke (on the Pages artifact) → deploy, so a failing check stops the deploy (Playwright
   1.63.0 is a devDependency). Add a check there for every new system.
 - Visual check: `npx vite preview --port 4173`, then headless Chrome via Playwright with

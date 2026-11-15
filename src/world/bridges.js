@@ -49,12 +49,14 @@ function build(p, m, cables) {
   const lx = fz, lz = -fx;                              // across
   const deckY = Y.ROAD + p.deck, top = Y.SEA + p.top, foot = Y.SEA - 1.2;
   const legOut = p.half + 3.2;                           // legs stand clear of both carriageways
-  const join = deckY + (top - deckY) * 0.42;             // where the legs meet
+  const join = deckY + 6 + (top - deckY - 6) * 0.42;     // where the legs meet
   const at = (a, o, y) => [p.x + fx * a + lx * o, y, p.z + fz * a + lz * o];
   // Pile caps in the sea, the legs (leaning in), a cross beam under the deck, the shaft.
+  // (The legs rise straight past the deck edges, then lean in above the traffic.)
   for (const s of [1, -1]) {
     prism(m, at(0, s * legOut, foot), at(0, s * legOut, Y.SEA + 1.5), [fx, fz], [lx, lz], 7, 9, 7, 9);
-    prism(m, at(0, s * legOut, Y.SEA + 1.5), at(0, s * 2.2, join), [fx, fz], [lx, lz], 2.6, 3.2, 1.7, 2.4);
+    prism(m, at(0, s * legOut, Y.SEA + 1.5), at(0, s * legOut, deckY + 6), [fx, fz], [lx, lz], 2.8, 3.2, 2.6, 3.0);
+    prism(m, at(0, s * legOut, deckY + 6), at(0, s * 2.2, join), [fx, fz], [lx, lz], 2.6, 3.0, 1.7, 2.4);
   }
   prism(m, at(0, -legOut + 1.5, deckY - 4.2), at(0, legOut - 1.5, deckY - 4.2), [fx, fz], [0, 1, 0], 2.2, 1.6, 2.2, 1.6, true);
   prism(m, at(0, 0, join - 3), at(0, 0, top - 9), [fx, fz], [lx, lz], 3.4, 2.6, 2.2, 1.8);
