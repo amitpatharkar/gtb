@@ -427,9 +427,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `manifest.shipped.version`). Site about 80 MB.
 - Allocation per step: the browser's sampling heap profiler (`HeapProfiler.startSampling` with
   `includeObjectsCollectedByMajorGC`/`MinorGC` true) through Playwright's CDP session.
-- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night`,
+- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night,clutter`,
   `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
-  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, or a too-dark night. In GitHub Actions
+  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, a too-dark night, or missing street clutter (boards with text, cables, awnings, solid poles, a handcart that can be pulled). In GitHub Actions
   `deploy.yml` runs build → smoke (on the Pages artifact) → deploy, so a failing check stops the deploy (Playwright
   1.63.0 is a devDependency). Add a check there for every new system.
 - Visual check: `npx vite preview --port 4173`, then headless Chrome via Playwright with

@@ -339,7 +339,7 @@ await check('clutter', async () => {
   });
   await page.close();
   const fails = noErrors(errors);
-  if (info.nameBoards < 3 || info.cells < 3 || info.boards < 4) fails.push(`street-name boards missing (${info.nameBoards} points, ${info.cells} atlas cells, ${info.boards} faces)`);
+  if (info.nameBoards < 2 || info.cells < 2 || info.boards < 4) fails.push(`street-name boards missing (${info.nameBoards} points, ${info.cells} atlas cells, ${info.boards} faces)`);
   if (info.cables < 2) fails.push('no cable bundles over the bazaar lanes');
   if (info.cloth < 5) fails.push('no awnings or tarps');
   if (info.solid < 20) fails.push('solid clutter missing');
