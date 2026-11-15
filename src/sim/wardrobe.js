@@ -409,13 +409,13 @@ function surfacePath(K, ctrl, lift, per = 4) {
   return { path, normals };
 }
 
-function ribbon(K, ctrl, halfW, slotOf, colOf, wf, lift = 0.022, per = 4) {
+function ribbon(K, ctrl, halfW, slotOf, colOf, wf, lift = 0.022, per = 4, thick = 0.016) {
   const pc = new Piece();
   const { path, normals } = surfacePath(K, ctrl, lift * K.u, per);
   if (path.length < 2) return pc;
   const tan = (k) => (k < path.length - 1 ? path[k + 1].clone().sub(path[k]) : path[k].clone().sub(path[k - 1])).normalize();
   const hw = typeof halfW === 'function' ? halfW : () => halfW;
-  band(pc, path, (k) => tan(k).cross(normals[k]).normalize().multiplyScalar(hw(k, path.length) * K.u), (k) => normals[k], wf || ((p) => K.spine(p.y)), (k) => slotOf(k, path.length), (k) => colOf(k, path.length), 0.016 * K.u);
+  band(pc, path, (k) => tan(k).cross(normals[k]).normalize().multiplyScalar(hw(k, path.length) * K.u), (k) => normals[k], wf || ((p) => K.spine(p.y)), (k) => slotOf(k, path.length), (k) => colOf(k, path.length), thick * K.u);
   return pc;
 }
 
@@ -518,7 +518,7 @@ const HAIR = {
   // Receding: high M-shaped hairline.
   receding: (K) => cap(K, { line: lineOf(0.86, 0.5, 0.2, (th) => 0.07 * Math.exp(-(((Math.abs(th > Math.PI ? th - Math.PI * 2 : th) - 0.55) / 0.22) ** 2))), thick: (p) => 0.022 + 0.012 * topness(p) }),
   // Bald on top: a horseshoe round the sides and back.
-  bald: (K) => cap(K, { th0: 1.05, th1: Math.PI * 2 - 1.05, cols: 18, rows: 4, line: lineOf(0.5, 0.42, 0.18), top: lineOf(0.66, 0.62, 0.66), thick: () => 0.022 }),
+  bald: (K) => cap(K, { th0: 1.15, th1: Math.PI * 2 - 1.15, cols: 18, rows: 4, line: lineOf(0.42, 0.36, 0.16), top: lineOf(0.6, 0.56, 0.6), thick: (p, th, s) => 0.012 + 0.012 * Math.sin(s * Math.PI) }),
   // Women: centre parting, pulled back to a low bun or a plait (the bun / braid is added below).
   back: (K) => cap(K, { line: lineOf(0.74, 0.36, 0.12), thick: (p) => (0.03 + 0.03 * topness(p)) * (1 - 0.7 * smooth(0.0, 0.3, p.z) * smooth(0.7, 0.9, p.y) * Math.exp(-((p.x / 0.03) ** 2))) }),
   // Loose long hair: centre parting, falling over the sides to the jaw and on down the back.
@@ -611,7 +611,7 @@ function moustache(K) {
   const pc = new Piece(K.H), w = K.bone.head, n = 9, top = [], bot = [], topB = [], botB = [];
   for (let k = 0; k <= n; k++) {
     const x = -0.22 + (0.44 * k) / n, e = Math.abs(x) / 0.22;
-    const yc = 0.215 - 0.075 * e * e, h = 0.04 * (1 - 0.55 * e * e), z = 0.505 + 0.035 * (1 - e * e);
+    const yc = 0.16 - 0.03 * e * e, h = 0.034 * (1 - 0.45 * e * e), z = 0.505 + 0.03 * (1 - e * e);
     top.push(pc.v(V(x, yc + h, z), w, SLOT.hair)); bot.push(pc.v(V(x, yc - h, z + 0.008), w, SLOT.hair));
     topB.push(pc.v(V(x, yc + h, 0.48), w, SLOT.hair)); botB.push(pc.v(V(x, yc - h, 0.48), w, SLOT.hair));
   }
@@ -626,7 +626,7 @@ function beard(K, full) {
   // The jaw and chin below the cheeks; the full beard is thicker and longer at the chin.
   return cap(K, {
     th0: -2.0, th1: 2.0, cols: 20, rows: 6, inset: 0.025,
-    top: (th) => { const c = Math.cos(th); return c > 0.6 ? 0.17 - 0.03 * (c - 0.6) : 0.4 - 0.23 * smooth(0.0, 0.6, c); },
+    top: (th) => { const c = Math.cos(th); return c > 0.6 ? 0.12 - 0.03 * (c - 0.6) : 0.38 - 0.26 * smooth(0.0, 0.6, c); },
     line: (th) => -0.14 + 0.1 * smooth(0.2, -0.5, Math.cos(th)),
     thick: (p, th, s) => (full ? 0.06 + 0.08 * smooth(0.3, 1, s) * smooth(0.3, 0.9, Math.cos(th)) : 0.03 + 0.015 * s),
   });
@@ -767,7 +767,7 @@ function dupatta(K) {
 function lanyard(K) {
   const u = K.u, n = K.p.Neck, ch = K.ch, nx = K.nHalf + 0.012 * u;
   const ctrl = [[0.18 * K.cHalf, ch - 0.07 * u, 'front'], [nx, n.y - 0.02 * u, 'front'], [nx, 0, 'top', n.z], [0, n.y + 0.02 * u, 'back'], [-nx, 0, 'top', n.z], [-nx, n.y - 0.02 * u, 'front'], [-0.18 * K.cHalf, ch - 0.07 * u, 'front']];
-  const pc = ribbon(K, ctrl, 0.008, () => SLOT.accB, () => 0xffffff, null, 0.02, 3);
+  const pc = ribbon(K, ctrl, 0.006, () => SLOT.accB, () => 0xffffff, null, 0.014, 3, 0.005);
   // The ID card.
   const h = K.front(0, ch - 0.11 * u);
   if (h) {
@@ -859,7 +859,7 @@ export function buildWardrobe(mesh, female) {
   if (!hc) HEAD_CACHE.set(sig, (hc = new Map()));
   const head = (name, make) => { let pc = hc.get(name); if (!pc) hc.set(name, (pc = make())); pc.space = K.H; add(name, pc); };
   const men = ['short', 'slick', 'crop', 'curly', 'receding', 'bald'], women = ['back', 'long', 'bob', 'pony'];
-  for (const h of female ? women.concat(['crop', 'short']) : men.concat(['back', 'bob', 'pony'])) head(`hair:${h}`, () => HAIR[h](K));
+  for (const h of female ? women.concat(['crop', 'short', 'bald']) : men.concat(['back', 'bob', 'pony'])) head(`hair:${h}`, () => HAIR[h](K));
   head('hairx:bun', () => bun(K, false)); head('hairx:bunFlowers', () => bun(K, true)); head('hairx:pony', () => pony(K));
   add('hairx:plait', braid(K, 0, 1, 0.55, false, false)); add('hairx:plaitFlowers', braid(K, 0, 1, 0.55, false, true));
   add('hairx:twoPlaits', joined(braid(K, 0.34, 1, 0.3, true, false), braid(K, -0.34, -1, 0.3, true, false)));

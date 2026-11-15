@@ -186,6 +186,37 @@ function autoSmooth(g, angle = 62) {
   g.setAttribute('normal', new THREE.BufferAttribute(out, 3));
 }
 
+/**
+ * The pack's eyebrows slant down to the nose, so every face looked cross. Level each brow
+ * (outer end a touch lower, raised a little): calm, friendly faces. Head-bone space.
+ */
+function calmBrows(g, skeleton, bindMatrix) {
+  const hi = skeleton.bones.findIndex((b) => /^head$/i.test(b.name));
+  if (hi < 0) return;
+  const toHead = new THREE.Matrix4().multiplyMatrices(skeleton.boneInverses[hi], bindMatrix), back = toHead.clone().invert();
+  const p = g.attributes.position, sl = g.attributes.aSlot, v = new THREE.Vector3();
+  for (const side of [1, -1]) {
+    const idx = [], pts = [];
+    for (let i = 0; i < p.count; i++) {
+      if (sl.getX(i) !== SLOT.face) continue;
+      v.fromBufferAttribute(p, i).applyMatrix4(toHead);
+      if (v.y > 0.49 && v.x * side > 0.05) { idx.push(i); pts.push(v.clone()); }
+    }
+    if (pts.length < 6) continue;
+    let mx = 0, my = 0;
+    for (const q of pts) { mx += Math.abs(q.x); my += q.y; }
+    mx /= pts.length; my /= pts.length;
+    let sxx = 0, sxy = 0;
+    for (const q of pts) { const dx = Math.abs(q.x) - mx; sxx += dx * dx; sxy += dx * (q.y - my); }
+    const da = Math.atan(-0.08) - Math.atan(sxy / (sxx || 1)), c = Math.cos(da), s = Math.sin(da);
+    pts.forEach((q, k) => {
+      const ax = Math.abs(q.x) - mx, ay = q.y - my;
+      q.x = side * (mx + ax * c - ay * s); q.y = my + ax * s + ay * c + 0.015;
+      q.applyMatrix4(back); p.setXYZ(idx[k], q.x, q.y, q.z);
+    });
+  }
+}
+
 /** Plain attribute types (Float32 weights, Uint16 joints), so templates and pieces merge. */
 function plainSkin(g) {
   const si = g.attributes.skinIndex, sw = g.attributes.skinWeight, n = si.count;
@@ -208,6 +239,7 @@ function characterMaterial() {
     uPatCol: { value: Array.from({ length: N_SLOT }, () => new THREE.Color()) },
     uPat: { value: Array.from({ length: N_SLOT }, () => new THREE.Vector3()) },
     uGloss: { value: 0 },
+    uCuts: { value: new THREE.Vector4(9, 9, 9, 0) }, uLegCuts: { value: new THREE.Vector3(-9, -9, 9) },
   };
   m.userData.u = u;
   m.onBeforeCompile = (sh) => {
@@ -218,7 +250,7 @@ function characterMaterial() {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         flat varying float vSlot; varying vec3 vBase; varying vec3 vRest;
-        uniform vec3 uCol[${N_SLOT}]; uniform vec3 uPatCol[${N_SLOT}]; uniform vec3 uPat[${N_SLOT}]; uniform float uGloss;
+        uniform vec3 uCol[${N_SLOT}]; uniform vec3 uPatCol[${N_SLOT}]; uniform vec3 uPat[${N_SLOT}]; uniform float uGloss; uniform vec4 uCuts; uniform vec3 uLegCuts;
         // Woven and printed patterns from the bind-pose position; they fade to their average
         // colour once a repeat is smaller than a pixel or two (no shimmer at a distance).
         float pattern(vec3 pat, vec3 p) {
@@ -234,6 +266,12 @@ function characterMaterial() {
         }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         int si = int(vSlot + 0.5);
+        // Sleeves, knees and socks end on straight lines of the T-pose, not along triangles.
+        if ((si == ${SLOT.skin} || si == ${SLOT.arm} || si == ${SLOT.forearm}) && vRest.y > uLegCuts.z && vRest.y < uCuts.w) {
+          float ax = abs(vRest.x);
+          if (ax > uCuts.x) si = ax < uCuts.y ? ${SLOT.arm} : ax < uCuts.z ? ${SLOT.forearm} : ${SLOT.skin};
+        }
+        if (si == ${SLOT.thigh} || si == ${SLOT.shin} || si == ${SLOT.sock}) si = vRest.y > uLegCuts.x ? ${SLOT.thigh} : vRest.y > uLegCuts.y ? ${SLOT.shin} : ${SLOT.sock};
         vec3 col = si == 0 ? vBase : uCol[si];
         if (si > 0) col = mix(col, uPatCol[si], pattern(uPat[si], vRest));
         diffuseColor.rgb = col;`)
@@ -318,6 +356,7 @@ export class Characters {
     const merged = mergeGeometries(body);
     if (!merged) throw new Error('merge failed');
     autoSmooth(merged);
+    calmBrows(merged, skeleton, meshes[0].bindMatrix);
     // The pack's people wear shorts and no shoes. Bare skin on the legs and arms becomes its
     // own slots (thigh, shin, sock band at the ankle; upper arm, forearm), coloured by the
     // look: trousers, a salwar or a sari over the legs, shorts for children, sleeves.
@@ -327,6 +366,11 @@ export class Characters {
       const ank = skeleton.bones.find((b) => /^lowerlegl_end$/i.test(b.name)), knee = skeleton.bones.find((b) => /^lowerlegl$/i.test(b.name));
       const v = new THREE.Vector3(), ankleY = ank ? v.setFromMatrixPosition(ank.matrixWorld).y : 0.02, kneeY = knee ? new THREE.Vector3().setFromMatrixPosition(knee.matrixWorld).y : 0.55;
       const sockY = ankleY + (kneeY - ankleY) * 0.32;
+      // Bind-pose (T-pose) planes the shader cuts sleeves, knees and socks along: clean edges.
+      const bx = (re) => { const b = skeleton.bones.find((o) => re.test(o.name)); return b ? Math.abs(v.setFromMatrixPosition(b.matrixWorld).x) : 1; };
+      const by = (re) => { const b = skeleton.bones.find((o) => re.test(o.name)); return b ? v.setFromMatrixPosition(b.matrixWorld).y : 0; };
+      t.cuts = new THREE.Vector4(bx(/^upperarml$/i) + 0.05, bx(/^lowerarml$/i), bx(/^fistl$/i) - 0.04, by(/^head$/i) - 0.08);
+      t.legCuts = new THREE.Vector3(kneeY - 0.03, sockY, by(/^upperarml$/i) - 0.4);
       const slotFor = (i) => {
         let best = 0, bw = -1;
         for (let k = 0; k < 4; k++) { const w = sw.getComponent(i, k); if (w > bw) { bw = w; best = si.getComponent(i, k); } }
@@ -429,6 +473,7 @@ export class Characters {
     geo.setDrawRange(0, 0);
     mesh.geometry = geo;
     mesh.material = characterMaterial();
+    mesh.material.userData.u.uCuts.value.copy(t.cuts); mesh.material.userData.u.uLegCuts.value.copy(t.legCuts);
     mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
     const holder = new THREE.Group();
     holder.add(root);
@@ -547,7 +592,11 @@ export class Characters {
     if (L.patLegs) {
       const per = L.patLegs === 1 ? 0.13 : 0.1;
       for (const s of [SLOT.pants, SLOT.thigh, SLOT.shin]) { P[s].set(L.patLegs, per, per * 0.8); PC[s].copy(L.patCol); }
-    } else if (L.garment === 'lungi' && L.patAcc) for (const s of [SLOT.thigh, SLOT.shin]) { P[s].copy(P[SLOT.accA]); PC[s].copy(L.patCol); }
+    } else if (L.garment === 'lungi' && L.patAcc) for (const s of [SLOT.pants, SLOT.thigh, SLOT.shin]) { P[s].copy(P[SLOT.accA]); PC[s].copy(L.patCol); }
+    if (L.garment === 'lungiShort' && L.patAcc) { P[SLOT.pants].copy(P[SLOT.accA]); PC[SLOT.pants].copy(L.patCol); }
+    // Bare skin takes no pattern (shorts, a folded lungi, a nauvari hitched to the knee).
+    if (L.legs === 1) P[SLOT.thigh].set(0, 1, 1);
+    if (L.legs === 1 || L.legs === 2) { P[SLOT.shin].set(0, 1, 1); P[SLOT.sock].set(0, 1, 1); }
     c.u.uGloss.value = L.gloss;
   }
 

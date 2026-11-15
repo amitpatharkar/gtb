@@ -180,7 +180,7 @@ const ANIM_GLSL = `
     if (limb > 0.5) {
       vec2 a = limbAngles(limb);
       vec3 pivot = limb < 2.5 ? vec3(limb == 1.0 ? -0.09 : 0.09, 0.86, 0.0) : vec3(limb == 3.0 ? -0.235 : 0.235, 1.38, 0.0);
-      if (limb < 2.5 && part == 10.0 && pose > 5.5 && (pose < 7.5 || pose > 13.5)) {
+      if (limb < 2.5 && (part == 10.0 || part == 4.0) && pose > 5.5 && (pose < 7.5 || pose > 13.5)) {
         // Seated, crouching or riding: the shin hangs down from the knee.
         vec3 knee = vec3(pivot.x, 0.46, 0.0);
         if (isNormal) p = rotX(p, a.x + 1.4); else p = knee + rotX(p - knee, 1.4);
