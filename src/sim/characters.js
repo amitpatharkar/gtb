@@ -746,7 +746,7 @@ export class Characters {
       for (let i = 0; i < c.adds.length; i++) { const a = c.adds[i]; if (a.on && a.bone.quaternion.equals(a.applied)) a.bone.quaternion.copy(a.clean); a.on = false; }
       c.holder.updateMatrixWorld(true);
       if (run > 0) {
-        for (let i = 0; i < c.run.length; i++) { const [b, ref, k] = c.run[i]; b.quaternion.copy(this.q.copy(ref).slerp(b.quaternion, 1 + k * run)); }
+        for (let i = 0; i < c.run.length; i++) { const e = c.run[i], b = e[0]; b.quaternion.copy(this.q.copy(e[1]).slerp(b.quaternion, 1 + e[2] * run)); }
         // Lean the upper body into the run, leaving the legs where the walk cycle puts them.
         this.bend(c, c.spine, p.heading, 0.34 * run);
       }

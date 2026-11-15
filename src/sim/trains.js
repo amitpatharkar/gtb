@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { POSE, FLAG, outfit } from './people.js';
+import { POSE, FLAG, outfit, makePerson } from './people.js';
 import { Y } from '../world/levels.js';
 
 // Mumbai's suburban locals. Trains run on the real tracks (tiles/trains.json from the map
@@ -753,7 +753,7 @@ export class Trains {
   }
 
   // ---------------------------------------------------------------- people
-  person() { return this.pool[this.poolN++] || (this.pool[this.poolN - 1] = { noHero: true, amp: 1, phase: 0, scale: 1, flags: 0 }); }
+  person() { return this.pool[this.poolN++] || (this.pool[this.poolN - 1] = makePerson({ noHero: true })); }
 
   /** Commuters standing in the open doorways of coaches near the player. */
   riders(P) {
@@ -771,7 +771,7 @@ export class Trains {
           p.x = tr.cx[i] + sn * zt + cs * xt; p.z = tr.cz[i] + cs * zt - sn * xt; p.y = RAIL_Y + FLOOR;
           p.heading = Math.atan2(cs * side * turn, -sn * side * turn);
           p.pose = POSE.STAND; p.phase = this.t * 1.5 + r * 40;
-          p.shirt = look.shirt; p.pants = look.pants; p.skin = look.skin; p.flags = look.flags; p.scale = 0.94 + (r * 7 % 1) * 0.1;
+          p.shirt = look.shirt; p.pants = look.pants; p.skin = look.skin; p.flags = look.flags; p.look = look.look; p.scale = 0.94 + (r * 7 % 1) * 0.1;
           this.people.add(p);
         }
       }
@@ -800,7 +800,7 @@ export class Trains {
           const x = p0[0] - p0[3] * side * off, z = p0[1] + p0[2] * side * off; // right of travel is (-dirZ, dirX)
           if (this.tiles.hits(x, z, 0.3)) continue;
           const look = this.looks[Math.floor(r * 991) % this.looks.length];
-          s.crowd.push({ noHero: true, x, z, y: this.tiles.groundHeight(x, z), heading: Math.atan2(p0[3] * side, -p0[2] * side) + (hash(k, s.x) - 0.5) * 1.2, pose: r * 17 % 1 < 0.2 ? POSE.ARGUE : POSE.STAND, phase: r * 30, amp: 1, flags: look.flags, scale: 0.93 + (r * 5 % 1) * 0.12, shirt: look.shirt, pants: look.pants, skin: look.skin, h: 2.1 });
+          s.crowd.push(makePerson({ noHero: true, look: look.look, x, z, y: this.tiles.groundHeight(x, z), heading: Math.atan2(p0[3] * side, -p0[2] * side) + (hash(k, s.x) - 0.5) * 1.2, pose: r * 17 % 1 < 0.2 ? POSE.ARGUE : POSE.STAND, phase: r * 30, amp: 1, flags: look.flags, scale: 0.93 + (r * 5 % 1) * 0.12, shirt: look.shirt, pants: look.pants, skin: look.skin, h: 2.1 }));
         }
       }
       busy.push(s);

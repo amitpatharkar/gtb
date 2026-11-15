@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { makePerson } from '../sim/people.js';
 
 // Any vehicle on the street can be taken and driven, GTA-style (F next to it on foot).
 // The player's Car object stays the same; the Garage swaps what it is: model, size,
@@ -166,11 +167,11 @@ export class Garage {
   eject(car, walker, mode = null) {
     const h = car.heading, rx = -Math.cos(h), rz = Math.sin(h); // driver's side (right-hand drive)
     const look = car.look || this.outfit('casual');
-    const ped = {
-      ...look, kind: 'driver', flags: 0, scale: 0.96 + Math.random() * 0.1, x: car.x + rx * 1.5, z: car.z + rz * 1.5, y: 0.2,
+    const ped = makePerson({
+      shirt: look.shirt, pants: look.pants, skin: look.skin, look: look.look || null, kind: 'driver', flags: 0, scale: 0.96 + Math.random() * 0.1, x: car.x + rx * 1.5, z: car.z + rz * 1.5, y: 0.2,
       heading: Math.atan2(-rx, -rz), phase: 0, pose: 4, state: 'walk', timer: 0, ox: 0, oz: 0, h: 2.1, speed: 1.3, rolled: true, hp: 1,
       seg: car.seg, dir: 1, t: 0.5, side: 1, off: 0,
-    };
+    });
     this.street.peds.push(ped);
     const r = Math.random();
     this.combat.free(ped, mode || (r < 0.45 ? 'fight' : r < 0.6 ? 'throw' : 'flee'));

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { POSE, FLAG, outfit } from '../../sim/people.js';
+import { POSE, FLAG, outfit, makePerson } from '../../sim/people.js';
 
 // Building kit for hand-made rooms. A room is described in its own coordinates (metres,
 // floor at y = 0, the street door in the wall z = 0, the room running towards +z) with a
@@ -257,11 +257,11 @@ export class Atlas {
 /** A person standing, sitting or walking in a room (the same objects street people use). */
 export function person(kind, x, z, heading = 0, pose = POSE.STAND, extra = {}) {
   const o = outfit(kind === 'sari' ? 'sari' : kind === 'kid' ? 'kid' : kind === 'office' ? 'office' : kind === 'worker' ? 'worker' : 'casual');
-  return {
+  return makePerson({
     ...o, kind, x, z, y: 0, heading, pose, phase: Math.random() * 6, amp: 1, speed: 0,
     flags: kind === 'sari' ? FLAG.SARI : 0, scale: kind === 'kid' ? 0.7 : 0.94 + Math.random() * 0.1, h: kind === 'kid' ? 1.5 : 2.1,
     ...extra,
-  };
+  });
 }
 export const hex = (h) => new THREE.Color(h);
 

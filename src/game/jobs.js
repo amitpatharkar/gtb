@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { POSE, outfit } from '../sim/people.js';
+import { POSE, outfit, makePerson } from '../sim/people.js';
 import { LIGHT } from '../sim/signals.js';
 import { POINT } from '../world/tileFormat.js';
 
@@ -153,7 +153,7 @@ export class Jobs {
     const spot = delivery ? this.findStall(player) : this.findSpot(player, 80, 260);
     if (!spot) return;
     const type = delivery ? DELIVERY : pick(PASSENGERS);
-    const person = { ...outfit(type.kind), x: spot.x, z: spot.z, y: this.tiles.groundHeight(spot.x, spot.z), heading: spot.heading, phase: 0, pose: POSE.WAVE, amp: 1, flags: type.kind === 'sari' ? 2 : 0, scale: 1, h: 2.2 };
+    const person = makePerson({ ...outfit(type.kind), kind: type.kind, x: spot.x, z: spot.z, y: this.tiles.groundHeight(spot.x, spot.z), heading: spot.heading, phase: 0, pose: POSE.WAVE, amp: 1, flags: type.kind === 'sari' ? 2 : 0, scale: 1, h: 2.2 });
     this.ride = { stage: 'pickup', type, person, spot, t: 0, wait: 0 };
     this.cityMap.routeTo(spot.roadX, spot.roadZ, delivery ? 'Pick-up' : 'Passenger', 'fare');
     const dist = Math.round(Math.hypot(spot.x - player.pos.x, spot.z - player.pos.z));
@@ -222,7 +222,7 @@ export class Jobs {
     if (this.inAuto && !r.type.delivery) {
       // In an auto you can see the passenger on the bench.
       const pax = this.traffic.types.auto.pax, h = player.heading, sh = Math.sin(h), ch = Math.cos(h);
-      this.people.add({ ...r.person, noHero: true, keep: true, x: player.pos.x + sh * pax.z - ch * 0.22, y: player.pos.y + pax.seat - 0.42, z: player.pos.z + ch * pax.z + sh * 0.22, heading: h, phase: 0, pose: POSE.SIT });
+      this.people.add(Object.assign(r.riding ||= makePerson({ ...r.person, noHero: true, keep: true }), { x: player.pos.x + sh * pax.z - ch * 0.22, y: player.pos.y + pax.seat - 0.42, z: player.pos.z + ch * pax.z + sh * 0.22, heading: h, phase: 0, pose: POSE.SIT }));
     }
     // Comfort: jerks, hard braking, sharp turns at speed, crashes, bumps, horn, police.
     const accel = (player.speed - r.last.speed) / Math.max(dt, 1e-3);

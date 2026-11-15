@@ -292,7 +292,7 @@ export class Traffic {
         // so the per-frame loops read their numbers directly (mixed shapes made every read of
         // a position allocate — hundreds of kilobytes per frame).
         knock: 0, recover: 0, held: 0, blockedT: 0, keepLeftT: 0, overtake: 0, yield: 0,
-        decideAp: null, gamble: false, pvx: 0, pvz: 0, spin: 0, roll: 0, h: 2.2, pedal: 0, // h: speech bubble height (bubbles.js default)
+        decideAp: null, gamble: false, pvx: 0, pvz: 0, spin: 0, roll: 0, h: 2.2, pedal: 0, person: null, paxPerson: null, // h: speech bubble height (bubbles.js default); person: rider drawn by people.rider
       };
       this.cars.push(car);
       return;

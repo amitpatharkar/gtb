@@ -282,6 +282,63 @@ await check('trains', async () => {
   return { info, fails };
 });
 
+await check('people', async () => {
+  // Real characters near the camera wear their looks in one draw call each; the far crowd draws
+  // the rest; looks vary by district (a Koli fishing village: nauvari saris), riders get bodies,
+  // people share one object shape, and drawing them allocates nothing per step.
+  const { page, errors } = await game('hour=10');
+  await page.waitForFunction(() => window.__gtb.characters.ready, null, { timeout: 120000 });
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, C = g.characters, ix = g.tiles.index;
+    for (let i = 0; i < 300; i++) g.step(0.05);
+    const shown = C.pool.filter((c) => c.holder.visible);
+    let meshes = 0, bad = 0;
+    for (const c of shown) {
+      let n = 0;
+      c.holder.traverse((o) => { if (o.isMesh && o.visible) n++; });
+      meshes = Math.max(meshes, n);
+      if (!(c.geo.drawRange.count > 1000) || !Number.isFinite(c.holder.position.x + c.holder.position.y)) bad++;
+    }
+    const t = C.templates[0], pieces = Object.keys(t.ranges).length;
+    const styles = new Set(g.street.peds.map((p) => p.look?.style));
+    // Who dresses how in a koliwada (Worli) at 9 am.
+    const koli = [];
+    for (let i = 0; i < 400; i++) koli.push(g.outfit('sari', Math.random, 'koli', 9, false).look.style);
+    const school = [];
+    for (let i = 0; i < 200; i++) school.push(g.outfit('kid', Math.random, '', 9, false).look.style);
+    // Riders on two-wheelers: persistent people astride (pose RIDE or PEDAL).
+    const riders = g.traffic.riders.filter((r) => r.person && (r.person.pose === 15 || r.person.pose === 14)).length;
+    // One object shape: every street pedestrian has the same keys in the same order.
+    const keys = new Set(g.street.peds.map((p) => Object.keys(p).join(',')));
+    // Gully cricket as real characters: a batter and a keeper near the camera.
+    const kid = g.makePerson({ ...g.outfit('kid'), kind: 'kid', scale: 0.72, pose: 5, x: g.camera.position.x + 2, z: g.camera.position.z + 2, y: 0 });
+    const keeper = g.makePerson({ ...g.outfit('kid'), kind: 'kid', scale: 0.72, pose: 7, x: g.camera.position.x + 3, z: g.camera.position.z + 2, y: 0 });
+    const before = g.people.beforeEnd;
+    g.people.beforeEnd = (list) => { list.push(kid, keeper); before(list); };
+    for (let i = 0; i < 10; i++) g.step(0.05);
+    g.people.beforeEnd = before;
+    const t0 = performance.now(); for (let i = 0; i < 60; i++) g.step(1 / 60); const ms = (performance.now() - t0) / 60;
+    return {
+      heroes: shown.length, meshesPerCharacter: meshes, broken: bad, pieces, far: g.people.n, styles: styles.size,
+      nauvariPct: Math.round(100 * koli.filter((s) => s === 'nauvari').length / koli.length), schoolPct: Math.round(100 * school.filter((s) => s === 'school').length / school.length),
+      riders, pedShapes: keys.size, cricket: [kid.hero, keeper.hero], stepMs: +ms.toFixed(2),
+    };
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (info.heroes < 3) fails.push(`only ${info.heroes} real characters`);
+  if (info.meshesPerCharacter !== 1) fails.push(`${info.meshesPerCharacter} meshes per character (one draw call each)`);
+  if (info.broken) fails.push(`${info.broken} characters with no clothes drawn or a bad position`);
+  if (info.pieces < 30) fails.push(`wardrobe has only ${info.pieces} pieces`);
+  if (!info.far) fails.push('no far crowd');
+  if (info.styles < 3) fails.push(`only ${info.styles} outfit styles on the street`);
+  if (info.nauvariPct < 30) fails.push(`only ${info.nauvariPct} % nauvari saris in a koliwada`);
+  if (info.schoolPct < 40) fails.push(`only ${info.schoolPct} % school uniforms on a school morning`);
+  if (info.pedShapes > 1) fails.push(`${info.pedShapes} object shapes among pedestrians`);
+  if (!info.cricket[0] || !info.cricket[1]) fails.push('cricketers are not real characters near the camera');
+  return { info, fails };
+});
+
 await check('night', async () => {
   // At 10 pm the road ahead must be visible (lamp pools, headlights).
   const { page, errors } = await game('hour=22');

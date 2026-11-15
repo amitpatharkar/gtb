@@ -158,8 +158,30 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   red-light jumpers; player offences (signal jump, wrong way on one-way, footpath driving, hit-and-run, colouring a
   policeman) count only when seen → challan stars and fines; stop by the constable to pay, or a fictional
   "Mumbai City Police" patrol car chases (A* on the road graph, siren, light bar); out of sight → stars fade
-- `src/sim/people.js` — procedural people (one instanced mesh, limbs animated in the shader; poses walk/stand/wave/
-  point/argue/bat/sit/crouch; flags cap/sari/helmet); `src/sim/animals.js` — stray dogs and humped cows
+- `src/sim/people.js` — the far crowd (one instanced mesh, ~800 triangles each, limbs animated in the shader; poses
+  walk/stand/wave/point/argue/bat/sit/crouch/pedal/ride; flags cap/woman/helmet, then the look's `bits`: kurta or
+  skirt hem, sari or lungi to the ankle, dupatta, pallu, long hair, bun, plait, hard hat, Gandhi cap, turban, school
+  bag, shorts, long sleeves; colours packed as 24-bit sRGB in `aCol0`/`aCol1`). **Make every person with
+  `makePerson(props)`**: all fields any system sets exist from the start (one object shape — mixed shapes made each
+  read of a number in `occludes`/`write`/`updatePeds` allocate); new per-person fields go in that list.
+  `outfit(kind, rnd, zone, hour)` = looks.js `dress()`; `people.rider(r, T, dt)` draws traffic riders (persistent
+  `r.person`, pose RIDE/PEDAL, auto passengers); `people.clock` + the player's district set `NOW` (looks.js).
+  `src/sim/animals.js` — stray dogs and humped cows
+- `src/sim/looks.js` — who wears what: `dress(kind, rnd, zone, hour, sunday)` → { shirt, pants, skin, look } (one
+  object shape for looks: style, hair, beard/moustache, bindi, glasses, hat, garment, pallu/dupatta/lanyard/tie/bag,
+  sleeves, legs, extra colours, patterns, far-crowd `bits`); `ZONES` (lat/lon boxes: koli, south, bazaar, business,
+  posh), `zoneAt`, `setWorldFrame(index)`; styles by kind (casual, office/suit, worker → construction/dabbawala/lungi,
+  woman → sari/salwar/kurti/western/office/nauvari, kid → school uniform 7–17.5 h except Sundays, police, khaki,
+  jogger); 11 skin tones, grey and henna hair for older people; `lookFor(p)` derives a stable look for people made
+  without one (cached by their shirt colour); `playerLook(wear)` for the Ghar wardrobe (real kurta, sunglasses).
+- `src/sim/wardrobe.js` — the real characters' clothes, hair and faces as extra triangles of the template's one
+  skinned mesh: `buildWardrobe(mesh)` models ~40 pieces on the template's adult rest pose (`Probe`: rest positions,
+  ray casts, convex cross-sections; head pieces in head-bone space, cached per head shape) — 13 hair caps + bun, plait,
+  ponytail, loose fall, schoolgirl plaits, flowers; moustache, two beards, bindi, glasses, shades; police cap, helmet,
+  hard hat, Gandhi topi, turban, cap; sari (pleats, border), pallu, kurta, kurti, lungi (full/folded), school skirt,
+  dupatta, lanyard + ID card, tie, school bag, nauvari pleats, cricket bat — then `bake()` unskins each vertex into
+  bind space for its weights (skirts: hips at the waist, front following thigh then shin, so it lies on the lap
+  when seated). Sizes in metres via `K.u` (model units per metre). `SLOT` = colour slots of the character shader.
 - `src/sim/birds.js` — pigeon flocks at famous spots (`SPOTS`: Gateway plaza, Dadar kabutarkhana, …) that peck about
   and take off when the player, a honk (`birds.scare`) or a cracker comes close, plus kites circling overhead;
   one instanced mesh, wings flap in the vertex shader (`aFlap`: 0 folded, 1 flapping, 2 gliding).
@@ -243,24 +265,28 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/models.js` — glTF/GLB → instanced meshes (metres, base on ground); `src/world/streetProps.js` — Poly Haven
   chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
 - `src/sim/characters.js` — Quaternius rigged characters (from the pipeline's `converted/` GLBs, only if listed in
-  the manifest; Low loads 2+2 models, Medium 4+4, High all) for the player and everyone near the camera (pool
-  11/20/30 within 34–46 m); people.js draws in two phases (`beforeEnd` picks heroes). Each character is ONE skinned
-  mesh / draw call (merged in `prepare()`, `aSlot`/`aBase` attributes, per-character colour uniforms; "Face" = eyes).
+  the manifest; Low loads 2+2 models, Medium 4+4, High all, prepared one per task) for the player and everyone near the
+  camera (pool 11/20/30 within 34–46 m, picked without allocating; `p.body`, `p.drawn`); people.js draws in two
+  phases (`beforeEnd` picks heroes). Each character is ONE skinned mesh / draw call: the pack's meshes (its own hair
+  and hats dropped) + every wardrobe.js piece merged per template (`t.full`, `t.ranges`); each character has its own
+  index buffer listing what its look wears (`wearList()`; under a hat only the hair band shows). Shader: `uCol[slot]`
+  colours (slot 0 = vertex colour), `uPat`/`uPatCol` procedural checks, stripes, prints, diagonal tie stripes from the
+  bind position (fading with distance), glossy oiled hair. Bare limbs get slots by dominant bone, one slot per
+  triangle: thigh, shin (also long trousers below the knee), sock band, upper arm, forearm (sleeves), shoe.
+  `templateFor()` picks the body by the look's `template` (`PREFER`), or `p.model` = index into `MODELS` (interiors).
   `autoSmooth()` replaces the pack's flat shading with smooth normals (creases over 62° stay sharp).
-  The pack's models wear shorts and no shoes: bare leg skin gets slot `leg` (trouser colour for adults, skin for
-  the `kid` build) and feet slot `shoe`, by dominant skin bone. About 62 % of women wear a sari: `sariGeometry()` (skirt +
-  pallu, a rigid mesh in metres on the character's holder, border colour per person; hidden when sitting or down).
   **Adult bodies:** the pack has a child's proportions, so `rig()` + `shapeBody()` scale bones along/across their
   own axes (`ADULT` male/female: legs ×1.45, head ×0.56, shorter torso, wider shoulders, longer arms) and every
   child bone cancels its parent's scale (`compensate()` overrides `updateMatrix`) so joints never shear. The feet are
   root-space bones (baked IK), so `bake()` rescales the clips' pelvis height and foot positions by the same leg
   factor and drops scale keys. `BUILDS` (average, slim, heavy, muscular, stocky, lanky, fit = player, kid) multiply
-  on top; `pickBuild()` chooses by kind; `person.build` sticks. Height (1.73 m men, 1.6 m women) and foot level are
-  measured from the animated poses; walk cadence from the feet's travel (`walkSpeed`). No Run clip: Walk with limb
-  rotations amplified around the idle pose + spine lean (`bend()`, undone each frame for bones the clip doesn't
-  key). Clips: Idle, Walk, Punch (frozen early = guard), RecieveHit (flinch), Shoot_OneHanded (aim; pichkari in
-  `Fist.R`), Victory (wave), SitDown (clamped = seated); knocked down = laid flat. Caps/helmets on the head bone.
-  Still procedural: the far crowd, riders on NPC bikes, cricket poses (BAT/CROUCH).
+  on top; `pickBuild()` chooses by kind; `person.build` sticks. Height (1.73 m men, 1.6 m women, to the top of the
+  head) and foot level are measured from the animated poses; walk cadence from the feet's travel (`walkSpeed`). No
+  Run clip: Walk with limb rotations amplified around the idle pose + spine lean (`bend()`/`turn()`: world-axis bone
+  turns after the clip). Clips: Idle, Walk, Punch (frozen early = guard), RecieveHit (flinch), Shoot_OneHanded (aim;
+  pichkari in `Fist.R`), Victory (wave), SitDown (clamped = seated); knocked down = laid flat. `pose()`: RIDE (sit +
+  hands on the handlebar, knees apart), PEDAL (legs turning, `feet()` re-attaches the feet to the shins), CROUCH
+  (squat, lean, hands forward: keeper, pushing a car), BAT (lean, swing, bat piece), ARGUE (hands talking).
 - `src/game/story.js` + `missions.js` — the mission engine and its script. Two strands: story (yellow markers,
   Mamaji) and side missions (blue, open after the first story mission); every startable mission shows a marker in
   the world and on the map (`story.markers()`), with its giver waiting there; `hours` windows. Steps: `cut`
