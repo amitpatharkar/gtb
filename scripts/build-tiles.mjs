@@ -34,6 +34,7 @@ import { loadStreetLibrary, LAMP, lampSize } from './lib/streetLibrary.mjs';
 import { isTrainRoute, buildTrainLines } from './lib/trains.mjs';
 import { infill } from './lib/infill.mjs';
 import { compoundWalls, siteFence, WALL } from './lib/walls.mjs';
+import { facadeKind } from './lib/facades.mjs';
 import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, POINT, MAGIC, TILE_VERSION, DM } from '../src/world/tileFormat.js';
 import { OVERVIEW_MAGIC, OVERVIEW_VERSION, OVERVIEW_LAYER } from '../src/world/overviewFormat.js';
 
@@ -900,6 +901,7 @@ const partGrid = new Grid(50);
 for (const b of buildingsRaw) if (b.part) { const [x, z] = G.centroid(b.polys[0][0]); partGrid.add([x, z, x, z], [x, z]); }
 const skylineList = []; // tall buildings for the far skyline (lib/skyline.mjs)
 let bCount = 0, bSkipped = 0, bWithHeight = 0, bProfiled = 0, bNetting = 0, bArcade = 0, bWalls = 0;
+const bFacade = [0, 0, 0, 0, 0]; // buildings per facade kind (FACADE)
 for (const b of buildingsRaw) {
   for (const poly of b.polys) {
     const outer = poly[0];
@@ -979,12 +981,17 @@ for (const b of buildingsRaw) {
     if (sp?.arcade && !b.hidden && !overTrack.has(b) && minH < 1 && h >= 8 && area >= 120 && look.style !== STYLE.GLASS && look.style !== STYLE.SHED && front.some(Boolean)) { f2 |= BUILDING_FLAG.ARCADE; bArcade++; }
     if (b.tags['gtb:site']) f2 |= BUILDING_FLAG.NETTING;
     if (sp?.netting && !b.hidden && !overTrack.has(b) && !(f2 & BUILDING_FLAG.HERITAGE) && h > 8 && h < 70 && hash01(b.id, 21) < sp.netting) { f2 |= BUILDING_FLAG.NETTING; bNetting++; }
-    tile.buildings.push({ h, minH, color: look.color, flags: f2, style: look.style, levels: look.levels, rings, front });
+    // Facade kind (lib/facades.mjs): window era, Deco/Gothic details, chawl galleries.
+    const fk = b.hidden || overTrack.has(b) ? { facade: 0, color: null } : facadeKind({ id: b.id, style: look.style, flags: f2, type, h, levels: look.levels, area, district: d, profile: sp });
+    if (fk.color != null && !(b.tags['building:colour'] || b.tags.colour)) look.color = fk.color;
+    bFacade[fk.facade]++;
+    tile.buildings.push({ h, minH, color: look.color, flags: f2, style: look.style, facade: fk.facade, levels: look.levels, rings, front });
     bCount++;
     if (h >= 15 && !b.hidden && minH < 1) skylineList.push({ ring: outer, area, h, color: look.color });
   }
 }
 log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts; ${bProfiled} dressed by their street's profile, ${bNetting} under netting, ${bArcade} arcaded; ${bWalls} wall pieces)`);
+log(`facades: ${bFacade[0]} modern, ${bFacade[1]} old windows, ${bFacade[2]} Art Deco, ${bFacade[3]} Gothic, ${bFacade[4]} chawls`);
 
 // Roads and rails: polylines clipped to each tile. Junction points shared by two or more
 // roads are never simplified away, so the road graph stays connected.
@@ -1133,7 +1140,7 @@ for (const t of ordered) {
   for (const b of t.buildings) {
     w.uvar(Math.round(b.h * DM)); w.uvar(Math.round(b.minH * DM));
     w.u8(b.color >> 16); w.u8(b.color >> 8); w.u8(b.color);
-    w.u8(b.flags); w.u8(b.style); w.u8(b.levels);
+    w.u8(b.flags); w.u8(b.style | ((b.facade || 0) << 4)); w.u8(b.levels);
     w.rings(b.rings);
     for (let k = 0; k < b.front.length; k += 8) {
       let byte = 0;

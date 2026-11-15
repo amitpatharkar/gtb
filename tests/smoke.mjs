@@ -306,6 +306,32 @@ await check('night', async () => {
   return { info, fails };
 });
 
+await check('facades', async () => {
+  // Facade kinds reach the game (tile style byte → worker → parts) and the facade shader with
+  // its room atlas renders at Girgaon (chawls, louvres), Fort (Gothic arches, gables) and Marine
+  // Drive (Art Deco) by night without errors; parts near the player are built.
+  const { page, errors } = await game('hour=20.5');
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, ix = g.tiles.index, all = {}, near = {};
+    for (const [lat, lon] of [[18.9540, 72.8190], [18.9325, 72.8318], [18.9440, 72.8236]]) {
+      const x = (lon - ix.origin.lon) * ix.metresPerDegree.lon, z = -(lat - ix.origin.lat) * ix.metresPerDegree.lat;
+      await g.tiles.whenReady(x, z, 250);
+      g.player.pos.set(x, 0.1, z);
+      for (let i = 0; i < 4; i++) g.step(0.05);
+      g.facadeParts.rebuild(x, z, g.tiles);
+      g.post.render();
+      for (const [k, list] of Object.entries(g.facadeParts.meshes)) near[k] = (near[k] || 0) + list[0].count;
+    }
+    for (const t of g.tiles.tiles.values()) for (const [k, a] of Object.entries(t.facadeParts || {})) all[k] = (all[k] || 0) + a.length / 8;
+    return { all, near: Object.values(near).reduce((a, b) => a + b, 0) };
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  for (const k of ['frame', 'shutter', 'arch', 'enclosed', 'clothes', 'pipe', 'grille']) if (!info.all[k]) fails.push(`no ${k} parts in the loaded tiles`);
+  if (!info.near) fails.push('no facade parts near the player');
+  return { info, fails };
+});
+
 await browser.close();
 server.close();
 const failed = results.filter((r) => !r.ok);

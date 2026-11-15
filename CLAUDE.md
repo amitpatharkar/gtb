@@ -75,14 +75,31 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/materials.js` — one material per worker mesh key (asphalt, pavers, plot concrete, grass, sand, kerb
   stripes, worn paint, sea wall, parapet, roofs incl. tarpaulin/rust) + one facade material per building style
 - `src/world/facadeRules.js` — facade rules shared by the tile worker (3D parts) and the facade shader (styles, bays,
-  window rectangles, 32-bit integer hash identical in JavaScript and GLSL); `src/world/facadeParts.js` — real 3D facade
-  parts near the player (frames, sills, chajjas, grille cages, AC units, balconies, signboards, shutter boxes), one
-  instanced mesh per part type for the whole city
-- `src/world/facade.js` — facade shader (far windows and fine patterns fade by screen size; shop goods 8–12 cm packets; windows/glass reflections, curtains, grilles, balconies with clothes, AC units,
-  sunshades, monsoon streaks, floor bands, parapet coping, ground-floor shops with shutters and signboards, lit windows
-  at night) and the shop-sign atlas (128 boards, Marathi in Devanagari over English, BMC style; fonts from `media/`).
+  window rectangles, 32-bit integer hash identical in JavaScript and GLSL; every JS rule has a GLSL twin in
+  `FEATURES_GLSL`): window types `WIN` by style + facade kind (`windowKind`: aluminium sliders, wooden casements,
+  louvred shutters shut/open/half, Deco steel, Gothic pointed and round arches, portholes; some flats swapped theirs),
+  `windowRect`, `cellFeatures` (recessed/enclosed balconies, box grilles, flat grilles, AC beside or under the window
+  `acCentre`), drain pipes `pipeAt` (`PIPE_X` right of a bay line), facade codes `CODE` (facadeB.x: windows, shops,
+  blank, chawl gallery wall, gallery railing, roof tiles, gable, Deco plaque; +0.25 = shop-height ground floor), part
+  variants `FRAME`/`SHUTTER`/`ARCHV`, paint palettes (`WOOD_PAINT`, `ALU`, `STEEL`, `STONE_TRIM`, same colours in GLSL).
+  `src/world/facadeParts.js` — real 3D facade parts near the player (`PART_FLOATS` = 8 per instance: frames per window
+  type, louvred shutters, stone arch surrounds, sills, chajjas, grille cages and box grilles with a ledge, AC units,
+  balconies, enclosed glass balconies, clothes lines (balconies, chawl galleries), signboards, shutter boxes, drain pipes
+  with head and shoe), one instanced mesh per part type for the whole city; variants share a geometry (`aVar` vertex vs
+  `iVar` instance attribute hides the others); pipe heads/shoes keep their size (`aEnd`, custom depth material)
+- `src/world/facade.js` — facade shader (far windows and fine patterns fade by screen size and skip the interior;
+  windows by type with glass reflections, open panes, mosquito mesh, louvre slats leaking light at night, curtains,
+  grilles, recessed and enclosed balconies, AC units with drip stains, sunshades with end drips, Gothic voussoirs and
+  sill courses, Deco grooves and portholes, floor bands, parapet coping, black monsoon streaks from the roof edge,
+  ragged algae/damp at the foot, repainted flats on old buildings, drain pipes with stains; chawl gallery walls (door,
+  barred window, dado, calendar, tube light per room) and railings (cast iron / wooden / concrete, the corridor seen
+  between balusters, saris drying); clay-tile and slate roof slopes; gable vents; Deco name plaques; ground-floor shops
+  with shutters and signboards; interior mapping with the room atlas: back wall + furniture cut-out + fan in homes,
+  shelves + counter + hanging goods in shops; lit windows at night) and the shop-sign atlas (128 boards, Marathi in Devanagari over English, BMC style; fonts from `media/`).
   Per-building attributes MUST stay `flat` varyings (interpolation noise + hashing = speckle). Debug:
-  `window.__gtb.facadeDebug.value = 1..4` (albedo, roughness, normal, window grid).
+  `window.__gtb.facadeDebug.value = 1..4` (albedo, roughness, normal, window grid). `src/world/roomAtlas.js` — canvas
+  atlas (8 × 4 cells of 256 px, 128 on Low, premultiplied alpha, redrawn with the sign fonts): home back walls, furniture
+  cut-outs, shop back walls, shop-front cut-outs, eight made-up Deco building names.
 - `src/world/nightLights.js` — night light without real lights: `addNightLight(material)` patches the ground and
   wall materials (materials.js) with sodium pools under the nearest street lamps (mapped lamps + one every 30 m
   along every other street, `gatherLamps` in main.js) and headlight cones on the road ahead of nearby traffic and
@@ -109,14 +126,19 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `roadHit(x, z, slack, vehicleOnly)` leaves its answer in `roadTile`/`roadIndex`/`roadDist` (`roadAt` wraps it)
 - `src/world/tileWorker.js` + `src/world/mesh/` — worker: `ground.js` (ground layers, kerbs with paint strip, sea walls,
   parapet, tetrapods, markings, footways, rails), `buildings.js` (per-style walls with facade data, parapets, stair
-  rooms, roof types, water tanks), `builder.js` (mesh helpers). Road segments: 6 floats `x0 z0 x1 z1 halfWidth flags`
+  rooms, roof types, water tanks; by facade kind: Deco rounded street corners with windows wrapping the curve, raised
+  corner parapet, eyebrow slabs, stepped crown with a name plaque; Gothic street gables with steep slate/tile roofs
+  behind, gable-roofed rectangles, octagonal corbelled turrets with spires; chawl galleries `galleryWall`; clay-tile
+  roofs on rectangular chawls and old cottages), `facadeShapes.js` (rounded corners, pitched roofs, gables, turrets,
+  slabs, all in the wall mesh with facade codes: no extra draw calls), `builder.js` (mesh helpers). Road segments: 6 floats `x0 z0 x1 z1 halfWidth flags`
   (flags 1 vehicle, 2 one-way, 4 main road, bits 8–15 street profile). Kerb paint: the street profile's
   (`ROAD_FLAG.KERB_BW/BY/PLAIN`), else black-yellow near main roads (`kerbPlain` elsewhere); median kerbs (another
   carriageway within 6.5 m beyond the kerb) black-white (`kerbBW`). Netting buildings get a green mesh wall (`netting`);
   `BUILDING_FLAG.ARCADE` (street library `arcade`) street walls: upper floors on the line, shops 2.8 m back behind
   piers under a ceiling (`arcadeWall` in buildings.js; the footprint still collides). Every building gets a
   contact-shade band on the ground along its walls (mesh key `contact`).
-- `src/world/tileFormat.js` — binary tile format v3 (buildings with style/levels/street-facing walls and flags incl.
+- `src/world/tileFormat.js` — binary tile format v3 (buildings with style (low 4 bits; high 4 bits = facade kind
+  `FACADE`: MODERN, OLD, DECO, GOTHIC, CHAWL)/levels/street-facing walls and flags incl.
   `NETTING`, areas incl. PLOT/ROAD/FOOTPATH, roads with kerb/median flags and a street-profile byte, rails, markings,
   points); `src/world/levels.js` — ground heights
 - `src/vehicles/taxi.js` + `car.js` — procedural kaali-peeli taxi (Premier Padmini proportions, clear-coat paint) and car
@@ -297,7 +319,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   ground texture sizes in materials.js); private house names are blanked): v1 steps plus streets via Clipper (`lib/clip.mjs`:
   road surface union, footpaths by class, plots, parks cut out of plots), markings/crossings/trees/lights/stalls/
   garbage/potholes/puddles (`lib/streets.mjs`), building style + colour by district (`lib/districts.mjs`, from the
-  research guide), OSM trees/signals/crossings/bus stops/petrol pumps from node tags. Index has `fuel` positions.
+  research guide), facade kind by district, street profile and style (`lib/facades.mjs`: old windows, chawl shares,
+  Gothic precinct, Deco pastels), OSM trees/signals/crossings/bus stops/petrol pumps from node tags. Index has `fuel` positions.
 - `scripts/lib/` — PBF reader (with optional node tags), geometry, Clipper helpers, byte writer
 - `scripts/lib/infill.mjs` — buildings on empty street frontage in the dense districts (OpenStreetMap misses many
   outlines there): `DENSITY`/`GRAIN` by district name (bazaar 5–10 m fronts, low-rise 3.5–6 m with 1–3 storeys,
@@ -395,9 +418,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `manifest.shipped.version`). Site about 80 MB.
 - Allocation per step: the browser's sampling heap profiler (`HeapProfiler.startSampling` with
   `includeObjectsCollectedByMajorGC`/`MinorGC` true) through Playwright's CDP session.
-- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night`,
+- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night,facades`,
   `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
-  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, or a too-dark night. In GitHub Actions
+  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, a too-dark night, or
+  missing facade kinds/parts (Girgaon, Fort, Marine Drive). In GitHub Actions
   `deploy.yml` runs build → smoke (on the Pages artifact) → deploy, so a failing check stops the deploy (Playwright
   1.63.0 is a devDependency). Add a check there for every new system.
 - Visual check: `npx vite preview --port 4173`, then headless Chrome via Playwright with
