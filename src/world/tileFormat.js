@@ -16,6 +16,8 @@
 //   rails[]:     class, flags, line
 //   markings[]:  width cm, line               (white road paint)
 //   points[]:    kind, x dm, z dm, angle (0–255 = full turn), size (0–255 → 0.5–2.0)
+//   labels:      strings[] (text on boards, once per tile), then labelled points[]: point index
+//                delta, string index (optional at the end: older tiles stop after the points)
 
 export const TILE_VERSION = 3;
 export const MAGIC = [0x47, 0x54, 0x42, 0x31]; // "GTB1"
@@ -47,7 +49,21 @@ export const POINT = {
   BARRIER: 15, // orange-and-white water-filled plastic barrier (lane divider in bazaars)
   BARRICADE: 16, // yellow steel traffic-police barricade with a blue board
   BANNER: 17, // flex banner on a lamp post; size picks one of 8 designs
+  // Street clutter (scripts/lib/clutter.mjs → src/world/clutter.js). Angles: the side that faces the street.
+  UNIPOLE: 18,    // roadside unipole: a V of two hoardings on one steel pole; angle = where the V opens; size scales it
+  CABLES: 19,     // cable bundle sagging across a lane: centre, angle = span direction, size × 12 = span (m)
+  NAME_BOARD: 20, // blue street-name board at a junction corner; label "English|मराठी"
+  DIR_BOARD: 21,  // blue direction board by the kerb facing approaching traffic; label "Dadar|दादर|^;Worli|वरळी|<" (^ < >)
+  DIR_GANTRY: 22, // overhead direction gantry: centre of the span, faces traffic, size × 16 = span (m); label as DIR_BOARD
+  TARP: 23,       // blue tarpaulin stretched over a bazaar lane: centre, angle = span direction, size × 10 = span (m)
+  STALL_TARP: 24, // tarpaulin on bamboo poles over a hawker's stall
+  SHAMIANA: 25,   // white cloth canopy on poles over a puja stall
+  SHRINE: 26,     // small street shrine: size = 0.5 + 0.25 × kind (lib/clutter.mjs SHRINE)
+  FLOWERS: 27,    // flower seller with baskets on the footpath
+  GATE: 28,       // compound gate (open steel leaves) with a watchman on a plastic chair
+  HANDCART: 29,   // handcart parked on a bazaar footpath (traffic.js: solid, can be taken); angle = heading
 };
+export const LABELLED = new Set([POINT.NAME_BOARD, POINT.DIR_BOARD, POINT.DIR_GANTRY]);
 
 export class ByteReader {
   constructor(u8) { this.b = u8; this.p = 0; }
@@ -120,6 +136,12 @@ export function decodeTile(u8) {
   tile.points = [];
   for (let i = r.uvar(); i > 0; i--) {
     tile.points.push({ kind: r.u8(), x: r.svar() / DM, z: r.svar() / DM, angle: (r.u8() / 256) * Math.PI * 2, size: 0.5 + (r.u8() / 255) * 1.5 });
+  }
+  if (r.p < r.b.length) {
+    const strings = [];
+    for (let i = r.uvar(); i > 0; i--) strings.push(r.string());
+    let at = 0;
+    for (let i = r.uvar(); i > 0; i--) { at += r.uvar(); const s = strings[r.uvar()]; if (tile.points[at]) tile.points[at].label = s; }
   }
   return tile;
 }

@@ -3,6 +3,7 @@ import { LIGHT } from './signals.js';
 import { buildFleet } from '../vehicles/fleet.js';
 import { MASS } from '../vehicles/garage.js';
 import { endKey, keyXZ } from './roadKeys.js';
+import { POINT } from '../world/tileFormat.js';
 
 // Ambient traffic, Rockstar style: a few dozen vehicles live only near the player,
 // driving on the LEFT along the real road network, slowing behind each other and for
@@ -78,6 +79,8 @@ function riderLook() {
 function driverLook(type) {
   const skin = new THREE.Color([0x8d5a3b, 0x7a4a2f, 0xa06a46, 0x6b3f26][Math.floor(Math.random() * 4)]);
   if (type.dabbawala) return { shirt: new THREE.Color(0xf1eee6), pants: new THREE.Color(0xe9e5da), skin, cap: true };
+  // Handcart pullers (hamaals): a vest or a faded shirt, a checked lungi or work trousers.
+  if (type.pull) return { shirt: new THREE.Color([0xf0ede4, 0xd9d4c4, 0x7f8c8d, 0x5d6d7e, 0xa04000][Math.floor(Math.random() * 5)]), pants: new THREE.Color([0x3e5a7a, 0x6b4a2e, 0x4d4d4d, 0x2e4a3a][Math.floor(Math.random() * 4)]), skin };
   if (type.open) return { shirt: new THREE.Color(0xb39a68), pants: new THREE.Color(0x9a8457), skin };
   return riderLook();
 }
@@ -270,7 +273,10 @@ export class Traffic {
       const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
       const d = Math.hypot(mx - player.pos.x, mz - player.pos.z);
       if (d < 45 || d > 220) continue;
-      const type = this.pickType(mz);
+      let type = this.pickType(mz);
+      // Bazaar streets (their tiles have handcarts parked on the footpaths): now and then a
+      // porter pulls a loaded handcart along the kerb, by day.
+      if (this.types.handcart && seg.t.points[POINT.HANDCART] && this.hour >= 7 && this.hour < 21 && Math.random() < 0.13) type = 'handcart';
       if (this.types[type].mainRoad && !(s[5] & 4)) continue; // buses stick to main roads
       let crowded = false;
       for (const c of this.cars) if ((c.x - mx) ** 2 + (c.z - mz) ** 2 < 144) { crowded = true; break; }
@@ -387,7 +393,8 @@ export class Traffic {
       const lod = (v.x - px) ** 2 + (v.z - pz) ** 2 > 90 * 90 ? 1 : 0;
       this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, v.heading);
       if (v.roll) this.q.multiply(this.q2.setFromAxisAngle(FORWARD, v.roll)); // a two-wheeler lying on its side
-      this.matrix.compose(this.pos.set(v.x, v.roll ? 0.2 : 0.02, v.z), this.q, this.unit);
+      // Handcarts park on the footpath (kerb height) and are pulled along the road.
+      this.matrix.compose(this.pos.set(v.x, v.roll ? 0.2 : v.type === 'handcart' ? this.tiles.groundHeight(v.x, v.z) : 0.02, v.z), this.q, this.unit);
       for (let k = 0; k < PARTS.length; k++) {
         const part = PARTS[k], b = B[part];
         b.setGeometryIdAt(i, this.geo[part][v.type][lod]);
@@ -577,6 +584,24 @@ export class Traffic {
     const twoTypes = ['scooter', 'scooter', 'bike', 'scooter', 'bullet', 'scooter', 'bike', 'cycle'];
     const suburbTypes = [...carTypes, 'auto', 'auto', 'auto', 'auto', 'auto'];
     const tint = (type, h) => { const t = this.types[type].tints; return new THREE.Color(t[Math.floor(h * t.length) % t.length]); };
+    // Handcarts parked on bazaar footpaths (map points, scripts/lib/clutter.mjs): solid, can be shoved or taken.
+    if (this.types.handcart) {
+      let n = 0;
+      for (const t of this.tiles.tiles.values()) {
+        const arr = t.points[POINT.HANDCART];
+        if (!arr) continue;
+        const [x0, z0, x1, z1] = t.clip;
+        if (Math.max(x0 - player.pos.x, 0, player.pos.x - x1, z0 - player.pos.z, 0, player.pos.z - z1) > R) continue;
+        for (let i = 0; i < arr.length && n < 36; i += 5) {
+          const x = arr[i] + t.origin[0], z = arr[i + 2] + t.origin[1];
+          if ((x - player.pos.x) ** 2 + (z - player.pos.z) ** 2 > R * R) continue;
+          const key = `hc:${Math.round(x * 10)},${Math.round(z * 10)}`;
+          if (this.movedKeys.has(key)) continue;
+          out.push({ type: 'handcart', x, z, heading: arr[i + 3], tint: tint('handcart', (Math.abs(x * 7.3 + z * 3.1) % 1)), parked: true, key });
+          n++;
+        }
+      }
+    }
     for (const seg of this.segList || []) {
       const s = seg.s, hw = s[4];
       if (hw < 3.4 || seg.len < 22) continue;

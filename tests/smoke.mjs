@@ -399,6 +399,51 @@ await check('touch', async () => {
   return { info: { walked: +walked.toFixed(1), ctx }, fails: [...noErrors(errors), ...fails] };
 });
 
+await check('clutter', async () => {
+  // Street clutter in the Kalbadevi / Crawford Market bazaars: street-name boards with their text in
+  // the atlas, cables and tarps, awnings, gates with watchmen, parked handcarts (one can be pulled);
+  // poles and shrines are solid; the refreshes stay cheap.
+  const { page, errors } = await game('hour=11');
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, ix = g.tiles.index, C = g.clutter;
+    const at = (lat, lon) => [(lon - ix.origin.lon) * ix.metresPerDegree.lon, -(lat - ix.origin.lat) * ix.metresPerDegree.lat];
+    g.story.s.done = g.story.missions.map((m) => m.id);
+    const [x, z] = at(18.9488, 72.8318);
+    await g.tiles.whenReady(x, z, 300); g.player.pos.set(x, 0.02, z);
+    let worst = 0;
+    for (let i = 0; i < 80; i++) { const t0 = performance.now(); g.step(0.05); worst = Math.max(worst, performance.now() - t0); }
+    const K = (k) => C.counts[k] || 0;
+    const solidAt = C.nSolid ? C.hits(C.solids[0], C.solids[1], 0.2) : false, solidFar = C.hits(x + 5000, z, 0.3);
+    const res = { nameBoards: K(20), dirBoards: K(21) + K(22), cables: K(19), tarps: K(23) + K(24), gates: K(28), shrines: K(26), boards: C.boards.count, solid: C.solid.n, cloth: C.cloth.n, folk: C.folkList.length, cells: C.atlas.cells.size, solidAt, solidFar, worstMs: +worst.toFixed(1) };
+    // Pull a parked handcart: F next to it, walk it forward.
+    const cart = g.traffic.parked.find((v) => v.type === 'handcart');
+    res.handcarts = g.traffic.parked.filter((v) => v.type === 'handcart').length;
+    if (cart) {
+      g.toggleFoot(); for (let i = 0; i < 3; i++) g.step(0.05);
+      const h = cart.heading;
+      g.walker.pos.set(cart.x - Math.cos(h) * 1.4, 0.2, cart.z + Math.sin(h) * 1.4);
+      for (const list of [g.traffic.cars, g.traffic.parked]) for (let i = list.length - 1; i >= 0; i--) if (list[i] !== cart && Math.hypot(list[i].x - cart.x, list[i].z - cart.z) < 12) list.splice(i, 1);
+      g.step(0.05); g.toggleFoot(); for (let i = 0; i < 80 && g.onFoot; i++) g.step(0.05);
+      res.pulled = !g.onFoot && g.garage.type === 'handcart';
+      g.input.fwd = true; let top = 0; for (let i = 0; i < 80; i++) { g.step(0.05); top = Math.max(top, Math.abs(g.player.speed)); } g.input.fwd = false;
+      res.cartTop = +top.toFixed(2);
+    }
+    return res;
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (info.nameBoards < 2 || info.cells < 2 || info.boards < 4) fails.push(`street-name boards missing (${info.nameBoards} points, ${info.cells} atlas cells, ${info.boards} faces)`);
+  if (info.cables < 2) fails.push('no cable bundles over the bazaar lanes');
+  if (info.cloth < 5) fails.push('no awnings or tarps');
+  if (info.solid < 20) fails.push('solid clutter missing');
+  if (!info.solidAt || info.solidFar) fails.push('clutter collisions wrong');
+  if (!info.handcarts) fails.push('no handcarts parked in the bazaar');
+  else if (!info.pulled) fails.push('could not take a handcart');
+  else if (info.cartTop < 0.8 || info.cartTop > 3.6) fails.push(`handcart speed ${info.cartTop} m/s`);
+  if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms`);
+  return { info, fails };
+});
+
 await browser.close();
 server.close();
 const failed = results.filter((r) => !r.ok);
