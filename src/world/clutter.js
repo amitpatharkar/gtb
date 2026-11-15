@@ -774,7 +774,11 @@ export class StreetClutter {
         continue;
       }
       if (u < (acc += sh[2])) { // blue tarpaulin on bamboo poles, sagging
-        const d = 1.7 + hash(z, x, 36) * 0.7, drop = 0.6 + hash(x, z, 37) * 0.35, ww = w * 1.05, gy = Y.KERB;
+        // The poles stand on the footpath, not in the road: a shorter tarp where the footpath is narrow.
+        let d = 1.7 + hash(z, x, 36) * 0.7;
+        while (d > 0.85 && T.roadHit(x + sa * (d + 0.15), z + ca * (d + 0.15), 0, true)) d -= 0.35;
+        if (d <= 0.85) { this.put(C, 'plain', x, top, z, yaw, w, 1, 1, TARPS[Math.floor(hash(x, z, 39) * TARPS.length)]); this.put(S, 'awningArms', x, top, z, yaw, w, 1, 1); continue; }
+        const drop = Math.min(0.6 + hash(x, z, 37) * 0.35, d * 0.42), ww = w * 1.05, gy = Y.KERB;
         this.m.set(ca * ww, 0, sa * d, x, 0, 0.18 + hash(x, z, 38) * 0.15, -drop, top - 0.05, -sa * ww, 0, ca * d, z, 0, 0, 0, 1);
         this.putMatrix(C, 'tarp', this.m, TARPS[Math.floor(hash(x, z, 39) * TARPS.length)]);
         for (const sd of [-0.5, 0.5]) {

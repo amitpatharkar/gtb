@@ -118,7 +118,7 @@ function tokens(w) {
 function spell(w) {
   // English words ending in -er ("Silver", "Turner") end in a plain र; -oa- is an o ("Oaks").
   if (w.length > 4 && /[^aeiou]er$/.test(w)) w = `${w.slice(0, -2)}ar`;
-  w = w.replace(/oa/g, 'o');
+  w = w.replace(/oa/g, 'o').replace(/ck/g, 'k');
   const t = tokens(w);
   let s = '';
   for (let i = 0; i < t.length; i++) {

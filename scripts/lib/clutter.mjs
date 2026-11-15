@@ -220,7 +220,7 @@ export function streetClutter(o) {
         }
       }
       // Overhead gantry on arterials, ~110 m out, where the road is straight.
-      if (A.cls <= ROAD.PRIMARY && A.avail >= 150 && R(n.x - A.uz * 17, 13) < 0.55) {
+      if (A.cls <= ROAD.PRIMARY && A.avail >= 150 && R(n.x - A.uz * 17, 13) < 0.45) {
         const d = 105 + R(n.z * 3, 14) * 20, q = along(A, d), q0 = along(A, d - 18), q1 = along(A, d + 18);
         if (q0.tx * q1.tx + q0.tz * q1.tz < 0.985) continue;
         const fx = -q.tx, fz = -q.tz, oneway = !A.out;
