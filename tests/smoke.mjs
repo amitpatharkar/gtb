@@ -306,6 +306,47 @@ await check('night', async () => {
   return { info, fails };
 });
 
+await check('people', async () => {
+  // Real people (MakeHuman bodies from public/people) near the player on foot: templates load,
+  // bodies are placed and animated, the player has one, building bodies doesn't stutter;
+  // the people lineup page (people.html) loads without errors.
+  const { page, errors } = await game('hour=10');
+  await page.waitForFunction(() => window.__gtb.characters.ready, null, { timeout: 120000 });
+  const info = await page.evaluate(() => {
+    const g = window.__gtb;
+    g.toggleFoot();
+    let worst = 0;
+    for (let i = 0; i < 120; i++) { const t = performance.now(); g.step(0.05); if (i > 10) worst = Math.max(worst, performance.now() - t); }
+    const c = g.characters;
+    const shown = c.pool.filter((b) => b.holder.visible);
+    const bad = shown.filter((b) => !Number.isFinite(b.holder.position.x) || !b.motion.current).length;
+    const b = shown.find((x) => !x.who?.isPlayer);
+    const bone = b?.person.bones.get('lowerarm_l'), q0 = bone?.quaternion.clone();
+    for (let i = 0; i < 10; i++) g.step(0.05);
+    const moved = bone ? 1 - Math.abs(q0.dot(bone.quaternion)) > 1e-7 : false;
+    g.post.render();
+    return { templates: c.templates.length, shown: shown.length, player: shown.some((x) => x.who?.isPlayer), bad, moved, worstMs: +worst.toFixed(1) };
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (!info.templates) fails.push('no body templates loaded');
+  if (info.shown < 2) fails.push(`only ${info.shown} real people shown`);
+  if (!info.player) fails.push('the player on foot has no body');
+  if (info.bad) fails.push(`${info.bad} bodies unplaced or without motion`);
+  if (!info.moved) fails.push('people do not move (no animation)');
+  if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms`);
+  const lp = await browser.newPage({ viewport: { width: 800, height: 500 } });
+  const lpErrors = [];
+  lp.on('pageerror', (e) => lpErrors.push(e.message));
+  lp.on('console', (m) => { if (m.type() === 'error') lpErrors.push(m.text()); });
+  await lp.goto(`${base}people.html`);
+  await lp.waitForFunction(() => window.__people?.people.filter(Boolean).length > 0, null, { timeout: 180000 }).catch(() => lpErrors.push('lineup did not load'));
+  info.lineup = await lp.evaluate(() => window.__people?.people.filter(Boolean).length || 0);
+  await lp.close();
+  fails.push(...lpErrors.map((e) => `lineup: ${e}`));
+  return { info, fails };
+});
+
 await browser.close();
 server.close();
 const failed = results.filter((r) => !r.ok);

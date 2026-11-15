@@ -18,3 +18,6 @@ public/art/index.json
 
 # Light copies of the uploaded models (made by scripts/art-index.mjs)
 public/art/opt/
+
+# MakeHuman people build tools and raw Blender output (scripts/people/build-people.mjs)
+.people-cache/

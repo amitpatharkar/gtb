@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>People Lineup</title>
+  <style>
+    :root { --bg: #1b1d22; --panel: rgba(20, 22, 27, 0.82); --text: #eceae4; --muted: #a9a59c; --accent: #f2c230; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+    canvas { display: block; touch-action: none; }
+    #bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--panel); backdrop-filter: blur(6px); }
+    #bar button { flex: 0 0 auto; border: 1px solid #4a4d55; background: #2a2d34; color: var(--text); border-radius: 8px; padding: 8px 12px; font: inherit; cursor: pointer; }
+    #bar button.on { border-color: var(--accent); color: var(--accent); }
+    #title { position: fixed; top: 0; left: 0; right: 0; padding: 10px 16px; background: linear-gradient(var(--panel), transparent); pointer-events: none; }
+    #title b { color: var(--accent); }
+    #info { color: var(--muted); font-size: 13px; }
+    #who { position: fixed; top: 54px; left: 16px; right: 16px; color: var(--muted); font-size: 13px; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="title"><b>Bombay Bawaal</b> · people lineup <span id="info">loading…</span></div>
+  <div id="who"></div>
+  <div id="bar">
+    <button id="look">New colours</button>
+    <button id="face">Face: neutral</button>
+    <button id="anim">Move: idle</button>
+    <button id="lod">Detail: auto</button>
+    <button id="close">Close-up</button>
+  </div>
+  <script type="module" src="/src/people/lineup.js"></script>
+</body>
+</html>

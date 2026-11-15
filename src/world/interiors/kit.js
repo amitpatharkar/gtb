@@ -353,9 +353,9 @@ export class Kit {
   spot(x, z, r, prompt, act) { this.spots.push({ x, z, r, prompt, act }); }
 
   /**
-   * Which rigged character a person gets (see MODELS in sim/characters.js: Low loads the
-   * first two of each list, Medium four, High all). `p.wear` names the ones that suit
-   * them, best first; nobody indoors gets the hard-hat worker by chance.
+   * A stable number that picks a person's body template (sim/characters.js). `p.wear` names
+   * looks that suit them, best first (oldclassy/bald = an older body, suit = office, casual,
+   * worker); nobody indoors gets a worker's body by chance.
    */
   model(p) {
     const female = (p.flags & FLAG.SARI) || p.kind === 'sari';

@@ -55,6 +55,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   (Owner must have Settings → Pages → Source set to "GitHub Actions"; this was pending at handover.)
 
 ## Layout
+- `people.html` — the people lineup page (see `src/people/lineup.js`)
 - `index.html` — page shell, heads-up display (speed, road name, clock, AQI, minimap, fuel and car meters, messages),
   loading screen, OpenStreetMap credit, Credits panel, Graphics link, touch buttons (incl. horn and fuel)
 - `src/main.js` — boot order (texture library → tiles → sky → post-processing → clock, traffic, audio, minimap),
@@ -242,25 +243,45 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   common first, Low 12 / Medium 24 types. Traffic car materials are double-sided (single-sheet panels).
 - `src/world/models.js` — glTF/GLB → instanced meshes (metres, base on ground); `src/world/streetProps.js` — Poly Haven
   chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
-- `src/sim/characters.js` — Quaternius rigged characters (from the pipeline's `converted/` GLBs, only if listed in
-  the manifest; Low loads 2+2 models, Medium 4+4, High all) for the player and everyone near the camera (pool
-  11/20/30 within 34–46 m); people.js draws in two phases (`beforeEnd` picks heroes). Each character is ONE skinned
-  mesh / draw call (merged in `prepare()`, `aSlot`/`aBase` attributes, per-character colour uniforms; "Face" = eyes).
-  `autoSmooth()` replaces the pack's flat shading with smooth normals (creases over 62° stay sharp).
-  The pack's models wear shorts and no shoes: bare leg skin gets slot `leg` (trouser colour for adults, skin for
-  the `kid` build) and feet slot `shoe`, by dominant skin bone. About 62 % of women wear a sari: `sariGeometry()` (skirt +
-  pallu, a rigid mesh in metres on the character's holder, border colour per person; hidden when sitting or down).
-  **Adult bodies:** the pack has a child's proportions, so `rig()` + `shapeBody()` scale bones along/across their
-  own axes (`ADULT` male/female: legs ×1.45, head ×0.56, shorter torso, wider shoulders, longer arms) and every
-  child bone cancels its parent's scale (`compensate()` overrides `updateMatrix`) so joints never shear. The feet are
-  root-space bones (baked IK), so `bake()` rescales the clips' pelvis height and foot positions by the same leg
-  factor and drops scale keys. `BUILDS` (average, slim, heavy, muscular, stocky, lanky, fit = player, kid) multiply
-  on top; `pickBuild()` chooses by kind; `person.build` sticks. Height (1.73 m men, 1.6 m women) and foot level are
-  measured from the animated poses; walk cadence from the feet's travel (`walkSpeed`). No Run clip: Walk with limb
-  rotations amplified around the idle pose + spine lean (`bend()`, undone each frame for bones the clip doesn't
-  key). Clips: Idle, Walk, Punch (frozen early = guard), RecieveHit (flinch), Shoot_OneHanded (aim; pichkari in
-  `Fist.R`), Victory (wave), SitDown (clamped = seated); knocked down = laid flat. Caps/helmets on the head bone.
-  Still procedural: the far crowd, riders on NPC bikes, cricket poses (BAT/CROUCH).
+- `src/sim/characters.js` — real people for the player and everyone near the camera (pool 11/20/30 within 34–46 m;
+  people.js draws in two phases, `beforeEnd` picks heroes): MakeHuman bodies from `public/people/` (Low preloads 8
+  templates, Medium 14, High all 24, spread over men/women/children). `templateFor()` picks a template by sex, child,
+  the game's kind (`info.kinds`: office, casual, worker, sari, kid, police…), interior `wear` hints and build; stable per
+  person (`p._tpl`). `dress()` sets the colour slots from the person (skin, hair, shirt → top, pants → bottom, shoes,
+  Holi patches), police caps/helmets on the head bone hide the scalp hair (`uHideScalp`). `choose()` maps POSE →
+  clip + expression (walk/walkFormal/jog/sprint by speed with `CLIP_SPEED`, sit, crouch, talk + angry for ARGUE, jab
+  frozen = guard, jab/cross/hook per swing, hit reactions on `hitT` jumps, fall when knocked down, push, throw, aim for
+  POINT, wave and kick as layers). Bodies of another template are swapped when the pool is full (≤ 2 builds a frame).
+  Sitting: `t.sitPelvis` measured from the sit clip. Player's `handPos` = `hand_r`. Still procedural: the far crowd,
+  riders on NPC bikes, cricket batting.
+- `src/people/humans.js` — `PeopleLibrary`: index, the two atlas pages (KTX2), templates (GLB with EXT_meshopt_compression,
+  `setMeshoptDecoder`), `instantiate()` (SkeletonUtils clone, own material per person, shared program); `anims()`
+  turns the clips into deltas from the reference rest pose (AdditiveAnimationBlendMode: every body keeps its own
+  proportions), `clipsFor(t)` scales the hip track by the template's pelvis height. The material: `_part` attribute
+  (slot, alpha flag, roughness, scalp flag) → `uTint[8]` × atlas detail (linear 0.5 = texture average), hard alpha
+  cutout for hair with alpha forced to 1 (partial alpha leaked into the post buffer = grey hair). `SKIN_TONES`,
+  `HAIR_COLOURS`, `LOD_DIST` (near/mid/far by tier).
+- `src/people/motion.js` — `Motion`: AnimationMixer cross-fades (`once` clips clamp), blinking, eye gaze (eye bones,
+  ±32°), head/neck look-at (also lifts the library's head-down idle), `EXPRESSIONS` eased onto the face morphs,
+  talking mouth, wave and kick layers. **Layered turns are undone before the mixer runs again** (`saved`/`undo()`):
+  the mixer only writes a bone when its own result changes, so a turn on a bone the clip holds still would build up;
+  `play()` also undoes first so a newly bound bone never records a layered pose as its rest.
+- `src/people/lineup.js` + `people.html` — the people lineup page (`/gtb/people.html`): every template in random
+  Mumbai colours, buttons for colours, faces, moves, detail level, close-up; `window.__people.show(id, clip,
+  override, view, at)` poses one person for screenshots.
+- `scripts/people/` — the people build (not part of `npm run build`; outputs are committed in `public/people/`):
+  `build-people.mjs` (`--setup` downloads Blender 4.2, MPFB 2.0.18 and the MakeHuman asset packs into `.people-cache/`;
+  runs `blender/person.py` 4 at once, ~5 s a person, rebuilds only changed specs; then the atlas — 4096² as two
+  4096×2048 KTX2 pages because the encoder takes ≤ 12 Mpix, quadtree-packed so no cell crosses the middle —, merge,
+  meshopt LOD budgets per part role, `glbwriter.mjs`; `--only=id`, `--force`, `--png` keeps atlas.png), `population.mjs`
+  (who: 24 templates with heights, MakeHuman macros incl. ancestry mix, face targets, hair, clothes [role, asset,
+  {tint, slot}], kinds), `blender/person.py` (MPFB human → height search → bake modelling shape keys, keep 14 face
+  morphs from the ARKit face units, delete helpers and skin under clothes, eye bones, export + part metadata with
+  licence/author; AGPL assets are refused), `build-anims.mjs` + `blender/retarget.py` (Quaternius UAL 1/2 → MPFB game
+  skeleton: limbs calibrated to the source T-pose, world-space rotation deltas per frame, hips scaled by hip height,
+  loops in place; then only rotations + pelvis kept, int16, three shared key blocks — one view per sampler made the
+  JSON bigger than the data). `setup.mjs`: the MakeHuman file server drops connections, downloads use parallel
+  resumed byte ranges (files2 mirror as fallback). Credits: `index.json` `credits` → Credits panel (CC BY by name).
 - `src/game/story.js` + `missions.js` — the mission engine and its script. Two strands: story (yellow markers,
   Mamaji) and side missions (blue, open after the first story mission); every startable mission shows a marker in
   the world and on the map (`story.markers()`), with its giver waiting there; `hours` windows. Steps: `cut`
@@ -395,9 +416,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `manifest.shipped.version`). Site about 80 MB.
 - Allocation per step: the browser's sampling heap profiler (`HeapProfiler.startSampling` with
   `includeObjectsCollectedByMajorGC`/`MinorGC` true) through Playwright's CDP session.
-- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night`,
+- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night,people`,
   `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
-  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, or a too-dark night. In GitHub Actions
+  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, a too-dark night,
+  or people that don't load, place or move (and the lineup page). In GitHub Actions
   `deploy.yml` runs build → smoke (on the Pages artifact) → deploy, so a failing check stops the deploy (Playwright
   1.63.0 is a devDependency). Add a check there for every new system.
 - Visual check: `npx vite preview --port 4173`, then headless Chrome via Playwright with
