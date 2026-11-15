@@ -1,6 +1,6 @@
 // Web Worker: download a tile, unzip it, decode it and turn it into ready-to-upload
 // mesh arrays plus collision data, so the main thread only creates GPU buffers.
-import { decodeTile, AREA, ROAD, ROAD_FLAG, POINT } from './tileFormat.js';
+import { decodeTile, AREA, ROAD, ROAD_FLAG, POINT, LABELLED } from './tileFormat.js';
 import { Y } from './levels.js';
 import { buildGround } from './mesh/ground.js';
 import { buildBuildings } from './mesh/buildings.js';
@@ -82,8 +82,11 @@ function buildTile(t) {
 
   // Point features (trees, lights, signals, stops, street clutter), grouped by kind:
   // [x, y, z, angle, size] per instance, tile-local.
-  const points = {};
-  for (const p of t.points) (points[p.kind] ||= []).push(p.x, Y.KERB, p.z, p.angle, p.size);
+  const points = {}, labels = {}; // labels: the board text of each instance (kinds in LABELLED)
+  for (const p of t.points) {
+    (points[p.kind] ||= []).push(p.x, Y.KERB, p.z, p.angle, p.size);
+    if (LABELLED.has(p.kind)) (labels[p.kind] ||= []).push(p.label || '');
+  }
   if (tetrapods.length) points[POINT.TETRAPOD] = tetrapods;
   for (const k in points) { points[k] = new Float32Array(points[k]); transfer.push(points[k].buffer); }
 
@@ -113,7 +116,7 @@ function buildTile(t) {
     result: {
       tx: t.tx, tz: t.tz, origin: [ox, oz], names: t.names,
       clip: [t.clip[0] + ox, t.clip[1] + oz, t.clip[2] + ox, t.clip[3] + oz],
-      meshes, points, tanks: tankArr, facadeParts,
+      meshes, points, labels, tanks: tankArr, facadeParts,
       collide: {
         solid: packPolys(solid, transfer),
         walkable: packPolys(walkable, transfer),

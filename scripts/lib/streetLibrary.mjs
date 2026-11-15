@@ -36,6 +36,19 @@ function normalise(p, index) {
   const banners = has(all, /flex|banner/i);
   const taxis = has(all, /taxi stands?|taxis parked|rows? of (kaali-peeli|taxis)/i) ? 0.55 : has(all, /taxis double-parked/i) ? 0.35 : 0;
   const sites = has(all, /corrugated|construction site|redevelopment|tower crane/i);
+  // Street clutter (scripts/lib/clutter.mjs, src/world/clutter.js): cables over the street, tarps,
+  // handcarts, flower sellers, and what shades the shopfronts (cloth awnings, striped café
+  // awnings, blue tarpaulins, metal awnings).
+  const cables = has(all, /dense cable/i) ? 1 : has(all, /cable/i) ? 0.6 : 0;
+  const tarps = has(all, /tarps? stretched|tarps over the street/i) ? 0.45 : has(all, /tarp/i) ? 0.15 : 0;
+  const handcarts = has(clutter, /handcart/i) ? 0.55 : 0;
+  const flowers = has(all, /flower seller|flower garland|flower/i) ? 0.3 : 0;
+  const awn = [
+    has(gf, /awning/i) ? 0.12 : 0.08,                                                   // plain cloth awnings
+    has(gf, /striped awning/i) ? 0.38 : 0,                                              // striped café awnings
+    tarps ? 0.3 : has(all, /bazaar|wholesale|stall|hawker/i) ? 0.12 : 0.04,           // blue tarpaulins
+    has(all, /metal awning/i) ? 0.45 : has(all, /garage|godown|workshop/i) ? 0.1 : 0.03, // corrugated metal awnings
+  ];
   const lights = String(p.lights || '');
   const lamp = has(lights, /triple|lantern|heritage/i) ? LAMP.HERITAGE : has(lights, /globe/i) ? LAMP.GLOBE : has(lights, /tall|galvanised|necklace|curve/i) ? LAMP.TALL : LAMP.STANDARD;
   const medianLamp = has(lights, /median/i) || has(sec.median, /lamp|post/i);
@@ -49,6 +62,7 @@ function normalise(p, index) {
     id: p.id, index, label: p.label, styles, storeys, colours, shops, netting, arcade,
     treesPer100: typeof tr.per_100m === 'number' ? tr.per_100m : null, treeMix: tr.game_points && Object.keys(tr.game_points).length ? tr.game_points : null,
     lamp, medianLamp, kerb, median, planted, parking, compound, dock, barriers, policeBarricades, banners, taxis, sites,
+    cables, tarps, handcarts, flowers, awn,
     stalls: has(clutter, /stall|thela|vendor|hawker|seller|cart/i) ? 1 : 0.4,
     construction: has(clutter, /corrugated|hoarding|construction site/i) ? 1 : 0,
     traffic: String(p.traffic || ''), sounds: p.sounds || [],
@@ -77,7 +91,7 @@ export function loadStreetLibrary(root) {
     },
     /** What the game needs at runtime, by profile index (1-based; 0 = no profile). */
     runtimeTable() {
-      return [...profiles.values()].map((p) => ({ id: p.id, parking: p.parking, taxis: p.taxis, stalls: p.stalls, traffic: p.traffic.slice(0, 120), sounds: p.sounds }));
+      return [...profiles.values()].map((p) => ({ id: p.id, parking: p.parking, taxis: p.taxis, stalls: p.stalls, handcarts: p.handcarts, awn: p.awn, traffic: p.traffic.slice(0, 120), sounds: p.sounds }));
     },
   };
 }

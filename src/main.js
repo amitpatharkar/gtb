@@ -14,6 +14,7 @@ import { Car } from './vehicles/car.js';
 import { GameClock } from './sim/clock.js';
 import { Traffic, setStreetProfiles } from './sim/traffic.js';
 import { FacadeParts } from './world/facadeParts.js';
+import { StreetClutter } from './world/clutter.js';
 import { Skyline } from './world/skyline.js';
 import { Birds } from './sim/birds.js';
 import { Art } from './world/art.js';
@@ -134,6 +135,8 @@ const skyline = new Skyline(scene, tiles, tier, camera.far); // distant tall bui
 const signals = new Signals(scene);
 traffic.signals = signals;
 const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
+// Street clutter near the player: boards, unipoles, cables, awnings and tarps, shrines, flower sellers, gates with watchmen.
+const clutter = new StreetClutter({ scene, renderer, tiles, materials, tier, people });
 const characters = new Characters(scene, BASE, tier, lib, started);
 let frameDt = 0;
 people.beforeEnd = (list) => {
@@ -592,7 +595,8 @@ function hospital() {
 
 function honk() {
   if (onFoot) { pichkari.nextColour(); combat.setWeapon('pichkari'); return; }
-  if (state.owns('horn')) audio.musicalHorn?.(); else audio.play('horn', 0.9);
+  if (garage.spec?.pull) { if (walker.person) bubbles.say(walker.person, ['Bajoo! Bajoo!', 'Side, side!', 'Hato, hato!'][Math.floor(Math.random() * 3)], 1.6); } // handcart: shout, no horn
+  else if (state.owns('horn')) audio.musicalHorn?.(); else audio.play('horn', 0.9);
   street.onHorn();
   birds.scare(player.pos.x, player.pos.z, 10);
   jobs.honk();
@@ -781,6 +785,7 @@ function step(dt) {
   police.update(dt, active, clock);
   street.onFoot = onFoot;
   street.update(dt, active, clock);
+  clutter.drawPeople(clock.hour); // watchmen at compound gates, flower sellers, puja stall keepers
   const fire = (input.fire || input.brake) && !indoors && !cutscene; // holstered indoors; Space skips cutscenes, it doesn't shoot
   combat.update(dt, { fire }, onFoot);
   if (!onFoot && !cutscene) combat.carVsPeople(player);
@@ -795,7 +800,10 @@ function step(dt) {
     // Riding a two-wheeler or driving an auto: the player can be seen in the seat.
     const seat = garage.spec.seat ?? 0.9, back = -(garage.spec.seatZ ?? -0.28), L = walker.look;
     const P = (walker.person ||= { isPlayer: true, flags: 0, scale: 1, model: 0, hair: new THREE.Color(0x17110c) });
-    Object.assign(P, { x: player.pos.x - Math.sin(player.heading) * back, y: player.pos.y + seat - 0.42, z: player.pos.z - Math.cos(player.heading) * back, heading: player.heading, phase: 0, pose: POSE.SIT, amp: 1, speed: 0, shirt: L.shirt, pants: L.pants, skin: L.skin, patches: walker.patches });
+    // A handcart is pulled on foot: the player walks between the shafts.
+    const pull = !!garage.spec.pull;
+    if (pull) walker.pullPhase = (walker.pullPhase || 0) + dt * Math.abs(player.speed) * 2.6;
+    Object.assign(P, { x: player.pos.x - Math.sin(player.heading) * back, y: pull ? tiles.groundHeight(player.pos.x, player.pos.z) : player.pos.y + seat - 0.42, z: player.pos.z - Math.cos(player.heading) * back, heading: player.heading, phase: pull ? walker.pullPhase : 0, pose: pull ? (Math.abs(player.speed) > 0.2 ? POSE.WALK : POSE.STAND) : POSE.SIT, amp: 1, speed: pull ? Math.abs(player.speed) : 0, shirt: L.shirt, pants: L.pants, skin: L.skin, patches: walker.patches });
     people.add(P);
   }
   for (const r of traffic.riders) {
@@ -804,6 +812,12 @@ function step(dt) {
     const T = traffic.types[r.type], seat = T?.seat ?? 0.92, back = -(T?.seatZ ?? -0.28);
     const sh = Math.sin(r.heading), ch = Math.cos(r.heading), L = r.look;
     if (T?.pedal) r.pedal = (r.pedal || 0) + dt * (r.speed || 0) * 1.7;
+    if (T?.pull) {
+      // A porter walks between the shafts of his handcart, leaning into the crossbar.
+      r.pedal = (r.pedal || 0) + dt * (r.speed || 0) * 2.6;
+      people.add({ noHero: true, x: r.x - sh * back, y: tiles.groundHeight(r.x, r.z), z: r.z - ch * back, heading: r.heading, phase: r.pedal, pose: r.speed > 0.2 ? POSE.WALK : POSE.STAND, amp: 0.8, flags: L.cap ? FLAG.CAP : 0, scale: 1, shirt: L.shirt, pants: L.pants, skin: L.skin });
+      continue;
+    }
     people.add({ noHero: true, x: r.x - sh * back, y: seat - (T?.pedal ? 0.86 : 0.42), z: r.z - ch * back, heading: r.heading, phase: r.pedal || 0, pose: T?.pedal ? POSE.PEDAL : POSE.SIT, amp: 1, flags: L.helmet ? FLAG.BERET : L.cap ? FLAG.CAP : 0, scale: 1, shirt: L.shirt, pants: L.pants, skin: L.skin });
     if (r.pax && T.pax) people.add({ noHero: true, x: r.x + sh * T.pax.z - ch * 0.22, y: T.pax.seat - 0.42, z: r.z + ch * T.pax.z + sh * 0.22, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.pax.sari ? FLAG.SARI : 0, scale: 0.96, shirt: r.pax.shirt, pants: r.pax.pants, skin: r.pax.skin });
   }
@@ -821,6 +835,7 @@ function step(dt) {
   streetProps.update(dt, active.pos);
   art.update(active.pos);
   facadeParts.update(dt, active, tiles, night);
+  clutter.update(dt, active, night);
   skyline.update(active.pos);
   birds.update(dt, active, clock.daylight);
   tiles.props.lampMat.emissiveIntensity = night * 9;
@@ -865,7 +880,8 @@ started.then(() => import('./sim/trains.js'))
   .then(({ Trains }) => Trains.create({ base: BASE, scene, renderer, camera, compile: (o) => post.compile(o, camera, scene), tiles, traffic, street, people, bubbles, audio, hud, state, clock, walker, player, view, snap: () => placeCamera(0) }))
   .then((t) => { trains = window.__gtb.trains = t; })
   .catch((err) => console.warn('Local trains are not available:', err));
-for (const w of [world, footWorld]) { const hits = w.hits; w.hits = (x, z, r) => hits(x, z, r) || !!trains?.hits(x, z, r); }
+for (const w of [world, footWorld]) { const hits = w.hits; w.hits = (x, z, r) => hits(x, z, r) || !!trains?.hits(x, z, r) || clutter.hits(x, z, r); } // poles, shrines, stalls (world/clutter.js)
+window.__gtb.clutter = clutter;
 {
   const bodyAt = world.bodyAt, markers = cityMap.markers;
   world.bodyAt = (x, z, r) => trains?.bodyAt(x, z, r) || bodyAt(x, z, r);

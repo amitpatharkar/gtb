@@ -34,6 +34,8 @@ import { loadStreetLibrary, LAMP, lampSize } from './lib/streetLibrary.mjs';
 import { isTrainRoute, buildTrainLines } from './lib/trains.mjs';
 import { infill } from './lib/infill.mjs';
 import { compoundWalls, siteFence, WALL } from './lib/walls.mjs';
+import { streetClutter } from './lib/clutter.mjs';
+import { learnDevanagari } from './lib/devanagari.mjs';
 import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, POINT, MAGIC, TILE_VERSION, DM } from '../src/world/tileFormat.js';
 import { OVERVIEW_MAGIC, OVERVIEW_VERSION, OVERVIEW_LAYER } from '../src/world/overviewFormat.js';
 
@@ -334,6 +336,7 @@ const coastWays = [];
 const aeroLines = [];     // runway and taxiway centre lines: { pts, width, runway }
 const treeNodes = [], signalNodes = [], signalIds = new Set(), crossingIds = new Set(), busStops = [], fuel = [];
 const trainWayRefs = new Map(), trainStops = new Map(), stationNodes = [], platformEdges = []; // for trains.json
+const worship = []; // places of worship for street shrines (lib/clutter.mjs): { x, z, religion, name, area }
 readOsmPbf(CFG.input, {
   nodeTags: true,
   node(id, lat, lon, tags) {
@@ -349,6 +352,7 @@ readOsmPbf(CFG.input, {
     else if (tags.highway === 'crossing') crossingIds.add(id);
     else if (tags.highway === 'bus_stop') busStops.push([x, z]);
     if (tags.amenity === 'fuel') fuel.push([x, z]);
+    if (tags.amenity === 'place_of_worship') worship.push({ x, z, religion: tags.religion || '', name: tags.name || tags['name:en'] || '', area: false });
   },
   way(id, tags, refs) {
     if (relWays.has(id)) wayRefs.set(id, refs);
@@ -359,6 +363,7 @@ readOsmPbf(CFG.input, {
     const closed = refs.length >= 4 && refs[0] === refs[refs.length - 1];
     if (tags.natural === 'coastline') { coastWays.push(refs); return; }
     if (tags.amenity === 'fuel') { const r = resolveRing(refs, false); if (r) fuel.push(G.centroid(r)); }
+    if (tags.amenity === 'place_of_worship' && closed) { const r = resolveRing(refs, false); if (r) { const [x, z] = G.centroid(r); worship.push({ x, z, religion: tags.religion || '', name: tags.name || tags['name:en'] || '', area: true }); } }
     if (tags.railway === 'platform' || (tags.public_transport === 'platform' && tags.train === 'yes')) platformEdges.push(...resolveLine(refs));
     if (closed) {
       const b = classifyBuilding(tags);
@@ -638,6 +643,7 @@ const onLand = (x, z) => {
 };
 
 const cranes = []; // tower cranes on construction sites (POINT.CRANE, added with the other points)
+const gates = [];  // gates in compound walls (lib/walls.mjs → POINT.GATE in lib/clutter.mjs)
 // Empty frontage in the dense districts gets buildings in the district's grain (lib/infill.mjs):
 // OpenStreetMap misses many outlines there. Never on roads, footpaths, mapped buildings, parks,
 // water or tracks; added before street furniture so trees, lamps and stalls avoid them too.
@@ -697,7 +703,7 @@ const cranes = []; // tower cranes on construction sites (POINT.CRANE, added wit
     buildSite(ring); mapped++;
   }
   // Compound walls in front of set-back buildings; dock walls on port roads (survey).
-  compoundWalls({ vparts, district: districtXZ, free, buildingWithin: (x, z, r) => inBuilding(x, z, r), hash: hash01, add: addWall, BRIDGE: ROAD_FLAG.BRIDGE });
+  compoundWalls({ vparts, district: districtXZ, free, buildingWithin: (x, z, r) => inBuilding(x, z, r), hash: hash01, add: addWall, BRIDGE: ROAD_FLAG.BRIDGE, gates });
   log(`walls: ${wallCount} wall pieces (compound walls, pillars and gates, dock walls, hoardings round ${mapped + infill.sites} construction sites); ${towers} towers going up, ${cranes.length} tower cranes`);
 }
 
@@ -1087,6 +1093,33 @@ const nRails = addLines(railsRaw, (tile, r, line) => tile.rails.push({ ...r.info
 const nPaint = addLines(paint, (tile, m, line) => (tile.markings ||= []).push({ width: m.width, line }), 0);
 log(`roads: ${nRoads} pieces, rails: ${nRails} pieces, paint: ${nPaint} pieces`);
 
+// ---------------------------------------------------------------- street clutter
+// Boards, unipoles, cables, tarps, shrines, flower sellers, handcarts and compound gates
+// (lib/clutter.mjs). After the buildings (cables hang from walls tall enough to hold them) and
+// the road names (boards show each road's main name).
+{
+  const ms = Date.now();
+  const hGrid = new Grid(30);
+  for (const t of tiles.values()) for (const b of t.buildings) {
+    if (b.flags & BUILDING_FLAG.WALL || !b.rings.length) continue;
+    const ring = b.rings[0].map(([x, z]) => [x + t.cx, z + t.cz]);
+    hGrid.add(G.bboxOf(ring), { ring, h: b.h });
+  }
+  const heightAt = (x, z) => { let h = 0; hGrid.near(x, z, 1, (it) => { if (it.h > h && G.pointInRing(x, z, it.ring)) h = it.h; return false; }); return h; };
+  const learnt = learnDevanagari(roadsRaw.filter((r) => r.tags.name && r.tags['name:mr']).map((r) => [r.tags.name, r.tags['name:mr']]));
+  const extra = streetClutter({
+    vparts, junc, district: districtXZ, onRoad, inBuilding, onTrack, onLand, inBox: (x, z) => inBox([x, z]), heightAt, hash: hash01,
+    project, points, worship, gates, log,
+    nameOf: (r) => r.canon || roadName(r.tags),
+    nameMrOf: (r) => (r.canon ? '' : r.tags['name:mr'] || ''),
+  });
+  for (const pt of extra) {
+    if (!inBox([pt.x, pt.z])) continue;
+    (getTile(Math.floor(pt.x / T), Math.floor(pt.z / T)).points ||= []).push(pt);
+  }
+  log(`street clutter: ${extra.length} points, ${extra.filter((p) => p.label).length} with text (${learnt} Marathi word spellings learnt from name:mr) (${((Date.now() - ms) / 1000).toFixed(1)}s)`);
+}
+
 // ---------------------------------------------------------------- spawn point
 function findSpawn() {
   const [sx, sz] = project(CFG.spawn[0], CFG.spawn[1]);
@@ -1172,6 +1205,14 @@ for (const t of ordered) {
     w.u8(Math.round((((p.angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / (2 * Math.PI) * 256) % 256);
     w.u8(Math.max(0, Math.min(255, Math.round(((p.size - 0.5) / 1.5) * 255))));
   }
+  // Labels: the text on street-name and direction boards (strings once per tile, then point → string).
+  const strings = new Map(), labelled = [];
+  pts.forEach((p, i) => { if (p.label) { if (!strings.has(p.label)) strings.set(p.label, strings.size); labelled.push([i, strings.get(p.label)]); } });
+  w.uvar(strings.size);
+  for (const str of strings.keys()) w.string(str);
+  w.uvar(labelled.length);
+  let prevLabel = 0;
+  for (const [i, k] of labelled) { w.uvar(i - prevLabel); prevLabel = i; w.uvar(k); }
 
   const gz = zlib.gzipSync(w.result(), { level: 9 });
   fs.writeFileSync(path.join(CFG.out, `${t.tx}_${t.tz}.bin.gz`), gz);

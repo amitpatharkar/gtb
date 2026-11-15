@@ -96,6 +96,18 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   and star is made up) drawn into one 2048² canvas atlas (4 × 8 cells, last two = steel), redrawn with the sign
   fonts (`signs.redraw` in materials.js); the worker adds a board + posts over the longest street-facing wall of
   some buildings (mesh key `hoarding`, max 8 per tile); material is lit at night through `facadeNight`.
+- `src/world/clutter.js` — `StreetClutter`: street clutter near the player from the clutter points (below) and the
+  worker's `shutterBox` parts: unipoles (V of two boards showing the `ADS` atlas, `UNI`), blue street-name boards
+  (two faces) and direction boards / overhead gantries (one panel per destination line), cable bundles (unit
+  catenary `cable`, matrix = span × sag × side via `putSpan`), lane and stall tarpaulins (`sheet()`), shamiana over
+  puja stalls, 6 shrine kinds, flower sellers, gates (open leaves, monobloc chair, some security cabins), shopfront
+  awnings by the street profile's `awn` shares [cloth, striped, tarp, metal] (`AWN_DEFAULT` elsewhere). 4 draw calls:
+  BatchedMesh `solid` (vertex colours, tinted per instance), BatchedMesh `cloth` (two-sided), InstancedMesh `boards`
+  (`aRect` = atlas rectangle) and `ads` (`aAd` = ad cell). Board text: atlas of 512 × 128 cells (64, Low 32) drawn on
+  demand per label with `renderer.copyTextureToTexture`, least recently used recycled, 14 new per refresh;
+  `setFonts` chains `materials.signs.redraw`. Refreshes every 0.5 s after 12 m (`rebuild`, radii `R` by tier);
+  `hits()` (allocation-free grid of poles, shrines, stalls, cabins) is chained onto `world`/`footWorld.hits` in main.js;
+  `drawPeople(hour)` adds the seated watchmen (all day), flower sellers and stall keepers (by day). `counts` per kind.
 - `src/world/props.js` — procedural instanced props by point kind: rain tree, gulmohar (December: ~5 % in bloom, 30 % drawn as rain trees), peepal, coconut palm
   (alpha-tested leaf cards), street light (4 types in the point's size: standard, tall, heritage triple lantern, globe —
   `LAMP` in `scripts/lib/streetLibrary.mjs`), traffic signal, BEST bus shelter, pothole and puddle decals, garbage pile,
@@ -118,7 +130,11 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   contact-shade band on the ground along its walls (mesh key `contact`).
 - `src/world/tileFormat.js` — binary tile format v3 (buildings with style/levels/street-facing walls and flags incl.
   `NETTING`, areas incl. PLOT/ROAD/FOOTPATH, roads with kerb/median flags and a street-profile byte, rails, markings,
-  points); `src/world/levels.js` — ground heights
+  points, then optional `labels` (strings per tile + point index → string: board text; the worker hands them over as
+  `t.labels[kind][instance]` for `LABELLED` kinds)); `src/world/levels.js` — ground heights. Clutter point kinds
+  18–29: UNIPOLE, CABLES (size × 12 = span), NAME_BOARD ("English|मराठी"), DIR_BOARD / DIR_GANTRY ("Dadar|दादर|^;…",
+  gantry size × 16 = span), TARP (size × 10 = span), STALL_TARP, SHAMIANA, SHRINE (size = 0.5 + 0.25 × kind), FLOWERS,
+  GATE, HANDCART
 - `src/vehicles/taxi.js` + `car.js` — procedural kaali-peeli taxi (Premier Padmini proportions, clear-coat paint) and car
   handling (bicycle steering, two collision circles, kerb bumps, body roll/pitch, fuel ~40 km per tank, condition);
   kerb and pothole jolts fire once per wheel event (`prevGF`/`prevGR`: kerb 7 % per axle, pothole 3 % per wheel +
@@ -131,6 +147,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   (look-ahead), `gatherBlockers` (player at real length, the vehicle left while on foot = `traffic.car`, parked taxi,
   `left`, patrols via `traffic.police`, obstacles); `lanesOf` cached per segment (`seg.lanes`); vehicle mix cached per
   quarter hour (`pickType`); kerb parking forms kaali-peeli taxi ranks where the profile has `taxis` (`TAXI_RANK`).
+  Handcarts: `HANDCART` points become parked carts on the footpath (`placeParked`, key `hc:x,z`, drawn at
+  `groundHeight`); `spawn` turns 13 % of new vehicles on tiles with handcart points into a pulled `handcart` (7–21 h).
 - `src/sim/traffic.js` (continued) — ambient traffic near the player (fleet from `src/vehicles/fleet.js`: taxis, hatchbacks,
   sedans, SUVs, BEST buses on main roads, tempos (more at night), motorbikes with riders), keeps LEFT, follows the
   road graph (loose ends within 2.5 m joined; per-tile segment data cached on `tile.graph`, numeric junction keys
@@ -148,7 +166,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   glass, trim with vertex colours, lamps) = 4 draw calls. Type fields: weight, night, mainRoad, big, rider, seat.
   Also: auto-rickshaw (`city: 0` = suburbs only, north of ~19.042° N (Mahim creek–Sion), `traffic.inSuburbs(z)`; `open` + `seat` +
   `seatZ` = visible khaki driver, `pax` = passenger on the bench), water tanker, garbage truck, ambulance, school
-  bus, bicycle and dabbawala cycle (`slow` = others overtake, `pedal` = POSE.PEDAL). The batches must keep
+  bus, bicycle and dabbawala cycle (`slow` = others overtake, `pedal` = POSE.PEDAL), handcart (`pull`: weight 0, only
+  on bazaar streets; the puller walks between the shafts at `seatZ`, main.js; taken by the player it is pulled on foot,
+  shouts instead of a horn, `DRIVE` 3.2 m/s). The batches must keep
   `frustumCulled = false` (their bounding sphere is computed once; traffic vanished far from the start).
 - `src/vehicles/skids.js` (tyre marks), `damage.js` (dents, loose bumpers, dying lamps, bonnet smoke; repair at pumps)
 - `src/sim/signals.js` — working signals at OSM signal junctions: poles on the left kerb per approach, lamps and
@@ -309,14 +329,26 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   redevelopment plots, `SITES` in infill.mjs) with a netted concrete tower (`gtb:site`) and a tower crane. Stored as
   thin building outlines with `BUILDING_FLAG.WALL` (style = kind, height = wall height; they collide); the worker's
   `drawWall` adds copings, pillars, steel posts and wire (mesh keys `compound`, `sheet`, `netting`, `wire`).
+  Compound-wall gate gaps are reported through `gates` (→ POINT.GATE: watchman, chair, leaves).
+- `scripts/lib/clutter.mjs` — `streetClutter()` (after the buildings and road names in build-tiles.mjs): street-name
+  boards at junction corners (one per name within 90 m, lanes need a road word), direction boards 40–50 m before
+  big junctions and gantries ~110 m out on arterials (`DESTINATIONS`: real places by the direction each arm leads,
+  off-map Thane/Navi Mumbai/Borivali only within 16 km), unipoles (big junction corners, highway verges, flyover
+  approaches; 7.5 m clear of buildings), cables and tarps wall to wall across lanes (walls ≥ 7.5 / 5.5 m tall,
+  `heightAt` from the built tiles), stall tarps, flower sellers and puja canopies (Kalbadevi, Dadar, Prabhadevi, the
+  profile's `flowers`, beside temples), shrines (OSM `amenity=place_of_worship` by `religion`, at some peepal trees,
+  crosses in the wadis), handcarts on bazaar footpaths. `scripts/lib/devanagari.mjs` — `toDevanagari()`: dictionary,
+  name endings, letters for initials, Devanagari digits, phonetic fallback; `learnDevanagari()` learns word spellings
+  from roads with `name:mr` (used first when a road has one).
 - `scripts/lib/streetLibrary.mjs` — the owner's South Mumbai street library (`docs/research/street-library/`: README,
   `streets.json` 847 streets → OSM way ids and zones, `profiles.json` 25 street profiles, `buildings-notable.json`,
   `survey.json`). `normalise()` turns each profile's prose into numbers (styles, storeys, colours, shop share, netting,
   tree density + species, lamp type, kerb/median paint, parking pressure, stalls); `forWay(id, lat)` gives a road its
   profile. The converter dresses each road by it (kerb flags, trees, lamps incl. median lamps on planted boulevards)
   and each untagged building by the profile of the nearest profiled street within 35 m (storeys, style, colour,
-  shops, netting); `index.json` carries `profiles` (runtime table), used by `traffic.setStreetProfiles()` for kerb
-  parking. Streets outside the library keep the district rules (`lib/districts.mjs`, which also has the library's five
+  shops, netting); `index.json` carries `profiles` (runtime table: parking, taxis, stalls, handcarts, `awn`), used by
+  `traffic.setStreetProfiles()` for kerb parking and by clutter.js for awnings. Also `cables`, `tarps`, `handcarts`,
+  `flowers` for lib/clutter.mjs. Streets outside the library keep the district rules (`lib/districts.mjs`, which also has the library's five
   new districts: Bhendi Bazaar, Nagpada, Dongri–Mandvi, Mumbai Central, Reay Road).
 - `scripts/preview-tiles.mjs` — debug top-down SVG of all tiles (`npm run tiles:preview`)
 - Caching after a deploy: map files carry `?v=index.generated` (`tiles.fileUrl()`; `tiles.fileTag` is the tag,
