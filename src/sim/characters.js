@@ -244,7 +244,7 @@ export class Characters {
     const lookCam = d < 9 && !p.isPlayer && !st.fallen;
     c.motion.update(dt, {
       skipMixer: !step, dtMixer: far ? dt * 2 : dt, heading: p.heading, expression: st.expression, talking: st.talking,
-      wave: st.wave, kick: st.kick, lookAt: lookCam ? cam : null, noHead: st.fallen || d > 30,
+      wave: st.wave, kick: st.kick, lookAt: lookCam ? cam : null, noHead: st.fallen || d > 30, hair: d < 18,
     });
     // Where the right hand is (the player's pichkari is held there).
     if (p.isPlayer) { const hand = c.person.bones.get('hand_r'); if (hand) { (p.handPos ||= new THREE.Vector3()); hand.getWorldPosition(p.handPos); } }

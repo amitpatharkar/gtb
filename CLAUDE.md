@@ -260,12 +260,17 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   proportions), `clipsFor(t)` scales the hip track by the template's pelvis height. The material: `_part` attribute
   (slot, alpha flag, roughness, scalp flag) → `uTint[8]` × atlas detail (linear 0.5 = texture average), hard alpha
   cutout for hair with alpha forced to 1 (partial alpha leaked into the post buffer = grey hair). `SKIN_TONES`,
-  `HAIR_COLOURS`, `LOD_DIST` (near/mid/far by tier).
+  `HAIR_COLOURS`, `LOD_DIST` (near/mid/far by tier). The atlas is rebuilt with every person each run (a changed set of
+  textures moves every cell).
 - `src/people/motion.js` — `Motion`: AnimationMixer cross-fades (`once` clips clamp), blinking, eye gaze (eye bones,
   ±32°), head/neck look-at (also lifts the library's head-down idle), `EXPRESSIONS` eased onto the face morphs,
   talking mouth, wave and kick layers. **Layered turns are undone before the mixer runs again** (`saved`/`undo()`):
   the mixer only writes a bone when its own result changes, so a turn on a bone the clip holds still would build up;
   `play()` also undoes first so a newly bound bone never records a layered pose as its rest.
+- `src/people/hair.js` — `HairSprings`: the `hair_0…` bone chain person.py adds down braids, ponytails and long hair
+  (one chain; two opened a parting gap) simulated as a Verlet chain at 60 steps/s: fixed lengths, gravity, drag, a
+  pull back to the animated drape (0.14), body spheres (head, neck, upper back, clavicles) fitted per person so none
+  reaches where the hair rests (`fit()`; average-man spheres pushed a slim woman's hair aside). People within 18 m.
 - `src/people/lineup.js` + `people.html` — the people lineup page (`/gtb/people.html`): every template in random
   Mumbai colours, buttons for colours, faces, moves, detail level, close-up; `window.__people.show(id, clip,
   override, view, at)` poses one person for screenshots.
@@ -276,7 +281,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   meshopt LOD budgets per part role, `glbwriter.mjs`; `--only=id`, `--force`, `--png` keeps atlas.png), `population.mjs`
   (who: 24 templates with heights, MakeHuman macros incl. ancestry mix, face targets, hair, clothes [role, asset,
   {tint, slot}], kinds), `blender/person.py` (MPFB human → height search → bake modelling shape keys, keep 14 face
-  morphs from the ARKit face units, delete helpers and skin under clothes, eye bones, export + part metadata with
+  morphs from the ARKit face units, delete helpers and skin under clothes, eye bones, a hair bone chain down long hair
+  (`hair_chains`: vertices below the skull and behind its centre, 3–4 bones, weights blended along the chain), export + part metadata with
   licence/author; AGPL assets are refused), `build-anims.mjs` + `blender/retarget.py` (Quaternius UAL 1/2 → MPFB game
   skeleton: limbs calibrated to the source T-pose, world-space rotation deltas per frame, hips scaled by hip height,
   loops in place; then only rotations + pelvis kept, int16, three shared key blocks — one view per sampler made the

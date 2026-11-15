@@ -233,6 +233,69 @@ def add_eye_bones(rig, eyes):
     return {k: [float(x) for x in v] for k, v in centres.items()}
 
 
+def hair_chains(rig, hair):
+    """A bone chain down the hanging part of long hair (braids, ponytails, long hair)."""
+    head = rig.data.bones['head']
+    z0 = head.head_local.z + 0.015                  # base of the skull
+    co = np.array([v.co[:] for v in hair.data.vertices])
+    hang = (co[:, 2] < z0) & (co[:, 1] > head.head_local.y - 0.03)    # below the skull, behind its centre (+Y = back)
+    if hang.sum() < 40 or z0 - co[hang][:, 2].min() < 0.1:
+        return []
+    groups = [('hair', hang)]   # one chain: two (left/right) opened a parting gap in long open hair
+    chains = []
+    for name, mask in groups:
+        pts = co[mask]
+        z1 = pts[:, 2].min()
+        n = 4 if z0 - z1 > 0.25 else 3
+        zs = np.linspace(z0, z1, n + 1)
+        band = (z0 - z1) / n * 0.6 + 0.01
+        joints = []
+        for z in zs:
+            sel = pts[np.abs(pts[:, 2] - z) < band]
+            c = sel.mean(0) if len(sel) else (joints[-1] if joints else pts.mean(0))
+            joints.append([float(c[0]), float(c[1]), float(z)])
+        chains.append({'name': name, 'joints': joints, 'mask': mask, 'z0': z0, 'z1': float(z1), 'n': n})
+    return chains
+
+
+def add_hair_bones(rig, hair, chains):
+    """Create the chain bones under the head and weight the hanging hair along them."""
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = rig
+    rig.select_set(True)
+    bpy.ops.object.mode_set(mode='EDIT')
+    eb = rig.data.edit_bones
+    out = []
+    for ch in chains:
+        prev = eb['head']
+        names = []
+        for k in range(ch['n']):
+            b = eb.new(f"{ch['name']}_{k}")
+            b.head = Vector(ch['joints'][k]); b.tail = Vector(ch['joints'][k + 1])
+            if (b.tail - b.head).length < 0.01:
+                b.tail = b.head + Vector((0, 0, -0.03))
+            b.parent = prev
+            b.use_deform = True
+            prev = b
+            names.append(b.name)
+        out.append({'bones': names, 'length': round(ch['z0'] - ch['z1'], 3)})
+    bpy.ops.object.mode_set(mode='OBJECT')
+    co = np.array([v.co[:] for v in hair.data.vertices])
+    for ch, info in zip(chains, out):
+        idx = np.nonzero(ch['mask'])[0].tolist()
+        for g in hair.vertex_groups:
+            g.remove(idx)
+        groups = [hair.vertex_groups.new(name=n) for n in info['bones']]
+        for i in idx:
+            f = (ch['z0'] - co[i, 2]) / max(1e-4, ch['z0'] - ch['z1']) * ch['n'] - 0.5   # bone centres at k + 0.5
+            f = min(max(f, 0), ch['n'] - 1)
+            k = int(math.floor(f)); t = f - k
+            groups[k].add([i], 1 - t, 'REPLACE')
+            if t > 0 and k + 1 < ch['n']:
+                groups[k + 1].add([i], t, 'REPLACE')
+    return out
+
+
 def build(spec, out_dir):
     t0 = time.time()
     hm, h = search_height(spec)
@@ -287,6 +350,11 @@ def build(spec, out_dir):
     eyes = next((o for o in bpy.data.objects if o.type == 'MESH' and o.get('gtb_role') == 'eyes'), None)
     if eyes:
         meta['eyes'] = add_eye_bones(rig, eyes)
+    hair = next((o for o in bpy.data.objects if o.type == 'MESH' and o.get('gtb_role') == 'hair'), None)
+    if hair:
+        chains = hair_chains(rig, hair)
+        if chains:
+            meta['hairChain'] = add_hair_bones(rig, hair, chains)
     # Skeleton facts the game needs (rest pose, metres, Blender Z-up).
     meta['bones'] = {b.name: {'head': [round(x, 4) for x in b.head_local], 'tail': [round(x, 4) for x in b.tail_local],
                               'parent': b.parent.name if b.parent else None} for b in rig.data.bones}

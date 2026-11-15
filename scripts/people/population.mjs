@@ -61,12 +61,12 @@ export const POPULATION = [
   person('m_casual_1', 'm', 22, 169, 'slim', {
     macro: { race: SA }, targets: { 'mouth-scale-horiz-incr': 0.2 },
     hair: 'cortu_short_messy_hair', kinds: ['casual', 'jogger'],
-    clothes: [['top', 'elvs_crude_t-shirt_male'], ['bottom', 'punkduck_male_classic_jeans', { tint: false }], ['shoes', 'punkduck_comfortable_sneakers']],
+    clothes: [['top', 'elvs_crude_t-shirt_male'], ['bottom', 'punkduck_male_classic_jeans'], ['shoes', 'punkduck_comfortable_sneakers']],
   }),
   person('m_casual_2', 'm', 26, 172, 'fit', {
     macro: { race: SA4 }, targets: { 'nose-nostrils-width-incr': 0.4, 'head-square': 0.3 },
     hair: 'short02', kinds: ['casual', 'jogger', 'police'],
-    clothes: [['top', 'namuhekam_male_polo_shirt'], ['bottom', 'punkduck_male_classic_jeans', { tint: false }], ['shoes', 'punkduck_running_shoes_01'], ['facial', 'wdg_scruffy_beard']],
+    clothes: [['top', 'namuhekam_male_polo_shirt'], ['bottom', 'punkduck_male_classic_jeans'], ['shoes', 'punkduck_running_shoes_01'], ['facial', 'wdg_scruffy_beard']],
   }),
   person('m_casual_3', 'm', 38, 166, 'stocky', {
     macro: { race: SA2 }, targets: { 'nose-scale-horiz-incr': 0.4, 'mouth-upperlip-volume-incr': 0.3 },
@@ -101,13 +101,13 @@ export const POPULATION = [
   person('m_teen_1', 'm', 15, 161, 'slim', {
     macro: { race: SA, proportions: 0.5 }, targets: {},
     hair: 'short03', kinds: ['casual', 'kid', 'jogger'],
-    clothes: [['top', 'elvs_crude_t-shirt_male'], ['bottom', 'cortu_jeans_shorts', { tint: false }], ['shoes', 'culturalibre_sneakers']],
+    clothes: [['top', 'elvs_crude_t-shirt_male'], ['bottom', 'cortu_jeans_shorts'], ['shoes', 'culturalibre_sneakers']],
   }),
   // --- women
   person('f_young_1', 'f', 22, 156, 'slim', {
     macro: { race: SA, cupsize: 0.5 }, targets: { 'nose-scale-horiz-decr': 0.2 },
     hair: 'ponytail01', kinds: ['sari', 'casual', 'jogger'],
-    clothes: [['top', 'joepal_crude_t-shirt_female'], ['bottom', 'punkduck_female_tight_jeans', { tint: false }], ['shoes', 'elvs_flatshoe_plain1']],
+    clothes: [['top', 'toigo_basic_tucked_t-shirt'], ['bottom', 'punkduck_female_tight_jeans'], ['shoes', 'elvs_flatshoe_plain1']],
   }),
   person('f_young_2', 'f', 25, 154, 'average', {
     macro: { race: SA2 }, targets: { 'mouth-lowerlip-volume-incr': 0.3 },
@@ -142,7 +142,7 @@ export const POPULATION = [
   person('f_young_3', 'f', 20, 158, 'slim', {
     macro: { race: SA3 }, targets: {},
     hair: 'long01', kinds: ['sari', 'casual', 'jogger'],
-    clothes: [['top', 'elvs_ladies_tank1'], ['bottom', 'elvs_jeans_straight_leg', { tint: false }], ['shoes', 'punkduck_tennis_shoes']],
+    clothes: [['top', 'elvs_ladies_tank1'], ['bottom', 'elvs_jeans_straight_leg'], ['shoes', 'punkduck_tennis_shoes']],
   }),
   person('f_young_4', 'f', 27, 155, 'average', {
     macro: { race: SA }, targets: { 'mouth-scale-horiz-decr': 0.2 },
@@ -158,11 +158,11 @@ export const POPULATION = [
   person('k_boy_1', 'm', 9, 131, 'average', {
     macro: { race: SA }, targets: {},
     hair: 'short03', kinds: ['kid'],
-    clothes: [['top', 'elvs_crude_t-shirt_male'], ['bottom', 'cortu_jeans_shorts', { tint: false }], ['shoes', 'culturalibre_sneakers']],
+    clothes: [['top', 'elvs_crude_t-shirt_male'], ['bottom', 'cortu_jeans_shorts'], ['shoes', 'culturalibre_sneakers']],
   }),
   person('k_girl_1', 'f', 8, 126, 'average', {
     macro: { race: SA2 }, targets: {},
     hair: 'elvs_double_mh_braid', kinds: ['kid'],
-    clothes: [['top', 'joepal_crude_t-shirt_female'], ['bottom', 'frankyaye_mini_skirt_01'], ['shoes', 'dressupdoc_maryjane1']],
+    clothes: [['top', 'toigo_basic_tucked_t-shirt'], ['bottom', 'frankyaye_mini_skirt_01'], ['shoes', 'dressupdoc_maryjane1']],
   }),
 ];

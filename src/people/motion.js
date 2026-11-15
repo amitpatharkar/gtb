@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { HairSprings } from './hair.js';
 
 // How a person moves and looks alive: animation clips (retargeted, played as
 // deltas from the body's own rest pose) cross-faded by an AnimationMixer, then on top:
@@ -7,7 +8,8 @@ import * as THREE from 'three';
 // - the head and neck turning towards what the person looks at (yaw ±70°, pitch ±30°),
 //   which also lifts the slightly head-down idle of the source library;
 // - facial expressions eased in and out (smile, anger, pain, surprise) and a talking mouth;
-// - moves the libraries lack, layered on the bones: a wave and a front kick.
+// - moves the libraries lack, layered on the bones: a wave and a front kick;
+// - hair that swings (braids, ponytails, long hair: src/people/hair.js).
 
 const _v = new THREE.Vector3(), _t = new THREE.Vector3(), _p = new THREE.Vector3(), _f = new THREE.Vector3(), _a = new THREE.Vector3();
 const _q = new THREE.Quaternion(), _qw = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _qa = new THREE.Quaternion();
@@ -53,6 +55,7 @@ export class Motion {
     // Layered turns are undone before the mixer runs again: it only writes a bone when its
     // own result changes, so a turn on a bone the clip holds still would otherwise build up.
     this.saved = new Map();             // bone → { q: value before layering, on }
+    this.hair = new HairSprings(person);
     this.ready = false;
     const attach = (clips) => { this.clips = clips; Motion.LIST = [...clips.keys(), 'wave', 'kick']; this.ready = true; this.play(this.want || 'idle'); };
     if (person.template?.clips) attach(person.template.clips);
@@ -104,6 +107,7 @@ export class Motion {
     if (this.kickT > 0) this.layerKick(o.heading ?? 0, this.kickT);
     if (!o.noHead) this.lookHead(dt, o.lookAt, o.heading ?? 0, o.headUp ?? 0.12);
     this.lookEyes(dt, o.lookAt);
+    if (o.hair !== false && this.hair.active) this.hair.update(dt);
   }
 
   updateFace(dt, o) {
@@ -220,5 +224,5 @@ export class Motion {
     if (spine) { _q.setFromAxisAngle(_a, -0.1 * k); this.turn(spine, _q); }
   }
 
-  stop() { this.undo(); this.mixer.stopAllAction(); this.current = null; this.clipName = ''; }
+  stop() { this.undo(); this.mixer.stopAllAction(); this.current = null; this.clipName = ''; this.hair.reset(); }
 }

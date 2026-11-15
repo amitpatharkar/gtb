@@ -1,5 +1,5 @@
 {
- "version": "68260237f38f",
+ "version": "4ae5f5fe0b5e",
  "atlas": [
   "atlas0.ktx2",
   "atlas1.ktx2"
@@ -136,7 +136,7 @@
   {
    "id": "m_casual_1",
    "file": "m_casual_1.glb",
-   "bytes": 375316,
+   "bytes": 375312,
    "sex": "m",
    "age": 22,
    "build": "slim",
@@ -168,7 +168,7 @@
   {
    "id": "m_casual_2",
    "file": "m_casual_2.glb",
-   "bytes": 439248,
+   "bytes": 439252,
    "sex": "m",
    "age": 26,
    "build": "fit",
@@ -201,7 +201,7 @@
   {
    "id": "m_casual_3",
    "file": "m_casual_3.glb",
-   "bytes": 416884,
+   "bytes": 416888,
    "sex": "m",
    "age": 38,
    "build": "stocky",
@@ -269,7 +269,7 @@
   {
    "id": "m_worker_2",
    "file": "m_worker_2.glb",
-   "bytes": 432000,
+   "bytes": 432012,
    "sex": "m",
    "age": 33,
    "build": "muscular",
@@ -302,7 +302,7 @@
   {
    "id": "m_worker_3",
    "file": "m_worker_3.glb",
-   "bytes": 395036,
+   "bytes": 395032,
    "sex": "m",
    "age": 48,
    "build": "slim",
@@ -404,7 +404,7 @@
   {
    "id": "m_teen_1",
    "file": "m_teen_1.glb",
-   "bytes": 383016,
+   "bytes": 383020,
    "sex": "m",
    "age": 15,
    "build": "slim",
@@ -437,7 +437,7 @@
   {
    "id": "f_young_1",
    "file": "f_young_1.glb",
-   "bytes": 420120,
+   "bytes": 425928,
    "sex": "f",
    "age": 22,
    "build": "slim",
@@ -449,8 +449,8 @@
    ],
    "palette": {},
    "tris": [
-    18797,
-    6134,
+    19429,
+    6135,
     2284
    ],
    "eyes": {
@@ -465,12 +465,21 @@
      1.4565398072203
     ]
    },
-   "hairChain": null
+   "hairChain": [
+    {
+     "bones": [
+      "hair_0",
+      "hair_1",
+      "hair_2"
+     ],
+     "length": 0.218
+    }
+   ]
   },
   {
    "id": "f_young_2",
    "file": "f_young_2.glb",
-   "bytes": 437528,
+   "bytes": 432360,
    "sex": "f",
    "age": 25,
    "build": "average",
@@ -497,12 +506,22 @@
      1.4371227795879047
     ]
    },
-   "hairChain": null
+   "hairChain": [
+    {
+     "bones": [
+      "hair_0",
+      "hair_1",
+      "hair_2",
+      "hair_3"
+     ],
+     "length": 0.439
+    }
+   ]
   },
   {
    "id": "f_office_1",
    "file": "f_office_1.glb",
-   "bytes": 407308,
+   "bytes": 407296,
    "sex": "f",
    "age": 31,
    "build": "average",
@@ -534,7 +553,7 @@
   {
    "id": "f_mid_1",
    "file": "f_mid_1.glb",
-   "bytes": 389804,
+   "bytes": 389800,
    "sex": "f",
    "age": 42,
    "build": "heavy",
@@ -565,7 +584,7 @@
   {
    "id": "f_mid_2",
    "file": "f_mid_2.glb",
-   "bytes": 434500,
+   "bytes": 429428,
    "sex": "f",
    "age": 36,
    "build": "average",
@@ -592,12 +611,22 @@
      1.4274082854390144
     ]
    },
-   "hairChain": null
+   "hairChain": [
+    {
+     "bones": [
+      "hair_0",
+      "hair_1",
+      "hair_2",
+      "hair_3"
+     ],
+     "length": 0.439
+    }
+   ]
   },
   {
    "id": "f_old_1",
    "file": "f_old_1.glb",
-   "bytes": 382644,
+   "bytes": 382648,
    "sex": "f",
    "age": 62,
    "build": "heavy",
@@ -663,7 +692,7 @@
   {
    "id": "f_young_3",
    "file": "f_young_3.glb",
-   "bytes": 486844,
+   "bytes": 479004,
    "sex": "f",
    "age": 20,
    "build": "slim",
@@ -691,12 +720,22 @@
      1.4765731369455655
     ]
    },
-   "hairChain": null
+   "hairChain": [
+    {
+     "bones": [
+      "hair_0",
+      "hair_1",
+      "hair_2",
+      "hair_3"
+     ],
+     "length": 0.562
+    }
+   ]
   },
   {
    "id": "f_young_4",
    "file": "f_young_4.glb",
-   "bytes": 419660,
+   "bytes": 417800,
    "sex": "f",
    "age": 27,
    "build": "average",
@@ -724,12 +763,21 @@
      1.44623401761055
     ]
    },
-   "hairChain": null
+   "hairChain": [
+    {
+     "bones": [
+      "hair_0",
+      "hair_1",
+      "hair_2"
+     ],
+     "length": 0.222
+    }
+   ]
   },
   {
    "id": "f_teen_1",
    "file": "f_teen_1.glb",
-   "bytes": 458188,
+   "bytes": 452148,
    "sex": "f",
    "age": 15,
    "build": "slim",
@@ -756,12 +804,22 @@
      1.4226703469951947
     ]
    },
-   "hairChain": null
+   "hairChain": [
+    {
+     "bones": [
+      "hair_0",
+      "hair_1",
+      "hair_2",
+      "hair_3"
+     ],
+     "length": 0.372
+    }
+   ]
   },
   {
    "id": "k_boy_1",
    "file": "k_boy_1.glb",
-   "bytes": 384140,
+   "bytes": 384136,
    "sex": "m",
    "age": 9,
    "build": "average",
@@ -792,7 +850,7 @@
   {
    "id": "k_girl_1",
    "file": "k_girl_1.glb",
-   "bytes": 421008,
+   "bytes": 421824,
    "sex": "f",
    "age": 8,
    "build": "average",
@@ -802,8 +860,8 @@
    ],
    "palette": {},
    "tris": [
-    18105,
-    5505,
+    18737,
+    5506,
     1897
    ],
    "eyes": {
@@ -818,7 +876,17 @@
      1.1618138924241066
     ]
    },
-   "hairChain": null
+   "hairChain": [
+    {
+     "bones": [
+      "hair_0",
+      "hair_1",
+      "hair_2",
+      "hair_3"
+     ],
+     "length": 0.306
+    }
+   ]
   }
  ],
  "credits": [
@@ -1007,12 +1075,6 @@
    "role": "bottom",
    "license": "CC0",
    "author": "frankyaye"
-  },
-  {
-   "asset": "joepal_crude_t-shirt_female",
-   "role": "top",
-   "license": "CC0",
-   "author": "Joel"
   },
   {
    "asset": "kwnet_at_optical_glasses",

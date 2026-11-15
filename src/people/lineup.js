@@ -88,6 +88,7 @@ async function start() {
     const a = p.motion.play(clip, { fade: 0, time: at, speed: at !== undefined ? 0 : 1 });
     const x = p.root.position.x, h = p.info.heightCm / 100;
     if (view === 'face') { controls.target.set(x, h - 0.12, 0); camera.position.set(x + 0.12, h - 0.1, 0.7); }
+    else if (view === 'back') { controls.target.set(x, h * 0.75, 0); camera.position.set(x + 0.6, h * 0.85, -2.2); }
     else if (view === 'side') { controls.target.set(x, h * 0.55, 0); camera.position.set(x + 3.4, h * 0.6, 0.2); }
     else { controls.target.set(x, h * 0.55, 0); camera.position.set(x + 0.2, h * 0.6, 3.4); }
     return !!a;

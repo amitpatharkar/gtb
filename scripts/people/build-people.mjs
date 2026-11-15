@@ -14,6 +14,7 @@
 // 4. Each person becomes ONE skinned mesh per level of detail (near 0–8 m with face morphs,
 //    mid, far), parts simplified with meshoptimizer, a `_PART` attribute saying which colour
 //    slot each vertex takes; quantised and meshopt-compressed (public/people/<id>.glb).
+//    `--only=id,id` limits the Blender step; the atlas and every person are always rebuilt.
 // 5. public/people/index.json: the people, colour slots, morph names, the atlas and credits.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -374,10 +375,8 @@ async function main() {
   const index = [];
   for (const person of all) {
     const { spec, meta, raw } = person;
-    if (only && !only.has(spec.id) && fs.existsSync(path.join(OUT, `${spec.id}.glb`)) && !args.remerge) {
-      index.push(JSON.parse(fs.readFileSync(path.join(CACHE, `merged-${spec.id}.json`), 'utf8')));
-      continue;
-    }
+    // Everyone is merged again (a few seconds): the atlas is shared, and any change to its
+    // set of textures moves the cells every person's UVs point at.
     const cellOf = (p) => cells.get(p.cellKey);
     const lods = [0, 1, 2].map((lod) => {
       const parts = raw.parts.filter((p) => BUDGET[p.role][lod] > 0);
@@ -391,7 +390,6 @@ async function main() {
       heightCm: meta.heightCm, kinds: spec.kinds, palette: spec.palette || {}, tris: lods.map((g) => g.idx.length / 3),
       eyes: meta.eyes, hairChain: meta.hairChain || null,
     };
-    fs.writeFileSync(path.join(CACHE, `merged-${spec.id}.json`), JSON.stringify(entry));
     index.push(entry);
     log(spec.id, `${(glb.length / 1024).toFixed(0)} KB`, 'triangles', entry.tris.join(' / '));
   }
