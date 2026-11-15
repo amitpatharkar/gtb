@@ -249,7 +249,7 @@ export class TrainRide {
     // Stand by the destination at once, so the train (and the tiles) are found there.
     this.walker.pos.set(dest.x, this.walker.pos.y, dest.z);
     // The stops on the way: checkers may get on at any of them.
-    for (const s of L.stations) if (s.i > (r.lastStop ?? -1) && s.i < dest.i && s.name !== r.from && this.r) this.atStation(s);
+    for (const s of L.stations) if (s.d > tr.s + 5 && s.i < dest.i && s.name !== r.from && this.r) this.atStation(s); // only those still ahead (tr.s is where it was before the jump)
     await this.tiles.whenReady(dest.x, dest.z, Math.min(300, (this.tiles.loadRadius || 500) - 40));
     this.stations?.()?.buildNow(dest.x, dest.z);
     this.T.fresh = true; this.T.scanT = 0;
