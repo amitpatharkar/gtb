@@ -380,6 +380,75 @@ await check('stations', async () => {
   return { info, fails };
 });
 
+await check('metro', async () => {
+  // Line 1 at Saki Naka: ticket, fare gate, board, ride to the next station, off, tap out;
+  // a Line 3 trip underground from Churchgate; the closed monorail runs no trains.
+  const { page, errors } = await game('hour=9');
+  await page.waitForFunction(() => window.__gtb.metro && window.__gtb.tickets, null, { timeout: 90000 });
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, M = g.metro, T = g.tickets, s = M.stations.find((o) => o.name === 'Saki Naka' && o.ref === '1');
+    if (!s) return { station: null };
+    g.state.s.money = 5000;
+    g.player.pos.set(s.x + 40, 0.02, s.z + 40);
+    await g.tiles.whenReady(s.x, s.z, 350);
+    g.toggleFoot();
+    M.buildNow(s.x, s.z);
+    const f = s.frame, at = (a, t, y) => g.walker.pos.set(s.x + f.ux * a + f.vx * t, y, s.z + f.uz * a + f.vz * t);
+    // Concourse, unpaid side, by the gates, with a ticket to the next station.
+    const L = M.lines.find((l) => l.ref === '1' && l.stations.some((o) => o.name === 'Saki Naka'));
+    const i = L.stations.findIndex((o) => o.name === 'Saki Naka'), next = L.stations[i + 1] || L.stations[i - 1];
+    const bought = T.buy(T.metro('1', 'Saki Naka', next.name, Math.abs(next.d - L.stations[i].d)));
+    at(10.5, 0, f.yc + 0.05);
+    for (let k = 0; k < 10; k++) g.step(0.05);
+    const tapped = !!M.tapped;
+    // Platform beside the train when one stands there with its doors open.
+    let tr = null;
+    for (let k = 0; k < 6000 && !tr; k++) { g.step(0.05); for (const q of M.trains.values()) if (q.line === L && q.leg?.station === i && q.doors > 0.95 && q.left > 8) tr = q; }
+    if (!tr) return { station: s.name, train: false, bought, tapped };
+    const c = 1, al = 2.65 * (L.car / 21.9);
+    const side = (() => { const tt = (tr.cx[c] - s.x) * f.vx + (tr.cz[c] - s.z) * f.vz; return tt > 0 ? 1 : -1; })();
+    // The platform side of the train, in the train's lateral frame (cs, -sn).
+    const px = tr.cx[c] + tr.sn[c] * al, pz = tr.cz[c] + tr.cs[c] * al, lat = (s.x + f.vx * side * 6.5 - px) * tr.cs[c] - (s.z + f.vz * side * 6.5 - pz) * tr.sn[c];
+    const ls = lat > 0 ? 1 : -1;
+    g.walker.pos.set(px + tr.cs[c] * ls * 2.0, f.yp, pz - tr.sn[c] * ls * 2.0);
+    const boarded = M.tryBoard() && !!M.r;
+    const p0 = [g.walker.pos.x, g.walker.pos.z];
+    for (let k = 0; k < 5000 && M.r && !(M.r.tr.leg?.station >= 0 && M.r.tr.line.stations[M.r.tr.leg.station].name === next.name && M.r.tr.doors > 0.95); k++) g.step(0.05);
+    const moved = Math.round(Math.hypot(g.walker.pos.x - p0[0], g.walker.pos.z - p0[1]));
+    const riding = !!M.r, off = riding && M.alight() && !M.r;
+    const offY = +g.walker.pos.y.toFixed(2);
+    // Line 3 from Churchgate to Dadar.
+    const cg = M.stations.find((o) => o.ref === '3' && o.name === 'Churchgate');
+    g.walker.pos.set(cg.x, 0.3, cg.z);
+    await g.tiles.whenReady(cg.x, cg.z, 250);
+    M.buildNow(cg.x, cg.z);
+    const L3 = M.lines.find((l) => l.ref === '3'), a3 = L3.stations.find((o) => o.name === 'Churchgate'), b3 = L3.stations.find((o) => o.name === 'Dadar');
+    const t3 = T.metro('3', 'Churchgate', 'Dadar', Math.abs(b3.d - a3.d));
+    T.buy(t3);
+    await M.underground(cg, t3);
+    const dadar = M.stations.find((o) => o.ref === '3' && o.name === 'Dadar');
+    const up = Math.round(Math.hypot(g.walker.pos.x - dadar.x, g.walker.pos.z - dadar.z));
+    const mono = [...M.trains.values()].filter((q) => q.line.closed && q.parked == null).length;
+    let worst = 0;
+    for (let k = 0; k < 60; k++) { const t0 = performance.now(); g.step(0.05); worst = Math.max(worst, performance.now() - t0); }
+    return { station: s.name, train: true, bought, tapped, boarded, moved, off, offY, platform: f.yp, line3: up, monoRunning: mono, money: g.state.s.money, worstMs: +worst.toFixed(1) };
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (!info.station) fails.push('no Saki Naka metro station');
+  else if (!info.train) fails.push('no Line 1 train stopped at Saki Naka');
+  else {
+    if (!info.bought || !info.tapped) fails.push('ticket or gate failed');
+    if (!info.boarded) fails.push('could not board the metro');
+    if (info.moved < 300) fails.push(`the rider moved only ${info.moved} m`);
+    if (!info.off || Math.abs(info.offY - info.platform) > 0.6) fails.push(`did not step off onto the platform (y ${info.offY})`);
+    if (info.line3 > 400) fails.push(`Line 3 trip ended ${info.line3} m from Dadar`);
+    if (info.monoRunning) fails.push('the closed monorail runs trains');
+    if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms`);
+  }
+  return { info, fails };
+});
+
 await check('night', async () => {
   // At 10 pm the road ahead must be visible (lamp pools, headlights).
   const { page, errors } = await game('hour=22');

@@ -578,11 +578,18 @@ export class Metro {
     floorRect(-ca, ca, -cw, cw, yc);
     // Walls round the concourse (glass above a parapet), open where the street stairs arrive.
     const streetT = cw - 1.6, gap = 1.5;
-    for (const t of [-cw, cw]) wallLine(-ca, t, ca, t, yc, yc + 3, null, 0, 0.1);
+    const sideWalls = () => {
+      for (const t of [-cw, cw]) {
+        const opens = (s.sideOpen || []).filter(([, sd]) => Math.sign(t) === sd).map(([a]) => a).sort((p, q) => p - q);
+        let a0 = -ca;
+        for (const o of opens) { wallLine(a0, t, o - 1.5, t, yc, yc + 3, null, 0, 0.1); a0 = o + 1.5; }
+        wallLine(a0, t, ca, t, yc, yc + 3, null, 0, 0.1);
+      }
+    };
+    // The ends stay open to the stairs (a railing on the stair takes over); a low parapet elsewhere.
     for (const a of [-ca, ca]) {
-      wallLine(a, -cw, a, -streetT - gap, yc, yc + 3, B.flat, 0xd9d4c8, 0.12);
-      wallLine(a, -streetT + gap, a, streetT - gap, yc, yc + 3, B.flat, 0xd9d4c8, 0.12);
-      wallLine(a, streetT + gap, a, cw, yc, yc + 3, B.flat, 0xd9d4c8, 0.12);
+      wallLine(a, -cw, a, -streetT - gap, yc, yc + 1.2, B.flat, 0xd9d4c8, 0.12);
+      wallLine(a, streetT + gap, a, cw, yc, yc + 1.2, B.flat, 0xd9d4c8, 0.12);
     }
     for (const t of [-cw, cw]) B.glass.face(P(-ca, t, yc), P(ca, t, yc), P(ca, t, yc + 3), P(-ca, t, yc + 3), 0xffffff, t > 0 ? vx : -vx, 0, t > 0 ? vz : -vz);
     slab(B.flat, -ca, ca, -cw, cw, yc + 3.6, yc + 3.75, 0xd8d6d0); // ceiling under the track box
@@ -617,15 +624,38 @@ export class Metro {
       s.counters = [P(-ca + 7, -2, yc), P(ca - 7, -2, yc), P(-ca + 7, 2, yc), P(ca - 7, 2, yc)];
     }
     // Stairs from the concourse down to the street, on both sides, at both ends (if they land clear).
+    // Each stair runs along the road from a concourse end and must land clear of buildings: try
+    // nearer the middle of the road too, then a flight straight out across the footpath.
     let n = 0;
+    const L2 = (yc - GROUND) / 0.62, endOpen = {};
+    const clear = (x0, z0, dx, dz, len) => { for (let k = 0; k <= 4; k++) { const f = 0.35 + (0.65 * k) / 4, x = x0 + dx * len * f, z = z0 + dz * len * f; if (this.tiles.hits(x, z, k === 4 ? 0.9 : 0.6)) return false; } return this.tiles.walkable ? this.tiles.walkable(x0 + dx * (len + 1.5), z0 + dz * (len + 1.5)) !== false : true; };
     for (const end of [-1, 1]) for (const side of [-1, 1]) {
-      const t = side * streetT, a = end * ca, L2 = (yc - GROUND) / 0.62, bot = P(a + end * L2, t, 0);
-      if (this.tiles.hits(bot[0], bot[2], 0.8) || this.tiles.hits(...(() => { const m = P(a + end * L2 * 0.5, t, 0); return [m[0], m[2]]; })(), 0.6)) continue;
-      const top = P(a, t, 0);
-      this.stairMesh(B, pieces, top[0], top[2], ux * end, uz * end, L2, 1.4, yc, GROUND);
-      n++;
+      let done = false;
+      for (let t = streetT; t >= 3 && !done; t -= 1.5) {
+        const top = P(end * ca, side * t, 0);
+        if (!clear(top[0], top[2], ux * end, uz * end, L2)) continue;
+        this.stairMesh(B, pieces, top[0], top[2], ux * end, uz * end, L2, 1.4, yc, GROUND);
+        (endOpen[end] ||= []).push(side * t);
+        n++; done = true;
+      }
+      if (done) continue;
+      const top = P(end * (ca - 3), side * cw, 0);
+      if (clear(top[0], top[2], vx * side, vz * side, L2)) {
+        this.stairMesh(B, pieces, top[0], top[2], vx * side, vz * side, L2, 1.3, yc, GROUND);
+        // Open the side wall there.
+        n++;
+        s.sideOpen = (s.sideOpen || []).concat([[end * (ca - 3), side]]);
+      }
     }
     s.streetStairs = n;
+    sideWalls();
+    // Railings across the open ends, except where a stair goes down.
+    for (const end of [-1, 1]) {
+      const opens = (endOpen[end] || []).sort((p, q) => p - q);
+      let t0 = -streetT - gap;
+      for (const o of opens) { if (o - 1.5 > t0) wallLine(end * ca, t0, end * ca, o - 1.5, yc, yc + 1.1, B.steel, 0x3a3d40, 0.05); t0 = o + 1.5; }
+      if (streetT + gap > t0) wallLine(end * ca, t0, end * ca, streetT + gap, yc, yc + 1.1, B.steel, 0x3a3d40, 0.05);
+    }
     // Columns under the station in the median.
     for (let a = -half + 8; a <= half - 8; a += 16) {
       const p = P(a, 0, 0), base = this.tiles.groundHeight(p[0], p[2]) - 0.2;

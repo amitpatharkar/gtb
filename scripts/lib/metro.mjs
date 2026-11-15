@@ -152,6 +152,24 @@ export function buildMetro({ routes, ways, nodePos, stops, stationNodes, entranc
     delete rec.at;
   }
 
+  // Each direction's stop is mapped at its own end of the platform (where the front of the train
+  // stops): trains stop centred on the station instead, and the tracks' offsets are measured there.
+  for (const rec of stations) {
+    const [ux, uz] = rec.axis;
+    rec.tracks = [];
+    for (const L of lines) {
+      if (L.ref !== rec.ref) continue;
+      const s = L.stations.find((o) => o.name === rec.name);
+      if (!s) continue;
+      const at = locate(L.pts, L.cum, [rec.x, rec.z]);
+      s.d = Math.max(20, Math.min(L.cum[L.cum.length - 1] - 20, at.d));
+      let k = 1;
+      while (k < L.cum.length - 1 && L.cum[k] < s.d) k++;
+      const a = L.pts[k - 1], b = L.pts[k], f = (s.d - L.cum[k - 1]) / ((L.cum[k] - L.cum[k - 1]) || 1), x = a[0] + (b[0] - a[0]) * f, z = a[1] + (b[1] - a[1]) * f;
+      rec.tracks.push(Math.round(((x - rec.x) * -uz + (z - rec.z) * ux) * 100) / 100);
+    }
+  }
+  for (const L of lines) L.stations.sort((a, b) => a.d - b.d);
   const dm = (v) => Math.round(v * 10);
   const json = {
     version: 1,
