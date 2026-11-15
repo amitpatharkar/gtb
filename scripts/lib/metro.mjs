@@ -20,7 +20,8 @@ export const METRO_LINES = {
   'Mono 1': { name: 'Monorail', colour: '#4bb7c9', cars: 4, car: 10.8, peak: 480, off: 480, first: 6, last: 22, kind: 'monorail', closed: true },
 };
 
-export const isMetroRoute = (t) => t.type === 'route' && /^(subway|monorail|light_rail)$/.test(t.route || '') && !!METRO_LINES[t.ref] && !/construction|proposed/i.test(`${t.name || ''} ${t.state || ''}`);
+/** A metro or monorail route relation (the closed monorail is mapped as disused:route=monorail). */
+export const isMetroRoute = (t) => /route/.test(t.type || 'route') && /^(subway|monorail|light_rail)$/.test(t.route || t['disused:route'] || '') && !!METRO_LINES[t.ref] && !/construction|proposed/i.test(`${t.name || ''} ${t.state || ''}`);
 
 /**
  * Station names as the game shows them: the operators' "L1"/"Metro" suffixes dropped, sponsor
@@ -30,6 +31,7 @@ export const isMetroRoute = (t) => t.type === 'route' && /^(subway|monorail|ligh
 export function metroName(n) {
   n = (n || '').replace(/\s+L\d+$/, '').replace(/\s*\(Line \w+\)$/i, '').replace(/\s+Metro( Station)?$/i, '').replace(/\s+Station$/i, '').replace(/\s+/g, ' ').trim();
   if (/chhatrapati shivaji maharaj terminus|\bcsmt?\b/i.test(n)) return 'Chhatrapati Chai Terminus';
+  if (/\bcsmia\b/i.test(n)) return `Chhatrapati Udaan Airport ${/international|\bt2\b/i.test(n) ? 'T2' : 'T1'}`; // the airport's stops: "CSMIA Domestic" (T1), "CSMIA International T2"
   const air = n.match(/international airport.*\b(T[12])\b/i);
   if (air) return `Chhatrapati Udaan Airport ${air[1].toUpperCase()}`;
   if (/siddhivinayak/i.test(n)) return 'Siddhi-Vinayaka Mandir';
