@@ -370,7 +370,7 @@ export function buildBuildings(t, ox, oz, toWorld) {
           if (ribbon) slab(m, ax, az, bx, bz, nx, nz, y, 0.07, 0.55, base, false);
           else for (let c = 0; c < bays; c++) {
             const s0 = (c + r[0] - 0.05) * bw, s1 = (c + r[1] + 0.05) * bw;
-            slab(m, ax + dx * s0, az + dz * s0, ax + dx * s1, az + dz * s1, nx, nz, y, 0.07, 0.5, base);
+            slab(m, ax + dx * s0, az + dz * s0, ax + dx * s1, az + dz * s1, nx, nz, y, 0.07, 0.5, base, false);
           }
         }
       }

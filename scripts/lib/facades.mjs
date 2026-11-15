@@ -42,7 +42,7 @@ const GOTHIC = new Set(['Fort', 'Kala Ghoda', 'CST', 'Churchgate', 'Ballard Esta
 const GOTHIC_PROFILE = new Set(['heritage-boulevard', 'fort-arcade-commercial', 'fort-narrow-commercial']);
 // Art Deco pastels (Marine Drive, Oval Maidan, Churchgate, Dadar Parsi Colony): about half the
 // Deco blocks are repainted in one of these; the rest keep the street's cream and sand.
-const DECO_PASTELS = [0xf3e3c3, 0xebd0c2, 0xd6e4d6, 0xf1e2ad, 0xd4dfe6, 0xeed3b6, 0xe4dcea, 0xf4efe4, 0xe9d8b0, 0xcfe0dc];
+const DECO_PASTELS = [0xf3e3c3, 0xf0d5c6, 0xd9e7d6, 0xf3e4b0, 0xd8e3e8, 0xf2d6b8, 0xf6f1e6, 0xebdab2, 0xd3e4de, 0xf4dccf];
 const CHURCH = new Set(['church', 'cathedral', 'chapel']);
 
 /**

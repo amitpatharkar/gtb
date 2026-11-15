@@ -64,7 +64,7 @@ export function roundCorners(ring, front) {
     if (!pl) { out.push(ring[i * 2], ring[i * 2 + 1]); fr.push(front[i]); edge.push(-1); start.push(0); continue; }
     const sx = ring[i * 2] - pl.u1[0] * pl.t, sz = ring[i * 2 + 1] - pl.u1[1] * pl.t;
     const cx = sx - pl.u1[1] * pl.R, cz = sz + pl.u1[0] * pl.R;
-    const k = Math.max(3, Math.ceil(pl.turn / (Math.PI / 12)));
+    const k = Math.max(3, Math.ceil(pl.turn / (Math.PI / 10)));
     const a0 = Math.atan2(sz - cz, sx - cx), g = len.length, chord = 2 * pl.R * Math.sin(pl.turn / k / 2);
     const f = front[(i - 1 + n) % n] || front[i] ? 1 : 0;
     for (let j = 0; j <= k; j++) {
