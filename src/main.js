@@ -21,7 +21,8 @@ import { loadVehicleArt } from './vehicles/vehicleArt.js';
 import { updateNightLights } from './world/nightLights.js';
 import { Signals } from './sim/signals.js';
 import { Police } from './sim/police.js';
-import { PeopleRenderer, POSE, FLAG, HOLI, outfit } from './sim/people.js';
+import { PeopleRenderer, POSE, FLAG, HOLI, outfit, makePerson, setWorldFrame } from './sim/people.js';
+import { playerLook } from './sim/looks.js';
 import { Bubbles } from './ui/bubbles.js';
 import { StreetLife } from './sim/street.js';
 import { Animals } from './sim/animals.js';
@@ -134,6 +135,8 @@ const skyline = new Skyline(scene, tiles, tier, camera.far); // distant tall bui
 const signals = new Signals(scene);
 traffic.signals = signals;
 const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
+setWorldFrame(index); // districts for who wears what (sim/looks.js)
+people.clock = clock; // and by hour and day
 const characters = new Characters(scene, BASE, tier, lib, started);
 let frameDt = 0;
 people.beforeEnd = (list) => {
@@ -170,6 +173,7 @@ function applyOutfit() {
   else if (o === 'kurta') { L.shirt.setHex(0xefe3c6); L.pants.setHex(0xf4f1ea); }
   else if (o === 'shades') { L.shirt.setHex(0x111111); L.pants.setHex(0x2b3a55); }
   else { L.shirt.setHex(0x1f8a8a); L.pants.setHex(0x24324a); }
+  L.wear = o; // the real kurta, sunglasses (sim/looks.js playerLook)
 }
 const pichkari = new Pichkari(scene, { tiles, street, police, traffic, bubbles, audio, hud });
 let combat = null; // created once the camera control exists (below)
@@ -678,6 +682,7 @@ window.__gtb.navigator = navigator;
 window.__gtb.art = art;
 window.__gtb.vehicleArt = vehicleArt; // resolves to the ids of uploaded vehicle models in use
 window.__gtb.birds = birds;
+window.__gtb.outfit = outfit; window.__gtb.makePerson = makePerson; // people tests (looks by kind, district, hour)
 { const startle = crackers.startle.bind(crackers); crackers.startle = (x, z, r, by) => { birds.scare(x, z, r); return startle(x, z, r, by); }; } // crackers scare the pigeons too
 window.__gtb.interiors = interiors;
 const cheats = new Cheats(window.__gtb, (t, s) => say(t, s));
@@ -792,21 +797,16 @@ function step(dt) {
   trains?.update(dt, active, onFoot); // local trains (after street life: they add level-crossing stops and doorway commuters)
   if (onFoot) walker.draw(people, combat.weapon);
   else if (garage.seated) {
-    // Riding a two-wheeler or driving an auto: the player can be seen in the seat.
-    const seat = garage.spec.seat ?? 0.9, back = -(garage.spec.seatZ ?? -0.28), L = walker.look;
-    const P = (walker.person ||= { isPlayer: true, flags: 0, scale: 1, model: 0, hair: new THREE.Color(0x17110c) });
-    Object.assign(P, { x: player.pos.x - Math.sin(player.heading) * back, y: player.pos.y + seat - 0.42, z: player.pos.z - Math.cos(player.heading) * back, heading: player.heading, phase: 0, pose: POSE.SIT, amp: 1, speed: 0, shirt: L.shirt, pants: L.pants, skin: L.skin, patches: walker.patches });
+    // Riding a two-wheeler or driving an auto: the player can be seen in the seat (hands on the
+    // handlebar, pedalling a bicycle).
+    const pedal = !!garage.spec.pedal, seat = garage.spec.seat ?? 0.9, back = -(garage.spec.seatZ ?? -0.28), L = walker.look;
+    const P = (walker.person ||= makePerson({ isPlayer: true, model: 0, hair: new THREE.Color(0x17110c) }));
+    Object.assign(P, { x: player.pos.x - Math.sin(player.heading) * back, y: player.pos.y + seat - (pedal ? 0.86 : 0.42), z: player.pos.z - Math.cos(player.heading) * back, heading: player.heading, phase: pedal ? P.phase + dt * Math.abs(player.speed) * 1.7 : 0, pose: pedal ? POSE.PEDAL : POSE.RIDE, amp: 1, speed: 0, shirt: L.shirt, pants: L.pants, skin: L.skin, look: playerLook(L.wear), patches: walker.patches });
     people.add(P);
   }
-  for (const r of traffic.riders) {
-    // Riders sit astride their bikes (most wear helmets); auto drivers sit up front in khaki,
-    // dabbawalas pedal in white caps; some autos carry a passenger on the bench.
-    const T = traffic.types[r.type], seat = T?.seat ?? 0.92, back = -(T?.seatZ ?? -0.28);
-    const sh = Math.sin(r.heading), ch = Math.cos(r.heading), L = r.look;
-    if (T?.pedal) r.pedal = (r.pedal || 0) + dt * (r.speed || 0) * 1.7;
-    people.add({ noHero: true, x: r.x - sh * back, y: seat - (T?.pedal ? 0.86 : 0.42), z: r.z - ch * back, heading: r.heading, phase: r.pedal || 0, pose: T?.pedal ? POSE.PEDAL : POSE.SIT, amp: 1, flags: L.helmet ? FLAG.BERET : L.cap ? FLAG.CAP : 0, scale: 1, shirt: L.shirt, pants: L.pants, skin: L.skin });
-    if (r.pax && T.pax) people.add({ noHero: true, x: r.x + sh * T.pax.z - ch * 0.22, y: T.pax.seat - 0.42, z: r.z + ch * T.pax.z + sh * 0.22, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.pax.sari ? FLAG.SARI : 0, scale: 0.96, shirt: r.pax.shirt, pants: r.pax.pants, skin: r.pax.skin });
-  }
+  // Riders astride their bikes (most in helmets), auto drivers in khaki, dabbawalas pedalling in
+  // Gandhi caps, passengers on an auto's bench: real characters when near (people.rider).
+  for (const r of traffic.riders) people.rider(r, traffic.types[r.type], dt);
   if (view.wheel) { pichkari.setPressure(pichkari.pressure - view.wheel); view.wheel = 0; }
   pichkari.update(dt, onFoot ? walker : null, onFoot && combat.weapon === 'pichkari' && fire, view);
   people.end();

@@ -3,14 +3,20 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { POSE, HOLI } from './people.js';
+import { lookFor } from './looks.js';
+import { SLOT, buildWardrobe } from './wardrobe.js';
 
 // Real rigged, animated characters (Quaternius "Ultimate Animated Character Pack", CC0,
 // converted from FBX in the asset pipeline) for the player and everyone near the camera;
 // only people far away stay on the light procedural crowd (people.js).
 //
 // Each character is ONE skinned mesh and one draw call: the pack's per-material meshes are
-// merged, and a small shader patch colours each part (skin, top, trousers, hair, eyes) from
-// per-character uniforms, so clothes and skin follow the crowd's outfits.
+// merged with every wearable piece from wardrobe.js (hair styles, moustaches and beards,
+// bindis, spectacles, caps and helmets, sari, pallu, kurta, lungi, dupatta, school tie and
+// bag, ID lanyard, cricket bat). All characters of a template share those vertex buffers;
+// each one has its own index buffer listing only what that person wears (looks.js decides).
+// A shader patch colours each part from per-character uniforms (skin, clothes, hair, the
+// look's extra colours) with procedural checks, stripes and prints from the bind position.
 //
 // The pack is drawn with a child's proportions (legs 35 % of the height, a head a quarter of
 // it). `rig()` reshapes every body into an adult: legs lengthened along the bone, a smaller
@@ -22,11 +28,18 @@ import { POSE, HOLI } from './people.js';
 // base every person has a build (slim, average, heavy, muscular, stocky, lanky).
 // Height and foot level are measured from the animated poses. There is no run clip:
 // running is the walk cycle with a longer stride, faster cadence and a forward lean.
+// Riding (scooter, motorbike, auto), pedalling, batting, crouching and arguing are the
+// pack's clips with bones turned on top (feet re-attached to the shins where legs move).
 
 // Ordered by priority: Low loads the first two of each, Medium four, High all.
 const MODELS = {
   male: ['Casual_Male', 'Casual2_Male', 'Worker_Male', 'Casual3_Male', 'Casual_Bald', 'OldClassy_Male', 'Suit_Male', 'Chef_Male', 'Doctor_Male_Young'],
   female: ['Casual_Female', 'Casual2_Female', 'Casual3_Female', 'Worker_Female', 'OldClassy_Female', 'Suit_Female', 'Doctor_Female_Young'],
+};
+/** Which bodies suit a look's clothes (looks.js `template`), best first. */
+const PREFER = {
+  male: { casual: ['Casual_Male', 'Casual_Bald', 'Casual2_Male'], shirt: ['Casual2_Male', 'Casual_Male', 'OldClassy_Male'], vest: ['Casual3_Male', 'Casual_Male'], worker: ['Worker_Male', 'Casual2_Male', 'Casual_Male'], suit: ['Suit_Male', 'Casual2_Male'], blouse: ['Casual_Male'] },
+  female: { casual: ['Casual_Female', 'Casual2_Female', 'Casual3_Female'], blouse: ['Casual_Female', 'Casual2_Female'], shirt: ['Casual2_Female', 'Casual_Female'], worker: ['Worker_Female', 'Casual_Female'], suit: ['Suit_Female', 'Casual2_Female'], vest: ['Casual3_Female', 'Casual_Female'] },
 };
 const CLIP = {
   idle: /^idle$/i, walk: /^walk$/i, run: /^run$/i, punch: /^punch$/i, hit: /recieve|receive/i,
@@ -53,16 +66,17 @@ export const BUILDS = {
   kid: { head: 1.4, torso: [0.92, 1, 0.95], shoulder: [1, 0.9, 1], neck: [0.9, 0.85, 0.9] },            // children keep a bigger head
 };
 /** A build for a person, by who they are: [name, weight]. */
-function pickBuild(p) {
+function pickBuild(p, L) {
   if (p.isPlayer) return 'fit';
-  if (p.kind === 'kid' || (p.scale ?? 1) < 0.85) return 'kid';
-  const female = (p.flags || 0) & 2;
+  if (L.kid || p.kind === 'kid' || (p.scale ?? 1) < 0.85) return 'kid';
   const table = p.kind === 'jogger' ? [['slim', 5], ['average', 3], ['muscular', 2]]
     : p.kind === 'worker' || p.kind === 'driver' ? [['slim', 3], ['average', 4], ['muscular', 2], ['stocky', 2], ['heavy', 1]]
-    : p.kind === 'office' ? [['average', 4], ['heavy', 3], ['slim', 2], ['stocky', 2], ['lanky', 1]]
-    : female ? [['average', 4], ['slim', 3], ['heavy', 2], ['stocky', 2]]
-    : [['average', 4], ['slim', 2.5], ['heavy', 2], ['stocky', 1.2], ['muscular', 1], ['lanky', 1]];
-  let r = Math.random() * table.reduce((a, [, w]) => a + w, 0);
+      : p.kind === 'office' ? [['average', 4], ['heavy', 3], ['slim', 2], ['stocky', 2], ['lanky', 1]]
+        : L.female ? [['average', 4], ['slim', 3], ['heavy', 2], ['stocky', 2]]
+          : [['average', 4], ['slim', 2.5], ['heavy', 2], ['stocky', 1.2], ['muscular', 1], ['lanky', 1]];
+  let sum = 0;
+  for (const [, w] of table) sum += w;
+  let r = L.seed * 7.31 % 1 * sum;
   for (const [name, w] of table) { r -= w; if (r <= 0) return name; }
   return 'average';
 }
@@ -127,13 +141,15 @@ function bake(clip, names, k) {
   return c;
 }
 const GUARD_AT = 0.3; // fraction of the punch clip held as the guard stance
-const SLOT = { other: 0, skin: 1, shirt: 2, pants: 3, hair: 4, face: 5, leg: 6, shoe: 7 };
 // Limbs whose swing is amplified when running: [bone name pattern, extra factor at a full run].
 const RUN_BONES = [[/^upperleg/i, 0.55], [/^lowerleg/i, 0.35], [/^upperarm/i, 0.7], [/^lowerarm/i, 0.5]];
 
+/** The pack's materials → slot ('drop' = not used: its own hair and hats). */
 const slotOf = (name) => {
   const n = (name || '').toLowerCase();
-  return /^skin/.test(n) ? SLOT.skin : /^(shirt|clothes|main|top|vest)/.test(n) ? SLOT.shirt : /^(pants|trousers|skirt)/.test(n) ? SLOT.pants : /^hair/.test(n) ? SLOT.hair : /^face/.test(n) ? SLOT.face : SLOT.other;
+  if (/^(hair|hat|helmet)/.test(n)) return 'drop';
+  return /^skin/.test(n) ? SLOT.skin : /^(shirt|clothes|main|top)/.test(n) ? SLOT.shirt : /^vest/.test(n) ? SLOT.vest
+    : /^(pants|trousers|skirt|darkclothes)/.test(n) ? SLOT.pants : /^face/.test(n) ? SLOT.face : SLOT.other;
 };
 
 /**
@@ -170,71 +186,82 @@ function autoSmooth(g, angle = 62) {
   g.setAttribute('normal', new THREE.BufferAttribute(out, 3));
 }
 
-/** One material per character: the same program, different part colours. */
+/** Plain attribute types (Float32 weights, Uint16 joints), so templates and pieces merge. */
+function plainSkin(g) {
+  const si = g.attributes.skinIndex, sw = g.attributes.skinWeight, n = si.count;
+  const I = new Uint16Array(n * 4), W = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) for (let k = 0; k < 4; k++) { I[i * 4 + k] = si.getComponent(i, k); W[i * 4 + k] = sw.getComponent(i, k); }
+  g.setAttribute('skinIndex', new THREE.BufferAttribute(I, 4));
+  g.setAttribute('skinWeight', new THREE.BufferAttribute(W, 4));
+}
+
+/**
+ * One material per character: the same program, different part colours. uCol[slot] are the
+ * slot colours (slot 0 uses the vertex colour); uPat[slot] = (pattern, period x, period y)
+ * with uPatCol the second colour: 1 checks, 2 stripes, 3 small print, 4 diagonal stripes.
+ */
+const N_SLOT = 16;
 function characterMaterial() {
   const m = new THREE.MeshStandardMaterial({ roughness: 0.82, metalness: 0 });
-  const u = { uSkin: { value: new THREE.Color() }, uShirt: { value: new THREE.Color() }, uPants: { value: new THREE.Color() }, uHair: { value: new THREE.Color() }, uLeg: { value: new THREE.Color() }, uShoe: { value: new THREE.Color() } };
+  const u = {
+    uCol: { value: Array.from({ length: N_SLOT }, () => new THREE.Color()) },
+    uPatCol: { value: Array.from({ length: N_SLOT }, () => new THREE.Color()) },
+    uPat: { value: Array.from({ length: N_SLOT }, () => new THREE.Vector3()) },
+    uGloss: { value: 0 },
+  };
   m.userData.u = u;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aSlot; attribute vec3 aBase; varying float vSlot; varying vec3 vBase;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSlot = aSlot; vBase = aBase;');
+      .replace('#include <common>', '#include <common>\nattribute float aSlot; attribute vec3 aBase; flat varying float vSlot; varying vec3 vBase; varying vec3 vRest;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSlot = aSlot; vBase = aBase; vRest = position;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vSlot; varying vec3 vBase; uniform vec3 uSkin; uniform vec3 uShirt; uniform vec3 uPants; uniform vec3 uHair; uniform vec3 uLeg; uniform vec3 uShoe;')
-      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = vSlot < 0.5 ? vBase : vSlot < 1.5 ? uSkin : vSlot < 2.5 ? uShirt : vSlot < 3.5 ? uPants : vSlot < 4.5 ? uHair : vSlot < 5.5 ? vec3(0.05, 0.04, 0.03) : vSlot < 6.5 ? uLeg : uShoe;');
+      .replace('#include <common>', `#include <common>
+        flat varying float vSlot; varying vec3 vBase; varying vec3 vRest;
+        uniform vec3 uCol[${N_SLOT}]; uniform vec3 uPatCol[${N_SLOT}]; uniform vec3 uPat[${N_SLOT}]; uniform float uGloss;
+        // Woven and printed patterns from the bind-pose position; they fade to their average
+        // colour once a repeat is smaller than a pixel or two (no shimmer at a distance).
+        float pattern(vec3 pat, vec3 p) {
+          if (pat.x < 0.5) return 0.0;
+          vec2 q = vec2(p.x + p.z * 0.6, p.y) / pat.yz;
+          vec2 w = fwidth(q) + 1e-4;
+          float m, avg;
+          if (pat.x < 1.5) { vec2 f = abs(fract(q) - 0.5); vec2 l = smoothstep(0.36 - w, 0.36 + w, f); vec2 l2 = 1.0 - smoothstep(vec2(0.0), vec2(0.03) + w, abs(f - 0.18)); m = max(max(l.x, l.y), 0.6 * max(l2.x, l2.y)); avg = 0.38; }
+          else if (pat.x < 2.5) { float f = abs(fract(q.x) - 0.5); m = smoothstep(0.4 - w.x, 0.4 + w.x, f); avg = 0.2; }
+          else if (pat.x < 3.5) { vec2 g = q * 2.0; g.x += floor(g.y) * 0.5; float d = length(fract(g) - 0.5); m = 1.0 - smoothstep(0.17 - 2.0 * w.x, 0.17 + 2.0 * w.x, d); avg = 0.09; w *= 2.0; }
+          else { float f = abs(fract(q.x + q.y) - 0.5); m = smoothstep(0.32 - w.x - w.y, 0.32 + w.x + w.y, f); avg = 0.36; }
+          return mix(m, avg, smoothstep(0.18, 0.4, max(w.x, w.y)));
+        }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        int si = int(vSlot + 0.5);
+        vec3 col = si == 0 ? vBase : uCol[si];
+        if (si > 0) col = mix(col, uPatCol[si], pattern(uPat[si], vRest));
+        diffuseColor.rgb = col;`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        if (si == ${SLOT.hair}) roughnessFactor = mix(0.62, 0.32, uGloss);
+        else if (si == ${SLOT.skin} || si == ${SLOT.arm} || si == ${SLOT.forearm}) roughnessFactor = 0.6;
+        else if (si == ${SLOT.lens}) roughnessFactor = 0.08;
+        else if (si == 0 && vBase.r > 0.7 && vBase.g > 0.3 && vBase.b < 0.2) roughnessFactor = 0.5;`);
   };
-  m.customProgramCacheKey = () => 'gtb-character2';
+  m.customProgramCacheKey = () => 'gtb-character3';
   return m;
 }
 
-/**
- * A sari for the real characters: a skirt from waist to ankle and the pallu, the end of the
- * cloth that crosses the chest and falls over the left shoulder. One small rigid mesh in
- * metres (child of the character's holder); `mask` marks the border, coloured per person.
- */
-function sariGeometry() {
-  const pos = [], mask = [], idx = [];
-  const v = (x, y, z, m) => { pos.push(x, y, z); mask.push(m); return pos.length / 3 - 1; };
-  // Skirt: rings of an elliptical cone, a border band at the hem.
-  const N = 14, rings = [[0.985, 0.168, 0.128, 0], [0.62, 0.215, 0.185, 0], [0.16, 0.285, 0.275, 0], [0.155, 0.287, 0.277, 1], [0.045, 0.292, 0.282, 1]];
-  const start = [];
-  for (const [y, rx, rz, m] of rings) {
-    start.push(pos.length / 3);
-    for (let i = 0; i <= N; i++) { const a = (i / N) * Math.PI * 2; v(Math.sin(a) * rx, y, Math.cos(a) * rz + 0.012, m); }
-  }
-  for (let r = 0; r + 1 < rings.length; r++) for (let i = 0; i < N; i++) { const a = start[r] + i, b = start[r + 1] + i; idx.push(a, b, a + 1, a + 1, b, b + 1); }
-  // Pallu: a ribbon from the right hip, across the chest, over the left shoulder and down the back.
-  const path = [[-0.15, 0.97, 0.125], [-0.04, 1.14, 0.15], [0.09, 1.3, 0.125], [0.165, 1.405, 0.03], [0.17, 1.39, -0.07], [0.16, 1.12, -0.135], [0.15, 0.78, -0.15]];
-  const w = 0.085;
-  let prev = null;
-  path.forEach(([x, y, z], i) => {
-    // Width runs across the body on the chest, and across the back behind.
-    const a = v(x - w, y - (i < 3 ? 0.03 : 0), z, i === path.length - 1 ? 1 : 0), b = v(x + w, y + (i < 3 ? 0.03 : 0), z, i === path.length - 1 ? 1 : 0);
-    if (prev) idx.push(prev[0], a, prev[1], prev[1], a, b);
-    prev = [a, b];
-  });
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(pos.length), 3));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  g.userData.mask = mask;
-  return g;
-}
-let SARI_GEO = null;
-
+const tmp = new THREE.Color();
 export class Characters {
   constructor(scene, base, tier, lib = null, started = Promise.resolve()) {
     this.scene = scene;
     this.poolSize = tier.name === 'High' ? 30 : tier.name === 'Medium' ? 20 : 11;
     this.radius = tier.name === 'Low' ? 34 : 46;
     this.templates = [];
+    this.byName = new Map();
     this.pool = [];
     this.ready = false;
     this.timer = 0;
     this.frame = 0;
+    this.want = []; this.chosen = []; this.dist = [];
     this.q = new THREE.Quaternion(); this.qp = new THREE.Quaternion(); this.qLean = new THREE.Quaternion(); this.axis = new THREE.Vector3();
+    this.v = new THREE.Vector3(); this.m4 = new THREE.Matrix4();
     const loader = new GLTFLoader();
     const dir = `${base}media/models/character-quaternius-animated-pack/converted/`;
     // Only ask for models the asset manifest says were built (no 404s while they're missing).
@@ -243,18 +270,25 @@ export class Characters {
     const names = [...MODELS.male.slice(0, per), ...MODELS.female.slice(0, per)].filter((n) => files.has(`models/character-quaternius-animated-pack/converted/${n}.glb`));
     if (!names.length) return;
     started.then(() => Promise.allSettled(names.map((n) => loader.loadAsync(`${dir}${n}.glb`).then((g) => ({ name: n, gltf: g, female: MODELS.female.includes(n) }))))
-      .then((res) => {
+      .then(async (res) => {
         const ok = [];
         for (const r of res) {
           if (r.status !== 'fulfilled') continue;
+          await new Promise((done) => setTimeout(done, 0)); // one template per task: no long frame
           try { this.prepare(r.value); ok.push(r.value); } catch (e) { console.warn(`Character ${r.value.name} skipped:`, e.message); }
         }
-        this.templates = ok;
-        this.ready = ok.length > 0;
+        this.setTemplates(ok);
       }));
   }
 
-  /** Merge the model into one mesh, find its bones, and measure it in the animated poses. */
+  setTemplates(ok) {
+    this.templates = ok;
+    for (const t of ok) this.byName.set(t.name, t);
+    this.lists = { male: ok.filter((t) => !t.female), female: ok.filter((t) => t.female) };
+    this.ready = ok.length > 0;
+  }
+
+  /** Merge the model into one mesh with its wardrobe, find its bones, and measure it in the animated poses. */
   prepare(t) {
     const scene = t.gltf.scene;
     scene.updateMatrixWorld(true);
@@ -263,39 +297,59 @@ export class Characters {
     scene.traverse((o) => { if (o.isSkinnedMesh) meshes.push(o); });
     if (!meshes.length) throw new Error('no skinned mesh');
     const skeleton = meshes[0].skeleton;
-    const geos = [];
+    const body = [], belt = [];
     for (const m of meshes) {
       if (m.skeleton !== skeleton) throw new Error('several skeletons');
-      const mats = [m.material].flat();
+      const mat = [m.material].flat()[0], s = slotOf(mat.name);
+      if (s === 'drop') continue;
       const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
       for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'skinIndex', 'skinWeight'].includes(k)) g.deleteAttribute(k);
       if (!g.attributes.normal) g.computeVertexNormals();
+      plainSkin(g);
       const n = g.attributes.position.count, slot = new Float32Array(n), base = new Float32Array(n * 3);
       // The mesh's material → per-vertex slot and base colour.
-      const mat = mats[0], s = slotOf(mat.name), c = mat.color || new THREE.Color(0.5, 0.5, 0.5);
+      const c = mat.color || new THREE.Color(0.5, 0.5, 0.5);
       for (let i = 0; i < n; i++) { slot[i] = s; base[i * 3] = c.r; base[i * 3 + 1] = c.g; base[i * 3 + 2] = c.b; }
       g.setAttribute('aSlot', new THREE.BufferAttribute(slot, 1));
       g.setAttribute('aBase', new THREE.BufferAttribute(base, 3));
       g.morphAttributes = {};
-      geos.push(g);
+      (/^belt/i.test(mat.name) ? belt : body).push(g);
     }
-    const merged = geos.length > 1 ? mergeGeometries(geos) : geos[0];
+    const merged = mergeGeometries(body);
     if (!merged) throw new Error('merge failed');
     autoSmooth(merged);
-    // The pack's people wear shorts and no shoes. Bare skin on the legs becomes its own slot
-    // (trouser legs for adults, skin for children) and the feet become footwear.
+    // The pack's people wear shorts and no shoes. Bare skin on the legs and arms becomes its
+    // own slots (thigh, shin, sock band at the ankle; upper arm, forearm), coloured by the
+    // look: trousers, a salwar or a sari over the legs, shorts for children, sleeves.
     {
-      const si = merged.attributes.skinIndex, sw = merged.attributes.skinWeight, sl = merged.attributes.aSlot;
-      const kind = skeleton.bones.map((b) => (/^(upperleg|lowerleg)/i.test(b.name) ? 1 : /^(foot|toe)/i.test(b.name) ? 2 : 0));
-      for (let i = 0; i < sl.count; i++) {
+      const si = merged.attributes.skinIndex, sw = merged.attributes.skinWeight, sl = merged.attributes.aSlot, pos = merged.attributes.position;
+      const kind = skeleton.bones.map((b) => (/^upperleg/i.test(b.name) ? 1 : /^lowerleg/i.test(b.name) ? 3 : /^(foot|toe)/i.test(b.name) ? 2 : /^upperarm/i.test(b.name) ? 4 : /^lowerarm/i.test(b.name) ? 5 : 0));
+      const ank = skeleton.bones.find((b) => /^lowerlegl_end$/i.test(b.name)), knee = skeleton.bones.find((b) => /^lowerlegl$/i.test(b.name));
+      const v = new THREE.Vector3(), ankleY = ank ? v.setFromMatrixPosition(ank.matrixWorld).y : 0.02, kneeY = knee ? new THREE.Vector3().setFromMatrixPosition(knee.matrixWorld).y : 0.55;
+      const sockY = ankleY + (kneeY - ankleY) * 0.32;
+      const slotFor = (i) => {
         let best = 0, bw = -1;
         for (let k = 0; k < 4; k++) { const w = sw.getComponent(i, k); if (w > bw) { bw = w; best = si.getComponent(i, k); } }
-        const s0 = sl.getX(i);
-        if (kind[best] === 2 && (s0 === SLOT.skin || s0 === SLOT.other)) sl.setX(i, SLOT.shoe);
-        else if (kind[best] === 1 && s0 === SLOT.skin) sl.setX(i, SLOT.leg);
+        const s0 = sl.getX(i), kd = kind[best];
+        if (kd === 2 && (s0 === SLOT.skin || s0 === SLOT.other)) return SLOT.shoe;
+        if (s0 === SLOT.pants && kd === 3) return pos.getY(i) < sockY ? SLOT.sock : SLOT.shin; // long trousers below the knee
+        if (s0 !== SLOT.skin) return s0;
+        if (kd === 1) return SLOT.thigh;
+        if (kd === 3) return pos.getY(i) < sockY ? SLOT.sock : SLOT.shin;
+        if (kd === 4) return SLOT.arm;
+        if (kd === 5) return SLOT.forearm;
+        return s0;
+      };
+      // One slot per triangle (the most common of its corners): clean edges at cuffs and hems.
+      for (let i = 0; i < sl.count; i += 3) {
+        const a = slotFor(i), b = slotFor(i + 1), c = slotFor(i + 2);
+        const s = a === b || a === c ? a : b === c ? b : sl.getX(i) === SLOT.skin ? SLOT.skin : a;
+        sl.setX(i, s); sl.setX(i + 1, s); sl.setX(i + 2, s);
       }
     }
-    const mesh = new THREE.SkinnedMesh(merged, new THREE.MeshStandardMaterial());
+    const beltGeo = belt.length ? mergeGeometries(belt) : null;
+    const baseGeo = beltGeo ? mergeGeometries([merged, beltGeo]) : merged;
+    const mesh = new THREE.SkinnedMesh(baseGeo, new THREE.MeshStandardMaterial());
     mesh.name = 'body';
     meshes[0].parent.add(mesh);
     mesh.position.copy(meshes[0].position); mesh.quaternion.copy(meshes[0].quaternion); mesh.scale.copy(meshes[0].scale);
@@ -305,9 +359,21 @@ export class Characters {
     mesh.frustumCulled = false;
     t.mesh = mesh;
 
-    // --- adult body shape, re-baked clips
+    // --- adult body shape; the wardrobe is modelled on it in the rest pose
     t.parts = rig(scene);
     shapeBody(t.parts, t.female, 'average');
+    scene.updateMatrixWorld(true);
+    const pieces = buildWardrobe(mesh, t.female);
+    const order = Object.keys(pieces);
+    const full = mergeGeometries([baseGeo, ...order.map((k) => pieces[k])]);
+    if (!full) throw new Error('wardrobe merge failed');
+    t.ranges = { body: [0, merged.attributes.position.count] };
+    if (beltGeo) t.ranges.belt = [merged.attributes.position.count, beltGeo.attributes.position.count];
+    let at = baseGeo.attributes.position.count;
+    for (const k of order) { const n = pieces[k].attributes.position.count; t.ranges[k] = [at, n]; at += n; }
+    t.full = full;
+    t.vertices = at;
+
     const hips = skeleton.bones.find((b) => /^hips$/i.test(b.name));
     let bodyBone = null; const feet = [];
     scene.traverse((o) => { if (/^body(_\d+)?$/i.test(o.name) && !o.isMesh && o.children.some((c) => /^hips$/i.test(c.name))) bodyBone = o; if (/^foot[^_]*$/i.test(o.name)) feet.push(o.name); });
@@ -316,7 +382,7 @@ export class Characters {
     for (const [k, re] of Object.entries(CLIP)) { const clip = t.gltf.animations.find((a) => re.test(a.name)); t.clips[k] = clip ? bake(clip, names, LEG) : null; }
     t.clips.idle ||= bake(t.gltf.animations[0], names, LEG);
 
-    // --- measure in the animated poses (the bind pose is an A-pose and the clips move the hips)
+    // --- measure in the animated poses (the bind pose is a T-pose and the clips move the hips)
     const mixer = new THREE.AnimationMixer(scene);
     const box = new THREE.Box3(), v = new THREE.Vector3();
     const pose = (clip, time) => {
@@ -336,6 +402,7 @@ export class Characters {
     let sitHip = 0.5, sitMin = i0;
     if (t.clips.sit && hips) { [sitMin] = pose(t.clips.sit, t.clips.sit.duration - 0.01); sitHip = hips.getWorldPosition(v).y - sitMin; }
     mixer.stopAllAction(); mixer.uncacheRoot(scene);
+    mesh.geometry = full; // clones share it until make() gives each its own index
     t.scale = HEIGHT[t.female ? 'female' : 'male'] / (i1 - i0 || 1);
     t.liftIdle = -i0 * t.scale;
     t.liftWalk = -walkMin * t.scale;
@@ -345,7 +412,7 @@ export class Characters {
     t.walkSpeed = 1.3;
     const ft = t.clips.walk?.tracks.find((tr) => feet.some((n) => tr.name === `${n}.position`));
     if (ft) { let lo = Infinity, hi = -Infinity; for (let i = 2; i < ft.values.length; i += 3) { lo = Math.min(lo, ft.values[i]); hi = Math.max(hi, ft.values[i]); } t.walkSpeed = Math.max(0.6, (2 * (hi - lo) * t.scale) / t.clips.walk.duration); }
-    t.debug = { i0, i1, walkMin, sitMin, sitHip, walkSpeed: t.walkSpeed, body: names.body || 'none', feet: feet.length };
+    t.debug = { i0, i1, walkMin, sitMin, sitHip, walkSpeed: t.walkSpeed, body: names.body || 'none', feet: feet.length, vertices: t.vertices, pieces: order.length };
   }
 
   make(t) {
@@ -353,6 +420,14 @@ export class Characters {
     let mesh = null;
     const bones = new Map();
     root.traverse((o) => { if (o.isSkinnedMesh) mesh = o; if (o.isBone) bones.set(o.name, o); });
+    // Own index buffer over the template's shared vertex buffers: what this person wears.
+    const geo = new THREE.BufferGeometry();
+    for (const [k, a] of Object.entries(t.full.attributes)) geo.setAttribute(k, a);
+    const index = new THREE.BufferAttribute(t.vertices > 65535 ? new Uint32Array(t.vertices) : new Uint16Array(t.vertices), 1);
+    index.setUsage(THREE.DynamicDrawUsage);
+    geo.setIndex(index);
+    geo.setDrawRange(0, 0);
+    mesh.geometry = geo;
     mesh.material = characterMaterial();
     mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
     const holder = new THREE.Group();
@@ -368,7 +443,13 @@ export class Characters {
     for (const [n, b] of bones) { const r = RUN_BONES.find(([re]) => re.test(n)); if (r && t.ref.has(n)) run.push([b, t.ref.get(n), r[1]]); }
     const parts = rig(root);
     shapeBody(parts, t.female, 'average');
-    return { t, holder, root, mesh, mixer, actions, parts, build: 'average', u: mesh.material.userData.u, head: find(/^head$/i), spine: find(/^abdomen$/i) || find(/^torso$/i), hand: find(/^fist\.?r$|^hand\.?r$|righthand/i), legR: find(/^upperleg\.?r$/i), run, lift: t.liftIdle, current: null, who: null, cap: null, adds: [] };
+    const limb = (side) => ({ thigh: find(new RegExp(`^upperleg\\.?${side}$`, 'i')), shin: find(new RegExp(`^lowerleg\\.?${side}$`, 'i')), end: find(new RegExp(`^lowerleg\\.?${side}_end$`, 'i')), foot: find(new RegExp(`^foot\\.?${side}$`, 'i')), arm: find(new RegExp(`^upperarm\\.?${side}$`, 'i')), fore: find(new RegExp(`^lowerarm\\.?${side}$`, 'i')) });
+    return {
+      t, holder, root, mesh, geo, index, mixer, actions, parts, build: 'average', u: mesh.material.userData.u,
+      head: find(/^head$/i), spine: find(/^abdomen$/i) || find(/^torso$/i), chest: find(/^torso$/i), hand: find(/^fist\.?r$|^hand\.?r$|righthand/i), legR: find(/^upperleg\.?r$/i),
+      L: limb('L'), R: limb('R'), run, lift: t.liftIdle, current: null, who: null, keep: false, adds: [], dressKey: '', look: null,
+      patchN: -1, shirtHex: -1,
+    };
   }
 
   play(c, name) {
@@ -380,71 +461,106 @@ export class Characters {
     c.current = a;
   }
 
-  /** Colours for this person; a police cap or helmet on the head where their flags say so. */
-  dress(c, p) {
-    const n = p.patches?.length || 0;
-    if (c.who === p && c.patchN === n && c.shirtHex === p.shirt.getHex()) return;
-    c.who = p; c.patchN = n; c.shirtHex = p.shirt.getHex();
-    // Everyone has their own build (slim … heavy … muscular), kept for as long as they exist.
-    p.build ??= pickBuild(p);
-    if (c.build !== p.build) { c.build = p.build; shapeBody(c.parts, c.t.female, p.build); }
-    // Holi colour on a real character: the clothes take on the colours thrown at them.
-    const tint = (target, base) => { target.copy(base); for (const [, code] of p.patches || []) target.lerp(HOLI[Math.floor(code)], 0.18); };
-    c.u.uSkin.value.copy(p.skin);
-    tint(c.u.uShirt.value, p.shirt);
-    tint(c.u.uPants.value, p.pants);
-    // Full-length trousers (or salwar / leggings) on adults; children keep their shorts.
-    c.u.uLeg.value.copy(p.build === 'kid' ? p.skin : c.u.uPants.value);
-    p.shoe ??= new THREE.Color([0x1a1a1a, 0x2b1d14, 0x3a2a1e, 0x6b4a32, 0xd8d4cc, 0x20242c][Math.floor(Math.random() * 6)]);
-    c.u.uShoe.value.copy(p.shoe);
-    // Black to dark-brown hair, a little grey on some.
-    p.hair ??= new THREE.Color().setHSL(0.07, 0.35, Math.random() < 0.1 ? 0.2 : 0.03 + Math.random() * 0.04);
-    c.u.uHair.value.copy(p.hair);
-    // Most women wear a sari over the blouse (the rest: salwar or trousers).
-    if (c.t.female && p.build !== 'kid' && !p.isPlayer) p.sari ??= Math.random() < 0.62;
-    c.wearSari = !!p.sari && c.t.female;
-    if (c.wearSari) {
-      if (!c.sari) {
-        SARI_GEO ||= sariGeometry();
-        const geo = SARI_GEO.clone(); geo.userData.mask = SARI_GEO.userData.mask;
-        c.sari = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.78 }));
-        c.sari.castShadow = true; c.sari.frustumCulled = false;
-        c.holder.add(c.sari);
-      }
-      p.sariBorder ??= new THREE.Color([0xd9a21b, 0xe8c15a, 0xb3122a, 0x0f6b4f, 0xf2efe6][Math.floor(Math.random() * 5)]);
-      const col = c.sari.geometry.attributes.color, mask = c.sari.geometry.userData.mask, body = c.u.uPants.value, edge = p.sariBorder;
-      for (let i = 0; i < col.count; i++) { const k = mask[i] ? edge : body; col.setXYZ(i, k.r, k.g, k.b); }
-      col.needsUpdate = true;
-    }
-    if (c.sari) c.sari.visible = c.wearSari;
-    const hat = (p.flags || 0) & 1 ? 'cap' : (p.flags || 0) & 4 ? 'helmet' : null;
-    if (c.cap) c.cap.visible = false;
-    c.cap = null;
-    if (hat && c.head) {
-      c.hats ||= {};
-      if (!c.hats[hat]) { c.hats[hat] = this.makeHat(c, hat); c.head.add(c.hats[hat]); }
-      c.cap = c.hats[hat];
-      c.cap.visible = true;
-      c.cap.material.color.copy(hat === 'cap' ? p.pants : p.hatColor || (p.hatColor = new THREE.Color().setHSL(Math.random(), 0.5, 0.25)));
-    }
+  /** The pieces a look wears on this template, as ranges into the shared vertex buffer. */
+  wearList(c, L, p) {
+    const R = c.t.ranges, out = [R.body];
+    const add = (k) => { if (R[k]) out.push(R[k]); };
+    if (L.belt) add('belt');
+    const hatOn = !!L.hat || (p.flags & 1) || (p.flags & 4);
+    const hair = L.hair;
+    const female = c.t.female;
+    // Hair: under a hat only the band round the sides and back shows.
+    if (hatOn && hair !== 'bald') add(R['hair:bald'] ? 'hair:bald' : 'hair:crop');
+    else if (hair === 'long') { add('hair:long'); add('hairx:long'); }
+    else if (hair === 'bun' || hair === 'plait' || hair === 'twoPlaits') add('hair:back');
+    else if (hair === 'pony') add('hair:pony');
+    else add(`hair:${R[`hair:${hair}`] ? hair : female ? 'back' : 'short'}`);
+    if (hair === 'bun' && !(hatOn && L.hat === 'helmet')) add(L.flowers ? 'hairx:bunFlowers' : 'hairx:bun');
+    if (hair === 'plait') add(L.flowers ? 'hairx:plaitFlowers' : 'hairx:plait');
+    if (hair === 'twoPlaits') add('hairx:twoPlaits');
+    if (hair === 'pony' && !hatOn) add('hairx:pony');
+    if (hatOn && hair === 'long') add('hairx:long');
+    if (L.moustache) add('moustache');
+    if (L.beard) add(L.beard === 2 ? 'beard2' : 'beard1');
+    if (L.bindi) add('bindi');
+    if (L.glasses) add(L.glasses === 2 ? 'shades' : 'glasses');
+    const hat = p.flags & 1 ? 'police' : L.hat || (p.flags & 4 ? 'turban' : '');
+    if (hat) add(`hat:${hat}`);
+    if (L.garment && L.garment !== 'nauvari') add(L.garment);
+    if (L.garment === 'nauvari') add('nauvari');
+    if (L.pallu) add('pallu');
+    if (L.dupatta) add('dupatta');
+    if (L.lanyard) add('lanyard');
+    if (L.tie) add('tie');
+    if (L.bag) add('bag');
+    if (p.pose === POSE.BAT) add('bat');
+    return out;
   }
 
-  /** A peaked cap (police, drivers) or a helmet, sized in the head bone's own space. */
-  makeHat(c, kind) {
-    const end = c.head.children.find((b) => b.isBone);
-    const top = end ? end.position.length() : 1;
-    const r = top * 0.62;
-    let geo;
-    if (kind === 'cap') {
-      const crown = new THREE.CylinderGeometry(r * 0.98, r * 1.02, top * 0.22, 14).translate(0, top * 0.93, 0);
-      const peak = new THREE.CylinderGeometry(r * 0.75, r * 0.75, top * 0.03, 12, 1, false, -0.9, 1.8).translate(0, top * 0.83, r * 0.62);
-      geo = mergeGeometries([crown, peak]);
-    } else geo = new THREE.SphereGeometry(r * 1.12, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62).translate(0, top * 0.52, 0);
-    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ roughness: kind === 'cap' ? 0.9 : 0.35 }));
-    m.castShadow = true;
-    // The bone's long axis is +Y in the pack (Blender bones); follow the head-end bone if not.
-    if (end && Math.abs(end.position.y) < Math.max(Math.abs(end.position.x), Math.abs(end.position.z))) m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), end.position.clone().normalize());
-    return m;
+  /** Colours, pieces and build for this person (only when the person or their clothes change). */
+  dress(c, p) {
+    const n = p.patches?.length || 0, hex = p.shirt.getHex();
+    const bat = p.pose === POSE.BAT, L = p.look || lookFor(p);
+    if (c.who === p && c.look === L && c.patchN === n && c.shirtHex === hex && c.bat === bat) return;
+    const fresh = c.who !== p || c.look !== L;
+    c.who = p; c.patchN = n; c.shirtHex = hex; c.bat = bat; c.look = L;
+    // Everyone has their own build (slim … heavy … muscular), kept for as long as they exist.
+    p.build ??= pickBuild(p, L);
+    if (c.build !== p.build) { c.build = p.build; shapeBody(c.parts, c.t.female, p.build); }
+    if (fresh || bat !== c.wasBat) {
+      // The pieces this person wears → this character's index buffer.
+      const list = this.wearList(c, L, p), arr = c.index.array;
+      let k = 0;
+      for (const [start, count] of list) for (let i = 0; i < count; i++) arr[k++] = start + i;
+      c.geo.setDrawRange(0, k);
+      c.index.clearUpdateRanges(); c.index.addUpdateRange(0, k); c.index.needsUpdate = true;
+      c.wasBat = bat;
+    }
+    // Holi colour on a real character: the clothes take on the colours thrown at them.
+    const tint = (target, base) => { target.copy(base); for (const [, code] of p.patches || []) target.lerp(HOLI[Math.floor(code)], 0.18); return target; };
+    const U = c.u.uCol.value, P = c.u.uPat.value, PC = c.u.uPatCol.value;
+    const skin = p.skin, shirt = tint(U[SLOT.shirt], p.shirt), pants = tint(U[SLOT.pants], p.pants);
+    U[SLOT.skin].copy(skin);
+    U[SLOT.hair].copy(p.hair || L.hairColor);
+    U[SLOT.face].setRGB(0.05, 0.04, 0.03);
+    // Look colour A: dupatta, lungi, tie, hard hat; a police cap takes the uniform's trousers,
+    // a turban without a look of its own the person's hat colour.
+    tint(U[SLOT.accA], p.flags & 1 ? p.pants : p.flags & 4 && !L.hat ? p.hatColor || tmp.setHex(0xd84315) : L.accA);
+    U[SLOT.accB].copy(L.accB);
+    if (L.garment === 'lungi' || L.garment === 'lungiShort') pants.copy(U[SLOT.accA]); // under the wrap
+    U[SLOT.vest].copy(L.vest || shirt);
+    U[SLOT.lens].setRGB(0.02, 0.02, 0.025);
+    for (let s = 0; s < N_SLOT; s++) P[s].set(0, 1, 1);
+    // Legs: trousers / salwar / pyjama, shorts (children), bare below the knee (folded lungi,
+    // nauvari), or the sari's own cloth (seen when she sits).
+    const legCol = L.garment === 'lungi' ? U[SLOT.accA] : pants;
+    U[SLOT.thigh].copy(L.legs === 1 ? skin : legCol);
+    U[SLOT.shin].copy(L.legs === 1 || L.legs === 2 ? skin : legCol);
+    U[SLOT.sock].copy(L.socks ? tmp.setHex(0xf2f2f0) : L.legs === 1 || L.legs === 2 ? skin : legCol);
+    U[SLOT.shoe].copy(p.shoe || L.shoe);
+    U[SLOT.arm].copy(L.sleeves >= 1 ? shirt : skin);
+    U[SLOT.forearm].copy(L.sleeves >= 2 ? shirt : skin);
+    // Patterns: shirt checks / stripes / print, lungi checks, sari and nauvari prints, tie stripes.
+    const u = c.t.female ? 1 : 1.08;
+    if (L.patShirt) { const per = L.patShirt === 1 ? 0.11 : L.patShirt === 2 ? 0.045 : 0.09; for (const s of [SLOT.shirt, SLOT.arm, SLOT.forearm]) { P[s].set(L.patShirt, per * u, per * u); PC[s].copy(L.patCol); } }
+    if (L.patAcc) { const per = L.patAcc === 1 ? 0.2 : L.patAcc === 4 ? 0.06 : 0.12; P[SLOT.accA].set(L.patAcc, per, per * 0.75); PC[SLOT.accA].copy(L.patCol); }
+    if (L.patLegs) {
+      const per = L.patLegs === 1 ? 0.13 : 0.1;
+      for (const s of [SLOT.pants, SLOT.thigh, SLOT.shin]) { P[s].set(L.patLegs, per, per * 0.8); PC[s].copy(L.patCol); }
+    } else if (L.garment === 'lungi' && L.patAcc) for (const s of [SLOT.thigh, SLOT.shin]) { P[s].copy(P[SLOT.accA]); PC[s].copy(L.patCol); }
+    c.u.uGloss.value = L.gloss;
+  }
+
+  /**
+   * Turn a bone about a world axis (through its own joint), after the clip has posed it.
+   * World matrices up the chain are refreshed first so turns on parent and child compose.
+   */
+  turn(bone, ax, ay, az, angle) {
+    if (!bone || !angle) return;
+    bone.parent.updateWorldMatrix(true, false);
+    bone.parent.getWorldQuaternion(this.qp);
+    this.qLean.setFromAxisAngle(this.axis.set(ax, ay, az), angle);
+    bone.quaternion.premultiply(this.q.copy(this.qp).invert().multiply(this.qLean).multiply(this.qp));
   }
 
   /**
@@ -453,22 +569,95 @@ export class Characters {
    */
   bend(c, bone, heading, angle) {
     if (!bone || !angle) return;
-    let a = c.adds.find((x) => x.bone === bone);
+    let a = null;
+    for (let i = 0; i < c.adds.length; i++) if (c.adds[i].bone === bone) { a = c.adds[i]; break; }
     if (!a) { a = { bone, clean: new THREE.Quaternion(), applied: new THREE.Quaternion(), on: false }; c.adds.push(a); }
     if (!a.on) a.clean.copy(bone.quaternion);
-    bone.parent.getWorldQuaternion(this.qp);
-    this.qLean.setFromAxisAngle(this.axis.set(Math.cos(heading), 0, -Math.sin(heading)), angle);
-    bone.quaternion.premultiply(this.q.copy(this.qp).invert().multiply(this.qLean).multiply(this.qp));
+    this.turn(bone, Math.cos(heading), 0, -Math.sin(heading), angle);
     a.applied.copy(bone.quaternion); a.on = true;
   }
 
-  /** Pick a body for a person: female models for saris, a stable choice per person. */
+  /** After the legs were turned: put each foot (a root-space bone) back on the end of its shin. */
+  feet(c) {
+    for (const s of [c.L, c.R]) {
+      if (!s.end || !s.foot) continue;
+      s.end.updateWorldMatrix(true, false);
+      this.v.setFromMatrixPosition(s.end.matrixWorld);
+      s.foot.parent.updateWorldMatrix(true, false);
+      s.foot.position.copy(this.v.applyMatrix4(this.m4.copy(s.foot.parent.matrixWorld).invert()));
+    }
+  }
+
+  /** Bone turns on top of the clip for poses the pack has no clip for. */
+  pose(c, p, pose) {
+    const h = p.heading, rx = Math.cos(h), rz = -Math.sin(h), fx = Math.sin(h), fz = Math.cos(h);
+    const L = c.L, R = c.R, ph = p.phase || 0;
+    if (pose === POSE.RIDE || pose === POSE.PEDAL) {
+      // Hands forward on the handlebar; a little lean; knees a touch apart astride a bike.
+      this.bend(c, c.spine, h, 0.12);
+      for (const s of [L, R]) { this.bend(c, s.arm, h, -0.95); this.bend(c, s.fore, h, -0.55); }
+      if (pose === POSE.PEDAL) {
+        const k = Math.sin(ph);
+        this.bend(c, L.thigh, h, 0.28 * k); this.bend(c, L.shin, h, -0.4 * k);
+        this.bend(c, R.thigh, h, -0.28 * k); this.bend(c, R.shin, h, 0.4 * k);
+      } else {
+        this.turn(L.thigh, 0, 1, 0, 0.14); this.turn(R.thigh, 0, 1, 0, -0.14);
+      }
+      this.feet(c);
+    } else if (pose === POSE.CROUCH) {
+      // Wicket-keeper / pushing a car: squat, lean in, hands forward.
+      this.bend(c, c.spine, h, 0.55);
+      for (const s of [L, R]) { this.bend(c, s.arm, h, -0.8); this.bend(c, s.fore, h, -0.35); }
+    } else if (pose === POSE.BAT) {
+      // Gully cricket: a forward lean, hands together low in front, the swing from the phase.
+      const sw = Math.sin(ph);
+      this.bend(c, c.spine, h, 0.3);
+      this.turn(c.chest, 0, 1, 0, -0.45 * sw);
+      for (const s of [L, R]) { this.bend(c, s.arm, h, -0.75 + 0.45 * sw); this.bend(c, s.fore, h, -0.5); }
+      this.turn(L.arm, fx, 0, fz, 0.35); this.turn(R.arm, fx, 0, fz, -0.35);
+    } else if (pose === POSE.ARGUE) {
+      // Hands up and talking with them.
+      const a = Math.max(0, Math.sin(ph * 1.7 + 1.6)), b = Math.max(0, Math.sin(ph * 1.7 - 1.6));
+      this.bend(c, L.arm, h, -0.45 - 0.6 * a); this.bend(c, L.fore, h, -0.7 - 0.3 * a);
+      this.bend(c, R.arm, h, -0.45 - 0.6 * b); this.bend(c, R.fore, h, -0.7 - 0.3 * b);
+      this.turn(L.arm, fx, 0, fz, 0.2 * a); this.turn(R.arm, fx, 0, fz, -0.2 * b);
+    }
+    void rx; void rz;
+  }
+
+  /** A body for a person: their look's clothes pick the template; stable per person. */
   templateFor(p) {
-    const female = p.flags & 2 || p.kind === 'sari';
-    const list = this.templates.filter((t) => t.female === !!female);
-    const pool = list.length ? list : this.templates;
-    p.model ??= Math.floor(Math.random() * 1000);
-    return pool[p.model % pool.length];
+    const L = lookFor(p);
+    const female = L.female || (p.flags & 2) || p.kind === 'sari';
+    const list = (female ? this.lists.female : this.lists.male).length ? (female ? this.lists.female : this.lists.male) : this.templates;
+    if (typeof p.model === 'number') {
+      // Asked for by number (interiors): the model of that index in MODELS, else any.
+      const name = MODELS[female ? 'female' : 'male'][p.model];
+      return this.byName.get(name) || list[p.model % list.length];
+    }
+    if (p.tpl && this.byName.has(p.tpl)) return this.byName.get(p.tpl);
+    const prefs = PREFER[female ? 'female' : 'male'][L.template] || [];
+    let t = null;
+    for (const name of prefs) { const x = this.byName.get(name); if (x && x.female === !!female) { t = x; break; } }
+    if (!t || (L.template === 'casual' && L.seed > 0.6)) t = list[Math.floor(L.seed * 977) % list.length];
+    p.tpl = t.name;
+    return t;
+  }
+
+  /** Nearest people (within the radius) into this.chosen, without allocating. */
+  choose(cam, people) {
+    const R2 = this.radius * this.radius, max = this.poolSize, ch = this.chosen, dist = this.dist;
+    ch.length = 0; dist.length = 0;
+    for (let i = 0; i < people.length; i++) {
+      const p = people[i];
+      if (p.isPlayer || p.noHero) continue;
+      const d = (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2;
+      if (d >= R2) continue;
+      if (ch.length === max && d >= dist[max - 1]) continue;
+      let k = ch.length < max ? ch.length : max - 1;
+      while (k > 0 && dist[k - 1] > d) { ch[k] = ch[k - 1]; dist[k] = dist[k - 1]; k--; }
+      ch[k] = p; dist[k] = d;
+    }
   }
 
   /**
@@ -477,91 +666,100 @@ export class Characters {
    */
   update(dt, cam, people, player) {
     if (!this.ready) return;
-    this.timer -= dt; this.frame++;
-    const want = [];
+    this.timer -= dt;
+    const stamp = ++this.frame;
+    for (let i = 0; i < people.length; i++) { const p = people[i]; p.hero = false; p.drawn = stamp; }
+    const want = this.want;
+    want.length = 0;
     if (player) want.push(player);
-    if (this.timer <= 0) {
-      this.timer = 0.35;
-      const R2 = this.radius * this.radius;
-      this.chosen = people.filter((p) => !p.isPlayer && !p.noHero && p.pose !== undefined && p.pose !== POSE.BAT && p.pose !== POSE.CROUCH)
-        .map((p) => [p, (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2]).filter(([, d]) => d < R2).sort((a, b) => a[1] - b[1]).slice(0, this.poolSize).map(([p]) => p);
-    }
-    for (const p of this.chosen || []) if (people.includes(p)) want.push(p);
-    for (const p of people) p.hero = false;
+    if (this.timer <= 0) { this.timer = 0.35; this.choose(cam, people); }
+    for (let i = 0; i < this.chosen.length; i++) { const p = this.chosen[i]; if (p.drawn === stamp) want.push(p); }
     // Reuse bodies already showing the same person; hand out the rest.
-    const free = this.pool.filter((c) => !want.includes(c.who));
-    for (const p of want) {
-      let c = this.pool.find((x) => x.who === p);
+    const pool = this.pool;
+    for (let i = 0; i < pool.length; i++) pool[i].keep = false;
+    for (let i = 0; i < want.length; i++) { const c = want[i].body; if (c && c.who === want[i]) c.keep = true; }
+    for (let w = 0; w < want.length; w++) {
+      const p = want[w];
+      let c = p.body && p.body.who === p ? p.body : null;
       if (!c) {
         const t = this.templateFor(p);
-        c = free.find((x) => x.t === t) || null;
-        if (c) free.splice(free.indexOf(c), 1);
-        else if (this.pool.length < this.poolSize + 1) { c = this.make(t); this.pool.push(c); }
-        else continue;
-        c.who = null; c.mixer.stopAllAction(); c.current = null;
+        for (let i = 0; i < pool.length; i++) if (!pool[i].keep && pool[i].t === t) { c = pool[i]; break; }
+        if (!c && pool.length < this.poolSize + 1) { c = this.make(t); pool.push(c); }
+        if (!c) continue;
+        c.keep = true; c.who = null; c.mixer.stopAllAction(); c.current = null;
+        p.body = c;
       }
       this.dress(c, p);
       p.hero = true;
-      const t = c.t, s = (p.scale || 1) * (BUILDS[p.build]?.height || 1), sc = t.scale * s;
-      const pose = p.pose ?? POSE.STAND;
-      const moving = pose === POSE.WALK, sitting = pose === POSE.SIT, fallen = pose === POSE.FALLEN;
-      const speed = p.speed ?? 1.3;
-      const run = moving ? THREE.MathUtils.clamp((speed - 2.2) / 2.6, 0, 1) : 0; // 0 walk … 1 full run
-      const guard = pose === POSE.FIGHT, kick = pose === POSE.KICK;
-      const swing = pose === POSE.PUNCH || pose === POSE.PUSH || pose === POSE.THROW;
-      const flinch = p.hitT > 0 && c.actions.hit && !fallen && !sitting;
-      const clip = fallen ? 'idle' : flinch ? 'hit' : sitting ? 'sit' : swing || guard || kick ? 'punch'
-        : pose === POSE.POINT ? 'aim' : pose === POSE.WAVE ? 'wave' : moving ? (run > 0.5 && c.actions.run ? 'run' : 'walk') : 'idle';
-      this.play(c, clip);
-      if (c.current) {
-        c.current.timeScale = sitting ? 0 : moving ? THREE.MathUtils.clamp(speed / (t.walkSpeed * s * (1 + run * 0.6)), 0.55, 2.2) : 1;
-        if (clip === 'punch') {
-          const dur = c.current.getClip().duration;
-          if (swing) {
-            // Every swing starts the punch from the top.
-            if (c.swingN !== p.swingN || c.wasGuard) { c.swingN = p.swingN; c.current.time = dur * 0.12; }
-            c.current.timeScale = 1.6;
-          } else { c.current.timeScale = 0; c.current.time = dur * GUARD_AT; } // guard up (also the base of a kick)
-          c.wasGuard = !swing;
-        } else if (clip === 'hit' && c.hitFor !== p.hitT && p.hitT > (c.hitFor || 0)) c.current.time = 0;
-        c.hitFor = p.hitT;
-      }
-      // Feet on the ground: the standing and walking poses sit at slightly different heights.
-      const liftWant = sitting ? t.sitLift : moving ? t.liftWalk : t.liftIdle;
-      c.lift += (liftWant - c.lift) * Math.min(1, dt * 10);
-      c.holder.visible = true;
-      c.root.scale.setScalar(sc);
-      c.holder.rotation.set(0, p.heading, 0);
-      c.root.rotation.x = fallen ? -Math.PI / 2 : 0; // knocked down: flat on the back
-      let y = (p.y || 0) + c.lift * s;
-      if (sitting) y = (p.y || 0) + 0.42 + (t.sitLift - t.sitHip) * s; // callers give the seat height minus 0.42 (the procedural pelvis)
-      if (fallen) y = (p.y || 0) + 0.16;
-      y += 0.025 * run;
-      if (run > 0 && c.current) y += Math.abs(Math.sin((c.current.time * Math.PI * 2) / c.current.getClip().duration)) * 0.045 * run;
-      c.holder.position.set(p.x, y, p.z);
-      if (c.sari) { c.sari.visible = c.wearSari && !fallen && !sitting; c.sari.scale.setScalar(s * (c.t.female ? 1 : 1.08)); }
-      // Far characters animate at half rate.
-      const far = (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2 > 24 * 24 && !p.isPlayer;
-      if (!far || (this.frame & 1) === 0) {
-        c.mixer.update(far ? dt * 2 : dt);
-        // The clips don't key every bone: undo last frame's extra rotations where the mixer left them.
-        for (const a of c.adds) { if (a.on && a.bone.quaternion.equals(a.applied)) a.bone.quaternion.copy(a.clean); a.on = false; }
-        if (run > 0) {
-          for (const [b, ref, k] of c.run) b.quaternion.copy(this.q.copy(ref).slerp(b.quaternion, 1 + k * run));
-          // Lean the upper body into the run, leaving the legs where the walk cycle puts them.
-          this.bend(c, c.spine, p.heading, 0.34 * run);
-        }
-        if (kick) {
-          // No kick clip in the pack: swing the right leg up from the guard pose and lean back a little.
-          const k = Math.sin(Math.min(1, ((p.kickT = (p.kickN === p.swingN ? p.kickT : 0) + dt) / 0.4)) * Math.PI);
-          p.kickN = p.swingN;
-          this.bend(c, c.legR, p.heading, -1.35 * k);
-          this.bend(c, c.spine, p.heading, -0.22 * k);
-        }
-      }
-      // Where the right hand is (the player's pichkari is held there).
-      if (p.isPlayer && c.hand) { c.holder.updateMatrixWorld(true); (p.handPos ||= new THREE.Vector3()); c.hand.getWorldPosition(p.handPos); }
+      this.animate(c, p, dt, cam);
     }
-    for (const c of free) { if (c.holder.visible) { c.holder.visible = false; c.who = null; c.mixer.stopAllAction(); c.current = null; } }
+    for (let i = 0; i < pool.length; i++) { const c = pool[i]; if (!c.keep && c.holder.visible) { c.holder.visible = false; if (c.who) c.who.body = null; c.who = null; c.mixer.stopAllAction(); c.current = null; } }
+  }
+
+  animate(c, p, dt, cam) {
+    const t = c.t, s = (p.scale || 1) * (BUILDS[p.build]?.height || 1), sc = t.scale * s;
+    const pose = p.pose ?? POSE.STAND;
+    const moving = pose === POSE.WALK, fallen = pose === POSE.FALLEN;
+    const riding = pose === POSE.RIDE || pose === POSE.PEDAL, crouch = pose === POSE.CROUCH;
+    const sitting = pose === POSE.SIT || riding || crouch;
+    const speed = p.speed ?? 1.3;
+    const run = moving ? THREE.MathUtils.clamp((speed - 2.2) / 2.6, 0, 1) : 0; // 0 walk … 1 full run
+    const guard = pose === POSE.FIGHT, kick = pose === POSE.KICK;
+    const swing = pose === POSE.PUNCH || pose === POSE.PUSH || pose === POSE.THROW;
+    const flinch = p.hitT > 0 && c.actions.hit && !fallen && !sitting;
+    const clip = fallen ? 'idle' : flinch ? 'hit' : sitting ? 'sit' : swing || guard || kick ? 'punch'
+      : pose === POSE.POINT ? 'aim' : pose === POSE.WAVE ? 'wave' : moving ? (run > 0.5 && c.actions.run ? 'run' : 'walk') : 'idle';
+    this.play(c, clip);
+    if (c.current) {
+      c.current.timeScale = sitting ? 0 : moving ? THREE.MathUtils.clamp(speed / (t.walkSpeed * s * (1 + run * 0.6)), 0.55, 2.2) : 1;
+      if (clip === 'punch') {
+        const dur = c.current.getClip().duration;
+        if (swing) {
+          // Every swing starts the punch from the top.
+          if (c.swingN !== p.swingN || c.wasGuard) { c.swingN = p.swingN; c.current.time = dur * 0.12; }
+          c.current.timeScale = 1.6;
+        } else { c.current.timeScale = 0; c.current.time = dur * GUARD_AT; } // guard up (also the base of a kick)
+        c.wasGuard = !swing;
+      } else if (clip === 'hit' && c.hitFor !== p.hitT && p.hitT > (c.hitFor || 0)) c.current.time = 0;
+      c.hitFor = p.hitT;
+    }
+    // Feet on the ground: the standing and walking poses sit at slightly different heights.
+    const liftWant = sitting ? t.sitLift : moving ? t.liftWalk : t.liftIdle;
+    c.lift += (liftWant - c.lift) * Math.min(1, dt * 10);
+    c.holder.visible = true;
+    c.root.scale.setScalar(sc);
+    c.holder.rotation.set(0, p.heading, 0);
+    c.root.rotation.x = fallen ? -Math.PI / 2 : 0; // knocked down: flat on the back
+    let y = (p.y || 0) + c.lift * s;
+    // Callers give the seat height minus 0.42 (the procedural pelvis); pedalling, minus 0.86.
+    if (sitting) y = (p.y || 0) + (pose === POSE.PEDAL ? 0.86 : 0.42) + (t.sitLift - t.sitHip) * s;
+    if (crouch) y = (p.y || 0) + t.sitLift * s * 0.98; // squatting: feet on the ground
+    if (fallen) y = (p.y || 0) + 0.16;
+    y += 0.025 * run;
+    if (run > 0 && c.current) y += Math.abs(Math.sin((c.current.time * Math.PI * 2) / c.current.getClip().duration)) * 0.045 * run;
+    c.holder.position.set(p.x, y, p.z);
+    // Far characters animate at half rate.
+    const far = (p.x - cam.x) ** 2 + (p.z - cam.z) ** 2 > 24 * 24 && !p.isPlayer;
+    if (!far || (this.frame & 1) === 0) {
+      c.mixer.update(far ? dt * 2 : dt);
+      // The clips don't key every bone: undo last frame's extra rotations where the mixer left them.
+      for (let i = 0; i < c.adds.length; i++) { const a = c.adds[i]; if (a.on && a.bone.quaternion.equals(a.applied)) a.bone.quaternion.copy(a.clean); a.on = false; }
+      c.holder.updateMatrixWorld(true);
+      if (run > 0) {
+        for (let i = 0; i < c.run.length; i++) { const [b, ref, k] = c.run[i]; b.quaternion.copy(this.q.copy(ref).slerp(b.quaternion, 1 + k * run)); }
+        // Lean the upper body into the run, leaving the legs where the walk cycle puts them.
+        this.bend(c, c.spine, p.heading, 0.34 * run);
+      }
+      if (kick) {
+        // No kick clip in the pack: swing the right leg up from the guard pose and lean back a little.
+        const k = Math.sin(Math.min(1, ((p.kickT = (p.kickN === p.swingN ? p.kickT : 0) + dt) / 0.4)) * Math.PI);
+        p.kickN = p.swingN;
+        this.bend(c, c.legR, p.heading, -1.35 * k);
+        this.bend(c, c.spine, p.heading, -0.22 * k);
+      }
+      if (riding || crouch || pose === POSE.BAT || pose === POSE.ARGUE) this.pose(c, p, pose);
+    }
+    // Where the right hand is (the player's pichkari is held there).
+    if (p.isPlayer && c.hand) { c.holder.updateMatrixWorld(true); (p.handPos ||= new THREE.Vector3()); c.hand.getWorldPosition(p.handPos); }
   }
 }
