@@ -349,15 +349,17 @@ export class PeopleRenderer {
   /**
    * Someone on a traffic two-wheeler or auto (traffic.riders): one persistent person per
    * vehicle (a real character when near), astride the seat with hands on the handlebar,
-   * pedalling a bicycle; an auto's passenger on the back bench.
+   * pedalling a bicycle; an auto's passenger on the back bench; a porter walking between the
+   * shafts of a handcart (`T.pull`; `tiles` gives the ground height).
    */
-  rider(r, T, dt) {
+  rider(r, T, dt, tiles = null) {
     const sh = Math.sin(r.heading), ch = Math.cos(r.heading), seat = T?.seat ?? 0.92, back = -(T?.seatZ ?? -0.28);
     let p = r.person;
     if (!p) {
       const L = r.look, rnd = Math.random;
-      const kind = T?.dabbawala ? 'dabbawala' : T?.open ? 'khaki' : !T?.pedal && T?.rider && T?.len < 1.95 && rnd() < 0.22 ? 'sari' : 'casual';
-      const o = dress(kind, rnd);
+      const kind = T?.dabbawala ? 'dabbawala' : T?.open ? 'khaki' : T?.pull ? 'casual' : !T?.pedal && T?.rider && T?.len < 1.95 && rnd() < 0.22 ? 'sari' : 'casual';
+      const o = dress(kind, rnd, T?.pull ? 'bazaar' : NOW.zone);
+      if (T?.pull) { o.look.hat = ''; o.look.glasses = 0; }
       if (L.helmet) { o.look.hat = 'helmet'; o.look.accA.setHSL(rnd(), 0.5, 0.25); }
       if (kind === 'sari') {
         // Women ride scooters in salwar-kameez or jeans (no sari skirt astride).
@@ -369,6 +371,14 @@ export class PeopleRenderer {
       finishBits(o.look);
       L.look = o.look; // a rider pulled off the bike (garage.eject) keeps the same look
       p = r.person = makePerson({ kind, shirt: L.shirt, pants: L.pants, skin: L.skin, look: o.look, flags: kind === 'sari' ? FLAG.SARI : 0, scale: 0.97 + rnd() * 0.06 });
+    }
+    if (T?.pull) {
+      // Walking between the shafts, leaning into the crossbar.
+      r.pedal += dt * (r.speed || 0) * 2.6;
+      p.x = r.x - sh * back; p.z = r.z - ch * back; p.y = tiles ? tiles.groundHeight(r.x, r.z) : 0;
+      p.heading = r.heading; p.phase = r.pedal; p.pose = r.speed > 0.2 ? POSE.WALK : POSE.STAND; p.amp = 0.8; p.speed = r.speed || 0;
+      this.add(p);
+      return;
     }
     if (T?.pedal) r.pedal += dt * (r.speed || 0) * 1.7;
     p.x = r.x - sh * back; p.z = r.z - ch * back; p.y = seat - (T?.pedal ? 0.86 : 0.42);

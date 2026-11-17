@@ -805,8 +805,8 @@ function step(dt) {
     people.add(P);
   }
   // Riders astride their bikes (most in helmets), auto drivers in khaki, dabbawalas pedalling in
-  // Gandhi caps, passengers on an auto's bench: real characters when near (people.rider).
-  for (const r of traffic.riders) people.rider(r, traffic.types[r.type], dt);
+  // Gandhi caps, passengers on an auto's bench, handcart porters: real characters when near (people.rider).
+  for (const r of traffic.riders) people.rider(r, traffic.types[r.type], dt, tiles);
   if (view.wheel) { pichkari.setPressure(pichkari.pressure - view.wheel); view.wheel = 0; }
   pichkari.update(dt, onFoot ? walker : null, onFoot && combat.weapon === 'pichkari' && fire, view);
   people.end();
