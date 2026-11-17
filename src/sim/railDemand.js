@@ -39,13 +39,13 @@ function smooth(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a)))
 const WEIGHT = {
   Churchgate: 2.2, 'Marine Lines': 0.8, 'Charni Road': 0.7, 'Grant Road': 1.0, 'Mumbai Central': 1.3, Mahalaxmi: 0.6, 'Lower Parel': 1.3,
   Prabhadevi: 1.0, Dadar: 3.0, 'Matunga Road': 0.6, 'Mahim Junction': 0.8, Bandra: 1.8, 'Khar Road': 0.8, 'Santa Cruz': 1.1, 'Vile Parle': 1.2,
-  Andheri: 2.8, Jogeshwari: 1.0, 'Chhatrapati Chai Terminus': 2.4, Masjid: 0.9, 'Sandhurst Road': 0.6, Byculla: 1.0, Chinchpokli: 0.6,
+  Andheri: 2.8, Jogeshwari: 1.0, 'Chhatrapati Shivaji Maharaj Terminus': 2.4, Masjid: 0.9, 'Sandhurst Road': 0.6, Byculla: 1.0, Chinchpokli: 0.6,
   'Currey Road': 0.7, Parel: 1.2, Matunga: 0.8, Sion: 1.0, Kurla: 2.5, Vidyavihar: 0.8, Ghatkopar: 2.4, 'Dockyard Road': 0.5, 'Reay Road': 0.4,
   'Cotton Green': 0.6, Sewri: 0.6, 'Vadala Road': 1.0, 'Guru Tegh Bahadur Nagar': 0.6, 'Chuna Bhatti': 0.6, "King's Circle": 0.7,
   'Tilak Nagar': 0.8, Chembur: 1.4, Govandi: 0.9,
   // Metro (Line 1 and Line 3 names as the game shows them)
   'Marol Naka': 2.0, 'Airport Road': 1.2, Chakala: 1.4, 'Western Express Highway': 1.4, 'D. N. Nagar': 1.1, Versova: 1.0, 'Azad Nagar': 0.9,
-  'Saki Naka': 1.3, 'Asalpha': 0.8, 'Jagruti Nagar': 0.8, 'Bandra Kurla Complex': 1.6, 'Cuffe Parade': 1.0, 'Hutatma Chowk': 1.2, 'Siddhi-Vinayaka Mandir': 1.3,
+  'Saki Naka': 1.3, 'Asalpha': 0.8, 'Jagruti Nagar': 0.8, 'Bandra Kurla Complex': 1.6, 'Cuffe Parade': 1.0, 'Hutatma Chowk': 1.2, 'Shree Siddhivinayak Temple': 1.3,
 };
 export function stationWeight(name) { return WEIGHT[name] ?? 0.9; }
 

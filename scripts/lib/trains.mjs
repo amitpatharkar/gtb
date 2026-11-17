@@ -20,7 +20,7 @@ export const isTrainRoute = (t) => t.type === 'route' && t.route === 'train' && 
 
 /**
  * Station names as shown in the game: real place names without the mappers' brackets
- * ("Dadar (Central)", "Santa Cruz (WR)"), and the terminus under the game's altered name.
+ * ("Dadar (Central)", "Santa Cruz (WR)"), and the terminus under its full name.
  */
 export function stationName(n) {
   n = (n || '').replace(/\s*\([^)]*\)/g, '').replace(/\s+/g, ' ').trim();

@@ -18,10 +18,10 @@ const BUILD = 560, DROP = 820;
 const GROUND = 0.2, RISE = 0.17;
 const COL = { coping: 0xd9d4c8, yellow: 0xf2c21a, side: 0x9b968c, sideDark: 0x5d5a55, steel: 0x3f6e7c, cream: 0xe8dcc0, roofUnder: 0xb8bcbf, parapet: 0xd8cfbd, rail: 0x2f5c6c, bench: 0x6d7378, stall: 0x2e6b9c };
 
-/** Names the game shows in Devanagari where the station's real name was altered. */
-const DEVA = { 'Chhatrapati Chai Terminus': ['छत्रपती चाय टर्मिनस', 'छत्रपति चाय टर्मिनस'] };
+/** Devanagari for station names the map data has only in English. */
+const DEVA = { 'Chhatrapati Shivaji Maharaj Terminus': ['छत्रपती शिवाजी महाराज टर्मिनस', 'छत्रपति शिवाजी महाराज टर्मिनस'] };
 /** Destination codes on the indicators (Central Railway letters; Western Railway station codes). */
-const CODE = { Churchgate: 'CCG', Virar: 'VR', Borivali: 'BO', 'Chhatrapati Chai Terminus': 'CSMT', 'Kalyan Junction': 'K', Kalyan: 'K', Panvel: 'PL', Goregaon: 'GN', Andheri: 'A', Thane: 'T' };
+const CODE = { Churchgate: 'CCG', Virar: 'VR', Borivali: 'BO', 'Chhatrapati Shivaji Maharaj Terminus': 'CSMT', 'Kalyan Junction': 'K', Kalyan: 'K', Panvel: 'PL', Goregaon: 'GN', Andheri: 'A', Thane: 'T' };
 
 /** Grey corrugated roof sheeting (ribs every 0.2 m), weathered in streaks. */
 export function corrugated() {

@@ -30,18 +30,18 @@ export const isMetroRoute = (t) => /route/.test(t.type || 'route') && /^(subway|
  */
 export function metroName(n) {
   n = (n || '').replace(/\s+L\d+$/, '').replace(/\s*\(Line \w+\)$/i, '').replace(/\s+Metro( Station)?$/i, '').replace(/\s+Station$/i, '').replace(/\s+/g, ' ').trim();
-  if (/chhatrapati shivaji maharaj terminus|\bcsmt?\b/i.test(n)) return 'Chhatrapati Chai Terminus';
-  if (/\bcsmia\b/i.test(n)) return `Chhatrapati Udaan Airport ${/international|\bt2\b/i.test(n) ? 'T2' : 'T1'}`; // the airport's stops: "CSMIA Domestic" (T1), "CSMIA International T2"
+  if (/chhatrapati shivaji maharaj terminus|\bcsmt?\b/i.test(n)) return 'Chhatrapati Shivaji Maharaj Terminus';
+  if (/\bcsmia\b/i.test(n)) return `CSMIA ${/international|\bt2\b/i.test(n) ? 'T2' : 'T1'}`; // the airport's stops: "CSMIA Domestic" (T1), "CSMIA International T2"
   const air = n.match(/international airport.*\b(T[12])\b/i);
-  if (air) return `Chhatrapati Udaan Airport ${air[1].toUpperCase()}`;
-  if (/siddhivinayak/i.test(n)) return 'Siddhi-Vinayaka Mandir';
-  if (/bharat petroleum/i.test(n)) return 'Refinery Gate';
+  if (air) return `CSMIA ${air[1].toUpperCase()}`;
+  if (/siddhivinayak/i.test(n)) return 'Siddhivinayak';
+  if (/bharat petroleum/i.test(n)) return 'BPCL';
   if (/^sbi[- ]/i.test(n)) return '';
   return n;
 }
 const DEVA = {
-  'Chhatrapati Chai Terminus': 'छत्रपती चाय टर्मिनस', 'Chhatrapati Udaan Airport T1': 'छत्रपती उडान विमानतळ T1', 'Chhatrapati Udaan Airport T2': 'छत्रपती उडान विमानतळ T2',
-  'Siddhi-Vinayaka Mandir': 'सिद्धी-विनायक मंदिर', 'Refinery Gate': 'रिफायनरी गेट',
+  'Chhatrapati Shivaji Maharaj Terminus': 'छत्रपती शिवाजी महाराज टर्मिनस', 'CSMIA T1': 'सीएसएमआयए T1', 'CSMIA T2': 'सीएसएमआयए T2',
+  'Siddhivinayak': 'सिद्धिविनायक', 'BPCL': 'बीपीसीएल',
 };
 
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);

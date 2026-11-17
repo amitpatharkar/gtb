@@ -13,7 +13,7 @@ Extends `docs/research/mumbai-guide.md`; no repository files changed. **Key:** �
 | # | Place (real name, used as it is — owner, 2026-11-17) | Where | Famous for · inside | Game idea |
 |---|---|---|---|---|
 | 1 | Gateway of India jetty | B1 ★ | Ferry steps, photographers, pigeons | Instant-photo job; ferries leave here (life-jacket gag) |
-| 2 | Taj Mahal Palace (Royal Chaj Mahal) | B2 ★ | Inside: cantilevered grand staircase under the dome, art-lined corridors, Sea Lounge tea room facing the Gateway, Harbour Bar (first licensed bar, 1933) | Turbaned doorman opens your taxi door; deliver a forgotten tiffin at high tea; "no chappals" rule |
+| 2 | Taj Mahal Palace (in the game: The Palace Hotel — trademark) | B2 ★ | Inside: cantilevered grand staircase under the dome, art-lined corridors, Sea Lounge tea room facing the Gateway, Harbour Bar (first licensed bar, 1933) | Turbaned doorman opens your taxi door; deliver a forgotten tiffin at high tea; "no chappals" rule |
 | 3 | Leopold Café | 18.9227, 72.8317 ★ | Since 1871. Inside: open front, high ceilings, fans, mirrors, beer jugs, backpackers | Backpackers haggle fares. Never reference the 2008 attack |
 | 4 | Café Mondegar | 18.9240, 72.8322 ★ | Jukebox; cartoon murals of city life (copyrighted: draw your own) | Jukebox switches radio station |
 | 5 | Bade Miya | ~18.9235, 72.8320 (?) ★ | Night kebab stall since 1946; eaten on car bonnets | Order from the taxi window |
@@ -107,7 +107,7 @@ All 20 titles below are S.
 | 6 | Golmaal Moochh (Golmaal) | Boss thinks you have a moustached twin; switch outfits |
 | 7 | Jaane Bhi Do Yaaro | Photographers' film-roll mix-up ends in a stage-play shambles |
 | 8 | Rangeela Re-Take | Junior-artist day: hit marks, dance, "Cut!" |
-| 9 | Picture Abhi Baaki Hai | Rush the reel to Mahaan Mandir before the interval |
+| 9 | Picture Abhi Baaki Hai | Rush the reel to Maratha Mandir before the interval |
 | 10 | Apna Time Aayega… Shayad (Gully Boy) | Dharavi rap battle, original rhymes |
 | 11 | Bambai Se Gorai (Bombay to Goa) | Bus of oddballs to the Pagoda; antakshari |
 | 12 | Chhoti Si Baat | Coach a shy clerk at a bus stop |
