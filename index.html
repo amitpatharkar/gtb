@@ -10,7 +10,7 @@
   <body>
     <div id="hud">
       <div id="title">Bombay Bawaal</div>
-      <div id="speed"><b>0</b><small>km/h</small></div>
+      <div id="speed"></div>
       <div id="road"></div>
       <div id="coords" style="font:12px/1.4 ui-monospace,Menlo,monospace;color:#fff;opacity:.85;text-shadow:0 1px 3px #000" title="Real-world latitude, longitude: paste into any map"></div>
       <div id="cheat" hidden><span>🎬 Cheat</span><input type="text" autocomplete="off" spellcheck="false" placeholder="type a code, Enter"></div>
@@ -25,17 +25,22 @@
     </div>
     <div id="radar">
       <canvas id="minimap" width="220" height="220"></canvas>
-      <div class="meter"><span id="fuel-label">Fuel</span><div class="bar"><div id="fuel-bar"></div></div></div>
-      <div class="meter"><span id="cond-label">Car</span><div class="bar"><div id="cond-bar"></div></div></div>
-      <div class="meter"><span>Food</span><div class="bar"><div id="food-bar"></div></div></div>
-      <div class="meter"><span>Energy</span><div class="bar"><div id="energy-bar"></div></div></div>
+      <div id="mm-state" class="safe">Safe</div>
+      <div class="meter" data-i="⛽"><span id="fuel-label">Fuel</span><div class="bar"><div id="fuel-bar"></div></div></div>
+      <div class="meter" data-i="🛡️"><span id="cond-label">Car</span><div class="bar"><div id="cond-bar"></div></div></div>
+      <div class="meter" data-i="🍛"><span>Food</span><div class="bar"><div id="food-bar"></div></div></div>
+      <div class="meter" data-i="⚡"><span>Energy</span><div class="bar"><div id="energy-bar"></div></div></div>
     </div>
     <div id="message"></div>
-    <div id="job" hidden></div>
-    <div id="nav" hidden></div>
-    <div id="objective" hidden></div>
+    <div id="cards"><!-- right-hand task cards on desktop: GPS turn, mission, fare, radio -->
+      <div id="nav" hidden></div>
+      <div id="objective" hidden></div>
+      <div id="job" hidden></div>
+      <div id="radio"></div>
+    </div>
     <div id="cutscene" hidden></div>
-    <div id="radio"></div>
+    <div id="brand"><b>BOMBAY</b><span>BAWAAL</span></div>
+    <div id="keys"><div><span>Phone</span><kbd>P</kbd></div><div><span>Map</span><kbd>Tab</kbd></div><div><span>Radio</span><kbd>N</kbd></div><div><span>Interact</span><kbd>E</kbd></div><div><span>Weapon wheel</span><kbd>B</kbd></div><div><span>Get in / out</span><kbd>F</kbd></div></div>
     <div id="weapon" hidden></div>
     <div id="foe" hidden></div>
     <div id="crosshair" hidden></div>

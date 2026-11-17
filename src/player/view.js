@@ -34,7 +34,7 @@ export class ViewControl {
       canvas.requestPointerLock?.()?.catch?.(() => {});
     });
     document.addEventListener('pointerlockchange', () => { this.locked = document.pointerLockElement === canvas; if (!this.locked) { input.fire = false; this.mouseAim = false; } });
-    document.addEventListener('mousemove', (e) => { if (this.locked) look(e.movementX, e.movementY); });
+    document.addEventListener('mousemove', (e) => { if (this.locked && !this.frozen) look(e.movementX, e.movementY); });
     canvas.addEventListener('mousedown', (e) => {
       if (!this.locked) return;
       if (e.button === 0) input.fire = true;
