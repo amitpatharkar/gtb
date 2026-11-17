@@ -1043,8 +1043,14 @@ function nearSea(at) {
   return Math.min(1, wet / 3);
 }
 
+let shownKmh = -1;
 function updateHud() {
-  $('speed').textContent = `${Math.round(Math.abs((onFoot ? walker : player).speed) * 3.6)} km/h`;
+  const kmh = Math.round(Math.abs((onFoot ? walker : player).speed) * 3.6);
+  if (kmh !== shownKmh) {
+    shownKmh = kmh;
+    $('speed').firstElementChild.textContent = kmh;
+    $('speed').style.setProperty('--v', Math.min(1, kmh / (onFoot ? 30 : 120)).toFixed(3));
+  }
   $('fuel-label').textContent = onFoot ? 'Stamina' : 'Fuel';
   $('cond-label').textContent = onFoot ? 'Health' : 'Car';
   const here = onFoot ? walker : player;
@@ -1053,7 +1059,7 @@ function updateHud() {
   const [label, colour] = clock.aqiLabel;
   $('aqi').innerHTML = `AQI <b style="color:${colour}">${clock.aqi}</b> ${label}`;
   $('fuel-bar').style.width = `${Math.round((onFoot ? walker.stamina : player.fuel) * 100)}%`;
-  $('fuel-bar').style.background = player.fuel < 0.15 ? '#e74c3c' : '#f7c600';
+  $('fuel-bar').classList.toggle('low', player.fuel < 0.15);
   $('cond-bar').style.width = `${Math.round((onFoot ? walker.health : player.condition) * 100)}%`;
   $('weapon').hidden = !onFoot || !!touch;
   if (onFoot) {
@@ -1069,7 +1075,7 @@ function updateHud() {
   if (foe) $('foe').innerHTML = `🥊 Opponent <i><b style="width:${Math.round(Math.max(0, Math.min(1, foe.hp ?? 1)) * 100)}%"></b></i>${combat.blocking ? ' · blocking' : ''}`;
   document.body.classList.toggle('hurt', onFoot && walker.hurt > 0.05);
   $('food-bar').style.width = `${Math.round(state.s.hunger * 100)}%`;
-  $('food-bar').style.background = state.s.hunger < 0.2 ? '#e74c3c' : '#f39c12';
+  $('food-bar').classList.toggle('low', state.s.hunger < 0.2);
   $('energy-bar').style.width = `${Math.round(state.s.energy * 100)}%`;
   $('btn-phone').dataset.unread = state.unread || '';
   $('money').textContent = `₹${player.money.toLocaleString('en-IN')}`;

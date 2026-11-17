@@ -87,17 +87,23 @@ export function titleScreen({ save }) {
   return new Promise((resolve) => {
     const s = loadSettings();
     const scene = SCENES[Math.floor(Math.random() * SCENES.length)];
-    const root = el(`<div id="title-screen"><div class="art">${scene}</div><div class="halftone"></div>
+    const bokeh = Array.from({ length: 14 }, (_, i) => `<span style="--x:${(i * 37 + 11) % 100}%;--s:${40 + (i * 53) % 90}px;--d:${9 + (i * 7) % 11}s;--l:${-(i * 1.7)}s;--h:${[45, 28, 330, 200, 38][i % 5]}"></span>`).join('');
+    const root = el(`<div id="title-screen"><div class="stage"><div class="art">${scene}</div></div><div class="bokeh">${bokeh}</div><div class="shade"></div>
       <div class="logo"><b>${GAME.line1}</b><span>${GAME.line2}</span><small>${GAME.tagline}</small></div>
       <div class="menu">
-        ${save ? `<button data-a="continue" class="main">Continue<small>₹${save.money.toLocaleString('en-IN')} · day ${save.day} · ${save.rides} rides</small></button>` : ''}
-        <button data-a="new" class="${save ? '' : 'main'}">${save ? 'New game' : 'Start'}</button>
-        <button data-a="settings">Settings</button>
-        <button data-a="guide">Guide</button>
-        <button data-a="credits">Credits</button>
+        ${save ? `<button data-a="continue" class="main"><i>▶</i><span>Continue<small>₹${save.money.toLocaleString('en-IN')} · day ${save.day} · ${save.rides} rides</small></span></button>` : ''}
+        <button data-a="new" class="${save ? '' : 'main'}"><i>${save ? '✦' : '▶'}</i><span>${save ? 'New game' : 'Start'}</span></button>
+        <button data-a="settings"><i>⚙</i><span>Settings</span></button>
+        <button data-a="guide"><i>?</i><span>Guide</span></button>
+        <button data-a="credits"><i>♥</i><span>Credits</span></button>
       </div>
       <div class="panel" hidden></div>
       <div class="foot">Map data © OpenStreetMap contributors · a fan-made parody, not affiliated with any real brand</div></div>`);
+    // Depth: the picture, the logo and the menu drift against each other with the pointer.
+    root.addEventListener('pointermove', (e) => {
+      root.style.setProperty('--mx', ((e.clientX / innerWidth) * 2 - 1).toFixed(3));
+      root.style.setProperty('--my', ((e.clientY / innerHeight) * 2 - 1).toFixed(3));
+    });
     document.body.appendChild(root);
     const panel = root.querySelector('.panel');
     const showPanel = (html) => { panel.innerHTML = `<button class="close" data-a="close">✕</button>${html}`; panel.hidden = false; };
@@ -136,9 +142,10 @@ export function titleScreen({ save }) {
 /** GTA-style loading screen: big illustrated scenes cross-fading, tips, a progress bar. */
 export function loadingScreen() {
   const order = [...SCENES.keys()].sort(() => Math.random() - 0.5);
-  const root = el(`<div id="load-screen">${order.map((k, i) => `<div class="art${i ? '' : ' on'}">${SCENES[k]}</div>`).join('')}<div class="halftone"></div>
+  const root = el(`<div id="load-screen">${order.map((k, i) => `<div class="art${i ? '' : ' on'}">${SCENES[k]}</div>`).join('')}<div class="shade"></div>
     <div class="logo small"><b>${GAME.line1}</b><span>${GAME.line2}</span></div>
-    <div class="bottom"><div class="tip"></div><div class="bar"><i></i></div><div class="status">Loading Mumbai…</div></div></div>`);
+    <div class="card"><div class="ring"><i class="arc"></i><b class="pct">0%</b></div>
+      <div class="txt"><div class="status">Loading Mumbai…</div><div class="bar"><i></i></div><div class="tip"></div></div></div></div>`);
   document.body.appendChild(root);
   const arts = root.querySelectorAll('.art');
   let k = 0, t = 0;
@@ -148,17 +155,24 @@ export function loadingScreen() {
   const timer = setInterval(() => {
     t++;
     if (t % 2 === 0) { arts[k].classList.remove('on'); k = (k + 1) % arts.length; arts[k].classList.add('on'); }
+    tip.classList.remove('swap'); void tip.offsetWidth; tip.classList.add('swap');
     tip.textContent = tips[t % tips.length];
   }, 3500);
   return {
-    progress(f, text) { root.querySelector('.bar i').style.width = `${Math.round(Math.max(0, Math.min(1, f)) * 100)}%`; if (text) root.querySelector('.status').textContent = text; },
+    progress(f, text) {
+      const pct = Math.round(Math.max(0, Math.min(1, f)) * 100);
+      root.querySelector('.bar i').style.width = `${pct}%`;
+      root.style.setProperty('--p', `${pct * 3.6}deg`);
+      root.querySelector('.pct').textContent = `${pct}%`;
+      if (text) root.querySelector('.status').textContent = text;
+    },
     done() { clearInterval(timer); root.classList.add('out'); setTimeout(() => root.remove(), 700); },
   };
 }
 
 /** In-game pause menu (Esc, or ⏸ on touch screens). handlers: resume, quality(tier), settings(s), quit, abandon, skipHour, tow. */
 export function pauseMenu(handlers) {
-  const root = el(`<div id="pause-screen" hidden><div class="halftone"></div><div class="logo small"><b>${GAME.line1}</b><span>${GAME.line2} · PAUSED</span></div>
+  const root = el(`<div id="pause-screen" hidden><div class="logo small"><b>${GAME.line1}</b><span>${GAME.line2} · PAUSED</span></div>
     <div class="menu"><button data-a="resume" class="main">Resume</button><button data-a="settings">Settings</button><button data-a="guide">Guide</button><button data-a="hour">Skip an hour (T)</button><button data-a="tow">Call a tow truck (R R)</button><button data-a="abandon" hidden>Abandon mission</button><button data-a="quit">Save &amp; quit to title</button></div>
     <div class="panel" hidden></div></div>`);
   document.body.appendChild(root);
