@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { endKey } from './roadKeys.js';
-import { POSE, FLAG, outfit } from './people.js';
+import { segEndKey } from './roadKeys.js';
+import { POSE, FLAG, outfit, makePerson } from './people.js';
 import { APOSE, DOG_COATS, COW_COATS } from './animals.js';
 import { LIGHT } from './signals.js';
 import { POINT } from '../world/tileFormat.js';
@@ -125,7 +125,7 @@ export class StreetLife {
       const seg = segs[Math.floor(Math.random() * segs.length)], s = seg.s;
       const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
       const d = Math.hypot(mx - player.pos.x, mz - player.pos.z);
-      if (d < 18 || d > 120 || seg.len < 6) continue;
+      if (d < 18 || d > 120 || seg.len < 6 || s[5] & 32) continue; // footpaths are at street level (not on flyovers)
       const side = Math.random() < 0.5 ? 1 : -1;
       const dir = Math.random() < 0.5 ? 1 : -1, t = Math.random();
       // Where exactly they would stand: not in plain sight of the camera, close up.
@@ -136,13 +136,13 @@ export class StreetLife {
       const kind = this.kindFor(hour, Math.random());
       const look = outfit(kind === 'jogger' ? 'casual' : kind);
       const speed = kind === 'jogger' ? 2.6 + Math.random() * 0.6 : kind === 'kid' ? 1.4 : 1.05 + Math.random() * 0.45;
-      this.peds.push({
+      this.peds.push(makePerson({
         seg, dir, t, side, off, speed, kind, ...look,
         flags: kind === 'sari' ? FLAG.SARI : 0, scale: kind === 'kid' ? 0.68 + Math.random() * 0.1 : 0.93 + Math.random() * 0.12,
         x: mx, z: mz, y: Y.KERB, heading: 0, phase: Math.random() * 6, pose: POSE.WALK, state: 'walk', timer: 0, ox: 0, oz: 0,
         h: kind === 'kid' ? 1.5 : 2.1,
         vx: 0, vz: 0, crossTo: 0, watch: null, dead: false, // set later; here so that people share one shape (cheaper per-frame loops)
-      });
+      }));
       return;
     }
   }
@@ -150,8 +150,8 @@ export class StreetLife {
   nextSeg(p) {
     const s = p.seg.s;
     const endIdx = p.dir > 0 ? 1 : 0;
-    const k = endKey(s[endIdx * 2], s[endIdx * 2 + 1]);
-    const opts = (this.traffic.ends.get(k) || []).filter((o) => o.seg !== p.seg);
+    const k = segEndKey(s, endIdx);
+    const opts = (this.traffic.ends.get(k) || []).filter((o) => o.seg !== p.seg && !(o.seg.s[5] & 32));
     if (!opts.length) { p.dir = -p.dir; p.side = -p.side; p.t = 0; return; }
     const o = pick(opts);
     p.seg = o.seg;
@@ -260,7 +260,7 @@ export class StreetLife {
       const s = seg.s;
       const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
       const d2 = (mx - px) ** 2 + (mz - pz) ** 2;
-      if (d2 > 170 * 170 || d2 < 50 * 50 || seg.len < 16) continue;
+      if (d2 > 170 * 170 || d2 < 50 * 50 || seg.len < 16 || s[5] & 32) continue; // no cows or cricket on flyovers
       const id = `seg:${Math.round(mx)},${Math.round(mz)}`;
       if (this.fixtures.has(id)) { seen.add(id); continue; }
       const r = hash(mx, mz, 7), main = s[5] & 4;
@@ -276,7 +276,7 @@ export class StreetLife {
   }
 
   person(kind, x, z, heading, pose, rnd = Math.random) {
-    return { x, z, y: this.tiles.groundHeight(x, z), heading, pose, phase: rnd() * 6, amp: 1, flags: kind === 'sari' ? FLAG.SARI : 0, scale: kind === 'kid' ? 0.7 + rnd() * 0.08 : 0.94 + rnd() * 0.1, h: kind === 'kid' ? 1.5 : 2.1, ...outfit(kind, rnd) };
+    return makePerson({ ...outfit(kind, rnd), kind, x, z, y: this.tiles.groundHeight(x, z), heading, pose, phase: rnd() * 6, amp: 1, flags: kind === 'sari' ? FLAG.SARI : 0, scale: kind === 'kid' ? 0.7 + rnd() * 0.08 : 0.94 + rnd() * 0.1, h: kind === 'kid' ? 1.5 : 2.1 });
   }
 
   local(x, z, a, lx, lz) { const c = Math.cos(a), s = Math.sin(a); return [x + lx * c + lz * s, z - lx * s + lz * c]; }
@@ -343,7 +343,7 @@ export class StreetLife {
     const [ax, az, h] = this.segPoint(seg, t0, 1, 1, 0);
     const [bx, bz] = this.segPoint(seg, t1, 1, 1, 0);
     const fx = Math.sin(h), fz = Math.cos(h);
-    const mk = (x, z, heading, pose, role) => ({ ...this.person('kid', x, z, heading, pose), role, homeX: x, homeZ: z, baseHeading: heading, basePose: pose });
+    const mk = (x, z, heading, pose, role) => Object.assign(this.person('kid', x, z, heading, pose), { role, homeX: x, homeZ: z, baseHeading: heading, basePose: pose });
     kids.push(mk(ax - fx * 0.6, az - fz * 0.6, h, POSE.BAT, 'bat'));
     kids.push(mk(ax - fx * 2.2, az - fz * 2.2, h, POSE.CROUCH, 'keeper'));
     kids.push(mk(bx + fx * 5, bz + fz * 5, h + Math.PI, POSE.STAND, 'bowl'));
@@ -360,8 +360,8 @@ export class StreetLife {
     const [x, z, h, lx, lz] = this.segPoint(seg, 0.45, 1, 1, Math.max(0, hw - 1.0));
     const fx = Math.sin(h), fz = Math.cos(h);
     const car = { type: 'taxi', x, z, heading: h, tint: new THREE.Color(0x060606) };
-    const driver = { ...this.person('casual', x + fx * 2.8 - lx * 0.3, z + fz * 2.8 - lz * 0.3, h + Math.PI, POSE.ARGUE), role: 'driver' };
-    const pushers = [0.5, -0.5].map((s) => ({ ...this.person(pick(['worker', 'casual']), x - fx * 2.4 + lx * s * 0.5, z - fz * 2.4 + lz * s * 0.5, h, POSE.CROUCH), role: 'push' }));
+    const driver = Object.assign(this.person('casual', x + fx * 2.8 - lx * 0.3, z + fz * 2.8 - lz * 0.3, h + Math.PI, POSE.ARGUE), { role: 'driver' });
+    const pushers = [0.5, -0.5].map((s) => Object.assign(this.person(pick(['worker', 'casual']), x - fx * 2.4 + lx * s * 0.5, z - fz * 2.4 + lz * s * 0.5, h, POSE.CROUCH), { role: 'push' }));
     return { type: 'breakdown', x, z, car, fx, fz, people: [driver, ...pushers], t: 0, pushes: 0, sayT: 1 };
   }
 
@@ -656,7 +656,7 @@ export class StreetLife {
       const hw = sig.ap.hw;
       const sx = player.pos.x + fz * (hw + 1) + fx * 3, sz = player.pos.z - fx * (hw + 1) + fz * 3;
       const look = pick(['worker', 'kid', 'casual', 'sari']);
-      this.hawker = { ...this.person(look, sx, sz, 0, POSE.WALK), line: pick(HAWKER), t: 0, homeX: sx, homeZ: sz, said: false };
+      this.hawker = Object.assign(this.person(look, sx, sz, 0, POSE.WALK), { line: pick(HAWKER), t: 0, homeX: sx, homeZ: sz, said: false });
     }
     const h = this.hawker;
     if (!h) return;

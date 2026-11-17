@@ -11,9 +11,9 @@ export class Minimap {
     this.timer = 0;
   }
 
-  /** Path2D outlines of a tile's land and its roads (minor and main). */
+  /** Path2D outlines of a tile's land and its roads (minor and main; flyovers on top, tunnels faint). */
   paths(t) {
-    const land = new Path2D(), main = new Path2D(), minor = new Path2D();
+    const land = new Path2D(), main = new Path2D(), minor = new Path2D(), deck = new Path2D(), tunnel = new Path2D();
     const w = t.collide.walkable;
     for (let r = 0; r < w.ringStart.length - 1; r++) {
       const s = w.ringStart[r], e = w.ringStart[r + 1];
@@ -22,12 +22,12 @@ export class Minimap {
     }
     const rd = t.collide.roads;
     for (let i = 0; i < rd.count; i++) {
-      const o = i * 6, f = rd.segs[o + 5];
+      const o = i * 8, f = rd.segs[o + 5], y = (rd.segs[o + 6] + rd.segs[o + 7]) / 2;
       if (!(f & 1)) continue;
-      const p = f & 4 ? main : minor;
+      const p = f & 32 && y > 1.5 ? deck : f & 32 && y < -1.5 ? tunnel : f & 4 ? main : minor;
       p.moveTo(rd.segs[o], rd.segs[o + 1]); p.lineTo(rd.segs[o + 2], rd.segs[o + 3]);
     }
-    return { land, main, minor };
+    return { land, main, minor, deck, tunnel };
   }
 
   update(dt, player, traffic) {
@@ -55,10 +55,18 @@ export class Minimap {
     g.fillStyle = '#c9c1b0';
     for (const p of vis) g.fill(p.land, 'evenodd');
     g.lineCap = 'round'; g.lineJoin = 'round';
+    g.strokeStyle = 'rgba(124,124,128,0.55)'; g.lineWidth = Math.max(9, 5 / scale); g.setLineDash([14, 10]);
+    for (const p of vis) g.stroke(p.tunnel);
+    g.setLineDash([]);
     g.strokeStyle = '#7c7c80'; g.lineWidth = Math.max(9, 5 / scale);
     for (const p of vis) g.stroke(p.minor);
     g.strokeStyle = '#ffffff'; g.lineWidth = Math.max(14, 6 / scale);
     for (const p of vis) g.stroke(p.main);
+    // Flyovers over everything else, with a dark edge.
+    g.strokeStyle = '#4a4a50'; g.lineWidth = Math.max(19, 9 / scale);
+    for (const p of vis) g.stroke(p.deck);
+    g.strokeStyle = '#f2efe8'; g.lineWidth = Math.max(13, 6 / scale);
+    for (const p of vis) g.stroke(p.deck);
     // GPS route and waypoint
     const nav = this.nav;
     if (nav?.route) {

@@ -54,7 +54,7 @@ const square = (x, z, s, ux, uz) => [[x - ux * s - uz * s, z - uz * s + ux * s],
  * A run of wall from a polyline: the wall, pillars along it (kind PILLAR or POST) and, on long
  * runs, a gate gap with gate posts. add(ring, kind, height, colour).
  */
-export function addRun(pts, kind, h, color, add, { gate = 24, rnd = Math.random } = {}) {
+export function addRun(pts, kind, h, color, add, { gate = 24, rnd = Math.random, onGate = null } = {}) {
   // Arc lengths, then cut a gate out of long runs.
   const s = [0];
   for (let i = 1; i < pts.length; i++) s.push(s[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
@@ -71,6 +71,7 @@ export function addRun(pts, kind, h, color, add, { gate = 24, rnd = Math.random 
     const g0 = L * (0.3 + rnd() * 0.4) - 2.1, g1 = g0 + 4.2;
     pieces.push([0, g0], [g1, L]);
     for (const t of [g0 - 0.3, g1 + 0.3]) { const [x, z, ux, uz] = at(t); add(square(x, z, 0.3, ux, uz), WALL.GATEPOST, h + 0.5, color); }
+    if (onGate) { const [x, z, ux, uz] = at((g0 + g1) / 2); onGate(x, z, ux, uz); } // the gate itself and its watchman (lib/clutter.mjs)
   } else pieces.push([0, L]);
   // Pillars and fence posts are drawn by the tile worker along each wall (not stored).
   let n = 0;
@@ -85,7 +86,7 @@ export function addRun(pts, kind, h, color, add, { gate = 24, rnd = Math.random 
  * Compound walls at the back of the footpath, in front of set-back buildings; dock walls on port
  * roads. o: { vparts, district(x, z), free(x, z), buildingWithin(x, z, r), hash(n, salt), add }.
  */
-export function compoundWalls({ vparts, district, free, buildingWithin, hash, add, BRIDGE = 1 }) {
+export function compoundWalls({ vparts, district, free, buildingWithin, hash, add, BRIDGE = 1, gates = null }) {
   let walls = 0, seed = 3;
   const rnd = () => hash(seed++, 41);
   for (const p of vparts) {
@@ -108,8 +109,10 @@ export function compoundWalls({ vparts, district, free, buildingWithin, hash, ad
             const kind = dock ? 0 : 0;
             const color = dock ? 0xf4f3ee : d.name === 'Colaba' && rnd() < 0.4 ? 0xb2453a : PLASTER[Math.floor(rnd() * PLASTER.length)];
             const stone = !dock && (d.name === 'Malabar Hill' || prof?.id === 'malabar-hill-ridge') && rnd() < 0.5;
+            // Gates in compound walls face the road (-n) and get a watchman; dock gates are left to the port.
+            const onGate = !dock && gates ? (x, z) => gates.push({ x, z, angle: Math.atan2(-nx, -nz) }) : null;
             walls += addRun(run, dock ? 3 : stone ? 4 : kind, dock ? 2.8 : stone ? 2.2 : 1.5 + rnd() * 0.5, stone ? 0x6e655c : color, add,
-              { gate: dock ? 90 : 22 + rnd() * 10, rnd });
+              { gate: dock ? 90 : 22 + rnd() * 10, rnd, onGate });
           }
           run = [];
         };

@@ -5,6 +5,7 @@ One line per file: file — tool(s) used — licence of the output — date.
 - models/vada-pav-cart.glb — picture: FLUX.1 [schnell] (Apache-2.0); 3D: TRELLIS (MIT) — 2026-11-14
 - models/chai-tapri.glb — picture: FLUX.1 [schnell] (Apache-2.0); 3D: TRELLIS (MIT) — 2026-11-14
 - models/plastic-stool.glb — "Plastic stool" by Akoa (@akoa12pm), https://sketchfab.com/3d-models/8e53e79610284392a2cda485ec028d92 (CC BY 4.0) — 2026-11-14
+- models/site-frame-a.glb, models/site-frame-b.glb — concrete frames going up in scaffolding, taken from the owner's own Maya scene "SB CITY 10" (Amit Patharkar, 2023; used with the owner's permission) — 2026-11-17
 - models/bus-shelter.glb — "Bus Stop Shelter" by R3indeer, https://sketchfab.com/3d-models/bca23ba2d6794c4aab20c9a3d6e01b6a (CC BY 4.0) — 2026-11-14
 - vehicles/1993_fiat_punto.glb — "1993 Fiat Punto" by tonielpro520, https://sketchfab.com/3d-models/1993-fiat-punto-a2b575c5ce5c428a8b19490f6c1c7332 (CC BY 4.0; textures dropped, simplified, recoloured) — 2026-11-14
 - vehicles/2005_-_2008_innova_v_2.7_tgn41.glb — "2005 - 2008 Innova V 2.7 [TGN41]" by boiled fish, https://sketchfab.com/3d-models/2005-2008-innova-v-27-tgn41-57ae7a0f70b14ee0a65e82ae754c5b4b (CC BY 4.0; textures dropped, simplified, recoloured) — 2026-11-14

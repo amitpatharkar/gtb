@@ -56,7 +56,14 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 
 ## Layout
 - `index.html` — page shell, heads-up display (speed, road name, clock, AQI, minimap, fuel and car meters, messages),
-  loading screen, OpenStreetMap credit, Credits panel, Graphics link, touch buttons (incl. horn and fuel)
+  loading screen, OpenStreetMap credit, Credits panel, Graphics link, empty `#touch` (filled by `src/ui/touch.js`)
+- `src/ui/touch.js` — phone/tablet controls (only with `(pointer: coarse)` or `?touch`; `body.touch`): left thumb =
+  floating joystick on foot (`input.moveX/moveY/analog`, full push runs; walker.js reads it) or the ◀ ▶ steering pad
+  in a vehicle; right thumb = brake/REV + gas pedals with handbrake, horn, door, radio, TAXI duty, or on foot the attack
+  button (drag = `view.look`) with an arc of moves (CSS `--cx/--sy/--r` slots); context buttons in `.t-dock` (get in /
+  steal, fill up, snack, door/indoor prompts, ticket, mission skip-hour). main.js `touchState()` (every HUD update)
+  says what shows (`data-mode` drive/foot/hidden, weapon, indoor, fight…); actions are callbacks into main.js. Pads
+  and holds use pointer capture; nothing stays held on mode change or blur. Pause menu has Skip an hour and Tow truck.
 - `src/main.js` — boot order (texture library → tiles → sky → post-processing → clock, traffic, audio, minimap),
   chase camera, `step(dt)` simulation (also called by headless tests via `window.__gtb.step`), night lights near the
   player, refuelling, HUD. URL options: `?quality=high|medium|low`, `?hour=20.5`.
@@ -117,6 +124,18 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   and star is made up) drawn into one 2048² canvas atlas (4 × 8 cells, last two = steel), redrawn with the sign
   fonts (`signs.redraw` in materials.js); the worker adds a board + posts over the longest street-facing wall of
   some buildings (mesh key `hoarding`, max 8 per tile); material is lit at night through `facadeNight`.
+- `src/world/clutter.js` — `StreetClutter`: street clutter near the player from the clutter points (below) and the
+  worker's `shutterBox` parts: unipoles (V of two boards showing the `ADS` atlas, `UNI`), blue street-name boards
+  (two faces) and direction boards / overhead gantries (one panel per destination line), cable bundles (unit
+  catenary `cable`, matrix = span × sag × side via `putSpan`), lane and stall tarpaulins (`sheet()`), shamiana over
+  puja stalls, 6 shrine kinds, flower sellers, gates (open leaves, monobloc chair, some security cabins), shopfront
+  awnings by the street profile's `awn` shares [cloth, striped, tarp, metal] (`AWN_DEFAULT` elsewhere). 4 draw calls:
+  BatchedMesh `solid` (vertex colours, tinted per instance), BatchedMesh `cloth` (two-sided), InstancedMesh `boards`
+  (`aRect` = atlas rectangle) and `ads` (`aAd` = ad cell). Board text: atlas of 512 × 128 cells (64, Low 32) drawn on
+  demand per label with `renderer.copyTextureToTexture`, least recently used recycled, 14 new per refresh;
+  `setFonts` chains `materials.signs.redraw`. Refreshes every 0.5 s after 12 m (`rebuild`, radii `R` by tier);
+  `hits()` (allocation-free grid of poles, shrines, stalls, cabins) is chained onto `world`/`footWorld.hits` in main.js;
+  `drawPeople(hour)` adds the seated watchmen (all day), flower sellers and stall keepers (by day). `counts` per kind.
 - `src/world/props.js` — procedural instanced props by point kind: rain tree, gulmohar (December: ~5 % in bloom, 30 % drawn as rain trees), peepal, coconut palm
   (alpha-tested leaf cards), street light (4 types in the point's size: standard, tall, heritage triple lantern, globe —
   `LAMP` in `scripts/lib/streetLibrary.mjs`), traffic signal, BEST bus shelter, pothole and puddle decals, garbage pile,
@@ -127,28 +146,66 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/tiles.js` — `TileManager`: streams tiles, builds meshes/props, collisions (`hits`), `walkable`,
   `groundHeight` (asphalt 0.02 m, kerb level 0.2 m), `roadAt`, `roadNameAt`, `segment()`; `version` bumps on load/unload.
   Collision queries allocate nothing: numeric `tileKey` maps (`byKey`, `availableKeys`), `nearInto()` fills `tiles.near`;
-  `roadHit(x, z, slack, vehicleOnly)` leaves its answer in `roadTile`/`roadIndex`/`roadDist` (`roadAt` wraps it)
+  `roadHit(x, z, slack, vehicleOnly, y)` leaves its answer in `roadTile`/`roadIndex`/`roadDist` (`roadAt` wraps it).
+  **Levels (flyovers, tunnels):** `hits(x, z, r, y, vehicle)`, `groundHeight/wheelHeight(x, z, y)`, `walkable`,
+  `roadAt`, `roadNameAt` take the mover's height (default: street level). Off the street (y above kerb + 0.15 or
+  below road − 0.3) only `supported()` counts: inside a deck's barriers / tunnel walls at about that level (buildings
+  ignored); at street level also `structWall()` (ramp walls lower than `STRUCT.CLEAR`, open-cut edges) and pier
+  footprints (in `solid`). Surfaces: the highest deck/floor no more than `STEP` 0.9 m above y (`levelScan`: `surfY`,
+  `hole` = open cut, no street there); `ceilingAt()` keeps the camera under tunnel roofs; `configure()` sends the
+  cable-stayed spans to the worker. Cars pass `vehicle` (no climbing footbridge stairs)
 - `src/world/tileWorker.js` + `src/world/mesh/` — worker: `ground.js` (ground layers, kerbs with paint strip, sea walls,
   parapet, tetrapods, markings, footways, rails), `buildings.js` (per-style walls with facade data, parapets, stair
   rooms, roof types, water tanks; by facade kind: Deco rounded street corners with windows wrapping the curve, raised
   corner parapet, eyebrow slabs, stepped crown with a name plaque; Gothic street gables with steep slate/tile roofs
   behind, gable-roofed rectangles, octagonal corbelled turrets with spires; chawl galleries `galleryWall`; clay-tile
   roofs on rectangular chawls and old cottages), `facadeShapes.js` (rounded corners, pitched roofs, gables, turrets,
-  slabs, all in the wall mesh with facade codes: no extra draw calls), `builder.js` (mesh helpers). Road segments: 6 floats `x0 z0 x1 z1 halfWidth flags`
-  (flags 1 vehicle, 2 one-way, 4 main road, bits 8–15 street profile). Kerb paint: the street profile's
+  slabs, all in the wall mesh with facade codes: no extra draw calls), `bridges.js` (roads with heights: decks with New Jersey barriers, box-girder
+  soffit, lane markings and lamps on the barriers (`POINT.LIGHT` at deck height), piers every 30 m with hammerhead
+  caps off crossing roads and tracks (none under cable-stayed spans), ramps on solid walls below `STRUCT.CLEAR`,
+  open cuts with retaining walls, covered tunnels with tiled walls, ceiling and `tunnelLight` strips, portal walls;
+  footbridges/skywalks with railings and steel columns; concrete in mesh key `compound`, asphalt in `road`, paint in
+  `paint`: no new draw calls except tunnel lights; barriers are left out where another deck continues),
+  `builder.js` (mesh helpers). Road segments: 8 floats `x0 z0 x1 z1 halfWidth flags y0 y1` (flags 1 vehicle,
+  2 one-way, 4 main road, 8 worn, 16 rough, 32 off the ground, 64 tunnel, 128 covered, bits 8–15 street profile;
+  y0/y1 road surface height at the ends); `collide.decks` = grid of the off-the-ground segments. Kerb paint: the street profile's
   (`ROAD_FLAG.KERB_BW/BY/PLAIN`), else black-yellow near main roads (`kerbPlain` elsewhere); median kerbs (another
   carriageway within 6.5 m beyond the kerb) black-white (`kerbBW`). Netting buildings get a green mesh wall (`netting`);
   `BUILDING_FLAG.ARCADE` (street library `arcade`) street walls: upper floors on the line, shops 2.8 m back behind
   piers under a ceiling (`arcadeWall` in buildings.js; the footprint still collides). Every building gets a
   contact-shade band on the ground along its walls (mesh key `contact`).
-- `src/world/tileFormat.js` — binary tile format v3 (buildings with style (low 4 bits; high 4 bits = facade kind
+- `src/world/tileFormat.js` — binary tile format v4 (buildings with style (low 4 bits; high 4 bits = facade kind
   `FACADE`: MODERN, OLD, DECO, GOTHIC, CHAWL)/levels/street-facing walls and flags incl.
-  `NETTING`, areas incl. PLOT/ROAD/FOOTPATH, roads with kerb/median flags and a street-profile byte, rails, markings,
-  points); `src/world/levels.js` — ground heights
+  `NETTING`, areas incl. PLOT/ROAD/FOOTPATH, roads with kerb/median flags, OSM layer, a street-profile byte and — with
+  `ROAD_FLAG.ELEVATED` — a height per vertex in cm plus `s0` (distance along the way, for pier spacing), rails,
+  markings, points, then optional `labels` (strings per tile + point index → string: board text; the worker hands
+  them over as `t.labels[kind][instance]` for `LABELLED` kinds)); `STRUCT` (AT_GRADE 0.22, CLEAR 4.6, COVER −5.6, CEILING 5.4, DECK 1.8 m) is shared by converter,
+  worker and collisions; `src/world/levels.js` — ground heights. Clutter point kinds 18–29: UNIPOLE, CABLES
+  (size × 12 = span), NAME_BOARD ("English|मराठी"), DIR_BOARD / DIR_GANTRY ("Dadar|दादर|^;…", gantry size × 16 = span),
+  TARP (size × 10 = span), STALL_TARP, SHAMIANA, SHRINE (size = 0.5 + 0.25 × kind), FLOWERS, GATE, HANDCART; 40–41
+  SITE_FRAME_A/B (the owner's scaffolded frames, art.js `at`)
+- `scripts/lib/elevation.mjs` — heights for flyovers, bridges and tunnels (~290 km off the ground): each bridge chain's
+  deck from what it crosses (road/rail/lower deck → 7 m, 7.6 m over tracks, +6.5 m per layer; long over the sea →
+  9 m; creek 3.2 m; nothing → flyover if long and main, else a culvert at grade), tunnels −9 m (underpasses −6.6);
+  heights spread along the densified road graph at 5 % (ramps on the approach ways), at-grade junctions (two or more
+  ordinary roads) pinned with at most 6.5 % from them; side lanes that squash a flyover's ramp are cut off at its foot
+  (ground node of their own); a road mapped through a bridge's node keeps its own ground node; vertical-curve
+  smoothing; the sea link deck rises to 20 m / 13.5 m around its pylons (`PYLONS` in build-tiles.mjs, approximate
+  positions); footbridges are a second network (stairs up to 60 %). Converter: parts within `AT_GRADE` are street
+  (`groundParts` → `vparts`), the rest leaves asphalt, footpaths, markings, trees, frontage and parking; open cuts are
+  holes in the ground; `underDeck()` keeps infill, walls, trees, lamps, stalls, cranes and bus stops away; buildings
+  under decks are lowered to fit (or dropped in ramp footprints); index.json `bridges` (pylons + stats). The sea link
+  shows as "Bandra–Worli Sea Link" (`RENAME`)
+- `src/world/bridges.js` — the sea link's pylons, a tower per carriageway (diamond below the deck, inverted Y above,
+  one mast; after the owner's reference model) with semi-harp stay cables to both deck edges (LineSegments) from
+  `index.bridges.pylons`, built once on the main thread so they
+  stand on the skyline whatever tiles are loaded (2 draw calls; `Bridges.deckAt` = the converter's deck rise)
 - `src/vehicles/taxi.js` + `car.js` — procedural kaali-peeli taxi (Premier Padmini proportions, clear-coat paint) and car
   handling (bicycle steering, two collision circles, kerb bumps, body roll/pitch, fuel ~40 km per tank, condition);
   kerb and pothole jolts fire once per wheel event (`prevGF`/`prevGR`: kerb 7 % per axle, pothole 3 % per wheel +
-  damage above 9 m/s), so the loss is the same at any frame rate
+  damage above 9 m/s), so the loss is the same at any frame rate; `world.hits/groundHeight/bodyAt` get the car's `pos.y`
+  (up ramps, on decks, under them, in tunnels; pitch follows the slope). The walker, police patrols, the parked taxi
+  (`garage.home.y`), left vehicles (`v.y`) and saves/resume (`y`) keep their height too
 - `src/sim/clock.js` — 24-hour clock (1 real s = 1 game min, T = +1 h), real sun path for Mumbai in December,
   daylight/night/twilight, AQI by hour (CPCB scale), traffic density table by hour (≈5 % at 3 am, 100 % 9–11 and
   18–20) and `jam` (slower cruising at peaks)
@@ -157,10 +214,14 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   (look-ahead), `gatherBlockers` (player at real length, the vehicle left while on foot = `traffic.car`, parked taxi,
   `left`, patrols via `traffic.police`, obstacles); `lanesOf` cached per segment (`seg.lanes`); vehicle mix cached per
   quarter hour (`pickType`); kerb parking forms kaali-peeli taxi ranks where the profile has `taxis` (`TAXI_RANK`).
+  Handcarts: `HANDCART` points become parked carts on the footpath (`placeParked`, key `hc:x,z`, drawn at
+  `groundHeight`); `spawn` turns 13 % of new vehicles on tiles with handcart points into a pulled `handcart` (7–21 h).
 - `src/sim/traffic.js` (continued) — ambient traffic near the player (fleet from `src/vehicles/fleet.js`: taxis, hatchbacks,
   sedans, SUVs, BEST buses on main roads, tempos (more at night), motorbikes with riders), keeps LEFT, follows the
-  road graph (loose ends within 2.5 m joined; per-tile segment data cached on `tile.graph`, numeric junction keys
-  from `src/sim/roadKeys.js` — the rebuild runs on every tile load, keep it cheap; police build their graph lazily
+  road graph (loose ends within 2.5 m and 0.8 m of height joined; per-tile segment data cached on `tile.graph`, numeric
+  junction keys from `src/sim/roadKeys.js` with the road height in them (`segEndKey`, `keyY`: a flyover never joins the
+  street it crosses) — the rebuild runs on every tile load, keep it cheap; cars carry `y`/`pitch` from their segment,
+  look ahead/collide only within 2.5 m of height, ignore signals off the street, never park on decks; police build their graph lazily
   only while patrols are out, signals rebuild one frame later), lanes as painted by the converter (`lanesOf`: kerb
   lane 0 for two-wheelers/autos/buses, parked cars take the kerb lane on wide streets), overtakes on the RIGHT into a
   free lane or, on two-lane roads, into the oncoming lane only when clear (`laneFree`, `oncomingClear`), drifts back
@@ -174,7 +235,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   glass, trim with vertex colours, lamps) = 4 draw calls. Type fields: weight, night, mainRoad, big, rider, seat.
   Also: auto-rickshaw (`city: 0` = suburbs only, north of ~19.042° N (Mahim creek–Sion), `traffic.inSuburbs(z)`; `open` + `seat` +
   `seatZ` = visible khaki driver, `pax` = passenger on the bench), water tanker, garbage truck, ambulance, school
-  bus, bicycle and dabbawala cycle (`slow` = others overtake, `pedal` = POSE.PEDAL). The batches must keep
+  bus, bicycle and dabbawala cycle (`slow` = others overtake, `pedal` = POSE.PEDAL), handcart (`pull`: weight 0, only
+  on bazaar streets; the puller walks between the shafts at `seatZ`, main.js; taken by the player it is pulled on foot,
+  shouts instead of a horn, `DRIVE` 3.2 m/s). The batches must keep
   `frustumCulled = false` (their bounding sphere is computed once; traffic vanished far from the start).
 - `src/vehicles/skids.js` (tyre marks), `damage.js` (dents, loose bumpers, dying lamps, bonnet smoke; repair at pumps)
 - `src/sim/signals.js` — working signals at OSM signal junctions: poles on the left kerb per approach, lamps and
@@ -184,8 +247,30 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   red-light jumpers; player offences (signal jump, wrong way on one-way, footpath driving, hit-and-run, colouring a
   policeman) count only when seen → challan stars and fines; stop by the constable to pay, or a fictional
   "Mumbai City Police" patrol car chases (A* on the road graph, siren, light bar); out of sight → stars fade
-- `src/sim/people.js` — procedural people (one instanced mesh, limbs animated in the shader; poses walk/stand/wave/
-  point/argue/bat/sit/crouch; flags cap/sari/helmet); `src/sim/animals.js` — stray dogs and humped cows
+- `src/sim/people.js` — the far crowd (one instanced mesh, ~800 triangles each, limbs animated in the shader; poses
+  walk/stand/wave/point/argue/bat/sit/crouch/pedal/ride; flags cap/woman/helmet, then the look's `bits`: kurta or
+  skirt hem, sari or lungi to the ankle, dupatta, pallu, long hair, bun, plait, hard hat, Gandhi cap, turban, school
+  bag, shorts, long sleeves; colours packed as 24-bit sRGB in `aCol0`/`aCol1`). **Make every person with
+  `makePerson(props)`**: all fields any system sets exist from the start (one object shape — mixed shapes made each
+  read of a number in `occludes`/`write`/`updatePeds` allocate); new per-person fields go in that list.
+  `outfit(kind, rnd, zone, hour)` = looks.js `dress()`; `people.rider(r, T, dt, tiles)` draws traffic riders (persistent
+  `r.person`, pose RIDE/PEDAL, auto passengers, handcart porters walking); `people.clock` + the district set `NOW`.
+  `src/sim/animals.js` — stray dogs and humped cows
+- `src/sim/looks.js` — who wears what: `dress(kind, rnd, zone, hour, sunday)` → { shirt, pants, skin, look } (one
+  object shape for looks: style, hair, beard/moustache, bindi, glasses, hat, garment, pallu/dupatta/lanyard/tie/bag,
+  sleeves, legs, extra colours, patterns, far-crowd `bits`); `ZONES` (lat/lon boxes: koli, south, bazaar, business,
+  posh), `zoneAt`, `setWorldFrame(index)`; styles by kind (casual, office/suit, worker → construction/dabbawala/lungi,
+  woman → sari/salwar/kurti/western/office/nauvari, kid → school uniform 7–17.5 h except Sundays, police, khaki,
+  jogger); 11 skin tones, grey and henna hair for older people; `lookFor(p)` derives a stable look for people made
+  without one (cached by their shirt colour); `playerLook(wear)` for the Ghar wardrobe (real kurta, sunglasses).
+- `src/sim/wardrobe.js` — the real characters' clothes, hair and faces as extra triangles of the template's one
+  skinned mesh: `buildWardrobe(mesh)` models ~40 pieces on the template's adult rest pose (`Probe`: rest positions,
+  ray casts, convex cross-sections; head pieces in head-bone space, cached per head shape) — 10 hair caps + bun, plait,
+  ponytail, loose fall, schoolgirl plaits, flowers; moustache, two beards, bindi, glasses, shades; police cap, helmet,
+  hard hat, Gandhi topi, turban, cap; sari (pleats, border), pallu, kurta, kurti, lungi (full/folded), school skirt,
+  dupatta, lanyard + ID card, tie, school bag, nauvari pleats, cricket bat — then `bake()` unskins each vertex into
+  bind space for its weights (skirts: hips at the waist, front following thigh then shin, so it lies on the lap
+  when seated). Sizes in metres via `K.u` (model units per metre). `SLOT` = colour slots of the character shader.
 - `src/sim/birds.js` — pigeon flocks at famous spots (`SPOTS`: Gateway plaza, Dadar kabutarkhana, …) that peck about
   and take off when the player, a honk (`birds.scare`) or a cracker comes close, plus kites circling overhead;
   one instanced mesh, wings flap in the vertex shader (`aFlap`: 0 folded, 1 flapping, 2 gliding).
@@ -269,24 +354,28 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/models.js` — glTF/GLB → instanced meshes (metres, base on ground); `src/world/streetProps.js` — Poly Haven
   chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
 - `src/sim/characters.js` — Quaternius rigged characters (from the pipeline's `converted/` GLBs, only if listed in
-  the manifest; Low loads 2+2 models, Medium 4+4, High all) for the player and everyone near the camera (pool
-  11/20/30 within 34–46 m); people.js draws in two phases (`beforeEnd` picks heroes). Each character is ONE skinned
-  mesh / draw call (merged in `prepare()`, `aSlot`/`aBase` attributes, per-character colour uniforms; "Face" = eyes).
+  the manifest; Low loads 2+2 models, Medium 4+4, High all, prepared one per task) for the player and everyone near the
+  camera (pool 11/20/30 within 34–46 m, picked without allocating; `p.body`, `p.drawn`); people.js draws in two
+  phases (`beforeEnd` picks heroes). Each character is ONE skinned mesh / draw call: the pack's meshes (its own hair
+  and hats dropped) + every wardrobe.js piece merged per template (`t.full`, `t.ranges`); each character has its own
+  index buffer listing what its look wears (`wearList()`; under a hat only the hair band shows). Shader: `uCol[slot]`
+  colours (slot 0 = vertex colour), `uPat`/`uPatCol` procedural checks, stripes, prints, diagonal tie stripes from the
+  bind position (fading with distance), glossy oiled hair. Bare limbs get slots by dominant bone, one slot per
+  triangle: thigh, shin (also long trousers below the knee), sock band, upper arm, forearm (sleeves), shoe.
+  `templateFor()` picks the body by the look's `template` (`PREFER`), or `p.model` = index into `MODELS` (interiors).
   `autoSmooth()` replaces the pack's flat shading with smooth normals (creases over 62° stay sharp).
-  The pack's models wear shorts and no shoes: bare leg skin gets slot `leg` (trouser colour for adults, skin for
-  the `kid` build) and feet slot `shoe`, by dominant skin bone. About 62 % of women wear a sari: `sariGeometry()` (skirt +
-  pallu, a rigid mesh in metres on the character's holder, border colour per person; hidden when sitting or down).
   **Adult bodies:** the pack has a child's proportions, so `rig()` + `shapeBody()` scale bones along/across their
   own axes (`ADULT` male/female: legs ×1.45, head ×0.56, shorter torso, wider shoulders, longer arms) and every
   child bone cancels its parent's scale (`compensate()` overrides `updateMatrix`) so joints never shear. The feet are
   root-space bones (baked IK), so `bake()` rescales the clips' pelvis height and foot positions by the same leg
   factor and drops scale keys. `BUILDS` (average, slim, heavy, muscular, stocky, lanky, fit = player, kid) multiply
-  on top; `pickBuild()` chooses by kind; `person.build` sticks. Height (1.73 m men, 1.6 m women) and foot level are
-  measured from the animated poses; walk cadence from the feet's travel (`walkSpeed`). No Run clip: Walk with limb
-  rotations amplified around the idle pose + spine lean (`bend()`, undone each frame for bones the clip doesn't
-  key). Clips: Idle, Walk, Punch (frozen early = guard), RecieveHit (flinch), Shoot_OneHanded (aim; pichkari in
-  `Fist.R`), Victory (wave), SitDown (clamped = seated); knocked down = laid flat. Caps/helmets on the head bone.
-  Still procedural: the far crowd, riders on NPC bikes, cricket poses (BAT/CROUCH).
+  on top; `pickBuild()` chooses by kind; `person.build` sticks. Height (1.73 m men, 1.6 m women, to the top of the
+  head) and foot level are measured from the animated poses; walk cadence from the feet's travel (`walkSpeed`). No
+  Run clip: Walk with limb rotations amplified around the idle pose + spine lean (`bend()`/`turn()`: world-axis bone
+  turns after the clip). Clips: Idle, Walk, Punch (frozen early = guard), RecieveHit (flinch), Shoot_OneHanded (aim;
+  pichkari in `Fist.R`), Victory (wave), SitDown (clamped = seated); knocked down = laid flat. `pose()`: RIDE (sit +
+  hands on the handlebar, knees apart), PEDAL (legs turning, `feet()` re-attaches the feet to the shins), CROUCH
+  (squat, lean, hands forward: keeper, pushing a car), BAT (lean, swing, bat piece), ARGUE (hands talking).
 - `src/game/story.js` + `missions.js` — the mission engine and its script. Two strands: story (yellow markers,
   Mamaji) and side missions (blue, open after the first story mission); every startable mission shows a marker in
   the world and on the map (`story.markers()`), with its giver waiting there; `hours` windows. Steps: `cut`
@@ -300,7 +389,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   road once tiles are loaded. `story.world` gives missions access to stars, garage, crackers, police.
   `story.playScene()` runs ad-hoc cutscenes. Saved in `state.s.story` (mission + step; re-entered after a reload).
   Titles tip their hat to Hindi films with a twist — never real titles, lines, songs or characters.
-- `src/ui/minimap.js` — rotating radar (land, roads, traffic, petrol pumps, GPS route); `src/ui/cityMap.js` — full map
+- `src/ui/minimap.js` — rotating radar (land, roads, traffic, petrol pumps, GPS route; flyovers on top with a dark
+  edge, tunnels dashed); `src/ui/cityMap.js` — full map (overview v2: elevated runs in `deck0/1`, tunnels dashed,
+  per-point levels so the GPS graph never joins crossing roads at different heights)
   (Tab / tap radar; pan, zoom, tap for a waypoint; game pauses; parked-taxi marker). GPS targets have owners
   (`routeTo(x, z, label, owner)`: 'mission', 'fare', 'user'): the newest shows, clearing one brings back the previous;
   no new fares while a mission is on (`jobs.paused`). Map and GPS use `tiles/overview.bin.gz` (roads +
@@ -312,7 +403,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `src/ui/bubbles.js` — speech bubbles; `src/audio.js` — ambience, horns, synthesised whistle, siren, bark, engine
   (`engineKind` car/auto/bike/big/cycle and `hornKind` peep/bell, set by `garage.shape()`),
   tyre squeal, crash, spray, musical horn; starts on first key/tap
-- `src/input.js` — keyboard and touch (Shift = run, fire/aim touch buttons); keys in main.js: H horn, E interact
+- `src/input.js` — keyboard (Shift = run); touch is `src/ui/touch.js`; keys in main.js: H horn, E interact
   (refuel + repair menu / snack), F out/in of the taxi, Tab map, P phone, J taxi duty, N radio, Esc pause, ? key list,
   on foot 1 fists / 2 pichkari, V kick, G insult, C colour, [ ] pressure, X light a cracker, Z cracker type,
   F into the nearest vehicle (anyone's; `vehicleChoice()` decides for F and its prompt); ` cheat console; T +1 hour,
@@ -324,7 +415,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   road surface union, footpaths by class, plots, parks cut out of plots), markings/crossings/trees/lights/stalls/
   garbage/potholes/puddles (`lib/streets.mjs`), building style + colour by district (`lib/districts.mjs`, from the
   research guide), facade kind by district, street profile and style (`lib/facades.mjs`: old windows, chawl shares,
-  Gothic precinct, Deco pastels), OSM trees/signals/crossings/bus stops/petrol pumps from node tags. Index has `fuel` positions.
+  Gothic precinct, Deco pastels; buildings lowered under flyovers stay modern), OSM trees/signals/crossings/bus stops/petrol pumps from node tags. Index has `fuel` positions.
+  Road tunnels are kept (`ROAD_FLAG.TUNNEL`) and every road gets heights from `lib/elevation.mjs` before the streets step.
 - `scripts/lib/` — PBF reader (with optional node tags), geometry, Clipper helpers, byte writer
 - `scripts/lib/infill.mjs` — buildings on empty street frontage in the dense districts (OpenStreetMap misses many
   outlines there): `DENSITY`/`GRAIN` by district name (bazaar 5–10 m fronts, low-rise 3.5–6 m with 1–3 storeys,
@@ -336,14 +428,26 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   redevelopment plots, `SITES` in infill.mjs) with a netted concrete tower (`gtb:site`) and a tower crane. Stored as
   thin building outlines with `BUILDING_FLAG.WALL` (style = kind, height = wall height; they collide); the worker's
   `drawWall` adds copings, pillars, steel posts and wire (mesh keys `compound`, `sheet`, `netting`, `wire`).
+  Compound-wall gate gaps are reported through `gates` (→ POINT.GATE: watchman, chair, leaves).
+- `scripts/lib/clutter.mjs` — `streetClutter()` (after the buildings and road names in build-tiles.mjs): street-name
+  boards at junction corners (one per name within 90 m, lanes need a road word), direction boards 40–50 m before
+  big junctions and gantries ~110 m out on arterials (`DESTINATIONS`: real places by the direction each arm leads,
+  off-map Thane/Navi Mumbai/Borivali only within 16 km), unipoles (big junction corners, highway verges, flyover
+  approaches; 7.5 m clear of buildings), cables and tarps wall to wall across lanes (walls ≥ 7.5 / 5.5 m tall,
+  `heightAt` from the built tiles), stall tarps, flower sellers and puja canopies (Kalbadevi, Dadar, Prabhadevi, the
+  profile's `flowers`, beside temples), shrines (OSM `amenity=place_of_worship` by `religion`, at some peepal trees,
+  crosses in the wadis), handcarts on bazaar footpaths. `scripts/lib/devanagari.mjs` — `toDevanagari()`: dictionary,
+  name endings, letters for initials, Devanagari digits, phonetic fallback; `learnDevanagari()` learns word spellings
+  from roads with `name:mr` (used first when a road has one).
 - `scripts/lib/streetLibrary.mjs` — the owner's South Mumbai street library (`docs/research/street-library/`: README,
   `streets.json` 847 streets → OSM way ids and zones, `profiles.json` 25 street profiles, `buildings-notable.json`,
   `survey.json`). `normalise()` turns each profile's prose into numbers (styles, storeys, colours, shop share, netting,
   tree density + species, lamp type, kerb/median paint, parking pressure, stalls); `forWay(id, lat)` gives a road its
   profile. The converter dresses each road by it (kerb flags, trees, lamps incl. median lamps on planted boulevards)
   and each untagged building by the profile of the nearest profiled street within 35 m (storeys, style, colour,
-  shops, netting); `index.json` carries `profiles` (runtime table), used by `traffic.setStreetProfiles()` for kerb
-  parking. Streets outside the library keep the district rules (`lib/districts.mjs`, which also has the library's five
+  shops, netting); `index.json` carries `profiles` (runtime table: parking, taxis, stalls, handcarts, `awn`), used by
+  `traffic.setStreetProfiles()` for kerb parking and by clutter.js for awnings. Also `cables`, `tarps`, `handcarts`,
+  `flowers` for lib/clutter.mjs. Streets outside the library keep the district rules (`lib/districts.mjs`, which also has the library's five
   new districts: Bhendi Bazaar, Nagpada, Dongri–Mandvi, Mumbai Central, Reay Road).
 - `scripts/preview-tiles.mjs` — debug top-down SVG of all tiles (`npm run tiles:preview`)
 - Caching after a deploy: map files carry `?v=index.generated` (`tiles.fileUrl()`; `tiles.fileTag` is the tag,
@@ -422,12 +526,15 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `manifest.shipped.version`). Site about 80 MB.
 - Allocation per step: the browser's sampling heap profiler (`HeapProfiler.startSampling` with
   `includeObjectsCollectedByMajorGC`/`MinorGC` true) through Playwright's CDP session.
-- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night,facades`,
+- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night,touch,clutter,people,flyover,facades`,
   `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
-  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, a too-dark night, or
+  wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, a too-dark night, or missing street clutter (boards with text, cables, awnings, solid poles, a handcart that can be pulled), or a car that cannot climb a flyover ramp / falls through a deck / sea-link traffic off its deck height, or
   missing facade kinds/parts (Girgaon, Fort, Marine Drive). In GitHub Actions
   `deploy.yml` runs build → smoke (on the Pages artifact) → deploy, so a failing check stops the deploy (Playwright
-  1.63.0 is a devDependency). Add a check there for every new system.
+  1.63.0 is a devDependency). Add a check there for every new system. `touch` plays a landscape phone (844×390,
+  real touch events through the Chrome DevTools Protocol): steering slide, two thumbs, pedals, door, joystick, context
+  button, and fails if any two visible buttons overlap or leave the screen. Without the `assets` branch in
+  `public/media` (`npm run assets:pull`) every check fails on 404s for media.
 - Visual check: `npx vite preview --port 4173`, then headless Chrome via Playwright with
   `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`, open `http://localhost:4173/gtb/`,
   hold keys, take a screenshot, and check console errors. Headless frame rate is very low, so for driving tests call

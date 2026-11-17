@@ -25,6 +25,11 @@ export const ART = {
   'handcart': { near: POINT.GARBAGE, height: 1.0, count: 1, ring: 3.2, share: 0.35 },
   'community-dustbin': { near: POINT.GARBAGE, height: 1.25, count: 1, ring: 1.8, share: 0.7 },
   'police-barricade': { near: POINT.SIGNAL, height: 1.1, count: 2, ring: 5, share: 0.45 },
+  // `at`: the whole model stands on each point of that kind (angle = its +X axis, size = scale).
+  // From the owner's own Maya city scene (SB CITY 10): concrete frames going up in scaffolding,
+  // on construction sites that have no netted tower (scripts/build-tiles.mjs buildSite).
+  'site-frame-a': { at: POINT.SITE_FRAME_A, height: 15, max: 6 },
+  'site-frame-b': { at: POINT.SITE_FRAME_B, height: 18, max: 6 },
 };
 
 const hash = (x, z, k = 0) => { const s = Math.sin(x * 12.9898 + z * 78.233 + k * 37.719) * 43758.5453; return s - Math.floor(s); };
@@ -44,7 +49,7 @@ export class Art {
       const def = ART[id];
       if (!def) return;
       const parts = await loadParts(`${base}art/${file}${v ? `?v=${v}` : ''}`, { size: def.height });
-      this.models[id] = { def, inst: new Instancer(scene, parts, def.swap !== undefined ? 80 : 240) };
+      this.models[id] = { def, inst: new Instancer(scene, parts, def.max || (def.swap !== undefined ? 80 : 240)) };
       if (def.swap !== undefined) (this.swaps[def.swap] ||= []).push(id);
     }))).then(() => { this.version = -1; this.at.set(1e9, 0, 0); this.count = Object.keys(this.models).length; }).catch(() => {});
   }
@@ -81,6 +86,18 @@ export class Art {
         if (changed) o.instanceMatrix.needsUpdate = true;
       });
       if (!near) continue;
+      // Whole models on their own points (scaffolded frames on construction sites).
+      for (const { def, inst } of Object.values(this.models)) {
+        if (def.at === undefined) continue;
+        const pts = t.points[def.at];
+        if (!pts) continue;
+        for (let i = 0; i < pts.length; i += 5) {
+          const x = pts[i] + t.origin[0], z = pts[i + 2] + t.origin[1];
+          if ((x - focus.x) ** 2 + (z - focus.z) ** 2 > (R + 40) ** 2) continue;
+          this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, pts[i + 3]);
+          inst.put(this.m.compose(this.p.set(x, this.tiles.groundHeight(x, z), z), this.q, this.s.setScalar(pts[i + 4])));
+        }
+      }
       // Extra clutter around map points.
       for (const [id, { def, inst }] of Object.entries(this.models)) {
         if (def.near === undefined) continue;

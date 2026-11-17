@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createProps, buildProps } from './props.js';
 import { Y } from './levels.js';
-import { POINT } from './tileFormat.js';
+import { POINT, STRUCT } from './tileFormat.js';
 
 // Streams map tiles around the player and answers collision questions.
 // Tiles are built by tileWorker.js (download, unzip, decode, mesh) off the main thread.
@@ -12,7 +12,13 @@ const MAX_IN_FLIGHT = 3;
 const DETAIL_MESHES = new Set(['railSteel', 'paint', 'contact']); // hidden on far tiles
 // [cast shadow, receive shadow] by mesh key (walls and roofs cast; ground only receives).
 const shadowsFor = (key) => (key.startsWith('walls') || key.startsWith('roof') || key === 'parapet' || key === 'compound' || key === 'sheet' ? [true, true] : [false, true]);
-const SEG = 6; // floats per road segment: x0 z0 x1 z1 halfWidth flags (1 vehicle, 2 one-way, 4 main road)
+// Floats per road segment: x0 z0 x1 z1 halfWidth flags y0 y1 (flags: 1 vehicle, 2 one-way, 4 main road,
+// 8 worn, 16 rough, 32 off the ground, 64 tunnel, 128 covered; y0/y1: road surface height at the ends).
+const SEG = 8;
+// Levels: a mover climbs onto a surface at most STEP above it (ramps, kerbs); off the ground (more than
+// these from the street) it is on a structure and must stay within its barriers or walls.
+const STEP = 0.9, ABOVE = Y.KERB + 0.15, BELOW = Y.ROAD - 0.3;
+let projT = 0; // where the last segDist landed along its segment (0..1)
 /** Numeric tile key (no strings in per-frame lookups); tile indices stay within ±2048. */
 const tileKey = (tx, tz) => (tx + 2048) * 4096 + (tz + 2048);
 
@@ -39,6 +45,9 @@ export class TileManager {
     this.near = new Array(64).fill(null); // tiles found by nearInto (never shrunk: no garbage)
   }
 
+  /** Flyovers and tunnels: the worker needs the cable-stayed spans (no piers under them). */
+  configure(index) { this.worker?.postMessage({ spans: index.bridges?.pylons || [] }); }
+
   async init(baseUrl) {
     this.baseUrl = new URL(baseUrl, location.href).href;
     // GitHub Pages lets browsers keep files for 10 minutes: always revalidate the index, and
@@ -53,6 +62,7 @@ export class TileManager {
     this.availableKeys = new Set(this.index.tiles.map(([tx, tz]) => tileKey(tx, tz)));
     this.worker = new Worker(new URL('./tileWorker.js', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e) => this.callbacks.get(e.data.id)?.(e.data);
+    this.configure(this.index);
     return this.index;
   }
 
@@ -237,11 +247,17 @@ export class TileManager {
     return n;
   }
 
-  /** True if a circle at (x, z) with radius r is blocked: buildings, sea, map edge, a tile that failed to load. */
-  hits(x, z, r) {
+  /**
+   * True if a circle at (x, z) with radius r is blocked: buildings, sea, map edge, a tile that failed
+   * to load. y is the mover's height: on a deck, ramp or in a tunnel (off the street level) only the
+   * structure's own barriers and walls count; at street level also ramp walls, piers and open cuts.
+   * vehicle: only vehicle decks carry it (cars don't climb footbridge stairs).
+   */
+  hits(x, z, r, y = Y.ROAD, vehicle = false) {
     const b = this.bounds;
     if (x - r < b.minX || x + r > b.maxX || z - r < b.minZ || z + r > b.maxZ) return true;
     if (this.failed.size && this.failedAt(x, z, r)) return true; // no data there: a wall, not a void
+    if (y > ABOVE || y < BELOW) return !this.supported(x, z, r, y, vehicle);
     const near = this.near, count = this.nearInto(x, z, r);
     for (let n = 0; n < count; n++) {
       const p = near[n].collide.solid;
@@ -254,7 +270,100 @@ export class TileManager {
         for (let k = g.start[c]; k < g.start[c + 1]; k++) if (polyHit(p, g.items[k], x, z, r)) return true;
       }
     }
-    return !this.walkable(x, z);
+    if (this.structWall(x, z, r, y)) return true;
+    return !this.walkable(x, z, y);
+  }
+
+  /**
+   * On a structure at height y: is the circle within the barriers (or tunnel walls) of a deck at
+   * about that level? Low ends of ramps are lenient (the street takes over there).
+   */
+  supported(x, z, r, y, vehicle) {
+    const near = this.near, count = this.nearInto(x, z, 20);
+    for (let n = 0; n < count; n++) {
+      const dk = near[n].collide.decks;
+      if (!dk || !dk.count) continue;
+      const g = dk.grid, s = near[n].collide.roads.segs;
+      const ga = Math.floor((x - g.x0) / g.cell), gb = Math.floor((z - g.z0) / g.cell);
+      if (ga < 0 || ga >= g.nx || gb < 0 || gb >= g.nz) continue;
+      const c = gb * g.nx + ga;
+      for (let k = g.start[c]; k < g.start[c + 1]; k++) {
+        const o = dk.index[g.items[k]] * SEG, f = s[o + 5];
+        if (vehicle && !(f & 1)) continue;
+        const d = segDist(x, z, s[o], s[o + 1], s[o + 2], s[o + 3]), hw = s[o + 4];
+        if (d > hw + 0.3) continue;
+        const sy = s[o + 6] + (s[o + 7] - s[o + 6]) * projT;
+        if (sy > y + STEP || sy < y - 1.5) continue;
+        const h = sy - Y.ROAD;
+        const room = h > 0 && h < 0.6 ? hw + 0.3 : h > 0 ? hw - 0.45 - r * 0.5 : h > STRUCT.COVER ? hw - 0.1 - r * 0.5 : hw - 0.2 - r * 0.5;
+        if (d <= room) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * At street level: the walls of a ramp or a low deck in the way, or the edge of an open cut
+   * (tunnel approach) — but not the deck high overhead, nor a covered tunnel below.
+   */
+  structWall(x, z, r, y) {
+    const near = this.near, count = this.nearInto(x, z, 20);
+    for (let n = 0; n < count; n++) {
+      const dk = near[n].collide.decks;
+      if (!dk || !dk.count) continue;
+      const g = dk.grid, s = near[n].collide.roads.segs;
+      const a0 = Math.max(0, Math.floor((x - r - g.x0) / g.cell)), a1 = Math.min(g.nx - 1, Math.floor((x + r - g.x0) / g.cell));
+      const b0 = Math.max(0, Math.floor((z - r - g.z0) / g.cell)), b1 = Math.min(g.nz - 1, Math.floor((z + r - g.z0) / g.cell));
+      for (let gb = b0; gb <= b1; gb++) for (let ga = a0; ga <= a1; ga++) {
+        const c = gb * g.nx + ga;
+        for (let k = g.start[c]; k < g.start[c + 1]; k++) {
+          const o = dk.index[g.items[k]] * SEG, f = s[o + 5];
+          if (f & 128) continue; // covered tunnel: the street above is ordinary
+          const d = segDist(x, z, s[o], s[o + 1], s[o + 2], s[o + 3]), hw = s[o + 4];
+          if (d > hw + 0.6 + r) continue;
+          const sy = s[o + 6] + (s[o + 7] - s[o + 6]) * projT;
+          if (sy > y + 0.45 && sy < y + STRUCT.CLEAR && d < hw + r) return true;  // ramp wall
+          if (sy < y - 0.2 && sy < Y.ROAD - STRUCT.AT_GRADE && d > hw - r) return true; // edge of an open cut
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Highest deck, ramp or tunnel floor at (x, z) no higher than `top` (within the half-width +
+   * slack), left in surfY (-Infinity: none) with surfTile/surfIndex; `hole` says whether (x, z)
+   * is in an open cut (no street surface there).
+   */
+  levelScan(x, z, top, slack, vehicle) {
+    this.surfY = -Infinity; this.surfTile = null; this.surfIndex = -1; this.hole = false;
+    const near = this.near, count = this.nearInto(x, z, 20);
+    for (let n = 0; n < count; n++) {
+      const t = near[n], dk = t.collide.decks;
+      if (!dk || !dk.count) continue;
+      const g = dk.grid, s = t.collide.roads.segs;
+      const ga = Math.floor((x - g.x0) / g.cell), gb = Math.floor((z - g.z0) / g.cell);
+      if (ga < 0 || ga >= g.nx || gb < 0 || gb >= g.nz) continue;
+      const c = gb * g.nx + ga;
+      for (let k = g.start[c]; k < g.start[c + 1]; k++) {
+        const i = dk.index[g.items[k]], o = i * SEG, f = s[o + 5];
+        const d = segDist(x, z, s[o], s[o + 1], s[o + 2], s[o + 3]), hw = s[o + 4];
+        if (d > hw + 0.6) continue;
+        const sy = s[o + 6] + (s[o + 7] - s[o + 6]) * projT;
+        if (!(f & 128) && sy < Y.ROAD - STRUCT.AT_GRADE) this.hole = true;
+        if (d > hw + slack || sy > top || (vehicle && !(f & 1))) continue;
+        if (sy > this.surfY) { this.surfY = sy; this.surfTile = t; this.surfIndex = i; }
+      }
+    }
+    return this.surfY;
+  }
+
+  /** Under a tunnel ceiling at (x, z, y)? Its height (for the camera), else Infinity. */
+  ceilingAt(x, z, y) {
+    this.levelScan(x, z, y + STEP, 0.5, false);
+    if (!this.surfTile || this.surfY < y - 2) return Infinity;
+    const f = this.surfTile.collide.roads.segs[this.surfIndex * SEG + 5];
+    return f & 128 || this.surfY - Y.ROAD < STRUCT.COVER + 0.5 ? this.surfY + STRUCT.CEILING - 0.35 : Infinity;
   }
 
   /** True if the circle touches a tile that failed to download. */
@@ -266,7 +375,7 @@ export class TileManager {
   }
 
   /** On land, on a pier, or on a road (bridges, causeways). Tiles not loaded yet count as walkable, failed ones not. */
-  walkable(x, z) {
+  walkable(x, z, y = Y.ROAD) {
     const s = this.size;
     const k = tileKey(Math.floor(x / s), Math.floor(z / s));
     if (!this.availableKeys.has(k)) return false; // open sea
@@ -282,14 +391,14 @@ export class TileManager {
         for (let i = g.start[c]; i < g.start[c + 1]; i++) if (polyContains(w, g.items[i], x, z)) return true;
       }
     }
-    return this.roadHit(x, z, 0, false);
+    return this.roadHit(x, z, 0, false, y);
   }
 
   /**
    * Allocation-free core of roadAt: true if a road segment is within its own half-width +
    * slack of (x, z); the nearest is left in roadTile / roadIndex / roadDist.
    */
-  roadHit(x, z, slack, vehicleOnly = false) {
+  roadHit(x, z, slack, vehicleOnly = false, y = Y.ROAD) {
     this.roadTile = null; this.roadIndex = -1;
     let best = Infinity;
     const near = this.near, count = this.nearInto(x, z, 20);
@@ -307,7 +416,11 @@ export class TileManager {
           const i = g.items[k], o = i * SEG;
           if (vehicleOnly && !(s[o + 5] & 1)) continue;
           const d = segDist(x, z, s[o], s[o + 1], s[o + 2], s[o + 3]);
-          if (d <= s[o + 4] + slack && d < best) { best = d; this.roadTile = t; this.roadIndex = i; }
+          if (d <= s[o + 4] + slack && d < best) {
+            // Decks overhead and tunnels below are other levels: only roads at about height y count.
+            if (s[o + 5] & 32) { const sy = s[o + 6] + (s[o + 7] - s[o + 6]) * projT; if (sy > y + 1.2 || sy < y - 1.2) continue; }
+            best = d; this.roadTile = t; this.roadIndex = i;
+          }
         }
       }
     }
@@ -316,12 +429,12 @@ export class TileManager {
   }
 
   /** Nearest road segment within its own half-width + slack: { tile, index, dist }. */
-  roadAt(x, z, slack, vehicleOnly = false) {
-    return this.roadHit(x, z, slack, vehicleOnly) ? { tile: this.roadTile, index: this.roadIndex, dist: this.roadDist } : null;
+  roadAt(x, z, slack, vehicleOnly = false, y = Y.ROAD) {
+    return this.roadHit(x, z, slack, vehicleOnly, y) ? { tile: this.roadTile, index: this.roadIndex, dist: this.roadDist } : null;
   }
 
-  /** Name of the road the player is on, or ''. */
-  roadNameAt(x, z) {
+  /** Name of the road the player is on, or '' (y: on a flyover, its name; under it, the street's). */
+  roadNameAt(x, z, y = Y.ROAD) {
     let best = Infinity, name = '';
     const near = this.near, count = this.nearInto(x, z, 20);
     for (let n = 0; n < count; n++) {
@@ -337,21 +450,36 @@ export class TileManager {
           if (nm < 0) continue;
           const o = i * SEG;
           const d = segDist(x, z, s[o], s[o + 1], s[o + 2], s[o + 3]) - s[o + 4];
-          if (d < 6 && d < best) { best = d; name = t.names[nm]; }
+          if (d < 6 && d < best) {
+            if (s[o + 5] & 32) { const sy = s[o + 6] + (s[o + 7] - s[o + 6]) * projT; if (sy > y + 2 || sy < y - 2) continue; }
+            best = d; name = t.names[nm];
+          }
         }
       }
     }
     return name;
   }
 
-  /** Ground height under (x, z): asphalt on carriageways, kerb level elsewhere. */
-  groundHeight(x, z) {
-    return this.roadHit(x, z, -0.15, true) ? Y.ROAD : Y.KERB;
+  /**
+   * Ground height under (x, z) for someone at height y: asphalt on carriageways, kerb level
+   * elsewhere — or the highest deck, ramp or tunnel floor there no more than STEP above y (so a
+   * car at street level drives under a flyover and up its ramp, and one on the deck stays on it).
+   */
+  groundHeight(x, z, y = Y.ROAD, vehicle = false) {
+    const sy = this.levelScan(x, z, y + STEP, -0.15, vehicle);
+    const g = this.hole ? -Infinity : this.roadHit(x, z, -0.15, true) ? Y.ROAD : Y.KERB;
+    if (sy > g || (g > y + STEP && sy > -Infinity)) return sy;
+    return g > -Infinity ? g : Y.KERB;
   }
 
-  /** Ground height felt by the player's wheels: rough lanes undulate, potholes dip. */
-  wheelHeight(x, z) {
+  /** Ground height felt by the player's wheels: rough lanes undulate, potholes dip (decks are smooth). */
+  wheelHeight(x, z, atY = Y.ROAD, vehicle = true) {
     this.inPothole = false;
+    const sy = this.levelScan(x, z, atY + STEP, -0.15, vehicle);
+    if (sy > -Infinity) {
+      const g = this.hole ? -Infinity : this.roadHit(x, z, -0.15, true) ? Y.ROAD : Y.KERB;
+      if (sy > g || g > atY + STEP) return sy;
+    }
     if (!this.roadHit(x, z, -0.15, true)) return Y.KERB;
     const f = this.roadTile.collide.roads.segs[this.roadIndex * SEG + 5];
     let y = Y.ROAD;
@@ -370,7 +498,7 @@ export class TileManager {
     return y;
   }
 
-  /** Segment geometry helper for tools and traffic: [x0, z0, x1, z1, halfWidth, vehicle]. */
+  /** Segment geometry helper for tools and traffic: [x0, z0, x1, z1, halfWidth, flags, y0, y1]. */
   segment(tile, i) { return tile.collide.roads.segs.subarray(i * SEG, i * SEG + SEG); }
 
   get loadedCount() { return this.tiles.size; }
@@ -410,6 +538,7 @@ function segDist(x, z, ax, az, bx, bz) {
   const len2 = dx * dx + dz * dz;
   let t = len2 ? ((x - ax) * dx + (z - az) * dz) / len2 : 0;
   t = t < 0 ? 0 : t > 1 ? 1 : t;
+  projT = t;
   const ex = ax + t * dx - x, ez = az + t * dz - z;
   return Math.sqrt(ex * ex + ez * ez);
 }

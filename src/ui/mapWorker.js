@@ -2,7 +2,7 @@
 // (src/world/overviewFormat.js), builds the road graph (one-ways directed, loose ends joined)
 // and answers route requests with A*, so long trips (Gateway → Powai) never freeze the game.
 // It also cuts the map's drawing data into 1 km chunks the main thread turns into Path2Ds.
-import { decodeOverview, OVERVIEW_LAYER } from '../world/overviewFormat.js';
+import { decodeOverview, OVERVIEW_LAYER, OVERVIEW_ROAD } from '../world/overviewFormat.js';
 import { ROAD } from '../world/tileFormat.js';
 
 const CHUNK = 1000; // metres
@@ -59,20 +59,22 @@ async function load(url) {
 function buildGraph(ov) {
   const q = ov.quant, OFF = 1 << 20;
   const ids = new Map();
-  const xs = [], zs = [];
-  const node = (x, z) => {
-    const k = (Math.round(x * q) + OFF) * 2 * OFF + (Math.round(z * q) + OFF);
+  const xs = [], zs = [], ls = [];
+  // Nodes are points at a level (whole metres; 0 = the street): a flyover crossing a street, or a
+  // tunnel under one, never joins it, even where both happen to have a point in the same place.
+  const node = (x, z, lv = 0) => {
+    const k = (Math.round(x * q) + OFF) * 2 * OFF + (Math.round(z * q) + OFF) + lv * 2 ** 43;
     let i = ids.get(k);
-    if (i === undefined) { i = xs.length; ids.set(k, i); xs.push(x); zs.push(z); }
+    if (i === undefined) { i = xs.length; ids.set(k, i); xs.push(x); zs.push(z); ls.push(lv); }
     return i;
   };
   const ea = [], eb = [], ew = [];
   const edge = (a, b, w) => { ea.push(a); eb.push(b); ew.push(w); };
   for (const r of ov.roads) {
-    const l = r.line, k = COST[r.cls] ?? 1.3;
-    let prev = node(l[0], l[1]);
+    const l = r.line, k = COST[r.cls] ?? 1.3, lv = r.levels;
+    let prev = node(l[0], l[1], lv ? lv[0] : 0);
     for (let i = 2; i < l.length; i += 2) {
-      const cur = node(l[i], l[i + 1]);
+      const cur = node(l[i], l[i + 1], lv ? lv[i / 2] : 0);
       if (cur === prev) continue;
       const len = Math.hypot(xs[cur] - xs[prev], zs[cur] - zs[prev]);
       edge(prev, cur, len * k);
@@ -100,7 +102,7 @@ function buildGraph(ov) {
     let best = -1, bd = JOIN * JOIN;
     for (let gx = -1; gx <= 1; gx++) for (let gz = -1; gz <= 1; gz++) {
       for (const j of near.get((cell(x[i]) + gx) * 1e6 + cell(z[i]) + gz) || []) {
-        if (j === i || seen.has(Math.min(i, j) * n + Math.max(i, j))) continue;
+        if (j === i || ls[j] !== ls[i] || seen.has(Math.min(i, j) * n + Math.max(i, j))) continue;
         const d = (x[j] - x[i]) ** 2 + (z[j] - z[i]) ** 2;
         if (d < bd) { bd = d; best = j; }
       }
@@ -288,7 +290,7 @@ function randomNode({ x, z, min, max }) {
 // Per chunk, per layer: { pts: Float32Array, starts: Uint32Array (first point of each line or
 // ring) }. Rings are filled with the nonzero rule (holes run the other way). Items bigger
 // than two chunks go into one "big" chunk whose box covers them all.
-const LAYERS = ['land', 'water', 'green', 'sand', 'paved', 'rails', 'road0', 'road1', 'road2'];
+const LAYERS = ['land', 'water', 'green', 'sand', 'paved', 'rails', 'tunnel', 'road0', 'road1', 'road2', 'deck0', 'deck1'];
 const LAYER_OF = { [OVERVIEW_LAYER.LAND]: 'land', [OVERVIEW_LAYER.WATER]: 'water', [OVERVIEW_LAYER.GREEN]: 'green', [OVERVIEW_LAYER.SAND]: 'sand', [OVERVIEW_LAYER.PAVED]: 'paved' };
 const roadGroup = (cls) => (cls <= ROAD.SECONDARY ? 'road0' : cls <= ROAD.LINK ? 'road1' : 'road2');
 
@@ -313,7 +315,8 @@ function buildChunks(ov, transfer) {
   };
   for (const L of ov.layers) for (const rings of L.polys) put(LAYER_OF[L.kind], rings);
   for (const l of ov.rails) put('rails', [l]);
-  for (const r of ov.roads) put(roadGroup(r.cls), [r.line]);
+  // Flyovers and bridges are drawn over the streets they cross; tunnels faintly beneath.
+  for (const r of ov.roads) put(r.flags & OVERVIEW_ROAD.ELEVATED ? (r.cls <= ROAD.SECONDARY ? 'deck0' : 'deck1') : r.flags & OVERVIEW_ROAD.SUNKEN ? 'tunnel' : roadGroup(r.cls), [r.line]);
   const out = [];
   for (const c of chunks.values()) {
     const layers = {};

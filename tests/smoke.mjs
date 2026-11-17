@@ -1,6 +1,7 @@
 // Headless smoke tests for the built game (dist/). Run after `npm run build`:
 //   node tests/smoke.mjs            all checks on the Low tier
 //   node tests/smoke.mjs --only=boot,drive --quality=medium
+//   checks: boot, drive, traffic, steal, missions, trains, night, touch (phone controls), clutter, people, flyover
 // Needs Playwright with Chromium (a devDependency: `npx playwright install chromium`; a global
 // install found through NODE_PATH works too). In CI it runs inside deploy.yml, before the deploy.
 // Serves dist/ the way GitHub Pages does (under /gtb/, .gz files as plain application/gzip)
@@ -38,8 +39,9 @@ const base = `http://localhost:${server.address().port}/gtb/`;
 // ---------------------------------------------------------------- harness
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const results = [];
-async function game(query = '') {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+async function game(query = '', { touch = false } = {}) {
+  // touch: a landscape phone (touch screen, coarse pointer) instead of a desktop window.
+  const page = await browser.newPage(touch ? { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true } : { viewport: { width: 1280, height: 720 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(`${e.message} @ ${(e.stack || '').split('\n')[1] || ''}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -152,8 +154,10 @@ await check('steal', async () => {
     g.toggleFoot();
     let n = 0; for (; n < 120 && g.onFoot; n++) g.step(0.05);
     const type = g.garage.type;
-    g.input.fwd = true; for (let i = 0; i < 40; i++) g.step(0.05); g.input.fwd = false;
-    return { car: car.type, took: !g.onFoot && type === car.type, secs: +(n * 0.05).toFixed(1), driverOut: g.street.peds.filter((p) => p.kind === 'driver').length, speed: +Math.abs(g.player.speed).toFixed(1) };
+    // Peak speed: the stolen vehicle may drive off and then bump into something within the 2 s.
+    let top = 0;
+    g.input.fwd = true; for (let i = 0; i < 40; i++) { g.step(0.05); top = Math.max(top, Math.abs(g.player.speed)); } g.input.fwd = false;
+    return { car: car.type, took: !g.onFoot && type === car.type, secs: +(n * 0.05).toFixed(1), driverOut: g.street.peds.filter((p) => p.kind === 'driver').length, speed: +top.toFixed(1) };
   });
   await page.close();
   const fails = noErrors(errors);
@@ -282,6 +286,63 @@ await check('trains', async () => {
   return { info, fails };
 });
 
+await check('people', async () => {
+  // Real characters near the camera wear their looks in one draw call each; the far crowd draws
+  // the rest; looks vary by district (a Koli fishing village: nauvari saris), riders get bodies,
+  // people share one object shape, and drawing them allocates nothing per step.
+  const { page, errors } = await game('hour=10');
+  await page.waitForFunction(() => window.__gtb.characters.ready, null, { timeout: 120000 });
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, C = g.characters, ix = g.tiles.index;
+    for (let i = 0; i < 300; i++) g.step(0.05);
+    const shown = C.pool.filter((c) => c.holder.visible);
+    let meshes = 0, bad = 0;
+    for (const c of shown) {
+      let n = 0;
+      c.holder.traverse((o) => { if (o.isMesh && o.visible) n++; });
+      meshes = Math.max(meshes, n);
+      if (!(c.geo.drawRange.count > 1000) || !Number.isFinite(c.holder.position.x + c.holder.position.y)) bad++;
+    }
+    const t = C.templates[0], pieces = Object.keys(t.ranges).length;
+    const styles = new Set(g.street.peds.map((p) => p.look?.style));
+    // Who dresses how in a koliwada (Worli) at 9 am.
+    const koli = [];
+    for (let i = 0; i < 400; i++) koli.push(g.outfit('sari', Math.random, 'koli', 9, false).look.style);
+    const school = [];
+    for (let i = 0; i < 200; i++) school.push(g.outfit('kid', Math.random, '', 9, false).look.style);
+    // Riders on two-wheelers: persistent people astride (pose RIDE or PEDAL).
+    const riders = g.traffic.riders.filter((r) => r.person && (r.person.pose === 15 || r.person.pose === 14)).length;
+    // One object shape: every street pedestrian has the same keys in the same order.
+    const keys = new Set(g.street.peds.map((p) => Object.keys(p).join(',')));
+    // Gully cricket as real characters: a batter and a keeper near the camera.
+    const kid = g.makePerson({ ...g.outfit('kid'), kind: 'kid', scale: 0.72, pose: 5, x: g.camera.position.x + 2, z: g.camera.position.z + 2, y: 0 });
+    const keeper = g.makePerson({ ...g.outfit('kid'), kind: 'kid', scale: 0.72, pose: 7, x: g.camera.position.x + 3, z: g.camera.position.z + 2, y: 0 });
+    const before = g.people.beforeEnd;
+    g.people.beforeEnd = (list) => { list.push(kid, keeper); before(list); };
+    for (let i = 0; i < 10; i++) g.step(0.05);
+    g.people.beforeEnd = before;
+    const t0 = performance.now(); for (let i = 0; i < 60; i++) g.step(1 / 60); const ms = (performance.now() - t0) / 60;
+    return {
+      heroes: shown.length, meshesPerCharacter: meshes, broken: bad, pieces, far: g.people.n, styles: styles.size,
+      nauvariPct: Math.round(100 * koli.filter((s) => s === 'nauvari').length / koli.length), schoolPct: Math.round(100 * school.filter((s) => s === 'school').length / school.length),
+      riders, pedShapes: keys.size, cricket: [kid.hero, keeper.hero], stepMs: +ms.toFixed(2),
+    };
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (info.heroes < 3) fails.push(`only ${info.heroes} real characters`);
+  if (info.meshesPerCharacter !== 1) fails.push(`${info.meshesPerCharacter} meshes per character (one draw call each)`);
+  if (info.broken) fails.push(`${info.broken} characters with no clothes drawn or a bad position`);
+  if (info.pieces < 30) fails.push(`wardrobe has only ${info.pieces} pieces`);
+  if (!info.far) fails.push('no far crowd');
+  if (info.styles < 3) fails.push(`only ${info.styles} outfit styles on the street`);
+  if (info.nauvariPct < 30) fails.push(`only ${info.nauvariPct} % nauvari saris in a koliwada`);
+  if (info.schoolPct < 40) fails.push(`only ${info.schoolPct} % school uniforms on a school morning`);
+  if (info.pedShapes > 1) fails.push(`${info.pedShapes} object shapes among pedestrians`);
+  if (!info.cricket[0] || !info.cricket[1]) fails.push('cricketers are not real characters near the camera');
+  return { info, fails };
+});
+
 await check('night', async () => {
   // At 10 pm the road ahead must be visible (lamp pools, headlights).
   const { page, errors } = await game('hour=22');
@@ -303,6 +364,236 @@ await check('night', async () => {
   await page.close();
   const fails = noErrors(errors);
   if (info.mean < 30) fails.push(`night frame too dark (mean ${info.mean} of 255)`);
+  return { info, fails };
+});
+
+await check('touch', async () => {
+  // Phone controls on a landscape phone, driven by real touch events: the steering pad (slide
+  // from ◀ to ▶ without lifting), pedals with two thumbs at once, getting out, the joystick (a full
+  // push runs), the context button that gets back in. No two visible buttons may overlap.
+  const { page, errors } = await game('hour=11', { touch: true });
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type, pts = []) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
+  const centre = (sel) => page.evaluate((q) => { const r = document.querySelector(q).getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }, sel);
+  const step = (n) => page.evaluate((k) => { for (let i = 0; i < k; i++) window.__gtb.step(0.05); }, n);
+  const read = () => page.evaluate(() => { const g = window.__gtb, i = g.input, t = document.getElementById('touch'); return { mode: t.dataset.mode, left: i.left, right: i.right, fwd: i.fwd, back: i.back, analog: i.analog, moveY: i.moveY, speed: g.player.speed, onFoot: g.onFoot }; });
+  const overlaps = async () => {
+    await page.waitForTimeout(400); // pop-in animations
+    return page.evaluate(() => {
+      const els = [...document.querySelectorAll('#touch .t-btn, #touch .t-ctx, #btn-phone, #minimap')].filter((e) => e.offsetParent && !e.closest('[hidden]'));
+      const box = els.map((e) => ({ n: e.getAttribute('aria-label') || e.textContent.trim() || e.id, r: e.getBoundingClientRect(), round: getComputedStyle(e).borderRadius === '50%' }));
+      const out = [];
+      for (let i = 0; i < box.length; i++) {
+        const a = box[i].r;
+        if (a.left < 0 || a.top < 0 || a.right > innerWidth || a.bottom > innerHeight) out.push(`${box[i].n} off screen`);
+        for (let j = i + 1; j < box.length; j++) {
+          const b = box[j].r;
+          const hit = box[i].round && box[j].round
+            ? Math.hypot(a.x + a.width / 2 - b.x - b.width / 2, a.y + a.height / 2 - b.y - b.height / 2) < (a.width + b.width) / 2 - 1
+            : a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+          if (hit) out.push(`${box[i].n} × ${box[j].n}`);
+        }
+      }
+      return out;
+    });
+  };
+  const fails = [];
+  await step(6);
+  let s = await read();
+  if (s.mode !== 'drive') fails.push(`controls not in drive mode (${s.mode})`);
+  fails.push(...(await overlaps()).map((o) => `drive: ${o}`));
+  // Steering: press ◀, slide to ▶, lift.
+  const L = await centre('.t-steer [data-side="left"]'), R = await centre('.t-steer [data-side="right"]');
+  await touch('touchStart', [L]); s = await read();
+  if (!s.left || s.right) fails.push('◀ does not steer left');
+  await touch('touchMove', [R]); s = await read();
+  if (!s.right || s.left) fails.push('sliding from ◀ to ▶ does not switch to right');
+  await touch('touchEnd'); s = await read();
+  if (s.left || s.right) fails.push('steering stays held after lifting');
+  // Two thumbs: steer and gas together.
+  const gas = await centre('.t-pedals .gas');
+  await touch('touchStart', [L, gas]); s = await read();
+  if (!s.left || !s.fwd) fails.push('steering and gas do not work together');
+  await touch('touchEnd');
+  await touch('touchStart', [gas]); await step(40); await touch('touchEnd');
+  s = await read();
+  if (s.speed < 2) fails.push(`gas pedal: speed only ${s.speed.toFixed(1)} m/s`);
+  if (!(await page.evaluate(() => document.querySelector('.t-exit').classList.contains('off')))) fails.push('the door button is not dimmed while moving');
+  const brake = await centre('.t-pedals .brake');
+  await touch('touchStart', [brake]); for (let i = 0; i < 30 && (await read()).speed > 0.3; i++) await step(5); await touch('touchEnd');
+  await step(5);
+  if ((await page.evaluate(() => document.querySelector('.t-pedals .brake small').textContent)) !== 'REV') fails.push('brake pedal does not turn into REV when stopped');
+  // Get out with the door button.
+  const door = await centre('.t-exit');
+  await touch('touchStart', [door]); await touch('touchEnd'); await step(2);
+  s = await read();
+  if (!s.onFoot || s.mode !== 'foot') fails.push(`door button: onFoot ${s.onFoot}, mode ${s.mode}`);
+  fails.push(...(await overlaps()).map((o) => `on foot: ${o}`));
+  if (await page.evaluate(() => document.querySelector('[data-ctx="vehicle"]').hidden)) fails.push('no "get in" button next to the taxi');
+  const wpn = await centre('.t-weapon');
+  await touch('touchStart', [wpn]); await touch('touchEnd'); await step(2);
+  if ((await page.evaluate(() => window.__gtb.combat.weapon)) !== 'pichkari') fails.push('weapon button does not switch to the pichkari');
+  fails.push(...(await overlaps()).map((o) => `pichkari: ${o}`));
+  // Joystick: thumb down in the lower left, pushed all the way up (runs), then lifted.
+  const start = await page.evaluate(() => [window.__gtb.walker.pos.x, window.__gtb.walker.pos.z]);
+  await touch('touchStart', [[170, 300]]); await touch('touchMove', [[170, 220]]); await touch('touchMove', [[170, 150]]);
+  s = await read();
+  if (!s.analog || s.moveY < 0.9) fails.push(`joystick: analog ${s.analog}, push ${s.moveY?.toFixed(2)}`);
+  await step(30);
+  const walked = await page.evaluate(([x, z]) => Math.hypot(window.__gtb.walker.pos.x - x, window.__gtb.walker.pos.z - z), start);
+  await touch('touchEnd'); s = await read();
+  if (s.analog || s.moveY) fails.push('joystick stays pushed after lifting');
+  if (walked < 3) fails.push(`joystick walked only ${walked.toFixed(1)} m in 1.5 s`);
+  // Back by the taxi: the context button gets in.
+  await page.evaluate(([x, z]) => { window.__gtb.walker.pos.x = x; window.__gtb.walker.pos.z = z; }, start);
+  await step(5);
+  const ctx = await page.evaluate(() => { const b = document.querySelector('[data-ctx="vehicle"]'); return b.hidden ? null : b.textContent.trim(); });
+  if (!ctx) fails.push('no "get in" button back by the taxi');
+  else { await touch('touchStart', [await centre('[data-ctx="vehicle"]')]); await touch('touchEnd'); await step(2); }
+  s = await read();
+  if (s.onFoot) fails.push('the context button did not get back in');
+  await page.close();
+  return { info: { walked: +walked.toFixed(1), ctx }, fails: [...noErrors(errors), ...fails] };
+});
+
+await check('clutter', async () => {
+  // Street clutter in the Kalbadevi / Crawford Market bazaars: street-name boards with their text in
+  // the atlas, cables and tarps, awnings, gates with watchmen, parked handcarts (one can be pulled);
+  // poles and shrines are solid; the refreshes stay cheap.
+  const { page, errors } = await game('hour=11');
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, ix = g.tiles.index, C = g.clutter;
+    const at = (lat, lon) => [(lon - ix.origin.lon) * ix.metresPerDegree.lon, -(lat - ix.origin.lat) * ix.metresPerDegree.lat];
+    g.story.s.done = g.story.missions.map((m) => m.id);
+    const [x, z] = at(18.9488, 72.8318);
+    await g.tiles.whenReady(x, z, 300); g.player.pos.set(x, 0.02, z);
+    let worst = 0;
+    for (let i = 0; i < 80; i++) { const t0 = performance.now(); g.step(0.05); worst = Math.max(worst, performance.now() - t0); }
+    const K = (k) => C.counts[k] || 0;
+    const solidAt = C.nSolid ? C.hits(C.solids[0], C.solids[1], 0.2) : false, solidFar = C.hits(x + 5000, z, 0.3);
+    const res = { nameBoards: K(20), dirBoards: K(21) + K(22), cables: K(19), tarps: K(23) + K(24), gates: K(28), shrines: K(26), boards: C.boards.count, solid: C.solid.n, cloth: C.cloth.n, folk: C.folkList.length, cells: C.atlas.cells.size, solidAt, solidFar, worstMs: +worst.toFixed(1) };
+    // Pull a parked handcart: F next to it, walk it forward.
+    const cart = g.traffic.parked.find((v) => v.type === 'handcart');
+    res.handcarts = g.traffic.parked.filter((v) => v.type === 'handcart').length;
+    if (cart) {
+      g.toggleFoot(); for (let i = 0; i < 3; i++) g.step(0.05);
+      const h = cart.heading;
+      g.walker.pos.set(cart.x - Math.cos(h) * 1.4, 0.2, cart.z + Math.sin(h) * 1.4);
+      for (const list of [g.traffic.cars, g.traffic.parked]) for (let i = list.length - 1; i >= 0; i--) if (list[i] !== cart && Math.hypot(list[i].x - cart.x, list[i].z - cart.z) < 12) list.splice(i, 1);
+      g.step(0.05); g.toggleFoot(); for (let i = 0; i < 80 && g.onFoot; i++) g.step(0.05);
+      res.pulled = !g.onFoot && g.garage.type === 'handcart';
+      g.input.fwd = true; let top = 0; for (let i = 0; i < 80; i++) { g.step(0.05); top = Math.max(top, Math.abs(g.player.speed)); } g.input.fwd = false;
+      res.cartTop = +top.toFixed(2);
+    }
+    return res;
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (info.nameBoards < 2 || info.cells < 2 || info.boards < 4) fails.push(`street-name boards missing (${info.nameBoards} points, ${info.cells} atlas cells, ${info.boards} faces)`);
+  if (info.cables < 2) fails.push('no cable bundles over the bazaar lanes');
+  if (info.cloth < 5) fails.push('no awnings or tarps');
+  if (info.solid < 20) fails.push('solid clutter missing');
+  if (!info.solidAt || info.solidFar) fails.push('clutter collisions wrong');
+  if (!info.handcarts) fails.push('no handcarts parked in the bazaar');
+  else if (!info.pulled) fails.push('could not take a handcart');
+  else if (info.cartTop < 0.8 || info.cartTop > 3.6) fails.push(`handcart speed ${info.cartTop} m/s`);
+  if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms`);
+  return { info, fails };
+});
+
+await check('flyover', async () => {
+  // Up a flyover ramp onto its deck (the car rises with the road and never falls through), then
+  // traffic on the sea link at deck height; the cable-stayed pylons are standing.
+  const { page, errors } = await game('hour=11');
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, ix = g.tiles.index, T = g.tiles;
+    const out = { pylons: ix.bridges?.pylons?.length || 0, cables: g.bridges?.cableCount || 0 };
+    const at = (lat, lon) => [(lon - ix.origin.lon) * ix.metresPerDegree.lon, -(lat - ix.origin.lat) * ix.metresPerDegree.lat];
+    // 1. Dadar's flyovers: a ramp that climbs to a deck.
+    const [x, z] = at(19.0190, 72.8435);
+    await T.whenReady(x, z, 420); g.player.pos.set(x, 0.02, z);
+    for (let i = 0; i < 4; i++) g.step(0.05);
+    const pathFrom = (seg, dir) => {
+      const pts = [];
+      for (let n = 0; n < 80; n++) {
+        const s = seg.s;
+        if (!pts.length) pts.push(dir > 0 ? [s[0], s[1], s[6]] : [s[2], s[3], s[7]]);
+        pts.push(dir > 0 ? [s[2], s[3], s[7]] : [s[0], s[1], s[6]]);
+        const fx = (s[2] - s[0]) * dir, fz = (s[3] - s[1]) * dir, fl = Math.hypot(fx, fz) || 1;
+        let best = null, bs = 0.5;
+        for (const o of g.traffic.ends.get(dir > 0 ? seg.k1 : seg.k0) || []) {
+          if (o.seg === seg) continue;
+          const d2 = o.end === 0 ? 1 : -1, ox = (o.seg.s[2] - o.seg.s[0]) * d2, oz = (o.seg.s[3] - o.seg.s[1]) * d2;
+          const sc = (ox * fx + oz * fz) / (fl * (Math.hypot(ox, oz) || 1));
+          if (sc > bs) { bs = sc; best = [o.seg, d2]; }
+        }
+        if (!best) break;
+        [seg, dir] = best;
+      }
+      return pts;
+    };
+    let path = null;
+    for (const seg of g.traffic.segList) {
+      const s = seg.s;
+      if (!(s[5] & 32) || s[4] < 2.5) continue;
+      const dir = s[6] < 0.12 && s[7] > 0.2 ? 1 : s[7] < 0.12 && s[6] > 0.2 ? -1 : 0;
+      if (!dir) continue;
+      const pts = pathFrom(seg, dir);
+      const top = Math.max(...pts.map((p) => p[2]));
+      let len = 0; for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      if (top > 5.5 && len > 150 && (!path || len > path.len)) path = { pts, top, len };
+    }
+    if (!path) return { ...out, error: 'no flyover ramp found near Dadar' };
+    const pts = path.pts, p = g.player.pos, world = { hits: (a, b, r, y, v) => T.hits(a, b, r, y, v), groundHeight: (a, b, y) => T.wheelHeight(a, b, y) };
+    p.set(pts[0][0], 0.02, pts[0][1]);
+    g.player.heading = Math.atan2(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]);
+    g.player.speed = 0; g.player.vx = g.player.vz = 0; g.player.lastSpeed = 0; g.player.fuel = 1;
+    const input = { fwd: false, back: false, left: false, right: false, brake: false, steer: 0 };
+    let idx = 1, maxY = 0, fell = 0, travelled = 0, prevX = p.x, prevZ = p.z;
+    for (let i = 0; i < 900 && idx < pts.length - 1; i++) {
+      while (idx < pts.length - 1 && Math.hypot(pts[idx][0] - p.x, pts[idx][1] - p.z) < 9) idx++;
+      const t = pts[idx];
+      let a = Math.atan2(t[0] - p.x, t[1] - p.z) - g.player.heading; a = Math.atan2(Math.sin(a), Math.cos(a));
+      input.steer = Math.max(-1, Math.min(1, a * 2.5)); input.fwd = g.player.speed < 11; input.brake = g.player.speed > 13;
+      g.player.update(0.05, input, world);
+      travelled += Math.hypot(p.x - prevX, p.z - prevZ); prevX = p.x; prevZ = p.z;
+      maxY = Math.max(maxY, p.y);
+      // The road here (nearest path point): the car must be on it, not fallen to the street below.
+      let near = null, nd = Infinity;
+      for (const q of pts) { const d = Math.hypot(q[0] - p.x, q[1] - p.z); if (d < nd) { nd = d; near = q; } }
+      if (nd < 6 && near[2] > 3 && p.y < near[2] - 2) fell++;
+    }
+    Object.assign(out, { rampTop: +path.top.toFixed(1), maxY: +maxY.toFixed(1), travelled: Math.round(travelled), fell });
+    // 2. Traffic on the sea link's deck, at deck height.
+    const P = ix.bridges?.pylons?.[0];
+    if (P) {
+      await T.whenReady(P.x, P.z, 300);
+      const rd = T.roadAt(P.x, P.z, 30, true, P.deck);
+      if (rd) { const s = T.segment(rd.tile, rd.index); p.set((s[0] + s[2]) / 2, (s[6] + s[7]) / 2, (s[1] + s[3]) / 2); g.player.heading = Math.atan2(s[2] - s[0], s[3] - s[1]); }
+      g.player.speed = 0; g.player.vx = g.player.vz = 0; g.player.lastSpeed = 0;
+      for (let i = 0; i < 300; i++) g.step(0.05);
+      let onDeck = 0, wrongY = 0;
+      for (const c of g.traffic.cars) {
+        const s = c.seg.s;
+        if (!(s[5] & 32) || (s[6] + s[7]) / 2 < 4) continue;
+        const t = c.dir > 0 ? c.t : 1 - c.t, y = s[6] + (s[7] - s[6]) * t;
+        onDeck++;
+        if (Math.abs(c.y - y) > 0.8) wrongY++;
+      }
+      Object.assign(out, { playerOnDeck: +p.y.toFixed(1), trafficOnDeck: onDeck, wrongY });
+    }
+    g.post.render();
+    return out;
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (info.error) fails.push(info.error);
+  if (!info.pylons || info.cables < 100) fails.push('sea link pylons or stay cables missing');
+  if (!(info.maxY > 5)) fails.push(`car did not climb the ramp onto the deck (max height ${info.maxY} m)`);
+  if (info.fell) fails.push(`car fell through the deck ${info.fell} times`);
+  if (!(info.playerOnDeck > 5)) fails.push(`player not kept on the sea link deck (y ${info.playerOnDeck})`);
+  if (!(info.trafficOnDeck > 0)) fails.push('no traffic on the sea link deck');
+  if (info.wrongY) fails.push(`${info.wrongY} cars on the deck away from its height`);
   return { info, fails };
 });
 

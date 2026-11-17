@@ -70,6 +70,7 @@ export class CityAudio {
   play(name, volume = 1) {
     // The horn depends on what is being driven: a bicycle rings, an auto and bikes peep.
     if (name === 'horn' && this.hornKind === 'bell') { this.bell(); return; }
+    if (name === 'horn' && this.hornKind === 'none') return; // a handcart: the puller shouts
     if (!this.ctx || !this.buffers[name]) return;
     const src = this.ctx.createBufferSource();
     src.buffer = this.buffers[name];

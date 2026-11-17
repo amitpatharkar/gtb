@@ -3,7 +3,7 @@
 //   behind the car after a moment; on foot you walk where the camera looks.
 // - Right mouse button (or the 🎯 button) aims over the shoulder; left button attacks
 //   (punch, or spray with the pichkari); the wheel sets pichkari pressure.
-// - On touch screens, drag on an empty part of the screen to look around.
+// - On touch screens, drag on an empty part of the screen (or the attack/aim button) to look around.
 
 export class ViewControl {
   constructor(canvas, input) {
@@ -28,6 +28,7 @@ export class ViewControl {
       this.pitch = Math.max(-0.55, Math.min(0.9, this.pitch + dy * k));
       this.idle = 0;
     };
+    this.look = look; // touch buttons that also turn the camera when dragged (attack, aim)
     canvas.addEventListener('click', () => {
       if (!this.enabled || this.locked || matchMedia('(pointer: coarse)').matches) return;
       canvas.requestPointerLock?.()?.catch?.(() => {});

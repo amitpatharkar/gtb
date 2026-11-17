@@ -35,8 +35,11 @@ import { isTrainRoute, buildTrainLines } from './lib/trains.mjs';
 import { infill } from './lib/infill.mjs';
 import { compoundWalls, siteFence, WALL } from './lib/walls.mjs';
 import { facadeKind } from './lib/facades.mjs';
-import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, POINT, MAGIC, TILE_VERSION, DM } from '../src/world/tileFormat.js';
-import { OVERVIEW_MAGIC, OVERVIEW_VERSION, OVERVIEW_LAYER } from '../src/world/overviewFormat.js';
+import { streetClutter } from './lib/clutter.mjs';
+import { learnDevanagari } from './lib/devanagari.mjs';
+import { elevate, groundParts, heightParts, clipWithHeights } from './lib/elevation.mjs';
+import { AREA, ROAD, ROAD_FLAG, RAIL, RAIL_FLAG, BUILDING_FLAG, POINT, MAGIC, TILE_VERSION, DM, STRUCT } from '../src/world/tileFormat.js';
+import { OVERVIEW_MAGIC, OVERVIEW_VERSION, OVERVIEW_LAYER, OVERVIEW_ROAD } from '../src/world/overviewFormat.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // The owner's street library: a profile per named street of South Mumbai (dresses roads and buildings).
@@ -161,7 +164,9 @@ function classifyRoad(t) {
   if (t.man_made === 'pier') return { cls: ROAD.PIER, width: num(t.width, 2, 30) || 4 };
   const def = HIGHWAYS[t.highway];
   if (!def || t.area === 'yes') return null;
-  if (t.tunnel && t.tunnel !== 'no' && t.tunnel !== 'building_passage') return null;
+  // Road tunnels and underpasses go below ground (lib/elevation.mjs); subways for people stay out.
+  const tunnel = t.tunnel && t.tunnel !== 'no' && t.tunnel !== 'building_passage';
+  if (tunnel && (t.tunnel !== 'yes' || !isVehicle(def[0]))) return null;
   if (t.footway === 'crossing' || t.highway === 'footway' && t.footway === 'access_aisle') return null;
   let [cls, width] = def;
   if (cls === ROAD.SERVICE && (t.service === 'driveway' || t.service === 'parking_aisle')) width = 3.5;
@@ -170,6 +175,7 @@ function classifyRoad(t) {
   width = num(t.width, 2, 40) || width;
   let flags = 0;
   if (t.bridge && t.bridge !== 'no') flags |= ROAD_FLAG.BRIDGE;
+  if (tunnel) flags |= ROAD_FLAG.TUNNEL;
   if (t.oneway === 'yes' || t.oneway === '1') flags |= ROAD_FLAG.ONEWAY;
   return { cls, width, flags };
 }
@@ -335,6 +341,7 @@ const coastWays = [];
 const aeroLines = [];     // runway and taxiway centre lines: { pts, width, runway }
 const treeNodes = [], signalNodes = [], signalIds = new Set(), crossingIds = new Set(), busStops = [], fuel = [];
 const trainWayRefs = new Map(), trainStops = new Map(), stationNodes = [], platformEdges = []; // for trains.json
+const worship = []; // places of worship for street shrines (lib/clutter.mjs): { x, z, religion, name, area }
 readOsmPbf(CFG.input, {
   nodeTags: true,
   node(id, lat, lon, tags) {
@@ -350,6 +357,7 @@ readOsmPbf(CFG.input, {
     else if (tags.highway === 'crossing') crossingIds.add(id);
     else if (tags.highway === 'bus_stop') busStops.push([x, z]);
     if (tags.amenity === 'fuel') fuel.push([x, z]);
+    if (tags.amenity === 'place_of_worship') worship.push({ x, z, religion: tags.religion || '', name: tags.name || tags['name:en'] || '', area: false });
   },
   way(id, tags, refs) {
     if (relWays.has(id)) wayRefs.set(id, refs);
@@ -360,6 +368,7 @@ readOsmPbf(CFG.input, {
     const closed = refs.length >= 4 && refs[0] === refs[refs.length - 1];
     if (tags.natural === 'coastline') { coastWays.push(refs); return; }
     if (tags.amenity === 'fuel') { const r = resolveRing(refs, false); if (r) fuel.push(G.centroid(r)); }
+    if (tags.amenity === 'place_of_worship' && closed) { const r = resolveRing(refs, false); if (r) { const [x, z] = G.centroid(r); worship.push({ x, z, religion: tags.religion || '', name: tags.name || tags['name:en'] || '', area: true }); } }
     if (tags.railway === 'platform' || (tags.public_transport === 'platform' && tags.train === 'yes')) platformEdges.push(...resolveLine(refs));
     if (closed) {
       const b = classifyBuilding(tags);
@@ -572,6 +581,57 @@ class Grid {
   }
 }
 
+// Flyovers, bridges and tunnels: heights per vertex (lib/elevation.mjs). Parts more than
+// STRUCT.AT_GRADE off the ground leave the street surface (no asphalt, kerbs, footpaths, markings,
+// trees or frontage at ground level there); the tile worker builds decks, piers and tunnels.
+// The sea link's cable-stayed spans (approximate pylon positions): the Bandra channel span with
+// its 128 m tower and the Worli channel span with its 55 m tower.
+const PYLONS = [
+  { name: 'Bandra channel', at: [19.0335, 72.8166], deck: 20, reach: 560, top: 126, span: 250, match: /rajiv gandhi sea link|bandra.{0,3}worli sea link/i },
+  { name: 'Worli channel', at: [19.0224, 72.8137], deck: 13.5, reach: 340, top: 55, span: 150, match: /rajiv gandhi sea link|bandra.{0,3}worli sea link/i },
+].map((p) => { const [x, z] = project(p.at[0], p.at[1]); return { ...p, x, z }; });
+const landAt = (x, z) => {
+  const t = tiles.get(`${Math.floor(x / CFG.tileSize)},${Math.floor(z / CFG.tileSize)}`);
+  return !!t && t.land.some((poly) => poly.reduce((inside, ring) => (G.pointInRing(x, z, ring) ? !inside : inside), false));
+};
+const elevation = elevate({
+  roads: roadsRaw, rails: railsRaw.filter((r) => r.info.cls === RAIL.MAIN), onLand: landAt, pylons: PYLONS, log,
+  net: (cls) => (isVehicle(cls) ? 0 : cls === ROAD.FOOTWAY || cls === ROAD.PEDESTRIAN ? 1 : -1),
+  isMain: (cls) => cls <= ROAD.TERTIARY || cls === ROAD.LINK,
+  flags: { BRIDGE: ROAD_FLAG.BRIDGE, TUNNEL: ROAD_FLAG.TUNNEL, ELEVATED: ROAD_FLAG.ELEVATED },
+});
+// Off-the-ground footprints (decks and ramps above, open cuts below; covered tunnel is out of the
+// way): nothing is built, planted or parked under or in them.
+const structGrid = new Grid(25);
+const deckParts = [];   // { pts, hs, hw }: |height| > AT_GRADE
+const cutParts = [];    // open cuts: AT_GRADE < depth < COVER
+for (const r of roadsRaw) {
+  if (!r.hs) continue;
+  for (const part of heightParts(r.pts, r.hs, (h) => Math.abs(h) > STRUCT.AT_GRADE, STRUCT.AT_GRADE)) {
+    // (heightParts cuts at +AT_GRADE; a sunken part's cut points get the sign of their neighbours)
+    part.hs = part.hs.map((h, i) => (Math.abs(h) === STRUCT.AT_GRADE ? Math.sign(part.hs[i ? i - 1 : 1] || 1) * STRUCT.AT_GRADE : h));
+    deckParts.push({ ...part, hw: r.hw, foot: !isVehicle(r.info.cls) });
+  }
+  for (const part of heightParts(r.pts, r.hs, (h) => h < -STRUCT.AT_GRADE && h > STRUCT.COVER, -STRUCT.AT_GRADE)) cutParts.push({ ...part, hw: r.hw });
+}
+for (const d of deckParts) for (let i = 1; i < d.pts.length; i++) {
+  const a = d.pts[i - 1], b = d.pts[i];
+  if (d.hs[i - 1] < STRUCT.COVER && d.hs[i] < STRUCT.COVER) continue; // covered tunnel: the ground above is ordinary
+  structGrid.add([Math.min(a[0], b[0]) - d.hw - 2, Math.min(a[1], b[1]) - d.hw - 2, Math.max(a[0], b[0]) + d.hw + 2, Math.max(a[1], b[1]) + d.hw + 2], { a, b, ha: d.hs[i - 1], hb: d.hs[i], hw: d.hw });
+}
+/** Height of the deck (or open cut) over/under (x, z) within its half-width + pad, or null. */
+const structAt = (x, z, pad = 0) => {
+  let best = null;
+  structGrid.near(x, z, 2, ({ a, b, ha, hb, hw }) => {
+    const dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / l2));
+    const ex = a[0] + dx * t - x, ez = a[1] + dz * t - z;
+    if (ex * ex + ez * ez < (hw + pad) ** 2) { const h = ha + (hb - ha) * t; if (best === null || Math.abs(h) < Math.abs(best)) best = h; }
+    return false;
+  });
+  return best;
+};
+const underDeck = (x, z, pad = 1) => structAt(x, z, pad) !== null;
+
 // Street profiles: every road piece looks up its OSM way in the street library (long streets
 // change character along their length: zones by latitude).
 let profiled = 0;
@@ -585,7 +645,16 @@ if (streetLib) for (const r of roadsRaw) {
   r.info = { ...r.info, flags: r.info.flags | (k === 'bw' ? ROAD_FLAG.KERB_BW : k === 'by' ? ROAD_FLAG.KERB_BY : k === 'plain' ? ROAD_FLAG.KERB_PLAIN : 0) | (r.profile.median === 'bw' ? ROAD_FLAG.MEDIAN_BW : 0) };
 }
 if (streetLib) log(`street library: ${streetLib.streets.length} streets, ${streetLib.profiles.size} profiles → ${profiled} road pieces dressed by profile`);
-const vparts = roadsRaw.filter((r) => isVehicle(r.info.cls));
+// Street surfaces, frontage and furniture follow the parts of each road that are at grade.
+const vparts = [];
+let cutId = -1e12;
+for (const r of roadsRaw) {
+  if (!isVehicle(r.info.cls)) continue;
+  if (!r.hs) { vparts.push(r); continue; }
+  // (cut points get ids of their own: junctions are found by shared OpenStreetMap node ids)
+  const at = new Map(r.pts.map((p, i) => [p, r.ids[i]]));
+  for (const pts of groundParts(r.pts, r.hs, STRUCT.AT_GRADE)) vparts.push({ ...r, pts, ids: pts.map((p) => at.get(p) ?? --cutId), hs: null, groundPart: true });
+}
 for (const p of vparts) { p.fw = FOOTPATH[p.info.cls] || 0; p.bbox = G.bboxOf(p.pts); }
 const segGrid = new Grid(25);
 for (const p of vparts) {
@@ -639,6 +708,7 @@ const onLand = (x, z) => {
 };
 
 const cranes = []; // tower cranes on construction sites (POINT.CRANE, added with the other points)
+const gates = [];  // gates in compound walls (lib/walls.mjs → POINT.GATE in lib/clutter.mjs)
 // Empty frontage in the dense districts gets buildings in the district's grain (lib/infill.mjs):
 // OpenStreetMap misses many outlines there. Never on roads, footpaths, mapped buildings, parks,
 // water or tracks; added before street furniture so trees, lamps and stalls avoid them too.
@@ -648,11 +718,13 @@ const cranes = []; // tower cranes on construction sites (POINT.CRANE, added wit
   for (const a of areasRaw) for (const poly of a.polys) areaGrid.add(G.bboxOf(poly[0]), poly[0]);
   const onStreet = (x, z) => segGrid.near(x, z, 14, ({ a, b, p }) => G.segDist2([x, z], a, b) < (p.hw + p.fw + 0.3) ** 2);
   const inArea = (x, z) => areaGrid.near(x, z, 1, (ring) => G.pointInRing(x, z, ring));
-  const free = (x, z) => inBox([x, z]) && !onStreet(x, z) && !inBuilding(x, z, 0.35) && !onTrack(x, z, 4.5) && !inArea(x, z);
-  let n = 0, wallCount = 0, towers = 0, seed = 11;
+  const free = (x, z) => inBox([x, z]) && !onStreet(x, z) && !inBuilding(x, z, 0.35) && !onTrack(x, z, 4.5) && !inArea(x, z) && !underDeck(x, z, 1.5);
+  let n = 0, wallCount = 0, towers = 0, frames = 0, seed = 11;
+  // The owner's scaffolded frames (src/world/art.js): footprint (m) at their game height h.
+  const SITE_FRAMES = [{ kind: POINT.SITE_FRAME_A, w: 23.6, d: 22.1, h: 15 }, { kind: POINT.SITE_FRAME_B, w: 31.5, d: 23.4, h: 18 }];
   const rnd = () => hash01(seed++, 53);
   const addBuilding = (ring, tags) => {
-    const b = { id: 9e11 + n++, tags, infill: true, polys: [[ring]] };
+    const b = { id: 9e11 + n++, tags, infill: true, polys: [[ring]], ...(tags['gtb:frame'] ? { hidden: true } : {}) };
     buildingsRaw.push(b);
     buildingGrid.add(G.bboxOf(ring), ring);
   };
@@ -664,7 +736,7 @@ const cranes = []; // tower cranes on construction sites (POINT.CRANE, added wit
     wallCount++;
   };
   // A construction site: hoarding round it, a netted tower going up inside, a tower crane.
-  const fenceOk = (x, z) => inBox([x, z]) && !onStreet(x, z) && !inBuilding(x, z, 0.2) && !onTrack(x, z, 3);
+  const fenceOk = (x, z) => inBox([x, z]) && !onStreet(x, z) && !inBuilding(x, z, 0.2) && !onTrack(x, z, 3) && !underDeck(x, z, 0.8);
   const buildSite = (ring, out) => {
     siteFence(ring, fenceOk, addWall, rnd);
     const [cx, cz] = G.centroid(ring), area = Math.abs(G.signedArea(ring));
@@ -673,14 +745,26 @@ const cranes = []; // tower cranes on construction sites (POINT.CRANE, added wit
     for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l > best) { best = l; ex = (b[0] - a[0]) / l; ez = (b[1] - a[1]) / l; } }
     const hw = Math.min(14, Math.sqrt(area) * 0.32), hd = Math.min(11, Math.sqrt(area) * 0.26);
     const rect = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => [cx + ex * u * hw - ez * v * hd, cz + ez * u * hw + ex * v * hd]);
-    if (area > 380 && rnd() < 0.75 && rect.every(([x, z]) => G.pointInRing(x, z, ring) && !inBuilding(x, z, 1.5))) {
+    const roll = rnd(), fits = (r) => r.every(([x, z]) => G.pointInRing(x, z, ring) && !inBuilding(x, z, 1.5));
+    if (area > 380 && roll < 0.55 && fits(rect)) {
       addBuilding(rect, { building: 'construction', 'gtb:site': 'yes', 'building:levels': String(10 + Math.floor(rnd() * 26)) });
       towers++;
+    } else if (area > 300 && roll < 0.9) {
+      // Otherwise a low concrete frame going up in scaffolding (the owner's model, src/world/art.js
+      // `at`), scaled to the site; a hidden outline of the same size collides.
+      const f = SITE_FRAMES[2 * hw >= 26 ? 1 : 0], s = Math.min((2 * hw) / f.w, (2 * hd) / f.d, 1.1);
+      const fw = (f.w * s) / 2, fd = (f.d * s) / 2;
+      const fr = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => [cx + ex * u * fw - ez * v * fd, cz + ez * u * fw + ex * v * fd]);
+      if (s >= 0.55 && fits(fr)) {
+        addBuilding(fr, { building: 'construction', 'gtb:frame': 'yes', 'building:levels': String(Math.max(2, Math.round((f.h * s) / 3.2))) });
+        cranes.push({ kind: f.kind, x: cx, z: cz, angle: Math.atan2(-ez, ex), size: s });
+        frames++;
+      }
     }
     if (area > 350) {
       // The crane stands beside the tower, its jib swung over the site.
       const kx = cx - ex * (hw + 4), kz = cz - ez * (hw + 4);
-      if (G.pointInRing(kx, kz, ring) && !inBuilding(kx, kz, 1.2)) cranes.push({ kind: POINT.CRANE, x: kx, z: kz, angle: rnd() * Math.PI * 2, size: 1.1 + rnd() * 0.8 });
+      if (G.pointInRing(kx, kz, ring) && !inBuilding(kx, kz, 1.2) && !underDeck(kx, kz, 25)) cranes.push({ kind: POINT.CRANE, x: kx, z: kz, angle: rnd() * Math.PI * 2, size: 1.1 + rnd() * 0.8 });
     }
   };
   const made = infill({
@@ -698,8 +782,8 @@ const cranes = []; // tower cranes on construction sites (POINT.CRANE, added wit
     buildSite(ring); mapped++;
   }
   // Compound walls in front of set-back buildings; dock walls on port roads (survey).
-  compoundWalls({ vparts, district: districtXZ, free, buildingWithin: (x, z, r) => inBuilding(x, z, r), hash: hash01, add: addWall, BRIDGE: ROAD_FLAG.BRIDGE });
-  log(`walls: ${wallCount} wall pieces (compound walls, pillars and gates, dock walls, hoardings round ${mapped + infill.sites} construction sites); ${towers} towers going up, ${cranes.length} tower cranes`);
+  compoundWalls({ vparts, district: districtXZ, free, buildingWithin: (x, z, r) => inBuilding(x, z, r), hash: hash01, add: addWall, BRIDGE: ROAD_FLAG.BRIDGE, gates });
+  log(`walls: ${wallCount} wall pieces (compound walls, pillars and gates, dock walls, hoardings round ${mapped + infill.sites} construction sites); ${towers} towers going up, ${frames} scaffolded frames, ${cranes.length - frames} tower cranes`);
 }
 
 const streetMs = Date.now();
@@ -721,7 +805,10 @@ for (const tile of tiles.values()) {
     }
     return [...groups].map(([delta, lines]) => ({ delta, lines }));
   };
-  const carriage = C.bufferLines(byWidth((p) => p.hw));
+  // Open cuts (tunnel approaches) are holes in the ground: the tile worker builds their walls.
+  const cuts = cutParts.filter((c) => G.bboxOverlap(G.bboxOf(c.pts), R));
+  const cut = cuts.length ? C.bufferLines(cuts.map((c) => ({ delta: c.hw + 0.6, lines: [c.pts], butt: true }))) : [];
+  const carriage = C.difference(C.bufferLines(byWidth((p) => p.hw)), cut);
   // Road quality: main roads are smooth; tertiary roads are worn and patched; lanes in the
   // colonies and gallis are rough. Better surfaces win where roads meet.
   const quality = (p) => (p.info.cls <= ROAD.SECONDARY ? 0 : p.info.cls <= ROAD.LINK ? 1 : 2);
@@ -731,7 +818,7 @@ for (const tile of tiles.values()) {
   const poor = C.intersect(C.difference(C.difference(carriage, good), wornAll), [C.rectPath(tile.clip)]);
   const outer = C.union(C.bufferLines(byWidth((p) => (p.fw ? p.hw + p.fw : 0))), carriage);
   const clipRect = [C.rectPath(tile.clip)];
-  const land = C.mpToPaths(tile.land);
+  const land = C.difference(C.mpToPaths(tile.land), cut);
   const road = C.intersect(carriage, clipRect);
   const footpath = C.intersect(C.difference(outer, carriage), land);
   const plot = C.difference(land, outer);
@@ -768,7 +855,7 @@ log(`markings: ${paint.length} painted lines`);
 
 // Street trees, lights and real tree positions from OpenStreetMap.
 const rand = (seed) => hash01(Math.floor(Math.abs(seed) * 1000) % 2147483647, 99);
-const blocked = (x, z) => !inBox([x, z]) || onRoad(x, z, 0.3) || inBuilding(x, z, 0.8) || !onLand(x, z) || onTrack(x, z);
+const blocked = (x, z) => !inBox([x, z]) || onRoad(x, z, 0.3) || inBuilding(x, z, 0.8) || !onLand(x, z) || onTrack(x, z) || underDeck(x, z, 2.5);
 const { trees, lights, clutter } = streetFurniture(vparts, { district: districtXZ, blocked, junc, rand, onRoad, lampSize, LAMP });
 const treeGrid = new Grid(10);
 const points = [];
@@ -778,7 +865,7 @@ const addTree = (t) => {
   points.push(t);
 };
 for (const [x, z, id] of treeNodes) {
-  if (onRoad(x, z, 0.2) || inBuilding(x, z, 0.5) || onTrack(x, z)) continue;
+  if (onRoad(x, z, 0.2) || inBuilding(x, z, 0.5) || onTrack(x, z) || underDeck(x, z, 2.5)) continue;
   const d = districtXZ(x, z);
   addTree({ kind: d.palms && rand(id) < 0.6 ? POINT.PALM : treeKind(rand(id * 3)), x, z, angle: rand(id * 5) * Math.PI * 2, size: 0.8 + rand(id * 7) * 0.6 });
 }
@@ -816,7 +903,7 @@ for (const c of clutter) {
 }
 for (const [x, z] of fuel) points.push({ kind: POINT.FUEL, x, z, angle: 0, size: 1 });
 points.push(...cranes);
-for (const [x, z] of signalNodes) points.push({ kind: POINT.SIGNAL, x, z, angle: 0, size: 1 });
+for (const [x, z] of signalNodes) { const h = structAt(x, z); if (h === null || h > STRUCT.CLEAR) points.push({ kind: POINT.SIGNAL, x, z, angle: 0, size: 1 }); }
 // Survey: yellow steel traffic-police barricades with blue boards on the kerb beside some signal junctions
 // (most near the courts and offices of the heritage boulevards).
 for (const [x, z] of signalNodes) {
@@ -829,10 +916,10 @@ for (const [x, z] of signalNodes) {
   const dir = Math.hypot(a[0] - x, a[1] - z) < Math.hypot(e[0] - x, e[1] - z) ? 1 : -1;
   const side = hash01(Math.abs(Math.round(x * 5 - z * 3)), 62) < 0.5 ? 1 : -1, nx = -uz * side, nz = ux * side;
   const px = x + ux * dir * 8 + nx * (p.hw + 0.45), pz = z + uz * dir * 8 + nz * (p.hw + 0.45);
-  if (onRoad(px, pz, 0) || inBuilding(px, pz, 0.6) || onTrack(px, pz) || !onLand(px, pz)) continue;
+  if (onRoad(px, pz, 0) || inBuilding(px, pz, 0.6) || onTrack(px, pz) || !onLand(px, pz) || underDeck(px, pz, 0.5)) continue;
   points.push({ kind: POINT.BARRICADE, x: px, z: pz, angle: Math.atan2(-nx, -nz), size: 1 }); // board faces the road
 }
-for (const [x, z] of busStops) if (!onRoad(x, z, 0.5) && !inBuilding(x, z, 0.5)) points.push({ kind: POINT.BUS_STOP, x, z, angle: 0, size: 1 });
+for (const [x, z] of busStops) if (!onRoad(x, z, 0.5) && !inBuilding(x, z, 0.5) && !underDeck(x, z, 0.5)) points.push({ kind: POINT.BUS_STOP, x, z, angle: 0, size: 1 });
 for (const pt of points) {
   if (!inBox([pt.x, pt.z])) continue;
   (getTile(Math.floor(pt.x / T), Math.floor(pt.z / T)).points ||= []).push(pt);
@@ -900,7 +987,7 @@ for (const L of LANDMARKS) {
 const partGrid = new Grid(50);
 for (const b of buildingsRaw) if (b.part) { const [x, z] = G.centroid(b.polys[0][0]); partGrid.add([x, z, x, z], [x, z]); }
 const skylineList = []; // tall buildings for the far skyline (lib/skyline.mjs)
-let bCount = 0, bSkipped = 0, bWithHeight = 0, bProfiled = 0, bNetting = 0, bArcade = 0, bWalls = 0;
+let bCount = 0, bSkipped = 0, bWithHeight = 0, bProfiled = 0, bNetting = 0, bArcade = 0, bWalls = 0, bUnderDeck = 0;
 const bFacade = [0, 0, 0, 0, 0]; // buildings per facade kind (FACADE)
 for (const b of buildingsRaw) {
   for (const poly of b.polys) {
@@ -948,6 +1035,15 @@ for (const b of buildingsRaw) {
       h = roof ? minH + 0.8 : shed ? minH + 3.2 : Math.max(h, minH + 3.2);
       flags |= BUILDING_FLAG.NO_COLLIDE;
     }
+    // Under a flyover: low enough to fit beneath the deck (stalls and sheds under the arches); in a
+    // ramp's footprint or an open cut: not there at all.
+    const sh = structAt(c[0], c[1], 0.5);
+    let underDeck = false; // lowered under a flyover: no gables, crowns or pitched roofs (they would reach the deck)
+    if (sh !== null && !b.hidden) {
+      if (sh < STRUCT.CLEAR) { bUnderDeck++; continue; }
+      const room = sh - STRUCT.DECK - 0.4;
+      if (h > room) { if (room - minH < 2.4) { bUnderDeck++; continue; } h = room; bUnderDeck++; underDeck = true; }
+    }
     if (b.tags.height || b.tags['building:levels']) bWithHeight++;
     const tile = getTile(Math.floor(c[0] / T), Math.floor(c[1] / T));
     const look = buildingLook(b, type, h, area, d, sp);
@@ -982,7 +1078,7 @@ for (const b of buildingsRaw) {
     if (b.tags['gtb:site']) f2 |= BUILDING_FLAG.NETTING;
     if (sp?.netting && !b.hidden && !overTrack.has(b) && !(f2 & BUILDING_FLAG.HERITAGE) && h > 8 && h < 70 && hash01(b.id, 21) < sp.netting) { f2 |= BUILDING_FLAG.NETTING; bNetting++; }
     // Facade kind (lib/facades.mjs): window era, Deco/Gothic details, chawl galleries.
-    const fk = b.hidden || overTrack.has(b) ? { facade: 0, color: null } : facadeKind({ id: b.id, style: look.style, flags: f2, type, h, levels: look.levels, area, district: d, profile: sp });
+    const fk = b.hidden || overTrack.has(b) || underDeck ? { facade: 0, color: null } : facadeKind({ id: b.id, style: look.style, flags: f2, type, h, levels: look.levels, area, district: d, profile: sp });
     if (fk.color != null && !(b.tags['building:colour'] || b.tags.colour)) look.color = fk.color;
     bFacade[fk.facade]++;
     tile.buildings.push({ h, minH, color: look.color, flags: f2, style: look.style, facade: fk.facade, levels: look.levels, rings, front });
@@ -990,7 +1086,7 @@ for (const b of buildingsRaw) {
     if (h >= 15 && !b.hidden && minH < 1) skylineList.push({ ring: outer, area, h, color: look.color });
   }
 }
-log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts; ${bProfiled} dressed by their street's profile, ${bNetting} under netting, ${bArcade} arcaded; ${bWalls} wall pieces)`);
+log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts; ${bProfiled} dressed by their street's profile, ${bNetting} under netting, ${bArcade} arcaded; ${bWalls} wall pieces; ${bUnderDeck} lowered or removed under flyovers)`);
 log(`facades: ${bFacade[0]} modern, ${bFacade[1]} old windows, ${bFacade[2]} Art Deco, ${bFacade[3]} Gothic, ${bFacade[4]} chawls`);
 
 // Roads and rails: polylines clipped to each tile. Junction points shared by two or more
@@ -1016,7 +1112,13 @@ function addLines(list, put, tolerance = 0.2, mustKeep = null) {
 }
 // Names of private homes of film stars (and the like) are never shown, even on a lane.
 const PRIVATE_NAMES = /\b(mannat|jalsa|antilia|prateeksha)\b/i;
-const roadName = (t) => { const n = t.name || t['name:en'] || t.ref || ''; return PRIVATE_NAMES.test(n) ? '' : n; }; // one name per road: the signposted `name` first
+// The sea link carries a politician's name: the game shows the neutral, geographic one.
+const RENAME = [[/^rajiv gandhi sea link$/i, 'Bandra–Worli Sea Link']];
+const roadName = (t) => {
+  let n = t.name || t['name:en'] || t.ref || '';
+  for (const [re, to] of RENAME) if (re.test(n)) n = to;
+  return PRIVATE_NAMES.test(n) ? '' : n;
+}; // one name per road: the signposted `name` first
 
 // OSM often spells one road several ways along its length ("P J Ramchandani Marg",
 // "Prem J. Ramchandani Road", "Apollo Bandar Road/P J Ramchandani Marg"). Pieces that touch
@@ -1081,25 +1183,68 @@ const roadName = (t) => { const n = t.name || t['name:en'] || t.ref || ''; retur
   }
   log(`road names: ${renamed} pieces renamed to their road's main name`);
 }
-const nRoads = addLines(roadsRaw, (tile, r, line) => {
+const putRoad = (tile, r, line, heights = null, s0 = 0) => {
   const name = r.canon || roadName(r.tags);
   let idx = -1;
   if (name) {
     if (!tile.names.has(name)) tile.names.set(name, tile.names.size);
     idx = tile.names.get(name);
   }
-  tile.roads.push({ ...r.info, name: idx, layer: r.id % 5, profile: r.profile?.index || 0, line });
-}, 0.2, isJunction);
+  tile.roads.push({ ...r.info, name: idx, layer: Math.max(0, Math.min(15, (r.osmLayer || 0) + 8)), profile: r.profile?.index || 0, line, heights, s0 });
+};
+let nRoads = addLines(roadsRaw.filter((r) => !r.hs), putRoad, 0.2, isJunction);
+// Roads with heights: clipped with their heights (cut points interpolated), not simplified.
+for (const r of roadsRaw) {
+  if (!r.hs) continue;
+  for (const tile of tilesOverlapping(G.bboxOf(r.pts))) {
+    for (const part of clipWithHeights(r.pts, r.hs, tile.clip)) {
+      const line = [], hs = [];
+      part.pts.forEach(([x, z], i) => {
+        const q = [Math.round((x - tile.cx) * DM) / DM, Math.round((z - tile.cz) * DM) / DM], l = line[line.length - 1];
+        if (l && l[0] === q[0] && l[1] === q[1]) return;
+        line.push(q); hs.push(part.hs[i]);
+      });
+      if (line.length >= 2) { putRoad(tile, r, line, hs, part.s0); nRoads++; }
+    }
+  }
+}
 const nRails = addLines(railsRaw, (tile, r, line) => tile.rails.push({ ...r.info, line }));
 const nPaint = addLines(paint, (tile, m, line) => (tile.markings ||= []).push({ width: m.width, line }), 0);
 log(`roads: ${nRoads} pieces, rails: ${nRails} pieces, paint: ${nPaint} pieces`);
+
+// ---------------------------------------------------------------- street clutter
+// Boards, unipoles, cables, tarps, shrines, flower sellers, handcarts and compound gates
+// (lib/clutter.mjs). After the buildings (cables hang from walls tall enough to hold them) and
+// the road names (boards show each road's main name).
+{
+  const ms = Date.now();
+  const hGrid = new Grid(30);
+  for (const t of tiles.values()) for (const b of t.buildings) {
+    if (b.flags & BUILDING_FLAG.WALL || !b.rings.length) continue;
+    const ring = b.rings[0].map(([x, z]) => [x + t.cx, z + t.cz]);
+    hGrid.add(G.bboxOf(ring), { ring, h: b.h });
+  }
+  const heightAt = (x, z) => { let h = 0; hGrid.near(x, z, 1, (it) => { if (it.h > h && G.pointInRing(x, z, it.ring)) h = it.h; return false; }); return h; };
+  const learnt = learnDevanagari(roadsRaw.filter((r) => r.tags.name && r.tags['name:mr']).map((r) => [r.tags.name, r.tags['name:mr']]));
+  const extra = streetClutter({
+    vparts, junc, district: districtXZ, onRoad, inBuilding, onTrack, onLand, inBox: (x, z) => inBox([x, z]), heightAt, hash: hash01,
+    project, points, worship, gates, log,
+    nameOf: (r) => r.canon || roadName(r.tags),
+    nameMrOf: (r) => (r.canon ? '' : r.tags['name:mr'] || ''),
+  });
+  for (const pt of extra) {
+    if (!inBox([pt.x, pt.z])) continue;
+    (getTile(Math.floor(pt.x / T), Math.floor(pt.z / T)).points ||= []).push(pt);
+  }
+  log(`street clutter: ${extra.length} points, ${extra.filter((p) => p.label).length} with text (${learnt} Marathi word spellings learnt from name:mr) (${((Date.now() - ms) / 1000).toFixed(1)}s)`);
+}
 
 // ---------------------------------------------------------------- spawn point
 function findSpawn() {
   const [sx, sz] = project(CFG.spawn[0], CFG.spawn[1]);
   let best = null;
   for (const r of roadsRaw) {
-    if (r.info.cls > ROAD.SERVICE || r.info.cls === ROAD.LINK) continue;
+    if (r.info.cls > ROAD.SERVICE || r.info.cls === ROAD.LINK || r.hs) continue;
     for (let i = 1; i < r.pts.length; i++) {
       const a = r.pts[i - 1], b = r.pts[i];
       const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -1164,8 +1309,13 @@ for (const t of ordered) {
 
   w.uvar(t.roads.length);
   for (const r of t.roads) {
-    w.u8(r.cls); w.uvar(Math.round(r.width * DM)); w.u8(r.flags); w.uvar(r.name + 1); w.u8(r.layer); w.u8(r.profile || 0);
+    w.u8(r.cls); w.uvar(Math.round(r.width * DM)); w.u8(r.heights ? r.flags | ROAD_FLAG.ELEVATED : r.flags & ~ROAD_FLAG.ELEVATED); w.uvar(r.name + 1); w.u8(r.layer); w.u8(r.profile || 0);
     w.points(r.line);
+    if (r.heights) {
+      let prev = 0;
+      for (const h of r.heights) { const q = Math.round(h * 100); w.svar(q - prev); prev = q; } // centimetres: smooth ramps
+      w.uvar(Math.round(r.s0 * DM));
+    }
   }
   w.uvar(t.rails.length);
   for (const r of t.rails) { w.u8(r.cls); w.u8(r.flags); w.points(r.line); }
@@ -1179,6 +1329,14 @@ for (const t of ordered) {
     w.u8(Math.round((((p.angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / (2 * Math.PI) * 256) % 256);
     w.u8(Math.max(0, Math.min(255, Math.round(((p.size - 0.5) / 1.5) * 255))));
   }
+  // Labels: the text on street-name and direction boards (strings once per tile, then point → string).
+  const strings = new Map(), labelled = [];
+  pts.forEach((p, i) => { if (p.label) { if (!strings.has(p.label)) strings.set(p.label, strings.size); labelled.push([i, strings.get(p.label)]); } });
+  w.uvar(strings.size);
+  for (const str of strings.keys()) w.string(str);
+  w.uvar(labelled.length);
+  let prevLabel = 0;
+  for (const [i, k] of labelled) { w.uvar(i - prevLabel); prevLabel = i; w.uvar(k); }
 
   const gz = zlib.gzipSync(w.result(), { level: 9 });
   fs.writeFileSync(path.join(CFG.out, `${t.tx}_${t.tz}.bin.gz`), gz);
@@ -1212,18 +1370,47 @@ function writeOverview() {
   for (const r of roadsRaw) {
     if (!isVehicle(r.info.cls)) continue;
     const name = r.canon || roadName(r.tags);
-    for (const part of clipPolyline(r.pts, BOX)) {
-      const q = grid(G.simplifyLine(part, 1, isJunction));
-      if (q.length < 2) continue;
-      if (name && !names.has(name)) names.set(name, names.size);
-      roads.push({ cls: r.info.cls, flags: r.info.flags & ROAD_FLAG.ONEWAY ? 1 : 0, name: name ? names.get(name) : -1, q });
+    const flags = r.info.flags & ROAD_FLAG.ONEWAY ? OVERVIEW_ROAD.ONEWAY : 0;
+    if (name && !names.has(name)) names.set(name, names.size);
+    if (!r.hs) {
+      for (const part of clipPolyline(r.pts, BOX)) {
+        const q = grid(G.simplifyLine(part, 1, isJunction));
+        if (q.length >= 2) roads.push({ cls: r.info.cls, flags, name: name ? names.get(name) : -1, q });
+      }
+      continue;
+    }
+    // Off the ground: runs at grade, above and below, each point with its level (whole metres
+    // within a run; a run's ends share their point and level with the next run).
+    const lvl = (h) => (Math.abs(h) <= 1.5 ? 0 : Math.round(h));
+    for (const part of clipWithHeights(r.pts, r.hs, BOX)) {
+      const kind = (h) => (h > 1.5 ? OVERVIEW_ROAD.ELEVATED : h < -1.5 ? OVERVIEW_ROAD.SUNKEN : 0);
+      let run = null;
+      const flush = () => {
+        if (!run) return;
+        const q = [], lv = [];
+        run.pts.forEach((p, i) => { const g = grid([p])[0], l = q[q.length - 1]; if (l && l[0] === g[0] && l[1] === g[1]) return; q.push(g); lv.push(run.lv[i]); });
+        if (q.length >= 2) roads.push({ cls: r.info.cls, flags: flags | run.kind, name: name ? names.get(name) : -1, q, levels: run.kind ? lv : null });
+      };
+      for (let i = 0; i < part.pts.length; i++) {
+        const k = kind(part.hs[i]);
+        if (!run || k !== run.kind) {
+          const last = run && i > 0 ? [part.pts[i - 1], lvl(part.hs[i - 1])] : null;
+          flush();
+          run = { kind: k, pts: last ? [last[0]] : [], lv: last ? [last[1]] : [] };
+        }
+        run.pts.push(part.pts[i]); run.lv.push(lvl(part.hs[i]));
+      }
+      flush();
     }
   }
   roads.sort((a, b) => cell(a.q) - cell(b.q));
   w.uvar(names.size);
   for (const n of names.keys()) w.string(n);
   w.uvar(roads.length);
-  for (const r of roads) { w.u8(r.cls); w.u8(r.flags); w.uvar(r.name + 1); put(r.q); }
+  for (const r of roads) {
+    w.u8(r.cls); w.u8(r.flags); w.uvar(r.name + 1); put(r.q);
+    if (r.flags & (OVERVIEW_ROAD.ELEVATED | OVERVIEW_ROAD.SUNKEN)) for (const l of r.levels) w.svar(l);
+  }
 
   const rails = [];
   for (const r of railsRaw) {
@@ -1311,6 +1498,8 @@ const meta = {
   trains,
   fuel: fuelStations,
   landmarks,
+  // Flyovers and bridges (lib/elevation.mjs): the sea link's pylons for src/world/bridges.js.
+  bridges: { pylons: elevation.pylons, ...elevation.stats },
   tiles: index,
 };
 fs.writeFileSync(path.join(CFG.out, 'index.json'), JSON.stringify(meta));

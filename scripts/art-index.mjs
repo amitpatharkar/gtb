@@ -24,7 +24,8 @@ const glbs = (d) => (fs.existsSync(d) ? fs.readdirSync(d).filter((f) => /\.glb$/
 const files = glbs(dir), vfiles = glbs(vdir);
 // Triangle budget by model id (big carts and the shelter get more; small props very few).
 const SMALL = /stool|cylinder|milk-can|dustbin|barricade/;
-const budget = (id) => (SMALL.test(id) ? 900 : 5000);
+const BIG = /site-frame/; // whole structures seen up close (thin scaffold tubes need the triangles)
+const budget = (id) => (SMALL.test(id) ? 900 : BIG.test(id) ? 16000 : 5000);
 const scripts = ['art-index.mjs', 'art-vehicles.mjs', 'lib/glb.mjs'].map((f) => fs.statSync(new URL(f, import.meta.url)).mtimeMs);
 /** Short content hash: the game asks for <file>?v=<hash>, so a new upload is never served from an old cache. */
 const hashOf = (f) => crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex').slice(0, 10);

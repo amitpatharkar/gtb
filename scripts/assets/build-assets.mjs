@@ -222,7 +222,11 @@ async function processHdri(a) {
   const rel = `hdri/${a.id}.hdr`;
   fs.mkdirSync(path.join(OUT, 'hdri'), { recursive: true });
   fs.copyFileSync(file, path.join(OUT, rel));
-  return { files: [rel], meta: { resolution: file.includes('_1k') ? '1k' : '2k' } };
+  // Credit the authors Poly Haven lists for the file (the hand-written list can be wrong).
+  const ph = a.source_page.match(/polyhaven\.com\/a\/([\w-]+)/);
+  const info = ph && await fetchJson(`https://api.polyhaven.com/info/${ph[1]}`);
+  const authors = info?.authors && Object.keys(info.authors);
+  return { files: [rel], meta: { resolution: file.includes('_1k') ? '1k' : '2k' }, ...(authors?.length ? { author: `${authors.join(', ')} (Poly Haven)` } : {}) };
 }
 
 async function processSound(a) {
@@ -362,7 +366,7 @@ await pool(selected, threads + 2, async (a) => {
     const kb = r.files.reduce((s, f) => s + fs.statSync(path.join(OUT, f)).size, 0) / 1024;
     log(`ok   ${a.id} (${kb.toFixed(0)} KB)`);
     built.push({
-      id: a.id, category: a.category, title: a.title, use: a.use, licence: a.licence, author: a.author,
+      id: a.id, category: a.category, title: a.title, use: a.use, licence: a.licence, author: r.author || a.author,
       attribution: a.attribution, source_page: a.source_page, files: r.files, ...(r.meta ? { meta: r.meta } : {}),
     });
   } catch (e) {

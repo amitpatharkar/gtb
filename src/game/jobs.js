@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { POSE, outfit } from '../sim/people.js';
+import { POSE, outfit, makePerson } from '../sim/people.js';
 import { LIGHT } from '../sim/signals.js';
 import { POINT } from '../world/tileFormat.js';
 
@@ -70,7 +70,7 @@ export class Jobs {
     const segs = this.traffic.segList;
     for (let tries = 0; tries < 80 && segs.length; tries++) {
       const seg = segs[Math.floor(Math.random() * segs.length)], s = seg.s;
-      if (seg.len < 8) continue;
+      if (seg.len < 8 || s[5] & 32) continue; // passengers wait at street level
       const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
       const d = Math.hypot(mx - player.pos.x, mz - player.pos.z);
       if (d < min || d > max) continue;
@@ -153,7 +153,7 @@ export class Jobs {
     const spot = delivery ? this.findStall(player) : this.findSpot(player, 80, 260);
     if (!spot) return;
     const type = delivery ? DELIVERY : pick(PASSENGERS);
-    const person = { ...outfit(type.kind), x: spot.x, z: spot.z, y: this.tiles.groundHeight(spot.x, spot.z), heading: spot.heading, phase: 0, pose: POSE.WAVE, amp: 1, flags: type.kind === 'sari' ? 2 : 0, scale: 1, h: 2.2 };
+    const person = makePerson({ ...outfit(type.kind), kind: type.kind, x: spot.x, z: spot.z, y: this.tiles.groundHeight(spot.x, spot.z), heading: spot.heading, phase: 0, pose: POSE.WAVE, amp: 1, flags: type.kind === 'sari' ? 2 : 0, scale: 1, h: 2.2 });
     this.ride = { stage: 'pickup', type, person, spot, t: 0, wait: 0 };
     this.cityMap.routeTo(spot.roadX, spot.roadZ, delivery ? 'Pick-up' : 'Passenger', 'fare');
     const dist = Math.round(Math.hypot(spot.x - player.pos.x, spot.z - player.pos.z));
@@ -222,7 +222,7 @@ export class Jobs {
     if (this.inAuto && !r.type.delivery) {
       // In an auto you can see the passenger on the bench.
       const pax = this.traffic.types.auto.pax, h = player.heading, sh = Math.sin(h), ch = Math.cos(h);
-      this.people.add({ ...r.person, noHero: true, keep: true, x: player.pos.x + sh * pax.z - ch * 0.22, y: player.pos.y + pax.seat - 0.42, z: player.pos.z + ch * pax.z + sh * 0.22, heading: h, phase: 0, pose: POSE.SIT });
+      this.people.add(Object.assign(r.riding ||= makePerson({ ...r.person, noHero: true, keep: true }), { x: player.pos.x + sh * pax.z - ch * 0.22, y: player.pos.y + pax.seat - 0.42, z: player.pos.z + ch * pax.z + sh * 0.22, heading: h, phase: 0, pose: POSE.SIT }));
     }
     // Comfort: jerks, hard braking, sharp turns at speed, crashes, bumps, horn, police.
     const accel = (player.speed - r.last.speed) / Math.max(dt, 1e-3);
@@ -329,11 +329,18 @@ export class Jobs {
   }
 
   // ------------------------------------------------------------------ snacks at thelas
-  buySnack(player) {
-    if (Math.abs(player.speed) > 1) return false;
+  /** A thela with its vendor within reach of a stopped player (also lights the touch Buy button). */
+  stallNear(player) {
+    if (Math.abs(player.speed) > 1) return null;
     for (const f of this.street.fixtures.values()) {
-      if (f.type !== 'stall' || !f.people.length) continue;
-      if (Math.hypot(f.x - player.pos.x, f.z - player.pos.z) > 9) continue;
+      if (f.type === 'stall' && f.people.length && Math.hypot(f.x - player.pos.x, f.z - player.pos.z) <= 9) return f;
+    }
+    return null;
+  }
+
+  buySnack(player) {
+    const f = this.stallNear(player);
+    if (f) {
       const menu = [['Vada pav', 20, 0.25, 0], ['Cutting chai', 15, 0.05, 0.25], ['Bhutta', 30, 0.2, 0], ['Pav bhaji', 120, 0.55, 0.05], ['Nimbu paani', 25, 0.05, 0.15], ['Fruit plate', 60, 0.3, 0.05]];
       const [name, price, hunger, energy] = pick(menu);
       if (!this.state.canAfford(price)) { this.hud.message(`₹${price} for ${name.toLowerCase()} — you're broke. Drive some fares (J).`); return true; }

@@ -24,7 +24,10 @@ export class Car {
     this.pitch = 0; this.roll = 0;
   }
 
-  /** world.hits(x, z, r) → blocked; world.groundHeight(x, z) → y. */
+  /**
+   * world.hits(x, z, r, y, vehicle) → blocked; world.groundHeight(x, z, y) → y. Both get the car's
+   * height: on a flyover deck it meets the barriers and rides the deck; beneath, the street.
+   */
   update(dt, input, world) {
     const BRAKE = 9, DRAG = 0.35, ROLLING = 0.6;
     const empty = this.fuel <= 0;
@@ -72,10 +75,11 @@ export class Car {
     const circles = this.circles || (this.circles = [HL, -HL]);
     const blockedAt = (x, z, h) => {
       const sh = Math.sin(h), ch = Math.cos(h);
-      for (const o of circles) if (world.hits(x + sh * o, z + ch * o, R)) { hitOffset = o; return o < 0 ? -1 : 1; }
+      for (const o of circles) if (world.hits(x + sh * o, z + ch * o, R, y, true)) { hitOffset = o; return o < 0 ? -1 : 1; }
       return 0;
     };
     let hitOffset = 0;
+    const y = this.pos.y;
     // Turning into a wall: keep the old heading.
     if (blockedAt(this.pos.x, this.pos.z, this.heading) && !blockedAt(this.pos.x, this.pos.z, oldHeading)) {
       this.heading = oldHeading; this.yaw = 0; fx = Math.sin(this.heading); fz = Math.cos(this.heading);
@@ -88,9 +92,9 @@ export class Car {
       const end = blockedAt(this.pos.x + sx, this.pos.z + sz, this.heading);
       if (!end) { this.pos.x += sx; this.pos.z += sz; continue; }
       const cx = this.pos.x + sx + fx * hitOffset, cz = this.pos.z + sz + fz * hitOffset;
-      const [nx, nz] = freeDirection(world, cx, cz, R, -this.vx, -this.vz);
+      const [nx, nz] = freeDirection(world, cx, cz, R, -this.vx, -this.vz, y);
       // Another vehicle: exchange momentum by mass (a scooter flies, a bus barely notices).
-      const body = world.bodyAt?.(cx, cz, R);
+      const body = world.bodyAt?.(cx, cz, R, y);
       if (body) {
         const m = this.mass || 900, M = body.mass;
         const rel = (this.vx - body.vx) * nx + (this.vz - body.vz) * nz;
@@ -126,7 +130,7 @@ export class Car {
     // Already overlapping something (spawned or pushed into it): ease out towards free space.
     const ov = blockedAt(this.pos.x, this.pos.z, this.heading);
     if (ov) {
-      const [nx, nz] = freeDirection(world, this.pos.x + fx * hitOffset, this.pos.z + fz * hitOffset, R, -fx * ov, -fz * ov);
+      const [nx, nz] = freeDirection(world, this.pos.x + fx * hitOffset, this.pos.z + fz * hitOffset, R, -fx * ov, -fz * ov, y);
       this.pos.x += nx * Math.min(0.25, 3 * dt); this.pos.z += nz * Math.min(0.25, 3 * dt);
     }
     if (impact > 0.5) {
@@ -148,9 +152,9 @@ export class Car {
     // Ground: average of front and rear wheels; kerbs and potholes give a bump.
     const wx = Math.sin(this.heading) * 1.17, wz = Math.cos(this.heading) * 1.17;
     world.pothole = false;
-    const gF = world.groundHeight(this.pos.x + wx, this.pos.z + wz), inF = !!world.pothole;
+    const gF = world.groundHeight(this.pos.x + wx, this.pos.z + wz, y), inF = !!world.pothole;
     world.pothole = false;
-    const gR = world.groundHeight(this.pos.x - wx, this.pos.z - wz), inR = !!world.pothole;
+    const gR = world.groundHeight(this.pos.x - wx, this.pos.z - wz, y), inR = !!world.pothole;
     world.pothole = inF || inR;
     const g = (gF + gR) / 2;
     // Jolts come from the ground itself changing under a wheel — a kerb edge, a wheel dropping
@@ -202,11 +206,11 @@ export class Car {
  * Direction from a blocked circle towards free space: probe 8 directions and average the
  * free ones. Falls back to `(bx, bz)` (e.g. against the motion) when everything is blocked.
  */
-export function freeDirection(world, x, z, r, bx, bz) {
+export function freeDirection(world, x, z, r, bx, bz, y) {
   let nx = 0, nz = 0, free = 0;
   for (let k = 0; k < 8; k++) {
     const a = (k / 8) * Math.PI * 2, cx = Math.cos(a), cz = Math.sin(a);
-    if (!world.hits(x + cx * r * 0.7, z + cz * r * 0.7, r * 0.45)) { nx += cx; nz += cz; free++; }
+    if (!world.hits(x + cx * r * 0.7, z + cz * r * 0.7, r * 0.45, y, true)) { nx += cx; nz += cz; free++; }
   }
   if (!free || free === 8 || Math.hypot(nx, nz) < 1e-3) { nx = bx; nz = bz; }
   const l = Math.hypot(nx, nz) || 1;

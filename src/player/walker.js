@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { POSE } from '../sim/people.js';
+import { POSE, makePerson } from '../sim/people.js';
+import { playerLook } from '../sim/looks.js';
 
 // The player on foot: walk (W/S, A/D to turn), run with Shift (uses stamina, which bad air
 // and low energy shrink), bump into walls, get knocked over by careless drivers.
@@ -35,7 +36,11 @@ export class Walker {
       return;
     }
     const yaw = view ? view.yaw : this.heading;
-    const mz = (input.fwd ? 1 : 0) - (input.back ? 1 : 0), mx = (input.left ? 1 : 0) - (input.right ? 1 : 0);
+    // Keys give full steps; the touch joystick gives an analogue push (moveX right, moveY away).
+    const analog = !!input.analog;
+    const mz = analog ? input.moveY || 0 : (input.fwd ? 1 : 0) - (input.back ? 1 : 0);
+    const mx = analog ? -(input.moveX || 0) : (input.left ? 1 : 0) - (input.right ? 1 : 0);
+    const push = analog ? Math.min(1, Math.hypot(mx, mz)) : 1;
     const aiming = view?.aim || this.spraying || this.attacking > 0;
     let dirx = 0, dirz = 0;
     if (mz || mx) {
@@ -49,8 +54,8 @@ export class Walker {
     this.heading += d * Math.min(1, dt * (aiming ? 14 : 9));
     const moving = mz || mx;
     const canRun = this.stamina > 0.05 && moving && !aiming;
-    const run = input.run && canRun;
-    const top = !moving ? 0 : aiming ? 1.4 : run ? 5.2 * (0.7 + 0.3 * energy) : 1.9;
+    const run = (input.run || (analog && push > 0.92)) && canRun; // a full joystick push runs
+    const top = !moving ? 0 : aiming ? 1.4 : run ? 5.2 * (0.7 + 0.3 * energy) : 1.9 * Math.max(0.3, Math.min(1, push / 0.8));
     this.speed += Math.max(-8 * dt, Math.min(6 * dt, top - this.speed));
     // Stamina: running drains it (faster in bad air), walking and standing restore it.
     const drain = (0.11 + aqi / 2500) * (1.3 - energy * 0.3);
@@ -60,10 +65,12 @@ export class Walker {
     this.vx = (this.vx || 0) * Math.exp(-dt * 5); this.vz = (this.vz || 0) * Math.exp(-dt * 5);
     const dx = mvx * this.speed * dt + this.vx * dt, dz = mvz * this.speed * dt + this.vz * dt;
     // Slide along walls instead of stopping dead.
-    if (!world.hits(this.pos.x + dx, this.pos.z, 0.3)) this.pos.x += dx;
-    if (!world.hits(this.pos.x, this.pos.z + dz, 0.3)) this.pos.z += dz;
-    // The floor: the street, or the room's own (stairs included) when the world provides it.
-    const ground = world.groundHeight ? world.groundHeight(this.pos.x, this.pos.z) : this.tiles.groundHeight(this.pos.x, this.pos.z);
+    // (y: on a flyover or footbridge the walker keeps to it; on the street, decks overhead don't matter)
+    const y = this.pos.y;
+    if (!world.hits(this.pos.x + dx, this.pos.z, 0.3, y)) this.pos.x += dx;
+    if (!world.hits(this.pos.x, this.pos.z + dz, 0.3, y)) this.pos.z += dz;
+    // The floor: the street (or a deck, a skywalk's stairs), or the room's own (stairs included) when the world provides it.
+    const ground = world.groundHeight ? world.groundHeight(this.pos.x, this.pos.z, y) : this.tiles.groundHeight(this.pos.x, this.pos.z, y);
     this.pos.y += (ground - this.pos.y) * Math.min(1, dt * 15);
     this.phase += dt * Math.abs(this.speed) * 4.3;
     this.attacking = Math.max(0, (this.attacking || 0) - dt);
@@ -95,9 +102,9 @@ export class Walker {
     else if (this.aiming) pose = POSE.FIGHT;
     if (this.down > 0) pose = POSE.FALLEN;
     // One persistent object, so the real character model keeps following the same person.
-    const p = (this.person ||= { isPlayer: true, flags: 0, scale: 1, model: 0, hair: new THREE.Color(0x17110c) });
+    const p = (this.person ||= makePerson({ isPlayer: true, model: 0, hair: new THREE.Color(0x17110c) }));
     p.hitT = this.hurt > 0 ? this.hurt : 0; p.swingN = this.action?.n || p.swingN || 0;
-    Object.assign(p, { x: this.pos.x, y: this.pos.y, z: this.pos.z, heading: this.heading, phase: this.action?.t > 0 ? this.action.phase : this.phase, pose, amp: Math.min(1.7, Math.abs(this.speed) / 1.3 + 0.2), speed: Math.abs(this.speed), shirt: this.look.shirt, pants: this.look.pants, skin: this.look.skin, patches: this.patches });
+    Object.assign(p, { x: this.pos.x, y: this.pos.y, z: this.pos.z, heading: this.heading, phase: this.action?.t > 0 ? this.action.phase : this.phase, pose, amp: Math.min(1.7, Math.abs(this.speed) / 1.3 + 0.2), speed: Math.abs(this.speed), shirt: this.look.shirt, pants: this.look.pants, skin: this.look.skin, look: playerLook(this.look.wear), patches: this.patches });
     people.add(p);
   }
 }

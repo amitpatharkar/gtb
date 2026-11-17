@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { POSE, FLAG, outfit } from '../sim/people.js';
+import { POSE, FLAG, outfit, makePerson } from '../sim/people.js';
 import { buildMissions } from './missions.js';
 import { HOME } from './state.js';
 const CONTINUE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 'Tap to continue' : 'Space to continue';
@@ -74,7 +74,7 @@ export class Story {
     const def = m?.cast?.[id] || (id === 'mamaji' ? { name: 'Mamaji', kind: 'office', cap: true, white: true } : id === 'shabbir' ? { name: 'Shabbir bhai', kind: 'casual' } : { name: id, kind: 'casual' });
     const look = outfit(def.kind || 'casual');
     if (def.white) { look.shirt = new THREE.Color(0xf2efe6); look.pants = new THREE.Color(0xf2efe6); }
-    return { ...look, kind: def.kind === 'sari' ? 'sari' : def.kind, x: 0, y: 0.2, z: 0, heading: 0, phase: 0, pose: POSE.STAND, amp: 1, flags: (def.cap ? FLAG.CAP : 0) | (def.kind === 'sari' ? FLAG.SARI : 0), scale: def.kind === 'kid' ? 0.72 : 1, h: def.kind === 'kid' ? 1.7 : 2.2, name: def.name, placed: false };
+    return makePerson({ ...look, kind: def.kind === 'sari' ? 'sari' : def.kind || '', x: 0, y: 0.2, z: 0, heading: 0, phase: 0, pose: POSE.STAND, amp: 1, flags: (def.cap ? FLAG.CAP : 0) | (def.kind === 'sari' ? FLAG.SARI : 0), scale: def.kind === 'kid' ? 0.72 : 1, h: def.kind === 'kid' ? 1.7 : 2.2, name: def.name, placed: false });
   }
 
   person(id) { return (this.cast[id] ||= this.makePerson(id, this.active)); }
@@ -361,7 +361,7 @@ export class Story {
     const pax = !onFoot && this.world.garage && !this.world.garage.inTaxi ? this.world.garage.spec?.pax : null;
     if (pax) for (const p of Object.values(this.cast)) if (p.inTaxi && !p.gone) {
       const h = player.heading, sh = Math.sin(h), ch = Math.cos(h);
-      this.people.add({ ...p, noHero: true, keep: true, x: player.pos.x + sh * pax.z - ch * 0.22, y: player.pos.y + pax.seat - 0.42, z: player.pos.z + ch * pax.z + sh * 0.22, heading: h, phase: 0, pose: POSE.SIT });
+      this.people.add(Object.assign(this.paxCopy?.task === p ? this.paxCopy : (this.paxCopy = makePerson({ ...p, noHero: true, keep: true, task: p })), { x: player.pos.x + sh * pax.z - ch * 0.22, y: player.pos.y + pax.seat - 0.42, z: player.pos.z + ch * pax.z + sh * 0.22, heading: h, phase: 0, pose: POSE.SIT }));
     }
     let objective = st.label || '';
     if (st.cut) {

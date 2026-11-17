@@ -32,7 +32,9 @@ export class Combat {
 
   setWeapon(w) {
     this.weapon = w;
-    this.hud.message(w === 'pichkari' ? `Pichkari (${this.pichkari.colourName}) — left mouse or Space to spray, right mouse to aim` : 'Fists — left mouse to punch, V to kick, G to insult');
+    this.hud.message(this.touch // touch screens: the buttons say it (src/ui/touch.js)
+      ? (w === 'pichkari' ? `💦 Pichkari (${this.pichkari.colourName}) — hold to spray, drag it to aim` : '👊 Fists — tap to punch, hold 🛡️ to block')
+      : w === 'pichkari' ? `Pichkari (${this.pichkari.colourName}) — left mouse or Space to spray, right mouse to aim` : 'Fists — left mouse to punch, V to kick, G to insult');
   }
   toggleWeapon() { this.setWeapon(this.weapon === 'fists' ? 'pichkari' : 'fists'); }
 
@@ -329,6 +331,7 @@ export class Combat {
       if (!o || o.combat?.mode === 'down' || o.downT > 0) return;
       const dx = o.x - car.pos.x, dz = o.z - car.pos.z;
       if (Math.abs(dx) > 9 || Math.abs(dz) > 9 || car.vx * dx + car.vz * dz <= 0) return;
+      if (o.y !== undefined && Math.abs(o.y - car.pos.y) > 2) return; // a flyover over their heads
       const along = Math.max(-HL, Math.min(HL, dx * fx + dz * fz));
       let ex = dx - fx * along, ez = dz - fz * along;
       const d = Math.hypot(ex, ez);

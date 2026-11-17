@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { makePerson } from '../sim/people.js';
 
 // Any vehicle on the street can be taken and driven, GTA-style (F next to it on foot).
 // The player's Car object stays the same; the Garage swaps what it is: model, size,
@@ -17,12 +18,13 @@ const DRIVE = {
   padmini: [26, 6.2], bus: [18, 2.6], decker: [16, 2.3], ace: [20, 3.6], tempo: [21, 3.2],
   scooter: [22, 6.5], delivery: [22, 6.5], bike: [27, 8], bullet: [30, 7.2],
   auto: [17, 4.2], cycle: [8, 3.2], dabba: [8, 3], ambulance: [30, 6], school: [17, 2.5], tanker: [19, 2.8], compactor: [17, 2.6],
+  handcart: [3.2, 1.3], // pushed at a run, at best
 };
 /** Rough kerb weights (kg) for collisions. */
 export const MASS = {
   alto: 760, wagonr: 850, taxi: 850, taxiI10: 900, i10: 900, swift: 900, dzire: 950, cabDzire: 950, city: 1150, ertiga: 1200, cabErtiga: 1200, coolcab: 1200,
   innova: 1800, bolero: 1650, creta: 1300, eeco: 950, padmini: 900, bus: 11000, decker: 15000, ace: 1100, tempo: 3200, scooter: 110, delivery: 120, bike: 115, bullet: 195,
-  auto: 380, cycle: 20, dabba: 40, ambulance: 1000, school: 9000, tanker: 7500, compactor: 8000,
+  auto: 380, cycle: 20, dabba: 40, ambulance: 1000, school: 9000, tanker: 7500, compactor: 8000, handcart: 220,
 };
 
 export class Garage {
@@ -43,7 +45,7 @@ export class Garage {
   get inTaxi() { return this.type === 'taxi'; }
   get spec() { return this.traffic.types[this.type === 'taxi' ? 'padmini' : this.type]; }
   get name() { return this.inTaxi ? 'your kaali-peeli' : this.spec.name; }
-  get rider() { return !this.inTaxi && !!this.spec.rider; }
+  get rider() { return !this.inTaxi && !!this.spec.rider && !this.spec.pull; } // two-wheelers (a handcart is pulled on foot)
   /** The player can be seen driving: two-wheelers and open autos. */
   get seated() { return !this.inTaxi && !!(this.spec.rider || this.spec.open); }
 
@@ -68,8 +70,8 @@ export class Garage {
   shape(type) {
     const p = this.player, S = type === 'taxi' ? null : this.traffic.types[type];
     if (this.audio) {
-      this.audio.engineKind = !S ? 'car' : S.pedal ? 'cycle' : S.rider ? 'bike' : S.open ? 'auto' : S.big ? 'big' : 'car';
-      this.audio.hornKind = !S ? null : S.pedal ? 'bell' : S.rider || S.open ? 'peep' : null;
+      this.audio.engineKind = !S ? 'car' : S.pedal || S.pull ? 'cycle' : S.rider ? 'bike' : S.open ? 'auto' : S.big ? 'big' : 'car';
+      this.audio.hornKind = !S ? null : S.pull ? 'none' : S.pedal ? 'bell' : S.rider || S.open ? 'peep' : null; // handcart pullers shout instead (main.js honk)
     }
     if (type === 'taxi') { Object.assign(p, this.taxiShape); p.mass = MASS.padmini; return; }
     const T = this.traffic.types[type], [top, accel] = DRIVE[type] || DRIVE[T.base] || [28, 6];
@@ -86,10 +88,11 @@ export class Garage {
    * The vehicle a person at (x, z) could get into: the nearest of traffic cars, parked and
    * abandoned vehicles within reach. Returns { kind, v, d } or null.
    */
-  nearest(x, z, reach = 2.4) {
+  nearest(x, z, reach = 2.4, y = null) {
     let best = null;
     const test = (v, kind) => {
       if (Math.abs(v.x - x) > 9 || Math.abs(v.z - z) > 9) return;
+      if (y !== null && Math.abs((v.y ?? 0.02) - y) > 2.5) return; // on the flyover overhead, or the street below
       const T = this.traffic.types[v.type];
       if (!T) return;
       const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
@@ -107,10 +110,10 @@ export class Garage {
   park() {
     const p = this.player;
     if (this.inTaxi) {
-      this.home = { x: p.pos.x, z: p.pos.z, heading: p.heading, fuel: p.fuel, condition: p.condition };
+      this.home = { x: p.pos.x, z: p.pos.z, y: p.pos.y, heading: p.heading, fuel: p.fuel, condition: p.condition };
       this.homeBody = { pos: new THREE.Vector3(p.pos.x, p.pos.y, p.pos.z), heading: p.heading, condition: p.condition, speed: 0 };
     } else {
-      this.traffic.left.push({ type: this.type, x: p.pos.x, z: p.pos.z, heading: p.heading, tint: this.tint, fuel: p.fuel, condition: p.condition, taken: true });
+      this.traffic.left.push({ type: this.type, x: p.pos.x, z: p.pos.z, y: p.pos.y, heading: p.heading, tint: this.tint, fuel: p.fuel, condition: p.condition, taken: true });
       this.scene.remove(this.model.root);
       this.model = null;
     }
@@ -133,7 +136,7 @@ export class Garage {
     this.scene.add(this.model.root);
     p.model = this.model;
     this.shape(v.type);
-    p.pos.set(v.x, p.pos.y, v.z); p.heading = v.heading; p.speed = 0; p.vx = p.vz = 0; p.lastSpeed = 0; p.steer = 0;
+    p.pos.set(v.x, v.y ?? p.pos.y, v.z); p.heading = v.heading; p.speed = 0; p.vx = p.vz = 0; p.lastSpeed = 0; p.steer = 0;
     p.fuel = v.fuel ?? 0.35 + Math.random() * 0.55;
     p.condition = v.condition ?? 0.9 + Math.random() * 0.1;
     this.moveLamps(this.model.root, this.spec);
@@ -150,7 +153,7 @@ export class Garage {
     this.type = 'taxi'; this.tint = null;
     p.model = this.taxi;
     this.shape('taxi');
-    p.pos.set(h.x, p.pos.y, h.z); p.heading = h.heading; p.speed = 0; p.vx = p.vz = 0; p.lastSpeed = 0;
+    p.pos.set(h.x, h.y ?? p.pos.y, h.z); p.heading = h.heading; p.speed = 0; p.vx = p.vz = 0; p.lastSpeed = 0;
     p.fuel = h.fuel; p.condition = h.condition;
     this.home = null;
     this.moveLamps(this.taxi.root, null);
@@ -166,11 +169,11 @@ export class Garage {
   eject(car, walker, mode = null) {
     const h = car.heading, rx = -Math.cos(h), rz = Math.sin(h); // driver's side (right-hand drive)
     const look = car.look || this.outfit('casual');
-    const ped = {
-      ...look, kind: 'driver', flags: 0, scale: 0.96 + Math.random() * 0.1, x: car.x + rx * 1.5, z: car.z + rz * 1.5, y: 0.2,
+    const ped = makePerson({
+      shirt: look.shirt, pants: look.pants, skin: look.skin, look: look.look || null, kind: 'driver', flags: 0, scale: 0.96 + Math.random() * 0.1, x: car.x + rx * 1.5, z: car.z + rz * 1.5, y: 0.2,
       heading: Math.atan2(-rx, -rz), phase: 0, pose: 4, state: 'walk', timer: 0, ox: 0, oz: 0, h: 2.1, speed: 1.3, rolled: true, hp: 1,
       seg: car.seg, dir: 1, t: 0.5, side: 1, off: 0,
-    };
+    });
     this.street.peds.push(ped);
     const r = Math.random();
     this.combat.free(ped, mode || (r < 0.45 ? 'fight' : r < 0.6 ? 'throw' : 'flee'));
@@ -192,9 +195,9 @@ export class Garage {
   }
 
   /** Circles other things should avoid for the parked taxi (while the player drives something else). */
-  taxiHits(x, z, r) {
+  taxiHits(x, z, r, y = 0.02) {
     const h = this.home;
-    if (!h) return false;
+    if (!h || Math.abs((h.y ?? 0.02) - y) > 2.5) return false; // (parked on a flyover, or under one)
     const fx = Math.sin(h.heading) * 1.1, fz = Math.cos(h.heading) * 1.1;
     return (x - h.x - fx) ** 2 + (z - h.z - fz) ** 2 < (r + 0.8) ** 2 || (x - h.x + fx) ** 2 + (z - h.z + fz) ** 2 < (r + 0.8) ** 2;
   }

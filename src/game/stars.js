@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { POSE, FLAG, outfit } from '../sim/people.js';
+import { POSE, FLAG, outfit, makePerson } from '../sim/people.js';
 
 // Superstar fan meets, a very Mumbai thing: crowds wait outside a film star's seafront
 // villa, and at a set hour the star steps out onto a platform above the gate, waves, and
@@ -64,7 +64,7 @@ export class Stars {
   /** Find a free spot beside the nearest road, build the gate and platform, gather the fans. */
   place(s) {
     // Try the roads around the site, nearest first, for a stretch with open ground beside it.
-    const segs = (this.traffic.segList || []).map((q) => q.s).filter((q) => q[4] >= 2.5)
+    const segs = (this.traffic.segList || []).map((q) => q.s).filter((q) => q[4] >= 2.5 && !(q[5] & 32))
       .map((q) => [q, Math.hypot((q[0] + q[2]) / 2 - s.x, (q[1] + q[3]) / 2 - s.z)]).filter(([, d]) => d < 230).sort((a, b) => a[1] - b[1]).slice(0, 60);
     let spot = null, fx = 0, fz = 0, hw = 3;
     for (const [sg] of segs) {
@@ -126,11 +126,11 @@ export class Stars {
     for (let i = 0; i < s.fans; i++) {
       const kind = pick(['casual', 'casual', 'casual', 'sari', 'office', 'kid']);
       const [x, z] = world((Math.random() - 0.5) * 12, 1.0 + Math.random() * Math.min(4.2, hw + 1.5));
-      s.fansList.push({ ...outfit(kind), kind, flags: kind === 'sari' ? FLAG.SARI : 0, scale: kind === 'kid' ? 0.7 : 0.93 + Math.random() * 0.12, x, z, y: this.tiles.groundHeight(x, z), heading: s.heading + Math.PI + (Math.random() - 0.5) * 0.5, phase: Math.random() * 6, pose: POSE.STAND, amp: 1, h: kind === 'kid' ? 1.5 : 2.1, fan: true });
+      s.fansList.push(makePerson({ ...outfit(kind), kind, flags: kind === 'sari' ? FLAG.SARI : 0, scale: kind === 'kid' ? 0.7 : 0.93 + Math.random() * 0.12, x, z, y: this.tiles.groundHeight(x, z), heading: s.heading + Math.PI + (Math.random() - 0.5) * 0.5, phase: Math.random() * 6, pose: POSE.STAND, amp: 1, h: kind === 'kid' ? 1.5 : 2.1, fan: true }));
     }
     for (const lx of [-4.6, 4.6]) {
       const [x, z] = world(lx, 0.9);
-      s.fansList.push({ ...outfit('police'), flags: FLAG.CAP, scale: 1, x, z, y: this.tiles.groundHeight(x, z), heading: s.heading, phase: 0, pose: POSE.STAND, amp: 1, h: 2.2, cop: true });
+      s.fansList.push(makePerson({ ...outfit('police'), kind: 'police', flags: FLAG.CAP, scale: 1, x, z, y: this.tiles.groundHeight(x, z), heading: s.heading, phase: 0, pose: POSE.STAND, amp: 1, h: 2.2, cop: true }));
     }
     const [sx, sz] = world(0, -1.6);
     s.person = { shirt: new THREE.Color(s.shirt), pants: new THREE.Color(s.pants), skin: new THREE.Color(0xb98a66), hair: new THREE.Color(s.id === 'legend' ? 0xb8b8b8 : 0x120d0a), flags: 0, scale: 1.03, x: sx, z: sz, y: s.y + 3.28, heading: s.heading, phase: 0, pose: POSE.WAVE, amp: 1, h: 2.2, model: s.id === 'legend' ? 5 : 3 };

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { endKey, keyXZ } from './roadKeys.js';
+import { endKey, keyXZ, keyY } from './roadKeys.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { POINT } from '../world/tileFormat.js';
 
@@ -101,6 +101,7 @@ export class Signals {
     // Graph nodes: junctions have 3+ segment ends; mid-block crossings have 2.
     const nodes = [];
     for (const [k, list] of traffic.ends) {
+      if (Math.abs(keyY(k)) > 1) continue; // junctions on flyovers and in tunnels have no signals
       const [kx, kz] = keyXZ(k);
       nodes.push({ k, x: kx, z: kz, list });
     }

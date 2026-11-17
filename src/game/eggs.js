@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { POSE, FLAG, outfit } from '../sim/people.js';
+import { POSE, FLAG, outfit, makePerson } from '../sim/people.js';
 import { Y } from '../world/levels.js';
 
 // Things to find. Two kinds:
@@ -201,12 +201,12 @@ export class Eggs {
       else this.mesh(g, new THREE.SphereGeometry(0.07, 6, 5), 0xd0182a, -0.6 + k * 0.24, 1.0, 0.1 + (k % 2) * 0.12);
     }
     const look = outfit(color === 0xf2efe6 ? 'sari' : 'casual');
-    e.person = { ...look, flags: color === 0xf2efe6 ? FLAG.SARI : 0, scale: 1, x: e.at[0] - Math.sin(e.face || 0) * 0.9, z: e.at[1] - Math.cos(e.face || 0) * 0.9, y: Y.KERB, heading: e.face || 0, phase: 0, pose: POSE.STAND, amp: 1, h: 2.1 };
+    e.person = makePerson({ ...look, kind: color === 0xf2efe6 ? 'sari' : 'casual', flags: color === 0xf2efe6 ? FLAG.SARI : 0, scale: 1, x: e.at[0] - Math.sin(e.face || 0) * 0.9, z: e.at[1] - Math.cos(e.face || 0) * 0.9, y: Y.KERB, heading: e.face || 0, phase: 0, pose: POSE.STAND, amp: 1, h: 2.1 });
   }
 
   buildGuard(e) {
     this.group(e, Y.KERB);
-    e.person = { ...outfit('police'), shirt: new THREE.Color(0x1d2a44), pants: new THREE.Color(0x1d2a44), flags: FLAG.CAP, scale: 1.04, x: e.at[0], z: e.at[1], y: Y.KERB, heading: e.face || 0, phase: 0, pose: POSE.STAND, amp: 1, h: 2.2 };
+    e.person = makePerson({ ...outfit('police'), shirt: new THREE.Color(0x1d2a44), pants: new THREE.Color(0x1d2a44), flags: FLAG.CAP, scale: 1.04, x: e.at[0], z: e.at[1], y: Y.KERB, heading: e.face || 0, phase: 0, pose: POSE.STAND, amp: 1, h: 2.2 });
     e.lines = ['Service gate se aao.', 'Photo allowed nahi hai.', 'Seth ji so rahe hain. Sattaaisvi manzil pe.', 'Gaadi yahan mat lagao.'];
   }
 
