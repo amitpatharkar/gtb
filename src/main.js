@@ -16,6 +16,7 @@ import { Car } from './vehicles/car.js';
 import { GameClock } from './sim/clock.js';
 import { Traffic, setStreetProfiles } from './sim/traffic.js';
 import { FacadeParts } from './world/facadeParts.js';
+import { StreetClutter } from './world/clutter.js';
 import { Skyline } from './world/skyline.js';
 import { Birds } from './sim/birds.js';
 import { Art } from './world/art.js';
@@ -55,10 +56,11 @@ import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
 import { titleScreen, loadingScreen, pauseMenu, loadSettings } from './ui/menu.js';
+import { TouchControls } from './ui/touch.js';
 import { registerServiceWorker } from './serviceWorker.js';
 
 const BASE = import.meta.env.BASE_URL;
-const TOUCH = matchMedia('(pointer: coarse)').matches; // a touch screen: no keyboard hints
+const TOUCH = matchMedia('(pointer: coarse)').matches || query.has('touch'); // a touch screen: touch controls, no keyboard hints (?touch forces them)
 registerServiceWorker(BASE); // cached map and media on repeat visits (built game only)
 
 // ------------------------------------------------------------------ title screen
@@ -136,6 +138,8 @@ const skyline = new Skyline(scene, tiles, tier, camera.far); // distant tall bui
 const signals = new Signals(scene);
 traffic.signals = signals;
 const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
+// Street clutter near the player: boards, unipoles, cables, awnings and tarps, shrines, flower sellers, gates with watchmen.
+const clutter = new StreetClutter({ scene, renderer, tiles, materials, tier, people });
 const characters = new Characters(scene, BASE, tier, lib, started);
 let frameDt = 0;
 people.beforeEnd = (list) => {
@@ -305,7 +309,7 @@ function toggleFoot() {
     onFoot = true;
     if (jobs.ride?.stage === 'ride') say('Your passenger is waiting in the taxi!', 3);
     // The long reminder only the first couple of times: it hides door prompts while it is up.
-    if ((footHints = (footHints || 0) + 1) <= 2 && TOUCH) say('On foot: drag to look · arrows walk · 👊💦 punch or spray · 🎯 aim · 🔁 fists/pichkari · 🚪 by any vehicle takes it (the driver gets pulled out)', 6);
+    if ((footHints = (footHints || 0) + 1) <= 2 && TOUCH) say('On foot: left thumb walks (push all the way to run) · drag the screen to look · 👊 attack · 🛡️ block / 🎯 aim · buttons pop up by vehicles, doors and thelas', 6);
     else if (footHints <= 2) say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · X light a cracker (Z changes it) · E at a glowing door goes in · F near any vehicle steals it (run to the driver\'s door, pull them out)', 6);
   } else {
     const c = vehicleChoice();
@@ -316,6 +320,7 @@ function toggleFoot() {
     onFoot = false;
     walker.spraying = false;
   }
+  hudTimer = 0; // touch controls switch at once
 }
 
 // ------------------------------------------------------------------ taking a vehicle
@@ -337,7 +342,7 @@ function updateJack(dt) {
   const { target } = jack, v = target.v, T = traffic.types[v.type];
   const list = target.kind === 'traffic' ? traffic.cars : target.kind === 'parked' ? traffic.parked : traffic.left;
   jack.t += dt;
-  const moved = input.fwd || input.back || input.left || input.right;
+  const moved = input.fwd || input.back || input.left || input.right || (input.analog && Math.hypot(input.moveX, input.moveY) > 0.3);
   if (!T || !list.includes(v) || (moved && jack.t > 0.25) || walker.down > 0) { jack = null; return; }
   const h = v.heading, fx = Math.sin(h), fz = Math.cos(h), rx = -Math.cos(h), rz = Math.sin(h);
   const side = T.rider ? 0.7 : T.wid / 2 + 0.45, ahead = T.rider ? -0.1 : T.len * 0.08;
@@ -527,6 +532,8 @@ const pause = pauseMenu({
   quit: () => { state.save(); location.reload(); },
   canAbandon: () => !!story.s.active && !story.busy,
   abandon: () => story.fail('abandoned'),
+  skipHour: () => skipHour(),
+  tow: () => teleportHome(), // touch screens have no R key
 });
 let helpTimer = 50; // the long key list shows for the first 50 s, then ? brings it back
 applySettings(settings);
@@ -565,17 +572,35 @@ addEventListener('keydown', (e) => {
 addEventListener('pointerdown', () => audio.start());
 // A hidden tab stops sound (and the radio doesn't pile up missed notes on return).
 document.addEventListener('visibilitychange', () => { audio.ctx?.[document.hidden ? 'suspend' : paused ? 'suspend' : 'resume']?.(); });
-for (const [id, fn] of [['btn-kick', () => combat.kick()], ['btn-abuse', () => combat.abuse()], ['btn-weapon', () => combat.toggleWeapon()], ['btn-colour', () => { pichkari.nextColour(); combat.setWeapon('pichkari'); }]]) {
-  $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); fn(); });
-}
-$('btn-door')?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); toggleFoot(); });
-// Touch: skip an hour (T), light a cracker (X); a tap anywhere moves a cutscene on (Space).
-$('btn-time')?.addEventListener('pointerdown', (e) => { e.preventDefault(); skipHour(); });
-$('btn-cracker')?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); if (onFoot) crackers.playerLight(walker, clock); });
+// Touch screens: joystick, steering pad, pedals and context buttons (src/ui/touch.js).
+// A tap anywhere moves a cutscene on (Space).
 addEventListener('pointerdown', () => { if (story.camera && (story.lines?.length || story.ext)) story.skip(); });
-for (const id of ['btn-horn', 'btn-fuel']) {
-  $(id)?.addEventListener('pointerdown', (e) => { e.preventDefault(); audio.start(); if (id === 'btn-horn') honk(); else interact(); });
+const touch = TOUCH ? new TouchControls(input, view, {
+  horn: () => { audio.start(); honk(); },
+  door: () => { audio.start(); toggleFoot(); },
+  radio: () => { audio.start(); if (!onFoot) radio.next(); },
+  duty: () => jobs.toggleDuty(player, jobs.onDuty ? jobs.mode : 'taxi'),
+  kick: () => combat.kick(),
+  insult: () => combat.abuse(),
+  weapon: () => combat.toggleWeapon(),
+  colour: () => { pichkari.nextColour(); combat.setWeapon('pichkari'); say(`💦 ${pichkari.colourName}`, 1.2); },
+  pressure: () => { pichkari.setPressure(pichkari.pressure % 5 + 1); say(`💦 Pressure ${pichkari.pressure}`, 1); },
+  cracker: () => { audio.start(); if (onFoot && !interiors.inside) crackers.playerLight(walker, clock); },
+  crackerType: () => crackers.next(),
+  interact: () => { audio.start(); interact(); },
+  time: () => skipHour(),
+  pause: () => pause.toggle(true),
+  fullscreen: () => toggleFullscreen(),
+}) : null;
+if (touch) combat.touch = true; // touch wording in the weapon hints
+/** Phones: full screen (and landscape where the browser allows it) gives the controls room. */
+function toggleFullscreen(on = !document.fullscreenElement) {
+  if (!document.fullscreenEnabled) return;
+  if (!on) { document.exitFullscreen?.().catch(() => {}); return; }
+  document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }).then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
 }
+// The first tap in the game asks for full screen once (a tap is needed: browsers refuse it otherwise).
+if (touch && !navigator.webdriver) addEventListener('pointerup', () => toggleFullscreen(true), { once: true });
 
 /** E: refuel at a pump (in the taxi), or buy a snack at a thela. */
 function interact() {
@@ -604,7 +629,8 @@ function hospital() {
 
 function honk() {
   if (onFoot) { pichkari.nextColour(); combat.setWeapon('pichkari'); return; }
-  if (state.owns('horn')) audio.musicalHorn?.(); else audio.play('horn', 0.9);
+  if (garage.spec?.pull) { if (walker.person) bubbles.say(walker.person, ['Bajoo! Bajoo!', 'Side, side!', 'Hato, hato!'][Math.floor(Math.random() * 3)], 1.6); } // handcart: shout, no horn
+  else if (state.owns('horn')) audio.musicalHorn?.(); else audio.play('horn', 0.9);
   street.onHorn();
   birds.scare(player.pos.x, player.pos.z, 10);
   jobs.honk();
@@ -729,7 +755,7 @@ renderer.setAnimationLoop((time) => {
     if (tierProbe.update(raw, dynRes.scale)) { say('Graphics: switching to Low for a smoother game (Q changes it)', 3); setTimeout(() => changeQuality('low', true), 2500); }
   }
   if (helpTimer > 0) { helpTimer -= dt; if (helpTimer <= 0) $('help').classList.remove('show'); }
-  crosshair.hidden = !(onFoot && (view.aim || (combat.weapon === 'pichkari' && view.locked)));
+  crosshair.hidden = !(onFoot && (view.aim || (combat.weapon === 'pichkari' && (view.locked || TOUCH))));
   document.body.classList.toggle('onfoot', onFoot);
   document.body.classList.toggle('cutscene', !!story.camera);
   if (input.reset) { input.reset = false; if (pressedTwice('R', 'Press R again: a tow truck takes you and your taxi back to the Gateway (₹300 from far away)')) teleportHome(); }
@@ -796,6 +822,7 @@ function step(dt) {
   police.update(dt, active, clock);
   street.onFoot = onFoot;
   street.update(dt, active, clock);
+  clutter.drawPeople(clock.hour); // watchmen at compound gates, flower sellers, puja stall keepers
   const fire = (input.fire || input.brake) && !indoors && !cutscene && !trains?.ride?.active && !metro?.r; // holstered indoors; Space skips cutscenes, it doesn't shoot
   combat.update(dt, { fire }, onFoot);
   if (!onFoot && !cutscene) combat.carVsPeople(player);
@@ -813,7 +840,10 @@ function step(dt) {
     // Riding a two-wheeler or driving an auto: the player can be seen in the seat.
     const seat = garage.spec.seat ?? 0.9, back = -(garage.spec.seatZ ?? -0.28), L = walker.look;
     const P = (walker.person ||= { isPlayer: true, flags: 0, scale: 1, model: 0, hair: new THREE.Color(0x17110c) });
-    Object.assign(P, { x: player.pos.x - Math.sin(player.heading) * back, y: player.pos.y + seat - 0.42, z: player.pos.z - Math.cos(player.heading) * back, heading: player.heading, phase: 0, pose: POSE.SIT, amp: 1, speed: 0, shirt: L.shirt, pants: L.pants, skin: L.skin, patches: walker.patches });
+    // A handcart is pulled on foot: the player walks between the shafts.
+    const pull = !!garage.spec.pull;
+    if (pull) walker.pullPhase = (walker.pullPhase || 0) + dt * Math.abs(player.speed) * 2.6;
+    Object.assign(P, { x: player.pos.x - Math.sin(player.heading) * back, y: pull ? tiles.groundHeight(player.pos.x, player.pos.z) : player.pos.y + seat - 0.42, z: player.pos.z - Math.cos(player.heading) * back, heading: player.heading, phase: pull ? walker.pullPhase : 0, pose: pull ? (Math.abs(player.speed) > 0.2 ? POSE.WALK : POSE.STAND) : POSE.SIT, amp: 1, speed: pull ? Math.abs(player.speed) : 0, shirt: L.shirt, pants: L.pants, skin: L.skin, patches: walker.patches });
     people.add(P);
   }
   for (const r of traffic.riders) {
@@ -822,6 +852,12 @@ function step(dt) {
     const T = traffic.types[r.type], seat = T?.seat ?? 0.92, back = -(T?.seatZ ?? -0.28);
     const sh = Math.sin(r.heading), ch = Math.cos(r.heading), L = r.look;
     if (T?.pedal) r.pedal = (r.pedal || 0) + dt * (r.speed || 0) * 1.7;
+    if (T?.pull) {
+      // A porter walks between the shafts of his handcart, leaning into the crossbar.
+      r.pedal = (r.pedal || 0) + dt * (r.speed || 0) * 2.6;
+      people.add({ noHero: true, x: r.x - sh * back, y: tiles.groundHeight(r.x, r.z), z: r.z - ch * back, heading: r.heading, phase: r.pedal, pose: r.speed > 0.2 ? POSE.WALK : POSE.STAND, amp: 0.8, flags: L.cap ? FLAG.CAP : 0, scale: 1, shirt: L.shirt, pants: L.pants, skin: L.skin });
+      continue;
+    }
     people.add({ noHero: true, x: r.x - sh * back, y: seat - (T?.pedal ? 0.86 : 0.42), z: r.z - ch * back, heading: r.heading, phase: r.pedal || 0, pose: T?.pedal ? POSE.PEDAL : POSE.SIT, amp: 1, flags: L.helmet ? FLAG.BERET : L.cap ? FLAG.CAP : 0, scale: 1, shirt: L.shirt, pants: L.pants, skin: L.skin });
     if (r.pax && T.pax) people.add({ noHero: true, x: r.x + sh * T.pax.z - ch * 0.22, y: T.pax.seat - 0.42, z: r.z + ch * T.pax.z + sh * 0.22, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.pax.sari ? FLAG.SARI : 0, scale: 0.96, shirt: r.pax.shirt, pants: r.pax.pants, skin: r.pax.skin });
   }
@@ -839,6 +875,7 @@ function step(dt) {
   streetProps.update(dt, active.pos);
   art.update(active.pos);
   facadeParts.update(dt, active, tiles, night);
+  clutter.update(dt, active, night);
   skyline.update(active.pos);
   birds.update(dt, active, clock.daylight);
   tiles.props.lampMat.emissiveIntensity = night * 9;
@@ -884,7 +921,8 @@ started.then(() => Promise.all([import('./sim/trains.js'), import('./sim/trainRi
     .then((t) => { if (t) t.ride = new TrainRide(t, { walker, tiles, structures, tickets, hud, bubbles, clock, audio, view, people, stations: () => stations, snap: () => placeCamera(0) }); return t; }))
   .then((t) => { trains = window.__gtb.trains = t; })
   .catch((err) => console.warn('Local trains are not available:', err));
-for (const w of [world, footWorld]) { const hits = w.hits; w.hits = (x, z, r, y) => hits(x, z, r, y) || !!trains?.hits(x, z, r); }
+for (const w of [world, footWorld]) { const hits = w.hits; w.hits = (x, z, r, y) => hits(x, z, r, y) || !!trains?.hits(x, z, r) || clutter.hits(x, z, r); } // poles, shrines, stalls (world/clutter.js)
+window.__gtb.clutter = clutter;
 
 // ------------------------------------------------------------------ Tikitwala (phone ticket app)
 // Local tickets from the nearest station (not within about 30 m of the tracks, as with the real
@@ -1010,7 +1048,7 @@ function updateHud() {
   $('fuel-bar').style.width = `${Math.round((onFoot ? walker.stamina : player.fuel) * 100)}%`;
   $('fuel-bar').style.background = player.fuel < 0.15 ? '#e74c3c' : '#f7c600';
   $('cond-bar').style.width = `${Math.round((onFoot ? walker.health : player.condition) * 100)}%`;
-  $('weapon').hidden = !onFoot;
+  $('weapon').hidden = !onFoot || !!touch;
   if (onFoot) {
     // Key help only with a keyboard; written only when it changes.
     const html = (combat.weapon === 'pichkari'
@@ -1037,8 +1075,8 @@ function updateHud() {
     if (police.flagger) message = 'Traffic police is waving you down: stop next to him to pay the challan';
     else if (police.stars >= 2 && police.patrols.length) message = 'Police chasing! Stop to pay up, or get out of sight';
     const p = nearestPump();
-    if (!police.flagger && !(police.stars >= 2 && police.patrols.length)) message = player.fuel <= 0 ? 'Out of fuel! Press R to get towed back' :
-      p && p.d < 16 ? 'Petrol pump: stop and press E to fill up' :
+    if (!police.flagger && !(police.stars >= 2 && police.patrols.length)) message = player.fuel <= 0 ? (touch ? 'Out of fuel! ⏸ → Call a tow truck' : 'Out of fuel! Press R to get towed back') :
+      p && p.d < 16 ? (touch ? 'Petrol pump: stop and tap ⛽ Fill up' : 'Petrol pump: stop and press E to fill up') :
       player.fuel < 0.12 ? 'Low fuel — find ⛽ on the map' :
       player.condition < 0.35 ? 'Car is battered: get it checked at a ⛽' :
       state.s.hunger < 0.15 ? 'Pet mein chuhe daud rahe hain! Eat at a thela (E) or order on Bhookh (P)' :
@@ -1047,9 +1085,56 @@ function updateHud() {
     if (trains?.ride?.prompt && !police.flagger) message = trains.ride.prompt; // "F: board", "F: get off"
     if (metro?.prompt && !police.flagger) message = metro.prompt; // metro: gates, counters, boarding
     if (!message && !police.flagger) message = vehiclePrompt();
+    if (touch) message = message.replace(/^[EF]: /, ''); // the context button is the key on a touch screen
   }
   $('message').textContent = message;
   $('message').style.opacity = message ? 1 : 0;
+  touch?.update(touchState());
+}
+
+// ------------------------------------------------------------------ touch controls: what to show
+const VEHICLE_ICON = { padmini: '🚕', taxi: '🚕', taxiI10: '🚕', bus: '🚌', decker: '🚌', school: '🚌', ace: '🚚', tempo: '🚚', tanker: '🚚', compactor: '🚚', scooter: '🛵', delivery: '🛵', bike: '🏍️', bullet: '🏍️', ambulance: '🚑', auto: '🛺', cycle: '🚲', dabba: '🚲' };
+const vehicleIcon = (type) => VEHICLE_ICON[type] || (/taxi/i.test(type) ? '🚕' : '🚗');
+/** A short button for an "E: …" prompt (doors, things to use indoors). */
+function promptButton(prompt) {
+  const t = prompt.slice(prompt.indexOf('E:') + 2).trim().toLowerCase();
+  if (/^go (out|outside|down)/.test(t)) return { icon: '🚪', label: 'Exit' };
+  if (/^(enter|go up|go in)/.test(t)) return { icon: '🚪', label: 'Enter' };
+  if (/sleep/.test(t)) return { icon: '🛏️', label: 'Sleep' };
+  if (/ticket/.test(t)) return { icon: '🎫', label: 'Ticket' };
+  if (/chai|tea|maska|vada|tiffin/.test(t)) return { icon: '☕', label: 'Buy' };
+  if (t.includes('₹')) return { icon: '🛒', label: 'Buy' };
+  return { icon: '✋', label: 'Use' };
+}
+/** What the touch controls show right now (src/ui/touch.js reads this five times a second). */
+function touchState() {
+  if (story.camera || phone.open || cityMap.open) return { mode: 'hidden' };
+  const st = story.active?.steps[story.s.step];
+  const wait = !!st?.waitHour && !(clock.hour >= st.waitHour[0] && clock.hour <= st.waitHour[1]); // a mission waits for an hour
+  if (!onFoot) {
+    const pump = nearestPump();
+    const interact = pump && pump.d < 16 ? { icon: '⛽', label: 'Fill up' } : jobs.stallNear(player) ? { icon: '☕', label: 'Snack' } : null;
+    return {
+      mode: 'drive', stopped: Math.abs(player.speed) < 0.6, canExit: Math.abs(player.speed) <= 2,
+      radio: settings.radio !== false, duty: jobs.onDuty ? true : jobs.canFare() ? false : null, interact, wait,
+    };
+  }
+  const indoor = !!interiors.inside;
+  let vehicle = null;
+  const c = !indoor && !jack ? vehicleChoice() : null;
+  if (c?.own) vehicle = { icon: c.taxi ? '🚕' : vehicleIcon(garage.type), label: 'Get in' };
+  else if (c) {
+    const v = c.other.v;
+    vehicle = { icon: vehicleIcon(v.type), label: v.lent ? 'Take it' : v.taken ? 'Get in' : 'Steal', warn: !v.lent && !v.taken && police.witness(walker.pos.x, walker.pos.z) };
+  }
+  let interact = null;
+  if (interiors.prompt?.includes('E:')) interact = promptButton(interiors.prompt);
+  else if (!indoor && trains?.here && !trains.riding) interact = { icon: '🎫', label: 'Ticket' };
+  else if (!indoor && jobs.stallNear(walker)) interact = { icon: '☕', label: 'Snack' };
+  return {
+    mode: 'foot', indoor, weapon: combat.weapon, colour: `#${HOLI[pichkari.colour].getHexString()}`, pressure: pichkari.pressure,
+    tank: pichkari.tank, cracker: crackers.current.name.split(' (')[0], fight: !!combat.foe, vehicle, interact, wait,
+  };
 }
 
 addEventListener('resize', () => {

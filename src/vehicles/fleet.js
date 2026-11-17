@@ -373,6 +373,39 @@ function cycle(dabba = false, far = false) {
   return { paint: mergePlain(paintParts.map(strip)), glass: mergePlain(glass.map(strip)), trim: merge(trim), lamps: merge(lamps) };
 }
 
+/**
+ * Handcart ("haath gaadi"): a wooden flatbed on two big spoked wheels, long shafts in front with
+ * a crossbar the puller leans into, a prop stick, loaded with gunny sacks and cartons. The rails
+ * are painted (tinted per cart); +z is the front.
+ */
+function handcart(far = false) {
+  const r = 0.46, seg = far ? 10 : 20, wood = 0x8b5a2b, dark = 0x5e3a1c;
+  const paintParts = [box(0.06, 0.14, 2.3, -0.5, 0.86, -0.45), box(0.06, 0.14, 2.3, 0.5, 0.86, -0.45), box(1.06, 0.14, 0.06, 0, 0.86, -1.6)];
+  const trim = [
+    paint(box(1.0, 0.07, 2.3, 0, 0.76, -0.45), wood), // bed
+    paint(beam([-0.42, 0.74, 0.6], [-0.33, 0.86, 1.68], 0.07, 0.07), dark), paint(beam([0.42, 0.74, 0.6], [0.33, 0.86, 1.68], 0.07, 0.07), dark), // shafts
+    paint(box(0.74, 0.05, 0.05, 0, 0.87, 1.64), dark), // crossbar
+    paint(box(1.3, 0.05, 0.05, 0, r, -0.75), 0x3a3a3a), // axle
+    paint(beam([0, 0.74, 0.55], [0, 0.02, 0.95], 0.05, 0.05), dark), // prop stick
+  ];
+  for (const sx of [-0.62, 0.62]) {
+    trim.push(paint(new THREE.TorusGeometry(r - 0.03, 0.035, 5, seg).rotateY(Math.PI / 2).translate(sx, r, -0.75), 0x2a2420));
+    trim.push(paint(cyl(0.07, 0.12, 8).translate(sx, r, -0.75), 0x4a3a2a));
+    if (!far) for (let k = 0; k < 6; k++) trim.push(paint(box(0.025, 2 * r - 0.08, 0.025, 0, 0, 0).rotateX((k * Math.PI) / 6).translate(sx, r, -0.75), 0x6b4a2a));
+  }
+  // The load: gunny sacks (jute, some white flour sacks) and a couple of cartons.
+  const sack = [0xc8b48a, 0xb89a64, 0xd9cfb4, 0xe8e2d2, 0xb89a64];
+  const spots = far ? [[-0.25, -1.1], [0.25, -1.1], [0, -0.4], [0, -1.15]] : [[-0.25, -1.15], [0.25, -1.15], [-0.25, -0.45], [0.25, -0.45], [0, -0.8], [-0.2, 0.15], [0.22, 0.12]];
+  spots.forEach(([x, z], i) => {
+    const up = i >= (far ? 3 : 4) ? 0.24 : 0;
+    trim.push(paint(new THREE.SphereGeometry(0.28, far ? 6 : 9, far ? 4 : 6).scale(0.85, 0.52, 1.25).translate(x, 0.93 + up, z), sack[i % sack.length]));
+  });
+  if (!far) trim.push(paint(box(0.42, 0.34, 0.4, -0.22, 0.97, 0.45), 0xb88a52), paint(box(0.36, 0.28, 0.36, 0.24, 0.94, 0.5), 0xc49a62), paint(box(0.86, 0.02, 0.02, 0, 1.38, -0.8), 0x8a7a5a)); // cartons, a rope over the load
+  const glass = [box(0.01, 0.01, 0.01, 0, 0.8, 0)];
+  const lamps = [paint(box(0.01, 0.01, 0.01, 0, 0.8, 0), 0x000000)];
+  return { paint: mergePlain(paintParts.map(strip)), glass: mergePlain(glass.map(strip)), trim: merge(trim), lamps: merge(lamps) };
+}
+
 /** Scooter (Activa class): front apron, floorboard, rear body; optional delivery box. */
 function scooter(delivery = false, far = false) {
   const r = 0.25;
@@ -463,6 +496,9 @@ export function buildFleet() {
   T.auto = { parts: auto(), far: auto(true), name: 'Bajaaj auto-rickshaw', len: 2.64, wid: 1.3, speed: 10, weight: 8, night: 1.2, city: 0, tints: [0x0c0c0c], open: true, seat: 0.75, seatZ: 0.2, pax: { z: -0.56, seat: 0.69 } };
   T.cycle = { parts: cycle(), far: cycle(false, true), name: 'Bicycle (Hiro Jet)', len: 1.8, wid: 0.6, speed: 4.4, weight: 0.5, night: 0.15, tints: [0x101010, 0x101010, 0x1d3f2a, 0x5a1a14], rider: true, seat: 0.95, seatZ: -0.2, slow: true, pedal: true };
   T.dabba = { parts: cycle(true), far: cycle(true, true), name: "Dabbawala's bicycle", len: 1.8, wid: 0.66, speed: 5, weight: 0.3, night: 0, suburb: 0.4, tints: [0x101010], rider: true, seat: 0.95, seatZ: -0.2, slow: true, pedal: true, dabbawala: true };
+  // Handcarts: bazaar porters' carts. Never in the random mix (weight 0): traffic.js puts them on
+  // bazaar streets (tiles with parked handcarts) by day; the puller walks between the shafts (pull).
+  T.handcart = { parts: handcart(), far: handcart(true), name: 'Haath gaadi (handcart)', len: 3.3, wid: 1.2, speed: 1.35, weight: 0, night: 0, tints: [0x2f62b5, 0x2f7a4a, 0xb3261e, 0x6b4a2a, 0xd9a21a, 0x2f62b5], rider: true, pull: true, slow: true, seat: 0, seatZ: 1.42 };
   // Who is on the road when: school buses at school times, dabbawalas before lunch (and going
   // home with the empties), garbage trucks at dawn, milk and newspaper cycles early, tankers by day.
   const within = (h, a, b) => h >= a && h < b;

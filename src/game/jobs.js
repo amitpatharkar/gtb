@@ -329,11 +329,18 @@ export class Jobs {
   }
 
   // ------------------------------------------------------------------ snacks at thelas
-  buySnack(player) {
-    if (Math.abs(player.speed) > 1) return false;
+  /** A thela with its vendor within reach of a stopped player (also lights the touch Buy button). */
+  stallNear(player) {
+    if (Math.abs(player.speed) > 1) return null;
     for (const f of this.street.fixtures.values()) {
-      if (f.type !== 'stall' || !f.people.length) continue;
-      if (Math.hypot(f.x - player.pos.x, f.z - player.pos.z) > 9) continue;
+      if (f.type === 'stall' && f.people.length && Math.hypot(f.x - player.pos.x, f.z - player.pos.z) <= 9) return f;
+    }
+    return null;
+  }
+
+  buySnack(player) {
+    const f = this.stallNear(player);
+    if (f) {
       const menu = [['Vada pav', 20, 0.25, 0], ['Cutting chai', 15, 0.05, 0.25], ['Bhutta', 30, 0.2, 0], ['Pav bhaji', 120, 0.55, 0.05], ['Nimbu paani', 25, 0.05, 0.15], ['Fruit plate', 60, 0.3, 0.05]];
       const [name, price, hunger, energy] = pick(menu);
       if (!this.state.canAfford(price)) { this.hud.message(`₹${price} for ${name.toLowerCase()} — you're broke. Drive some fares (J).`); return true; }

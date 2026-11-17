@@ -15,6 +15,8 @@ export function saveSettings(s) { try { localStorage.setItem(KEY, JSON.stringify
 
 
 const GUIDE = `
+<h3>On a phone or tablet</h3>
+<p><b>In a vehicle:</b> ◀ ▶ bottom left steer (slide your thumb across without lifting it) · <b>GAS</b> and <b>BRAKE</b> pedals bottom right (BRAKE turns into <b>REV</b> when you stop) · Ⓟ handbrake for slides · 🔊 horn · 🚪 get out · radio and TAXI duty above. <b>On foot:</b> put your left thumb down anywhere in the lower left for the joystick (push it all the way to run) · 👊/💦 attack (drag it to aim while you spray) · 🛡️ block or 🎯 aim · kick or colour, weapon swap, crackers (⟳ changes the type) and insults around it. Yellow buttons pop up when there is something to do right here: get in or steal a vehicle, fill up, buy a snack, go through a door, a train ticket, skip an hour. Drag anywhere else on the screen to look around; tap the radar for the map. ⏸ pauses (skip an hour, tow truck), ⛶ full screen, 📱 phone. Hold the phone sideways for the most room.</p>
 <h3>Driving the taxi</h3>
 <p><b>W/S</b> accelerate and reverse · <b>A/D</b> steer · <b>Space</b> brake · <b>H</b> horn · mouse to look around (click the game to capture the mouse, Esc to free it).</p>
 <h3>On foot</h3>
@@ -154,10 +156,10 @@ export function loadingScreen() {
   };
 }
 
-/** In-game pause menu (Esc). handlers: resume, quality(tier), settings(s), quit. */
+/** In-game pause menu (Esc, or ⏸ on touch screens). handlers: resume, quality(tier), settings(s), quit, abandon, skipHour, tow. */
 export function pauseMenu(handlers) {
   const root = el(`<div id="pause-screen" hidden><div class="halftone"></div><div class="logo small"><b>${GAME.line1}</b><span>${GAME.line2} · PAUSED</span></div>
-    <div class="menu"><button data-a="resume" class="main">Resume</button><button data-a="settings">Settings</button><button data-a="guide">Guide</button><button data-a="abandon" hidden>Abandon mission</button><button data-a="quit">Save &amp; quit to title</button></div>
+    <div class="menu"><button data-a="resume" class="main">Resume</button><button data-a="settings">Settings</button><button data-a="guide">Guide</button><button data-a="hour">Skip an hour (T)</button><button data-a="tow">Call a tow truck (R R)</button><button data-a="abandon" hidden>Abandon mission</button><button data-a="quit">Save &amp; quit to title</button></div>
     <div class="panel" hidden></div></div>`);
   document.body.appendChild(root);
   const panel = root.querySelector('.panel');
@@ -169,6 +171,8 @@ export function pauseMenu(handlers) {
     if (a === 'close') panel.hidden = true;
     if (a === 'quit') handlers.quit();
     if (a === 'abandon') { handlers.abandon?.(); api.toggle(false); }
+    if (a === 'hour') { handlers.skipHour?.(); api.toggle(false); }
+    if (a === 'tow') { api.toggle(false); handlers.tow?.(); }
     if (a === 'settings') {
       panel.innerHTML = `<button class="close" data-a="close">✕</button><h2>Settings</h2>
         <label>Graphics <select data-s="tier"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>

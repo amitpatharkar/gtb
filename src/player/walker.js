@@ -35,7 +35,11 @@ export class Walker {
       return;
     }
     const yaw = view ? view.yaw : this.heading;
-    const mz = (input.fwd ? 1 : 0) - (input.back ? 1 : 0), mx = (input.left ? 1 : 0) - (input.right ? 1 : 0);
+    // Keys give full steps; the touch joystick gives an analogue push (moveX right, moveY away).
+    const analog = !!input.analog;
+    const mz = analog ? input.moveY || 0 : (input.fwd ? 1 : 0) - (input.back ? 1 : 0);
+    const mx = analog ? -(input.moveX || 0) : (input.left ? 1 : 0) - (input.right ? 1 : 0);
+    const push = analog ? Math.min(1, Math.hypot(mx, mz)) : 1;
     const aiming = view?.aim || this.spraying || this.attacking > 0;
     let dirx = 0, dirz = 0;
     if (mz || mx) {
@@ -49,8 +53,8 @@ export class Walker {
     this.heading += d * Math.min(1, dt * (aiming ? 14 : 9));
     const moving = mz || mx;
     const canRun = this.stamina > 0.05 && moving && !aiming;
-    const run = input.run && canRun;
-    const top = !moving ? 0 : aiming ? 1.4 : run ? 5.2 * (0.7 + 0.3 * energy) : 1.9;
+    const run = (input.run || (analog && push > 0.92)) && canRun; // a full joystick push runs
+    const top = !moving ? 0 : aiming ? 1.4 : run ? 5.2 * (0.7 + 0.3 * energy) : 1.9 * Math.max(0.3, Math.min(1, push / 0.8));
     this.speed += Math.max(-8 * dt, Math.min(6 * dt, top - this.speed));
     // Stamina: running drains it (faster in bad air), walking and standing restore it.
     const drain = (0.11 + aqi / 2500) * (1.3 - energy * 0.3);
