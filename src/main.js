@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { input } from './input.js';
 import { TileManager } from './world/tiles.js';
 import { createMaterials } from './world/materials.js';
+import { Structures } from './world/structures.js';
+import { Tickets } from './game/tickets.js';
 import { createEnvironment } from './world/environment.js';
 import { setupCredits } from './credits.js';
 import { TIERS, pickTier, query, TierProbe, markTierChosen } from './settings.js';
@@ -35,7 +37,7 @@ import { Radio } from './radio.js';
 import { Characters } from './sim/characters.js';
 import { Cheats } from './game/cheats.js';
 import { Garage } from './vehicles/garage.js';
-import { Crackers } from './game/crackers.js';
+import { Crackers, CRACKERS } from './game/crackers.js';
 import { Stars } from './game/stars.js';
 import { Eggs } from './game/eggs.js';
 import { Interiors } from './world/interiors.js';
@@ -53,6 +55,8 @@ import { Combat } from './player/combat.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
+import { initSpeedo } from './ui/hud.js';
+import { WeaponWheel } from './ui/wheel.js';
 import { titleScreen, loadingScreen, pauseMenu, loadSettings } from './ui/menu.js';
 import { TouchControls } from './ui/touch.js';
 import { registerServiceWorker } from './serviceWorker.js';
@@ -129,7 +133,8 @@ const startHour = Number(query.get('hour'));
 const clock = new GameClock(query.has('hour') && Number.isFinite(startHour) ? startHour : 17.25);
 const traffic = new Traffic(scene, tiles, tier);
 // Owner-uploaded vehicle models (public/art/vehicles) join the fleet once play has started.
-const vehicleArt = loadVehicleArt(BASE, traffic, started, tier).catch(() => []);
+let damage; // (made below with the taxi)
+const vehicleArt = loadVehicleArt(BASE, traffic, started, tier, { padmini: (near) => { taxi.useModel(near); damage?.rebind(); } }).catch(() => []); // the owner's scanned Padmini is also the player's taxi
 setStreetProfiles(index.profiles); // street library: parking and life by street type
 const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
 const skyline = new Skyline(scene, tiles, tier, camera.far); // distant tall buildings beyond the loaded tiles (up to the far plane)
@@ -186,8 +191,9 @@ jobs.canFare = () => garage.inTaxi || garage.type === 'auto';
 police.argueOdds = () => (state.owns('dashcam') ? 0.6 : 0.35); // the dashcam footage helps
 const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => changeQuality(nextTier(tierKey)), onPhoto: () => takePhoto() });
 const propPhysics = new PropPhysics(scene, tiles, { bubbles, hud, state, audio });
+const structures = new Structures(); // walkable platforms, footbridges and stairs (stations, metro)
 const world = {
-  hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || garage.taxiHits(x, z, r) || stars.hits(x, z, r),
+  hits: (x, z, r) => tiles.hits(x, z, r) || structures.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || garage.taxiHits(x, z, r) || stars.hits(x, z, r),
   bodyAt: (x, z, r) => traffic.bodyAt(x, z, r), // other vehicles are pushed by mass rather than acting as walls
   groundHeight: (x, z) => { const y = tiles.wheelHeight(x, z); if (tiles.inPothole) world.pothole = true; return y; },
 };
@@ -274,9 +280,13 @@ const walker = new Walker(tiles);
 state.listeners.add(applyOutfit);
 applyOutfit();
 const skids = new SkidMarks(scene);
-const damage = new TaxiDamage(scene, taxi);
+damage = new TaxiDamage(scene, taxi);
 let onFoot = false;
-const footWorld = { hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || taxiHits(x, z, r) || stars.hits(x, z, r) };
+const footWorld = {
+  hits: (x, z, r, y) => tiles.hits(x, z, r) || structures.hits(x, z, r, y) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || taxiHits(x, z, r) || stars.hits(x, z, r),
+  // Platforms, footbridges and stairs (src/world/structures.js) above the street.
+  groundHeight: (x, z, y) => structures.groundHeight(x, z, y, tiles.groundHeight(x, z)),
+};
 /** The vehicle the player left (taxi or borrowed) and the parked taxi are solid for people on foot. */
 function taxiHits(x, z, r) {
   const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
@@ -290,6 +300,8 @@ function taxiHits(x, z, r) {
 let footHints = 0;
 function toggleFoot() {
   if (interiors?.inside) { say('Step outside first', 1.5); return; } // no vehicles indoors
+  if (onFoot && trains?.ride) { if (trains.ride.active) { trains.ride.alight(); return; } if (trains.ride.tryBoard()) return; } // a local's open door
+  if (onFoot && metro) { if (metro.r) { metro.alight(); return; } if (metro.tryBoard()) return; } // a metro train's open door
   if (!onFoot) {
     if (Math.abs(player.speed) > 2) { say('Slow down to get out', 1.5); return; }
     const h = player.heading, rx = -Math.cos(h), rz = Math.sin(h), side = player.radius + 0.8;
@@ -381,6 +393,7 @@ const camPos = new THREE.Vector3();
 let interiors = null; // created below, once the systems it talks to exist
 const lookAt = new THREE.Vector3();
 const view = new ViewControl(renderer.domElement, input);
+const tickets = new Tickets({ state, clock, hud, audio, view }); // local and metro tickets (src/game/tickets.js)
 function placeCamera(dt) {
   // GTA-style orbit camera: behind the taxi (mouse to look around, it swings back), or over
   // the player's right shoulder on foot (closer and zoomed in while aiming).
@@ -524,11 +537,31 @@ const pause = pauseMenu({
   abandon: () => story.fail('abandoned'),
   skipHour: () => skipHour(),
   tow: () => teleportHome(), // touch screens have no R key
+  map: () => { view.release(); cityMap.toggle(true, player); },
+  profile: () => ({
+    name: 'Driver', title: 'Kaali-peeli taxi · Powai', day: state.s.day, clock: clock.label, money: player.money, rides: state.s.rides, rating: state.rating, earned: state.s.earned || 0,
+    missions: story.s.done.length, missionsTotal: story.missions.length, chai: (state.s.eggs?.chai || []).length, hunger: state.s.hunger, energy: state.s.energy, fines: police.fines || 0,
+    vehicle: 'Kaali-peeli taxi', condition: player.condition, fuel: player.fuel, aqi: clock.aqi, stars: police.stars,
+  }),
 });
 let helpTimer = 50; // the long key list shows for the first 50 s, then ? brings it back
 applySettings(settings);
 
+const wheel = new WeaponWheel({
+  view,
+  current: () => combat.weapon,
+  detail: (id, short) => id === 'pichkari' ? (short ? `${Math.round(pichkari.tank * 100)}%` : `${pichkari.colourName} · tank ${Math.round(pichkari.tank * 100)}% · pressure ${pichkari.pressure}`)
+    : id.startsWith('cracker:') ? (crackers.current.id === id.slice(8) ? (short ? '●' : 'ready: press X to light') : '') : '',
+  pick: (id) => {
+    if (id.startsWith('cracker:')) { const i = CRACKERS.findIndex((c) => c.id === id.slice(8)); if (i >= 0) { crackers.index = i; say(`🎆 ${crackers.current.name} — X to light it`, 2); } return; }
+    combat.setWeapon(id);
+  },
+});
+addEventListener('keyup', (e) => { if (e.code === 'KeyB') wheel.hide(true); });
+addEventListener('blur', () => wheel.hide(false));
+
 addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' && wheel.open) { wheel.hide(false); return; }
   if (e.code === 'Escape' && !phone.open && !cityMap.open) { pause.toggle(); return; }
   if (pause.open) return;
   if ((e.code === 'Space' || e.code === 'Enter') && (story.lines?.length || story.ext) && story.camera) { story.skip(); return; }
@@ -547,6 +580,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyF') toggleFoot();
   if (e.code === 'KeyN' && !onFoot) radio.next();
   if (e.code === 'KeyC' && onFoot) { pichkari.nextColour(e.shiftKey ? -1 : 1); if (combat.weapon !== 'pichkari') combat.setWeapon('pichkari'); }
+  if (onFoot && e.code === 'KeyB' && !phone.open && !cityMap.open) { wheel.show(); return; }
   if (onFoot && e.code === 'Digit1') combat.setWeapon('fists');
   if (onFoot && e.code === 'Digit2') combat.setWeapon('pichkari');
   if (onFoot && e.code === 'KeyV') combat.kick();
@@ -595,6 +629,8 @@ if (touch && !navigator.webdriver) addEventListener('pointerup', () => toggleFul
 /** E: refuel at a pump (in the taxi), or buy a snack at a thela. */
 function interact() {
   if (onFoot && interiors.interact()) return; // a door, or something to use indoors
+  if (onFoot && trains?.ride?.active) { trains.ride.alight(); return; }
+  if (onFoot && metro?.interact()) return; // metro: ticket counter, Line 3 entrance
   if (onFoot && trains?.interact()) return; // local trains: the ticket window at a station
   if (!onFoot) {
     const p = nearestPump();
@@ -706,6 +742,8 @@ window.__gtb.vehicleArt = vehicleArt; // resolves to the ids of uploaded vehicle
 window.__gtb.birds = birds;
 { const startle = crackers.startle.bind(crackers); crackers.startle = (x, z, r, by) => { birds.scare(x, z, r); return startle(x, z, r, by); }; } // crackers scare the pigeons too
 window.__gtb.interiors = interiors;
+window.__gtb.structures = structures;
+window.__gtb.tickets = tickets;
 const cheats = new Cheats(window.__gtb, (t, s) => say(t, s));
 window.__gtb.cheat = (code) => cheats.enter(code);
 window.__gtb.cheats = cheats;
@@ -780,13 +818,19 @@ function step(dt) {
     player.impact = 0;
   }
   damage.update(dt, garage.inTaxi ? player : garage.homeBody, camera);
+  // The taxi's driver door swings open when you walk up to it on foot and shuts when you get in or drive off.
+  if (taxi.door) {
+    const T = garage.inTaxi ? player : garage.homeBody, near = onFoot && T && (walker.pos.x - T.pos.x) ** 2 + (walker.pos.z - T.pos.z) ** 2 < 12;
+    taxi.door.set(taxi.door.angle + ((near ? 1.1 : 0) - taxi.door.angle) * Math.min(1, dt * 6));
+  }
   garage.update(dt);
   traffic.taxi = police.taxi = garage.inTaxi ? player : garage.homeBody; // NPC cars and patrols avoid the parked taxi
   if (!onFoot) propPhysics.sweep(player);
   propPhysics.update(dt, onFoot ? null : player);
   if (garage.inTaxi && player.condition > 0.97 && (damage.front || damage.rear)) damage.repair();
   if (onFoot && jack) updateJack(dt);
-  if (onFoot && !jack) {
+  const riding = !!trains?.ride?.active || !!metro?.r; // on a train: it carries the walker
+  if (onFoot && !jack && !riding) {
     walker.update(dt, cutscene ? NO_INPUT : input, indoors ? interiors.world : footWorld, state.s.energy, clock.aqi, view);
     // Careless drivers knock you over.
     for (const c of traffic.cars) {
@@ -808,7 +852,7 @@ function step(dt) {
   street.onFoot = onFoot;
   street.update(dt, active, clock);
   clutter.drawPeople(clock.hour); // watchmen at compound gates, flower sellers, puja stall keepers
-  const fire = (input.fire || input.brake) && !indoors && !cutscene; // holstered indoors; Space skips cutscenes, it doesn't shoot
+  const fire = (input.fire || input.brake) && !indoors && !cutscene && !trains?.ride?.active && !metro?.r; // holstered indoors; Space skips cutscenes, it doesn't shoot
   combat.update(dt, { fire }, onFoot);
   if (!onFoot && !cutscene) combat.carVsPeople(player);
   crackers.update(dt, clock, active.pos, camera.position, onFoot ? walker : null);
@@ -817,6 +861,9 @@ function step(dt) {
   interiors.update(dt, onFoot); // doors on the street; indoors: the room's people, lights and things to use
   story.update(dt, { player, onFoot, walker });
   trains?.update(dt, active, onFoot); // local trains (after street life: they add level-crossing stops and doorway commuters)
+  trains?.ride?.update(dt, onFoot && !indoors); // boarding, riding in the doorway, ticket checkers
+  stations?.update(dt, active.pos); // platforms, footbridges and stairs near the player
+  metro?.update(dt, active, onFoot && !indoors); // metro viaducts, stations, trains; the player's metro ride
   if (onFoot) walker.draw(people, combat.weapon);
   else if (garage.seated) {
     // Riding a two-wheeler or driving an auto: the player can be seen in the seat.
@@ -898,12 +945,62 @@ window.__gtb.step = step;
 // Loaded once play has started (not part of the first load). Trains are solid and far heavier
 // than any car; their stations show on the map; E on foot at a station sells tickets.
 let trains = null;
-started.then(() => import('./sim/trains.js'))
-  .then(({ Trains }) => Trains.create({ base: BASE, scene, renderer, camera, compile: (o) => post.compile(o, camera, scene), tiles, traffic, street, people, bubbles, audio, hud, state, clock, walker, player, view, snap: () => placeCamera(0) }))
+started.then(() => Promise.all([import('./sim/trains.js'), import('./sim/trainRide.js')]))
+  .then(([{ Trains }, { TrainRide }]) => Trains.create({ base: BASE, scene, renderer, camera, compile: (o) => post.compile(o, camera, scene), tiles, traffic, street, people, bubbles, audio, hud, state, clock, walker, player, view, structures, tickets, tier, stations: () => stations, snap: () => placeCamera(0) })
+    .then((t) => { if (t) t.ride = new TrainRide(t, { walker, tiles, structures, tickets, hud, bubbles, clock, audio, view, people, stations: () => stations, snap: () => placeCamera(0) }); return t; }))
   .then((t) => { trains = window.__gtb.trains = t; })
   .catch((err) => console.warn('Local trains are not available:', err));
-for (const w of [world, footWorld]) { const hits = w.hits; w.hits = (x, z, r) => hits(x, z, r) || !!trains?.hits(x, z, r) || clutter.hits(x, z, r); } // poles, shrines, stalls (world/clutter.js)
+for (const w of [world, footWorld]) { const hits = w.hits; w.hits = (x, z, r, y) => hits(x, z, r, y) || !!trains?.hits(x, z, r) || clutter.hits(x, z, r); } // poles, shrines, stalls (world/clutter.js)
 window.__gtb.clutter = clutter;
+
+// ------------------------------------------------------------------ Tikitwala (phone ticket app)
+// Local tickets from the nearest station (not within about 30 m of the tracks, as with the real
+// app), metro QR tickets from the nearest metro station, the next trains, the tickets held.
+phone.tikitHtml = () => {
+  const P = onFoot ? walker.pos : player.pos, rows = [];
+  const near = trains?.nearestStation(P.x, P.z), m = metro?.stations.filter((s) => s.kind !== 'monorail' && s.ref !== 'Mono 1').reduce((b, s) => { const d = Math.hypot(s.x - P.x, s.z - P.z); return !b || d < b.d ? { s, d } : b; }, null);
+  if (near) {
+    const next = trains.nextTrains(near.name).slice(0, 3).map(([sec, L]) => `${L.to} ${L.fast ? 'F' : 'S'} ${sec < 20 ? 'now' : `${Math.ceil(sec / 60)} min`}`).join(' · ');
+    rows.push(`<h4>🚆 Local · ${near.name} (${(near.d / 1000).toFixed(1)} km)</h4><p class="small">Next: ${next || 'no trains now (1:15–4:15 am)'}</p>
+      <button class="primary" data-act="tikit:local" ${near.d < 35 ? 'disabled' : ''}>${near.d < 35 ? 'Too close to the tracks to book (step out of the station)' : 'Book a local ticket or pass'}</button>`);
+  }
+  if (m) rows.push(`<h4>🚇 Metro · ${m.s.name} (${metro.lineName(m.s)}, ${(m.d / 1000).toFixed(1)} km)</h4><p class="small">Next train ${metro.nextTrain(m.s)}</p><button class="primary" data-act="tikit:metro">Book a QR ticket</button>`);
+  rows.push(`<h4>My tickets</h4><p class="small">${tickets.describe()}</p>`);
+  return rows.join('');
+};
+phone.onTikit = (what) => {
+  const P = onFoot ? walker.pos : player.pos;
+  if (what === 'local' && trains) {
+    const near = trains.nearestStation(P.x, P.z);
+    if (near) tickets.open({ title: `🎫 Tikitwala — from ${near.name}`, sub: 'App ticket: show it on the phone when the checker asks.', sys: 'local', from: near.name, groups: trains.ticketGroups(near.name), where: 'app' });
+  }
+  if (what === 'metro' && metro) {
+    const m = metro.stations.filter((s) => s.ref !== 'Mono 1').reduce((b, s) => { const d = Math.hypot(s.x - P.x, s.z - P.z); return !b || d < b.d ? { s, d } : b; }, null);
+    if (m) tickets.open({ title: `🎫 Tikitwala — metro QR from ${m.s.name}`, sub: `${metro.lineName(m.s)}. Scan it at the gate.`, sys: 'metro', from: m.s.name, groups: metro.groups(m.s), where: 'app' });
+  }
+};
+
+// ------------------------------------------------------------------ stations
+// Raised platforms, foot overbridges, stairs, roofs, boards and indicators near the player
+// (tiles/stations.json → src/world/stations.js); walkable through `structures`.
+let stations = null;
+started.then(() => import('./world/stations.js'))
+  .then(({ Stations }) => Stations.create({ scene, tiles, structures, materials, clock, tier, trains: () => trains }))
+  .then((s) => { stations = window.__gtb.stations = s; })
+  .catch((err) => console.warn('Stations are not available:', err));
+
+// ------------------------------------------------------------------ metro and monorail
+// Line 1 and the ends of 2A, 7 and 2B on viaducts with walkable stations, fare gates and running
+// trains; Line 3's street entrances (underground rides); the closed monorail (src/world/metro.js).
+let metro = null;
+started.then(() => import('./world/metro.js'))
+  .then(({ Metro }) => Metro.create({ scene, tiles, structures, materials, clock, tier, state, tickets, hud, bubbles, people, walker, view, audio, compile: (o) => post.compile(o, camera, scene), snap: () => placeCamera(0) }))
+  .then((m) => {
+    metro = window.__gtb.metro = m;
+    if (m) m.otherBusy = () => !!stations?.job; // one builder per frame: the stations first, then the metro
+    if (m) { const markers = cityMap.markers; cityMap.markers = () => [...markers(), ...m.markers()]; }
+  })
+  .catch((err) => console.warn('Metro is not available:', err));
 {
   const bodyAt = world.bodyAt, markers = cityMap.markers;
   world.bodyAt = (x, z, r) => trains?.bodyAt(x, z, r) || bodyAt(x, z, r);
@@ -969,25 +1066,39 @@ function nearSea(at) {
   return Math.min(1, wet / 3);
 }
 
+let shownStars = -1;
+const speedo = initSpeedo($('speed'));
+const GEO_RAD = Math.PI / 180;
+const GEO_M_LAT = 111132.92 - 559.82 * Math.cos(2 * 19.03 * GEO_RAD) + 1.175 * Math.cos(4 * 19.03 * GEO_RAD);
+const GEO_M_LON = 111412.84 * Math.cos(19.03 * GEO_RAD) - 93.5 * Math.cos(3 * 19.03 * GEO_RAD);
+
 function updateHud() {
-  $('speed').textContent = `${Math.round(Math.abs((onFoot ? walker : player).speed) * 3.6)} km/h`;
+  const mover = onFoot ? walker : player;
+  const hour = clock.hour;
+  speedo.update({ kmh: Math.round(Math.abs(mover.speed) * 3.6), reverse: mover.speed < -0.3, foot: onFoot, fuel: player.fuel, cond: player.condition, night: hour < 6 || hour >= 18.5 });
   $('fuel-label').textContent = onFoot ? 'Stamina' : 'Fuel';
   $('cond-label').textContent = onFoot ? 'Health' : 'Car';
   const here = onFoot ? walker : player;
   $('road').textContent = interiors.inside ? interiors.inside.name : tiles.roadNameAt(here.pos.x, here.pos.z);
+  // Real-world position: inverse of the converter's projection (scripts/build-tiles.mjs), origin Mahim 19.03, 72.85
+  $('coords').textContent = interiors.inside ? '' : `${(19.03 - here.pos.z / GEO_M_LAT).toFixed(5)}, ${(72.85 + here.pos.x / GEO_M_LON).toFixed(5)}`;
   $('clock').textContent = clock.label;
   const [label, colour] = clock.aqiLabel;
   $('aqi').innerHTML = `AQI <b style="color:${colour}">${clock.aqi}</b> ${label}`;
   $('fuel-bar').style.width = `${Math.round((onFoot ? walker.stamina : player.fuel) * 100)}%`;
-  $('fuel-bar').style.background = player.fuel < 0.15 ? '#e74c3c' : '#f7c600';
+  $('fuel-bar').classList.toggle('low', player.fuel < 0.15);
   $('cond-bar').style.width = `${Math.round((onFoot ? walker.health : player.condition) * 100)}%`;
   $('weapon').hidden = !onFoot || !!touch;
   if (onFoot) {
-    // Key help only with a keyboard; written only when it changes.
-    const html = (combat.weapon === 'pichkari'
-      ? `💦 <b>Pichkari</b> <i style="background:#${HOLI[pichkari.colour].getHexString()}"></i>${pichkari.colourName} · Pressure ${'●'.repeat(pichkari.pressure)}${'○'.repeat(5 - pichkari.pressure)} · Tank ${Math.round(pichkari.tank * 100)}%`
-      : TOUCH ? '👊 <b>Fists</b>' : '👊 <b>Fists</b> · click punch ×3 combo · right mouse block · V kick · G insult')
-      + (TOUCH ? '' : ` · 🎆 X: ${crackers.current.name.split(' (')[0]}`);
+    // The hotbar: one slot per attack, the active one lit; written only when it changes.
+    const pk = combat.weapon === 'pichkari';
+    const slot = (key, icon, name, sub, on, f) => `<div class="slot${on ? ' on' : ''}"><kbd>${key}</kbd><i>${icon}</i><b>${name}</b><small>${sub}</small><u style="--f:${f ?? 0}"></u></div>`;
+    const html = TOUCH ? '' :
+      slot(1, '👊', 'Fists', 'click · ×3 combo', !pk, 1)
+      + `<div class="slot${pk ? ' on' : ''}" style="--dot:#${HOLI[pichkari.colour].getHexString()}"><kbd>2</kbd><i>💦</i><b>Pichkari</b><small><em></em>${pichkari.colourName} · ${'●'.repeat(pichkari.pressure)}${'○'.repeat(5 - pichkari.pressure)}</small><u style="--f:${pichkari.tank.toFixed(2)}"></u></div>`
+      + slot('X', '🎆', crackers.current.name.split(' (')[0], 'Z: next type', false, 1)
+      + slot('V', '🦵', 'Kick', 'knock back', false, 1)
+      + slot('G', '🗣️', 'Insult', 'bleeped', false, 1);
     if (html !== weaponHtml) $('weapon').innerHTML = weaponHtml = html;
   }
   const foe = onFoot ? combat.foe : null;
@@ -995,13 +1106,18 @@ function updateHud() {
   if (foe) $('foe').innerHTML = `🥊 Opponent <i><b style="width:${Math.round(Math.max(0, Math.min(1, foe.hp ?? 1)) * 100)}%"></b></i>${combat.blocking ? ' · blocking' : ''}`;
   document.body.classList.toggle('hurt', onFoot && walker.hurt > 0.05);
   $('food-bar').style.width = `${Math.round(state.s.hunger * 100)}%`;
-  $('food-bar').style.background = state.s.hunger < 0.2 ? '#e74c3c' : '#f39c12';
+  $('food-bar').classList.toggle('low', state.s.hunger < 0.2);
   $('energy-bar').style.width = `${Math.round(state.s.energy * 100)}%`;
+  for (const id of ['fuel', 'cond', 'food', 'energy']) { const m = $(`${id}-bar`).closest('.meter'), v = Math.round(parseFloat($(`${id}-bar`).style.width) || 0); if (m.dataset.v !== String(v)) m.dataset.v = v; }
+  $('fuel-label').closest('.meter').dataset.i = onFoot ? '🏃' : '⛽';
+  $('cond-label').closest('.meter').dataset.i = onFoot ? '❤️' : '🛡️';
+  $('mm-state').className = police.stars ? 'wanted' : 'safe';
+  $('mm-state').textContent = police.stars ? `Wanted ${'★'.repeat(police.stars)}` : 'Safe';
   $('btn-phone').dataset.unread = state.unread || '';
   $('money').textContent = `₹${player.money.toLocaleString('en-IN')}`;
   $('money').classList.toggle('debt', player.money < 0);
   const w = $('wanted');
-  w.textContent = police.stars ? '★'.repeat(police.stars) + '☆'.repeat(5 - police.stars) : '';
+  if (police.stars !== shownStars) { shownStars = police.stars; w.innerHTML = Array.from({ length: 5 }, (_, i) => `<i${i < police.stars ? ' class="on"' : ''}>★</i>`).join(''); w.classList.toggle('none', !police.stars); }
   w.title = police.fines ? `Unpaid challans: ₹${police.fines.toLocaleString('en-IN')}` : '';
   w.classList.toggle('blink', police.stars > 0 && police.unseen > 0.6);
   if (messageTimer <= 0) {
@@ -1015,6 +1131,8 @@ function updateHud() {
       state.s.hunger < 0.15 ? 'Pet mein chuhe daud rahe hain! Eat at a thela (E) or order on Bhookh (P)' :
       state.s.energy < 0.12 ? 'So tired… have a cutting chai (E at a thela)' : '';
     if (interiors.prompt && !police.flagger) message = interiors.prompt; // "E: enter …" at a door, things to use indoors
+    if (trains?.ride?.prompt && !police.flagger) message = trains.ride.prompt; // "F: board", "F: get off"
+    if (metro?.prompt && !police.flagger) message = metro.prompt; // metro: gates, counters, boarding
     if (!message && !police.flagger) message = vehiclePrompt();
     if (touch) message = message.replace(/^[EF]: /, ''); // the context button is the key on a touch screen
   }

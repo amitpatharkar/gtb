@@ -108,7 +108,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   worker's `shutterBox` parts: unipoles (V of two boards showing the `ADS` atlas, `UNI`), blue street-name boards
   (two faces) and direction boards / overhead gantries (one panel per destination line), cable bundles (unit
   catenary `cable`, matrix = span × sag × side via `putSpan`), lane and stall tarpaulins (`sheet()`), shamiana over
-  puja stalls, 6 shrine kinds, flower sellers, gates (open leaves, monobloc chair, some security cabins), shopfront
+  puja stalls, 6 shrine kinds, flower sellers, gates (leaves swing: open by day or within 7 m of the player, shut at night and then solid — `gateOpen` state per gate, `swingGates()` poses the leaves every frame; monobloc chair, some security cabins), shopfront
   awnings by the street profile's `awn` shares [cloth, striped, tarp, metal] (`AWN_DEFAULT` elsewhere). 4 draw calls:
   BatchedMesh `solid` (vertex colours, tinted per instance), BatchedMesh `cloth` (two-sided), InstancedMesh `boards`
   (`aRect` = atlas rectangle) and `ads` (`aAd` = ad cell). Board text: atlas of 512 × 128 cells (64, Low 32) drawn on
@@ -193,9 +193,37 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   one instanced mesh, wings flap in the vertex shader (`aFlap`: 0 folded, 1 flapping, 2 gliding).
 - `src/sim/trains.js` — local trains (loaded after play starts; `scripts/lib/trains.mjs` writes `tiles/trains.json`: lines
   from the OSM route relations, stations, turn-rounds; buildings over the tracks raised by the converter): one
-  instanced mesh of coaches within ~1 km, timetable from the game clock (`Line.state`), `hits`/`bodyAt` (solid,
-  heavy), `shove` (cars and the walker knocked aside), level crossings (traffic and people wait), station life,
-  ticket window (`interact()`, E on foot), ride by fade, `markers()` for the map; hooks at the end of main.js.
+  instanced mesh of coaches within ~1 km (20.73 m coaches at 21 m pitch, 3.66 m wide), timetable from the game clock
+  (`Line.state`, 20 s dwell, first 4:15 / last ~1:00), `hits`/`bodyAt` (solid, heavy), `shove`, level crossings,
+  `COACH_CLASS` per line (first class red-yellow stripes, ladies lime, luggage, disabled — `aOpt2` in the shader),
+  AC locals (`AC_SHARE`, blue band, sliding doors `tr.doors`), doorway riders and door-hangers by load, platform crowds
+  that grow between trains and board/alight (`stationLife`, `fillPlatform`, `toDoor`, `alighting`), booking office
+  (`interact()` → tickets panel, `ticketGroups`), `nearestStation`, `ride()` = quick travel for tests/missions.
+- `src/sim/trainRide.js` — riding a local: F at an open door boards (`tryBoard`), the walker stands in the doorway
+  (`ride`), Space skips to the ticket's station (`skip`: moves `trains.t`, clock by the real trip time), F gets off
+  (`alight`; jumping at a crawl); ticket checkers on board/at exits (₹500 + fare), RPF in the ladies coach (₹2,500);
+  a train leaving the map drops you at its last stop. `src/sim/railDemand.js` — the rush model shared by locals and
+  metro: `hourIndex`, `townShare` (peak direction), `stationWeight`, `trainLoad`, `waiting`, `COACH_LOAD`.
+- `src/game/tickets.js` — tickets for locals (II/I/AC × single/return/monthly pass; `localFare`, `localPass`;
+  `findLocal(from, to, need, dist)` = a ticket covering the trip) and metro QR (`metroFare` slabs, `findMetro`);
+  the counter panel `open({ sys, from, groups, where, onBuy })`; `fine()`; saved in `state.s.tickets`. The phone app
+  Tikitwala (`phone.tikitHtml`/`onTikit` in main.js) books from the nearest station (not within 35 m of it).
+- `src/world/structures.js` — walkable structures above the street (platforms, footbridges, stairs, metro concourses):
+  floors, ramps, walls, posts in a 16 m grid; `groundHeight(x, z, y, base)` (highest floor within a step of y),
+  `hits(x, z, r, y)` (walls whose height span meets the body; `pass()` = an open fare gate). The walker passes its
+  height (`footWorld`); vehicles collide at street level.
+- `src/world/stations.js` + `scripts/lib/stations.mjs` (→ `tiles/stations.json`) — every railway station in the map:
+  OSM platform outlines grown and cut back to 1.7 m from the track centres, tops 0.9 m above the rail (1.3 m), end
+  ramps; footways on bridges → decks 7.5 m above the rail with parapets, roofs and piers off the tracks; mapped steps →
+  stairs, generated where a platform or deck end has none; butterfly roofs on a column row (unless OSM maps a canopy,
+  which the converter raises clear), benches, a stall, yellow boards (Marathi/Hindi/English), LED indicators
+  (`drawIndicator`, next trains). Built a few ms per frame within 560 m (`job`), `buildNow(x, z)` after a teleport.
+- `src/world/metro.js` + `scripts/lib/metro.mjs` (→ `tiles/metro.json`) — Line 1, the 2A/7/2B ends and the Monorail
+  on viaducts (U-girders 13 m up on single piers, monorail beam 9.6 m; 400 m chunks), elevated stations at the mapped
+  places (side platforms 14.05 m, concourse 7 m with counters, QR machines, security and fare gates, stairs to the
+  street where they land clear), metro trains (`MLine` run profile, `METRO_LINES` headways and hours, sliding
+  doors), ride (F board/alight, Space next station), tap in/out with excess fare; Line 3 = glass street entrances,
+  E → ticket → underground trip to the other station's entrance; the closed monorail has parked trains.
 - `src/sim/street.js` — street life near the player: pedestrians on footpaths (jaywalk, dodge the taxi, puddle splash),
   scenarios from map points (thela vendors calling + customers, bus-stop commuters, dogs by garbage that chase the taxi,
   cows on lanes, gully cricket, push-starting a broken-down taxi), red-light hawkers, bump-and-argue drivers
@@ -268,6 +296,28 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   types via `FILE_TYPES`, and only files in `VERIFIED` (checked by eye: many detailed models lose panels) are used —
   `node scripts/art-index.mjs --preview` ignores the credit gate for a local look. Loaded after play starts, most
   common first, Low 12 / Medium 24 types. Traffic car materials are double-sided (single-sheet panels).
+  Batch 2 (2026-11-17; the list and the eye check are in `docs/art-batch-vehicles-2.md`): `VERIFIED` has amaze, i20, sonata,
+  ix35, kona, ignis, omni; `FILE_TYPES` also maps honda_city, indigo, elantra, harrier, figo (not verified: shells with
+  missing panels, two cars in one file, open roofs). `flip: true` in `VEHICLE_ART` turns a model whose lamp heuristic
+  guessed wrong (i20, kona, omni). Several files for one type: `art-index.mjs` scores them (proportions, paint part, triangles)
+  and uses the best. `HERO` in art-vehicles.mjs gives a model a bigger budget (padmini ~16k triangles).
+  `loadVehicleArt(base, traffic, started, tier, hooks)` calls `hooks[id](near)` with the near parts (hooked ids load first).
+  Rare cars and generations (second eye check, 2026-11-17): fiesta1, kizashi, octavia, carnival + carnival2 (2011 generation), gvitara2,
+  hilux, endeavour, innova (2013 Kijang), alto2 (2020 generation, `split: true` takes 60 % at most of the Alto's weight). Rare weights add
+  up to ~0.3, about one rare car per three Dzires (weight 0.9). Rejected for shards, open shells or no glass: FJ40, Prado ×2, Land
+  Cruiser, Wuling, EV6, Fortuner 2015, Innova 2005/2008/2017, Baleno, Brezza, Palio, i10 ×2, Triber, Ertiga ×2, S-Presso ×2, Swift,
+  Dzire 2012/2014, Punch ×2, Tiago, Grand Vitara Mk2, TUV300, Contessa, Ace stall. art-vehicles.mjs falls back to Sparse + Prune
+  simplification when a model has 100k+ loose triangles (the Innova had 91k trim triangles left).
+  **The kaali-peeli taxi** (`public/art/vehicles/padmini.glb`, Sunny khude, CC BY 4.0; source FBX in
+  `docs/art-sources/kaali-peeli-taxi/`): `scripts/fbx-taxi.mjs` (no Blender needed) bakes the 2048 px photo texture into vertex
+  colours, welds and simplifies 555k → 60k triangles and splits it by colour (black = paint, pale panes above the beltline =
+  glass, orange = lamps, the rest incl. yellow roof and chrome = trim). Replaces the traffic Padmini's close-up body, and
+  `taxi.useModel(near)` (taxi.js) also swaps the player's taxi body to it (wheels are baked in, so they no longer spin or steer;
+  `damage.rebind()` after the swap; police cars stay procedural).
+  **Car doors:** the scanned taxi has a working driver door (right side, `DOOR` box in taxi.js): `splitBox()` clips the paint, trim and
+  glass exactly at the door box, the door hangs on a hinge at its front edge (`taxi.door.set(angle)`), a dark cabin block fills the
+  opening; main.js opens it (1.1 rad) when the walker is within ~3.5 m of the taxi on foot and shuts it when you get in. Other vehicles
+  (batched traffic cars) have no doors.
 - `src/world/models.js` — glTF/GLB → instanced meshes (metres, base on ground); `src/world/streetProps.js` — Poly Haven
   chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
 - `src/sim/characters.js` — real people for the player and everyone near the camera (pool 11/20/30 within 34–46 m;
@@ -403,7 +453,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `public/tiles/`, `public/media/`, `public/basis/` — generated, not committed (`npm run build` makes tiles; deploy copies
   media from the `assets` branch, locally `npm run assets:pull`; Vite plugin copies the Basis transcoder)
 - `src/credits.js` — in-game Credits panel
-- `docs/research/` — Mumbai street guide, live check, 130 free assets (`assets.json`/`assets.md`)
+- `docs/research/` — Mumbai street guide, live check, 130 free assets (`assets.json`/`assets.md`); metro and monorail A to Z
+  and local trains and stations A to Z (`metro/reports/`, notes in `metro/research_notes/`; stations and tracks in
+  game coordinates in `metro/osm-metro.json` and `metro/osm-stations.json` from `scripts/research/*-from-osm.mjs`)
 - `scripts/assets/build-assets.mjs` + `.github/workflows/assets.yml` — asset pipeline → `assets` branch (see Status)
 - `data/raw/mumbai-region.osm.pbf` — OpenStreetMap extract from extract.bbbike.org, 2026-11-13, ~34 megabytes.
   Bounding box 72.598,18.520 → 73.533,19.500 (Vasai-Virar to Alibag, coast to Lonavala).
@@ -469,7 +521,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `manifest.shipped.version`). Site about 80 MB.
 - Allocation per step: the browser's sampling heap profiler (`HeapProfiler.startSampling` with
   `includeObjectsCollectedByMajorGC`/`MinorGC` true) through Playwright's CDP session.
-- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night,touch,clutter,people`,
+- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,ride,stations,metro,night,touch,clutter,people`,
   `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
   wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, a too-dark night,
   missing street clutter (boards with text, cables, awnings, solid poles, a handcart that can be pulled), or people

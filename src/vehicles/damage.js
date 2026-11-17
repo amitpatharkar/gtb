@@ -36,6 +36,9 @@ export class TaxiDamage {
   }
 
   /** A crash: local direction of the hit (+z front, -z rear, ±x sides) and how hard (m/s). */
+  /** The taxi's body was swapped (scanned model): remember the new panels as undamaged. */
+  rebind() { this.originals = this.model.dentable.map((m) => m.geometry.attributes.position.array.slice()); }
+
   impact(lx, lz, speed) {
     const depth = Math.min(0.14, speed * 0.008);
     if (depth < 0.01) return;

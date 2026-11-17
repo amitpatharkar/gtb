@@ -32,6 +32,8 @@ import { districtAt, pickStyle, STYLE } from './lib/districts.mjs';
 import { buildSkyline } from './lib/skyline.mjs';
 import { loadStreetLibrary, LAMP, lampSize } from './lib/streetLibrary.mjs';
 import { isTrainRoute, buildTrainLines } from './lib/trains.mjs';
+import { buildStations, PLATFORM_TOP } from './lib/stations.mjs';
+import { isMetroRoute, buildMetro } from './lib/metro.mjs';
 import { infill } from './lib/infill.mjs';
 import { compoundWalls, siteFence, WALL } from './lib/walls.mjs';
 import { streetClutter } from './lib/clutter.mjs';
@@ -306,8 +308,14 @@ log(`Reading ${path.relative(root, CFG.input)} for ${CFG.name} [${CFG.bbox.join(
 const relations = [];
 const relWays = new Set();
 const trainRoutes = [], trainWays = new Set(), trainStopIds = new Set();
+const metroRoutes = [], metroWays = new Set(), metroStopIds = new Set(); // for metro.json
 readOsmPbf(CFG.input, {
   relation(id, tags, members) {
+    if (isMetroRoute(tags)) {
+      metroRoutes.push({ id, tags, members });
+      for (const m of members) if (m.type === 'way') metroWays.add(m.ref); else if (m.type === 'node') metroStopIds.add(m.ref);
+      return;
+    }
     if (isTrainRoute(tags)) {
       trainRoutes.push({ id, tags, members });
       for (const m of members) if (m.type === 'way') trainWays.add(m.ref); else if (m.type === 'node') trainStopIds.add(m.ref);
@@ -336,6 +344,9 @@ const coastWays = [];
 const aeroLines = [];     // runway and taxiway centre lines: { pts, width, runway }
 const treeNodes = [], signalNodes = [], signalIds = new Set(), crossingIds = new Set(), busStops = [], fuel = [];
 const trainWayRefs = new Map(), trainStops = new Map(), stationNodes = [], platformEdges = []; // for trains.json
+const platformAreas = [], footBridges = [], stepsWays = []; // for stations.json (raised platforms, foot overbridges, stairs)
+const metroWayInfo = new Map(), metroStops = new Map(), metroStationNodes = [], metroEntrances = []; // for metro.json
+const FOOT_HW = new Set(['footway', 'path', 'pedestrian', 'steps', 'corridor', 'cycleway']);
 const worship = []; // places of worship for street shrines (lib/clutter.mjs): { x, z, religion, name, area }
 readOsmPbf(CFG.input, {
   nodeTags: true,
@@ -345,7 +356,10 @@ readOsmPbf(CFG.input, {
     nodeX.set(id, x);
     nodeZ.set(id, z);
     if (trainStopIds.has(id)) trainStops.set(id, { x, z, name: tags?.name || tags?.['name:en'] || '' });
-    if (tags && (tags.railway === 'station' || tags.railway === 'halt') && tags.name) stationNodes.push([x, z, tags.name]);
+    if (metroStopIds.has(id)) metroStops.set(id, { x, z, name: tags?.name || tags?.['name:en'] || '' });
+    if (tags && (tags.railway === 'station' || tags.public_transport === 'station') && tags.name) metroStationNodes.push([x, z, tags.name, tags['name:mr'] || '', tags['name:hi'] || '']); // metro.mjs prefers nodes of the same name
+    if (tags && tags.railway === 'subway_entrance') metroEntrances.push([x, z, tags.ref || tags['railway:ref'] || '', tags.name || '']);
+    if (tags && (tags.railway === 'station' || tags.railway === 'halt') && tags.name) stationNodes.push([x, z, tags.name, tags['name:mr'] || '', tags['name:hi'] || '', /subway|monorail|light_rail/.test(tags.station || '') || tags.subway === 'yes' || tags.monorail === 'yes' ? 1 : 0]);
     if (!tags || !inBox([x, z])) return;
     if (tags.natural === 'tree') treeNodes.push([x, z, id]);
     else if (tags.highway === 'traffic_signals') { signalNodes.push([x, z]); signalIds.add(id); }
@@ -357,11 +371,21 @@ readOsmPbf(CFG.input, {
   way(id, tags, refs) {
     if (relWays.has(id)) wayRefs.set(id, refs);
     if (trainWays.has(id)) trainWayRefs.set(id, refs);
+    if (metroWays.has(id)) metroWayInfo.set(id, { refs, tags });
     let any = false;
     for (const r of refs) if (nodeX.has(r)) { any = true; break; }
     if (!any) return;
     const closed = refs.length >= 4 && refs[0] === refs[refs.length - 1];
     if (tags.natural === 'coastline') { coastWays.push(refs); return; }
+    // Stations: platform outlines, footways on bridges and steps (scripts/lib/stations.mjs).
+    if (closed && (tags.railway === 'platform' || (tags.public_transport === 'platform' && (tags.train === 'yes' || tags.railway)))) { const r = resolveRing(refs, false); if (r) platformAreas.push({ id, ring: r, tags }); }
+    if (FOOT_HW.has(tags.highway)) {
+      const onBridge = (tags.bridge && tags.bridge !== 'no') || parseFloat(tags.layer) >= 1;
+      if (onBridge || tags.highway === 'steps') {
+        const w = { id, refs, pts: refs.map((r) => (nodeX.has(r) ? [nodeX.get(r), nodeZ.get(r)] : null)), tags };
+        if (w.pts.filter(Boolean).length >= 2) { if (onBridge && tags.highway !== 'steps') footBridges.push(w); if (tags.highway === 'steps') stepsWays.push({ ...w, pts: w.pts.filter(Boolean) }); }
+      }
+    }
     if (tags.amenity === 'fuel') { const r = resolveRing(refs, false); if (r) fuel.push(G.centroid(r)); }
     if (tags.amenity === 'place_of_worship' && closed) { const r = resolveRing(refs, false); if (r) { const [x, z] = G.centroid(r); worship.push({ x, z, religion: tags.religion || '', name: tags.name || tags['name:en'] || '', area: true }); } }
     if (tags.railway === 'platform' || (tags.public_transport === 'platform' && tags.train === 'yes')) platformEdges.push(...resolveLine(refs));
@@ -435,7 +459,7 @@ for (const rel of relations) {
     const p = polys.find((pp) => G.pointInRing(inner[0][0], inner[0][1], pp[0]));
     if (p) p.push(inner);
   }
-  if (rel.tags.railway === 'platform') for (const o of outers) platformEdges.push([...o, o[0]]); // platform outline (for trains.json)
+  if (rel.tags.railway === 'platform') for (const o of outers) { platformEdges.push([...o, o[0]]); platformAreas.push({ id: rel.id, ring: o, tags: rel.tags }); } // platform outline (for trains.json, stations.json)
   if (b) buildingsRaw.push({ id: rel.id, tags: rel.tags, part: b === 'part', polys });
   else areasRaw.push({ id: rel.id, kind: classifyArea(rel.tags), polys, open: rel.open, aero: !!rel.tags.aeroway, site: rel.tags.landuse === 'construction' });
 }
@@ -455,6 +479,17 @@ if (trainNet.shift) for (const r of railsRaw) {
   });
   r.pts = pts.map(([x, z]) => { const [dx, dz] = trainNet.shift(x, z); return [x + dx, z + dz]; });
 }
+
+// Metro and monorail lines with their stations and entrances (metro.json, src/world/metro.js).
+const metroNet = buildMetro({ routes: metroRoutes, ways: metroWayInfo, nodePos: (r) => (nodeX.has(r) ? [nodeX.get(r), nodeZ.get(r)] : undefined), stops: metroStops, stationNodes: metroStationNodes, entrances: metroEntrances, box: BOX, log });
+
+// Stations: raised platforms, foot overbridges and stairs (stations.json); their flat footways are not drawn.
+const stationNet = buildStations({
+  platforms: platformAreas, bridges: footBridges, steps: stepsWays, rails: railsRaw, stationNodes: stationNodes.filter((n) => !n[5]), box: BOX, log,
+  roofs: buildingsRaw.filter((b) => b.tags.building === 'roof' || b.tags['building:part'] === 'roof').flatMap((b) => b.polys.map((p) => p[0])),
+});
+for (let i = roadsRaw.length - 1; i >= 0; i--) if (stationNet.skipRoads.has(roadsRaw[i].id)) roadsRaw.splice(i, 1);
+const onStationPlatform = (x, z) => stationNet.platforms.some((p) => G.pointInRing(x, z, p.orig) || G.pointInRing(x, z, p.ring));
 
 // Runways and taxiways: centre lines with a width → paved airfield polygons (square-cut runway ends).
 if (aeroLines.length) {
@@ -943,6 +978,10 @@ for (const b of buildingsRaw) {
     }
     if (sp) bProfiled++;
     let { h, minH, flags, type } = buildingHeights(b.tags, b.id, area, d, sp);
+    if ((type === 'roof' || type === 'carport') && !overTrack.has(b) && onStationPlatform(c[0], c[1])) {
+      // A platform canopy: clear headroom above the raised platform.
+      minH = Math.max(minH, PLATFORM_TOP + 3.9); h = Math.max(h, minH + 0.6);
+    }
     if (overTrack.has(b)) {
       // Over the rails: raised so the trains run underneath. Roofs and big station halls
       // become a thin shed roof, small station buildings a booking office on the footbridge;
@@ -1325,6 +1364,19 @@ function writeTrains() {
   return { file: 'trains.json', lines: json.lines.length };
 }
 const trains = writeTrains();
+// Stations: raised platforms, foot overbridges and stairs for src/world/stations.js.
+const stationsFile = (() => {
+  const text = JSON.stringify(stationNet.json);
+  fs.writeFileSync(path.join(CFG.out, 'stations.json'), text);
+  log(`stations.json: ${(text.length / 1024).toFixed(0)} KB (${(zlib.gzipSync(text, { level: 9 }).length / 1024).toFixed(1)} KB gzipped)`);
+  return { file: 'stations.json', count: stationNet.json.stations.length };
+})();
+const metroFile = (() => {
+  const text = JSON.stringify(metroNet.json);
+  fs.writeFileSync(path.join(CFG.out, 'metro.json'), text);
+  log(`metro.json: ${(text.length / 1024).toFixed(0)} KB (${(zlib.gzipSync(text, { level: 9 }).length / 1024).toFixed(1)} KB gzipped)`);
+  return { file: 'metro.json', lines: metroNet.json.lines.length };
+})();
 
 const meta = {
   format: TILE_VERSION,
@@ -1343,6 +1395,8 @@ const meta = {
   skyline,
   profiles: streetLib ? streetLib.runtimeTable() : [],
   trains,
+  stations: stationsFile,
+  metro: metroFile,
   fuel: fuelStations,
   landmarks,
   tiles: index,
