@@ -60,7 +60,14 @@ export class Characters {
     this.ready = this.templates.length > 0;
     // The main character (the owner's chosen model, detail by tier: High = as uploaded) loads
     // after the crowd is ready; the player's body switches to him when he arrives.
-    try { const h = await L.hero(this.tier.name); this.prepare(h); this.heroT = h; } catch (e) { console.warn('Main character not loaded:', e.message); }
+    try {
+      const h = await L.hero(this.tier.name);
+      this.prepare(h);
+      // His body is built here, between frames, not in the game step that first needs it (the
+      // clone took a step over the 60 ms stutter limit on slow machines).
+      this.pool.push(this.make(h));
+      this.heroT = h;
+    } catch (e) { console.warn('Main character not loaded:', e.message); }
   }
 
   /** Measurements a template needs: seat offset when sitting. */
