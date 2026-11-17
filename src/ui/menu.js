@@ -20,7 +20,7 @@ const GUIDE = `
 <h3>Driving the taxi</h3>
 <p><b>W/S</b> accelerate and reverse · <b>A/D</b> steer · <b>Space</b> brake · <b>H</b> horn · mouse to look around (click the game to capture the mouse, Esc to free it).</p>
 <h3>On foot</h3>
-<p><b>F</b> get out or back in · <b>WASD</b> walk where the camera looks · <b>Shift</b> run · <b>left click</b> punch or spray · <b>right click</b> aim · <b>V</b> kick · <b>G</b> insult · <b>1</b> fists, <b>2</b> pichkari · <b>C</b> colour · <b>[ ]</b> or wheel: pressure.</p>
+<p><b>F</b> get out or back in · <b>WASD</b> walk where the camera looks · <b>Shift</b> run · <b>left click</b> punch or spray · <b>right click</b> aim · <b>V</b> kick · <b>G</b> insult · <b>1</b> fists, <b>2</b> pichkari, hold <b>B</b> for the weapon wheel (fists, pichkari, crackers) · <b>C</b> colour · <b>[ ]</b> or wheel: pressure.</p>
 <h3>Earning and spending</h3>
 <p><b>J</b> or the Kidhar app: go on taxi duty. Pick up passengers, follow the purple GPS route and drive smoothly for tips. In the suburbs (north of Bandra and Sion) you can also take an <b>auto-rickshaw</b> and press <b>J</b> for auto fares — but autos are not allowed in town. <b>E</b> at a petrol pump to refuel and repair, or at a thela for vada pav and chai. <b>P</b> phone: food, groceries, shopping, payments. Rent for your Powai flat is ₹25,000.</p>
 <h3>Police</h3>
@@ -87,17 +87,23 @@ export function titleScreen({ save }) {
   return new Promise((resolve) => {
     const s = loadSettings();
     const scene = SCENES[Math.floor(Math.random() * SCENES.length)];
-    const root = el(`<div id="title-screen"><div class="art">${scene}</div><div class="halftone"></div>
+    const bokeh = Array.from({ length: 14 }, (_, i) => `<span style="--x:${(i * 37 + 11) % 100}%;--s:${40 + (i * 53) % 90}px;--d:${9 + (i * 7) % 11}s;--l:${-(i * 1.7)}s;--h:${[45, 28, 330, 200, 38][i % 5]}"></span>`).join('');
+    const root = el(`<div id="title-screen"><div class="stage"><div class="art">${scene}</div></div><div class="bokeh">${bokeh}</div><div class="shade"></div>
       <div class="logo"><b>${GAME.line1}</b><span>${GAME.line2}</span><small>${GAME.tagline}</small></div>
       <div class="menu">
-        ${save ? `<button data-a="continue" class="main">Continue<small>₹${save.money.toLocaleString('en-IN')} · day ${save.day} · ${save.rides} rides</small></button>` : ''}
-        <button data-a="new" class="${save ? '' : 'main'}">${save ? 'New game' : 'Start'}</button>
-        <button data-a="settings">Settings</button>
-        <button data-a="guide">Guide</button>
-        <button data-a="credits">Credits</button>
+        ${save ? `<button data-a="continue" class="main"><i>▶</i><span>Continue<small>₹${save.money.toLocaleString('en-IN')} · day ${save.day} · ${save.rides} rides</small></span></button>` : ''}
+        <button data-a="new" class="${save ? '' : 'main'}"><i>${save ? '✦' : '▶'}</i><span>${save ? 'New game' : 'Start'}</span></button>
+        <button data-a="settings"><i>⚙</i><span>Settings</span></button>
+        <button data-a="guide"><i>?</i><span>Guide</span></button>
+        <button data-a="credits"><i>♥</i><span>Credits</span></button>
       </div>
       <div class="panel" hidden></div>
       <div class="foot">Map data © OpenStreetMap contributors · a fan-made parody, not affiliated with any real brand</div></div>`);
+    // Depth: the picture, the logo and the menu drift against each other with the pointer.
+    root.addEventListener('pointermove', (e) => {
+      root.style.setProperty('--mx', ((e.clientX / innerWidth) * 2 - 1).toFixed(3));
+      root.style.setProperty('--my', ((e.clientY / innerHeight) * 2 - 1).toFixed(3));
+    });
     document.body.appendChild(root);
     const panel = root.querySelector('.panel');
     const showPanel = (html) => { panel.innerHTML = `<button class="close" data-a="close">✕</button>${html}`; panel.hidden = false; };
@@ -136,9 +142,10 @@ export function titleScreen({ save }) {
 /** GTA-style loading screen: big illustrated scenes cross-fading, tips, a progress bar. */
 export function loadingScreen() {
   const order = [...SCENES.keys()].sort(() => Math.random() - 0.5);
-  const root = el(`<div id="load-screen">${order.map((k, i) => `<div class="art${i ? '' : ' on'}">${SCENES[k]}</div>`).join('')}<div class="halftone"></div>
+  const root = el(`<div id="load-screen">${order.map((k, i) => `<div class="art${i ? '' : ' on'}">${SCENES[k]}</div>`).join('')}<div class="shade"></div>
     <div class="logo small"><b>${GAME.line1}</b><span>${GAME.line2}</span></div>
-    <div class="bottom"><div class="tip"></div><div class="bar"><i></i></div><div class="status">Loading Mumbai…</div></div></div>`);
+    <div class="card"><div class="ring"><i class="arc"></i><b class="pct">0%</b></div>
+      <div class="txt"><div class="status">Loading Mumbai…</div><div class="bar"><i></i></div><div class="tip"></div></div></div></div>`);
   document.body.appendChild(root);
   const arts = root.querySelectorAll('.art');
   let k = 0, t = 0;
@@ -148,59 +155,112 @@ export function loadingScreen() {
   const timer = setInterval(() => {
     t++;
     if (t % 2 === 0) { arts[k].classList.remove('on'); k = (k + 1) % arts.length; arts[k].classList.add('on'); }
+    tip.classList.remove('swap'); void tip.offsetWidth; tip.classList.add('swap');
     tip.textContent = tips[t % tips.length];
   }, 3500);
   return {
-    progress(f, text) { root.querySelector('.bar i').style.width = `${Math.round(Math.max(0, Math.min(1, f)) * 100)}%`; if (text) root.querySelector('.status').textContent = text; },
+    progress(f, text) {
+      const pct = Math.round(Math.max(0, Math.min(1, f)) * 100);
+      root.querySelector('.bar i').style.width = `${pct}%`;
+      root.style.setProperty('--p', `${pct * 3.6}deg`);
+      root.querySelector('.pct').textContent = `${pct}%`;
+      if (text) root.querySelector('.status').textContent = text;
+    },
     done() { clearInterval(timer); root.classList.add('out'); setTimeout(() => root.remove(), 700); },
   };
 }
 
-/** In-game pause menu (Esc, or ⏸ on touch screens). handlers: resume, quality(tier), settings(s), quit, abandon, skipHour, tow. */
+/** The Guide as list + detail: sections come from the <h3> headings of GUIDE. */
+const GUIDE_PAGES = (() => {
+  const out = []; let cur = null;
+  for (const part of GUIDE.split(/(?=<h3>)/)) {
+    const m = part.match(/<h3>(.*?)<\/h3>([\s\S]*)/);
+    if (m) { cur = { title: m[1], html: m[2] }; out.push(cur); }
+  }
+  return out;
+})();
+
+const SETTINGS_HTML = `<div class="set">
+  <label>Graphics <select data-s="tier"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+  <p class="small">Changing graphics reloads the game; your position, time and money are kept.</p>
+  <label>Volume <input data-s="volume" type="range" min="0" max="1" step="0.05"></label>
+  <label>Mouse sensitivity <input data-s="sens" type="range" min="0.3" max="2.5" step="0.1"></label>
+  <label><input data-s="invertY" type="checkbox"> Invert mouse up/down</label>
+  <label><input data-s="hints" type="checkbox"> Show control hints</label>
+  <label><input data-s="speech" type="checkbox"> Spoken GPS directions</label>
+  <label><input data-s="radio" type="checkbox"> Taxi radio</label></div>`;
+
+const bar = (label, v, max, text) => `<div class="prow"><span>${label}</span><i><u style="width:${Math.round(Math.min(1, v / Math.max(1, max)) * 100)}%"></u></i><b>${text ?? `${v}/${max}`}</b></div>`;
+
+/** Home page: the player's profile, in the style of a game hub. */
+function homeHtml(p) {
+  if (!p) return '<p class="small">Nothing to show yet.</p>';
+  const rupees = (n) => `₹${Math.round(n).toLocaleString('en-IN')}`;
+  return `<div class="profile">
+    <div class="who"><div class="avatar">🚕</div><div><h2>${p.name}</h2><p>${p.title}</p></div></div>
+    <div class="facts"><div><small>Day</small><b>${p.day}</b></div><div><small>Time</small><b>${p.clock}</b></div><div><small>Money</small><b>${rupees(p.money)}</b></div>
+      <div><small>Rides</small><b>${p.rides}</b></div><div><small>Rating</small><b>${p.rating ? p.rating.toFixed(1) + '★' : '–'}</b></div><div><small>Earned</small><b>${rupees(p.earned)}</b></div></div>
+    <div class="prows">${bar('Missions', p.missions, p.missionsTotal)}${bar('Chai glasses', p.chai, 32)}${bar('Food', Math.round(p.hunger * 100), 100, `${Math.round(p.hunger * 100)}%`)}${bar('Energy', Math.round(p.energy * 100), 100, `${Math.round(p.energy * 100)}%`)}${bar('Unpaid challans', Math.min(5000, p.fines), 5000, rupees(p.fines))}</div>
+  </div>
+  <div class="cards3">
+    <div class="tile"><small>Your ride</small><h4>${p.vehicle}</h4><div class="art">🚕</div><div class="spec"><span>Engine<b>${Math.round(p.condition * 100)}%</b></span><span>Fuel<b>${Math.round(p.fuel * 100)}%</b></span><span>Plate<b>MH 01 T</b></span></div></div>
+    <div class="tile"><small>Today</small><h4>${p.clock}</h4><div class="art">🌤️</div><div class="spec"><span>Air quality<b>${p.aqi}</b></span><span>Stars<b>${'★'.repeat(p.stars) || '–'}</b></span></div></div>
+  </div>`;
+}
+
+/** In-game hub (Esc, or ⏸ on touch screens): Home (profile), Map, Guide, Settings. handlers: resume, quality(tier),
+ *  settings(s), quit, abandon, skipHour, tow, map, profile. */
 export function pauseMenu(handlers) {
-  const root = el(`<div id="pause-screen" hidden><div class="halftone"></div><div class="logo small"><b>${GAME.line1}</b><span>${GAME.line2} · PAUSED</span></div>
-    <div class="menu"><button data-a="resume" class="main">Resume</button><button data-a="settings">Settings</button><button data-a="guide">Guide</button><button data-a="hour">Skip an hour (T)</button><button data-a="tow">Call a tow truck (R R)</button><button data-a="abandon" hidden>Abandon mission</button><button data-a="quit">Save &amp; quit to title</button></div>
-    <div class="panel" hidden></div></div>`);
+  const root = el(`<div id="pause-screen" hidden>
+    <div class="topbar"><nav><button data-tab="home" class="on">Home</button><button data-tab="map">Map</button><button data-tab="guide">Guide</button><button data-tab="settings">Settings</button></nav>
+      <div class="logo small"><b>${GAME.line1}</b><span>${GAME.line2}</span></div></div>
+    <div class="rail"><button data-a="resume" title="Resume (Esc)">▶</button><button data-a="hour" title="Skip an hour (T)">⏩</button><button data-a="tow" title="Call a tow truck (R R)">🛻</button><button data-a="abandon" title="Abandon mission" hidden>✕</button><span></span><button data-a="quit" title="Save &amp; quit to title">⏻</button></div>
+    <div class="page"></div></div>`);
   document.body.appendChild(root);
-  const panel = root.querySelector('.panel');
+  const page = root.querySelector('.page');
   const s = loadSettings();
+  let tab = 'home', guideIx = 0;
+  const bindSettings = () => {
+    for (const i of page.querySelectorAll('[data-s]')) {
+      const k = i.dataset.s;
+      if (i.type === 'checkbox') i.checked = !!s[k]; else i.value = s[k];
+      i.onchange = () => {
+        const old = s.tier;
+        s[k] = i.type === 'checkbox' ? i.checked : i.type === 'range' ? Number(i.value) : i.value;
+        saveSettings(s);
+        if (k === 'tier' && s.tier !== old) handlers.quality(s.tier);
+        else handlers.settings(s);
+      };
+    }
+  };
+  const render = () => {
+    for (const b of root.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === tab);
+    page.className = `page ${tab}`;
+    if (tab === 'home') page.innerHTML = homeHtml(handlers.profile?.());
+    if (tab === 'guide') {
+      page.innerHTML = `<div class="glist">${GUIDE_PAGES.map((g, i) => `<button data-g="${i}" class="${i === guideIx ? 'on' : ''}">${g.title}</button>`).join('')}</div>
+        <div class="gbody"><h2>${GUIDE_PAGES[guideIx].title}</h2>${GUIDE_PAGES[guideIx].html}</div>`;
+    }
+    if (tab === 'settings') { page.innerHTML = `<h2>Settings</h2>${SETTINGS_HTML}`; bindSettings(); }
+  };
   root.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-tab]')?.dataset.tab;
+    if (t === 'map') { api.toggle(false); handlers.map?.(); return; }
+    if (t) { tab = t; render(); return; }
+    const g = e.target.closest('[data-g]')?.dataset.g;
+    if (g !== undefined) { guideIx = Number(g); render(); return; }
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'resume') api.toggle(false);
-    if (a === 'guide') { panel.innerHTML = `<button class="close" data-a="close">✕</button><h2>Guide</h2>${GUIDE}`; panel.hidden = false; }
-    if (a === 'close') panel.hidden = true;
     if (a === 'quit') handlers.quit();
     if (a === 'abandon') { handlers.abandon?.(); api.toggle(false); }
     if (a === 'hour') { handlers.skipHour?.(); api.toggle(false); }
     if (a === 'tow') { api.toggle(false); handlers.tow?.(); }
-    if (a === 'settings') {
-      panel.innerHTML = `<button class="close" data-a="close">✕</button><h2>Settings</h2>
-        <label>Graphics <select data-s="tier"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-        <p class="small">Changing graphics reloads the game; your position, time and money are kept.</p>
-        <label>Volume <input data-s="volume" type="range" min="0" max="1" step="0.05"></label>
-        <label>Mouse sensitivity <input data-s="sens" type="range" min="0.3" max="2.5" step="0.1"></label>
-        <label><input data-s="invertY" type="checkbox"> Invert mouse up/down</label>
-        <label><input data-s="hints" type="checkbox"> Show control hints</label>
-        <label><input data-s="speech" type="checkbox"> Spoken GPS directions</label>
-        <label><input data-s="radio" type="checkbox"> Taxi radio</label>`;
-      panel.hidden = false;
-      for (const i of panel.querySelectorAll('[data-s]')) {
-        const k = i.dataset.s;
-        if (i.type === 'checkbox') i.checked = !!s[k]; else i.value = s[k];
-        i.onchange = () => {
-          const old = s.tier;
-          s[k] = i.type === 'checkbox' ? i.checked : i.type === 'range' ? Number(i.value) : i.value;
-          saveSettings(s);
-          if (k === 'tier' && s.tier !== old) handlers.quality(s.tier);
-          else handlers.settings(s);
-        };
-      }
-    }
   });
   const api = {
     open: false,
     toggle(on = !api.open) {
-      api.open = on; root.hidden = !on; panel.hidden = true;
+      api.open = on; root.hidden = !on;
+      if (on) { tab = 'home'; render(); }
       root.querySelector('[data-a="abandon"]').hidden = !handlers.canAbandon?.();
       handlers.paused?.(on);
     },

@@ -37,7 +37,7 @@ import { Radio } from './radio.js';
 import { Characters } from './sim/characters.js';
 import { Cheats } from './game/cheats.js';
 import { Garage } from './vehicles/garage.js';
-import { Crackers } from './game/crackers.js';
+import { Crackers, CRACKERS } from './game/crackers.js';
 import { Stars } from './game/stars.js';
 import { Eggs } from './game/eggs.js';
 import { Interiors } from './world/interiors.js';
@@ -55,6 +55,8 @@ import { Combat } from './player/combat.js';
 import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
+import { initSpeedo } from './ui/hud.js';
+import { WeaponWheel } from './ui/wheel.js';
 import { titleScreen, loadingScreen, pauseMenu, loadSettings } from './ui/menu.js';
 import { TouchControls } from './ui/touch.js';
 import { registerServiceWorker } from './serviceWorker.js';
@@ -535,11 +537,31 @@ const pause = pauseMenu({
   abandon: () => story.fail('abandoned'),
   skipHour: () => skipHour(),
   tow: () => teleportHome(), // touch screens have no R key
+  map: () => { view.release(); cityMap.toggle(true, player); },
+  profile: () => ({
+    name: 'Driver', title: 'Kaali-peeli taxi · Powai', day: state.s.day, clock: clock.label, money: player.money, rides: state.s.rides, rating: state.rating, earned: state.s.earned || 0,
+    missions: story.s.done.length, missionsTotal: story.missions.length, chai: (state.s.eggs?.chai || []).length, hunger: state.s.hunger, energy: state.s.energy, fines: police.fines || 0,
+    vehicle: 'Kaali-peeli taxi', condition: player.condition, fuel: player.fuel, aqi: clock.aqi, stars: police.stars,
+  }),
 });
 let helpTimer = 50; // the long key list shows for the first 50 s, then ? brings it back
 applySettings(settings);
 
+const wheel = new WeaponWheel({
+  view,
+  current: () => combat.weapon,
+  detail: (id, short) => id === 'pichkari' ? (short ? `${Math.round(pichkari.tank * 100)}%` : `${pichkari.colourName} · tank ${Math.round(pichkari.tank * 100)}% · pressure ${pichkari.pressure}`)
+    : id.startsWith('cracker:') ? (crackers.current.id === id.slice(8) ? (short ? '●' : 'ready: press X to light') : '') : '',
+  pick: (id) => {
+    if (id.startsWith('cracker:')) { const i = CRACKERS.findIndex((c) => c.id === id.slice(8)); if (i >= 0) { crackers.index = i; say(`🎆 ${crackers.current.name} — X to light it`, 2); } return; }
+    combat.setWeapon(id);
+  },
+});
+addEventListener('keyup', (e) => { if (e.code === 'KeyB') wheel.hide(true); });
+addEventListener('blur', () => wheel.hide(false));
+
 addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' && wheel.open) { wheel.hide(false); return; }
   if (e.code === 'Escape' && !phone.open && !cityMap.open) { pause.toggle(); return; }
   if (pause.open) return;
   if ((e.code === 'Space' || e.code === 'Enter') && (story.lines?.length || story.ext) && story.camera) { story.skip(); return; }
@@ -558,6 +580,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyF') toggleFoot();
   if (e.code === 'KeyN' && !onFoot) radio.next();
   if (e.code === 'KeyC' && onFoot) { pichkari.nextColour(e.shiftKey ? -1 : 1); if (combat.weapon !== 'pichkari') combat.setWeapon('pichkari'); }
+  if (onFoot && e.code === 'KeyB' && !phone.open && !cityMap.open) { wheel.show(); return; }
   if (onFoot && e.code === 'Digit1') combat.setWeapon('fists');
   if (onFoot && e.code === 'Digit2') combat.setWeapon('pichkari');
   if (onFoot && e.code === 'KeyV') combat.kick();
@@ -1057,12 +1080,16 @@ $('coords').addEventListener('click', () => {
   if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
 });
 
+let shownStars = -1;
+const speedo = initSpeedo($('speed'));
 const GEO_RAD = Math.PI / 180;
 const GEO_M_LAT = 111132.92 - 559.82 * Math.cos(2 * 19.03 * GEO_RAD) + 1.175 * Math.cos(4 * 19.03 * GEO_RAD);
 const GEO_M_LON = 111412.84 * Math.cos(19.03 * GEO_RAD) - 93.5 * Math.cos(3 * 19.03 * GEO_RAD);
 
 function updateHud() {
-  $('speed').textContent = `${Math.round(Math.abs((onFoot ? walker : player).speed) * 3.6)} km/h`;
+  const mover = onFoot ? walker : player;
+  const hour = clock.hour;
+  speedo.update({ kmh: Math.round(Math.abs(mover.speed) * 3.6), reverse: mover.speed < -0.3, foot: onFoot, fuel: player.fuel, cond: player.condition, night: hour < 6 || hour >= 18.5 });
   $('fuel-label').textContent = onFoot ? 'Stamina' : 'Fuel';
   $('cond-label').textContent = onFoot ? 'Health' : 'Car';
   const here = onFoot ? walker : player;
@@ -1073,15 +1100,19 @@ function updateHud() {
   const [label, colour] = clock.aqiLabel;
   $('aqi').innerHTML = `AQI <b style="color:${colour}">${clock.aqi}</b> ${label}`;
   $('fuel-bar').style.width = `${Math.round((onFoot ? walker.stamina : player.fuel) * 100)}%`;
-  $('fuel-bar').style.background = player.fuel < 0.15 ? '#e74c3c' : '#f7c600';
+  $('fuel-bar').classList.toggle('low', player.fuel < 0.15);
   $('cond-bar').style.width = `${Math.round((onFoot ? walker.health : player.condition) * 100)}%`;
   $('weapon').hidden = !onFoot || !!touch;
   if (onFoot) {
-    // Key help only with a keyboard; written only when it changes.
-    const html = (combat.weapon === 'pichkari'
-      ? `💦 <b>Pichkari</b> <i style="background:#${HOLI[pichkari.colour].getHexString()}"></i>${pichkari.colourName} · Pressure ${'●'.repeat(pichkari.pressure)}${'○'.repeat(5 - pichkari.pressure)} · Tank ${Math.round(pichkari.tank * 100)}%`
-      : TOUCH ? '👊 <b>Fists</b>' : '👊 <b>Fists</b> · click punch ×3 combo · right mouse block · V kick · G insult')
-      + (TOUCH ? '' : ` · 🎆 X: ${crackers.current.name.split(' (')[0]}`);
+    // The hotbar: one slot per attack, the active one lit; written only when it changes.
+    const pk = combat.weapon === 'pichkari';
+    const slot = (key, icon, name, sub, on, f) => `<div class="slot${on ? ' on' : ''}"><kbd>${key}</kbd><i>${icon}</i><b>${name}</b><small>${sub}</small><u style="--f:${f ?? 0}"></u></div>`;
+    const html = TOUCH ? '' :
+      slot(1, '👊', 'Fists', 'click · ×3 combo', !pk, 1)
+      + `<div class="slot${pk ? ' on' : ''}" style="--dot:#${HOLI[pichkari.colour].getHexString()}"><kbd>2</kbd><i>💦</i><b>Pichkari</b><small><em></em>${pichkari.colourName} · ${'●'.repeat(pichkari.pressure)}${'○'.repeat(5 - pichkari.pressure)}</small><u style="--f:${pichkari.tank.toFixed(2)}"></u></div>`
+      + slot('X', '🎆', crackers.current.name.split(' (')[0], 'Z: next type', false, 1)
+      + slot('V', '🦵', 'Kick', 'knock back', false, 1)
+      + slot('G', '🗣️', 'Insult', 'bleeped', false, 1);
     if (html !== weaponHtml) $('weapon').innerHTML = weaponHtml = html;
   }
   const foe = onFoot ? combat.foe : null;
@@ -1089,13 +1120,18 @@ function updateHud() {
   if (foe) $('foe').innerHTML = `🥊 Opponent <i><b style="width:${Math.round(Math.max(0, Math.min(1, foe.hp ?? 1)) * 100)}%"></b></i>${combat.blocking ? ' · blocking' : ''}`;
   document.body.classList.toggle('hurt', onFoot && walker.hurt > 0.05);
   $('food-bar').style.width = `${Math.round(state.s.hunger * 100)}%`;
-  $('food-bar').style.background = state.s.hunger < 0.2 ? '#e74c3c' : '#f39c12';
+  $('food-bar').classList.toggle('low', state.s.hunger < 0.2);
   $('energy-bar').style.width = `${Math.round(state.s.energy * 100)}%`;
+  for (const id of ['fuel', 'cond', 'food', 'energy']) { const m = $(`${id}-bar`).closest('.meter'), v = Math.round(parseFloat($(`${id}-bar`).style.width) || 0); if (m.dataset.v !== String(v)) m.dataset.v = v; }
+  $('fuel-label').closest('.meter').dataset.i = onFoot ? '🏃' : '⛽';
+  $('cond-label').closest('.meter').dataset.i = onFoot ? '❤️' : '🛡️';
+  $('mm-state').className = police.stars ? 'wanted' : 'safe';
+  $('mm-state').textContent = police.stars ? `Wanted ${'★'.repeat(police.stars)}` : 'Safe';
   $('btn-phone').dataset.unread = state.unread || '';
   $('money').textContent = `₹${player.money.toLocaleString('en-IN')}`;
   $('money').classList.toggle('debt', player.money < 0);
   const w = $('wanted');
-  w.textContent = police.stars ? '★'.repeat(police.stars) + '☆'.repeat(5 - police.stars) : '';
+  if (police.stars !== shownStars) { shownStars = police.stars; w.innerHTML = Array.from({ length: 5 }, (_, i) => `<i${i < police.stars ? ' class="on"' : ''}>★</i>`).join(''); w.classList.toggle('none', !police.stars); }
   w.title = police.fines ? `Unpaid challans: ₹${police.fines.toLocaleString('en-IN')}` : '';
   w.classList.toggle('blink', police.stars > 0 && police.unseen > 0.6);
   if (messageTimer <= 0) {

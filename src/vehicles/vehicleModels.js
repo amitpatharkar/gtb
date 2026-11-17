@@ -54,7 +54,19 @@ export const VEHICLE_ART = {
   ignis: { name: 'Maroti Ignis', len: 3.7, base: 'wagonr', weight: 0.2 },
   harrier: { name: 'Tota Hairiyer', len: 4.6, base: 'innova', weight: 0.15 },
   figo: { name: 'Fored Feego', len: 3.78, base: 'i10', weight: 0.1 },
+  // Rare cars and newer/older generations (2026-11-17). Rare ones add up to about a third of one common car
+  // (3 Dzires, then 1 rare car); `split` takes the new generation's share from the type it replaces in part.
+  fiesta1: { name: 'Fored Fiyesta Puraani', len: 3.56, base: 'alto', weight: 0.02 },
+  kizashi: { name: 'Maroti Kizaashi', len: 4.65, base: 'city', weight: 0.03, flip: true },
+  octavia: { name: 'Skoda Oktaavia', len: 4.69, base: 'city', weight: 0.05 },
+  carnival: { name: 'Kiya Carnivaal', len: 5.15, base: 'innova', weight: 0.03 },
+  carnival2: { name: 'Kiya Carnivaal (puraani)', len: 4.8, base: 'innova', weight: 0.03, flip: true },
+  gvitara2: { name: 'Maroti Grand Vitaara', len: 4.35, base: 'creta', weight: 0.04 },
+  hilux: { name: 'Toyoda Haylux', len: 4.6, base: 'bolero', weight: 0.03 },
+  endeavour: { name: 'Fored Endeevar', len: 4.9, base: 'innova', weight: 0.06, flip: true },
+  alto2: { name: 'Maroti Altu (nayi)', len: 3.43, base: 'alto', weight: 0.7, split: true },
 };
+
 
 
 /**
@@ -64,6 +76,9 @@ export const VEHICLE_ART = {
  */
 export const FILE_TYPES = [
   [/wrc|rally|cabriolet|convertible|in_progress|3d-printing|stls|escada|velg|unrefined|karimun/i, null],
+  // Specific generations and rare cars first (first match wins).
+  [/2020_maruti_suzuki_alto_800/i, 'alto2'], [/kizashi/i, 'kizashi'], [/octavia/i, 'octavia'], [/carnival_2011/i, 'carnival2'], [/carnival/i, 'carnival'],
+  [/grand_vitara_mk2/i, 'gvitara'], [/grand_vitara/i, 'gvitara2'], [/hilux/i, 'hilux'], [/fiesta/i, 'fiesta1'], [/everest|endeavour/i, 'endeavour'],
   [/ambassador/i, 'ambassador'], [/contessa/i, 'contessa'], [/(maruti|suzuki)[_ -]*(suzuki[_ -]*)?800|ps1-style_maruti_800/i, 'm800'],
   [/alto/i, 'alto'], [/wagon[_ ]?r(?!.*karimun)/i, 'wagonr'], [/dzire/i, 'dzire'], [/swift/i, 'swift'], [/grand_i10|hyundai_i10/i, 'i10'],
   [/santro/i, 'santro'], [/creta/i, 'creta'], [/innova/i, 'innova'], [/ertiga/i, 'ertiga'], [/eeco/i, 'eeco'], [/scorpio/i, 'scorpio'],
@@ -87,6 +102,9 @@ export const VERIFIED = new Set([
   'hyundai_santro_xing', 'new_kia_seltos_2026', 'mahindra_-_thar_roxx', 'mahindra_scorpio', 'mahindra_xuv_7x0', 'maruti_800_ac',
   'maruti_suzuki_ciaz', 'maruti_suzuki_eeco_modified', 'maruti_suzuki_gypsy', 'maruti_zen_car_3d_model_free_to_use', 'tata_safari', 'tata_sierra',
   // Batch 2, checked by eye (facing, panels, size); i20, kona and omni need `flip` (VEHICLE_ART).
+  // Rare cars and generations (second eye check): facing checked, no shards or open shells.
+  '1976_ford_fiesta_mk1', '2011_suzuki_kizashi_sport', 'low-poly_skoda_octavia_rs_2020', 'kia_carnival', 'kia_carnival_2011', 'suzuki_grand_vitara',
+  'toyota_hilux_1983', '2018_ford_everestendeavour', '2020_maruti_suzuki_alto_800', '2013_-_2015_toyota_kijang_innova_2.5_v_kun40r',
   'hyundai_i20_2010', '2017_hyundai_sonata__hybrid', '2013_honda_brio_amaze', 'hyundai_ix35_tucson', 'hyundai_kona', '2022_suzuki_ignis', 'maruti_suzuki_omni_small_van',
 ]);
 /** The game type for an uploaded file name: an exact type id, an alias match, or null (not used). */

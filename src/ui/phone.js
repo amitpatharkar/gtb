@@ -50,7 +50,7 @@ export class Phone {
     this.el = document.createElement('div');
     this.el.id = 'phone';
     this.el.hidden = true;
-    this.el.innerHTML = '<div class="bar"></div><div class="screen"></div><button class="homebtn" aria-label="Home"></button>';
+    this.el.innerHTML = '<div class="glassface"><div class="island"></div><div class="bar"></div><div class="screen"></div><button class="homebtn" aria-label="Home"></button></div>';
     document.body.appendChild(this.el);
     this.bar = this.el.querySelector('.bar');
     this.screen = this.el.querySelector('.screen');
@@ -155,7 +155,8 @@ export class Phone {
 
   renderBar() {
     const s = this.state;
-    this.bar.innerHTML = `<span>${this.clock.label}</span><span>Jiyo 5G ▂▄▆ · ${Math.max(5, 100 - Math.floor(this.clock.hour * 3))}%</span>`;
+    const batt = Math.max(5, 100 - Math.floor(this.clock.hour * 3));
+    this.bar.innerHTML = `<span>${this.clock.label}</span><span class="sig">5G <i class="bars"><u></u><u></u><u></u><u></u></i><em class="batt"><s style="width:${batt}%"></s></em></span>`;
     void s;
   }
 
@@ -166,9 +167,12 @@ export class Phone {
     let html = '';
     switch (this.app) {
       case null: {
-        html = `<div class="widget"><div class="w-time">${this.clock.label}</div><div>AQI ${this.clock.aqi} · ${rupees(d.money)}</div>
+        const DOCK = ['maps', 'chalo', 'messages', 'camera'];
+        const icon = ([id, name, glyph, col], label) => `<button data-act="app:${id}"><i style="--c:${col}">${glyph}${id === 'messages' && s.unread ? `<em>${s.unread}</em>` : ''}</i>${label ? `<span>${name}</span>` : ''}</button>`;
+        html = `<div class="home"><div class="widget"><div class="w-time">${this.clock.label}</div><div class="w-sub">AQI ${this.clock.aqi} · ${rupees(d.money)}</div>
           <div class="meters"><span>🍽️ ${Math.round(d.hunger * 100)}%</span><span>⚡ ${Math.round(d.energy * 100)}%</span><span>⭐ ${s.rating ? s.rating.toFixed(1) : '–'}</span></div></div>
-          <div class="grid">${APPS.map(([id, name, icon, col]) => `<button data-act="app:${id}"><i style="background:${col}">${icon}</i><span>${name}${id === 'messages' && s.unread ? ` (${s.unread})` : ''}</span></button>`).join('')}</div>`;
+          <div class="grid">${APPS.filter((a) => !DOCK.includes(a[0])).map((a) => icon(a, true)).join('')}</div>
+          <div class="dock">${APPS.filter((a) => DOCK.includes(a[0])).map((a) => icon(a, false)).join('')}</div></div>`;
         break;
       }
       case 'chalo': {
