@@ -294,7 +294,6 @@ export class Trains {
     // Compile the coach shader before the first train comes into view (no hitch then).
     // ctx.compile (post.compile) picks the variant the post-processing pipeline draws.
     await (ctx.compile ? ctx.compile(t.mesh) : ctx.renderer?.compileAsync?.(t.mesh, ctx.camera, ctx.scene))?.catch(() => {});
-    t.loadCoachArt();
     return t;
   }
 
@@ -487,6 +486,7 @@ export class Trains {
       tr.x = a[0]; tr.z = a[1];
       const d = Math.hypot(tr.x - P.x, tr.z - P.z);
       if (d > this.rOut) { this.trains.delete(tr.key); continue; }
+      if (d < 260 && !this.coachArtAsked) { this.coachArtAsked = true; this.loadCoachArt(); } // the detailed coach, once a train is near
       tr.n = 0;
       for (let i = 0; i < COACHES; i++) {
         const c = tr.s + LEN / 2 - PITCH / 2 - i * PITCH;
@@ -546,6 +546,7 @@ export class Trains {
   /**
    * The owner's local-train coach with its interior (public/art/trains, scripts/art-coach.mjs),
    * shown in place of the coach the player rides in; its colour band takes the line's colour.
+   * Loaded (2 MB) the first time a train comes near.
    */
   async loadCoachArt() {
     try {
