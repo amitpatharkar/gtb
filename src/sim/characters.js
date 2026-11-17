@@ -604,27 +604,24 @@ export class Characters {
    * Turn a bone about a world axis (through its own joint), after the clip has posed it.
    * World matrices up the chain are refreshed first so turns on parent and child compose.
    */
-  turn(bone, ax, ay, az, angle) {
+  turn(c, bone, ax, ay, az, angle) {
     if (!bone || !angle) return;
-    bone.parent.updateWorldMatrix(true, false);
-    bone.parent.getWorldQuaternion(this.qp);
-    this.qLean.setFromAxisAngle(this.axis.set(ax, ay, az), angle);
-    bone.quaternion.premultiply(this.q.copy(this.qp).invert().multiply(this.qLean).multiply(this.qp));
-  }
-
-  /**
-   * Extra rotation of one bone about the character's right axis (world space), remembered so
-   * it can be undone next frame if the clip doesn't key that bone.
-   */
-  bend(c, bone, heading, angle) {
-    if (!bone || !angle) return;
+    // Remember the clip's rotation the first time a bone is turned this frame: when the mixer
+    // doesn't write it again (a frozen clip, an unchanged key), it is restored before the next
+    // turns, so turns never pile up.
     let a = null;
     for (let i = 0; i < c.adds.length; i++) if (c.adds[i].bone === bone) { a = c.adds[i]; break; }
     if (!a) { a = { bone, clean: new THREE.Quaternion(), applied: new THREE.Quaternion(), on: false }; c.adds.push(a); }
     if (!a.on) a.clean.copy(bone.quaternion);
-    this.turn(bone, Math.cos(heading), 0, -Math.sin(heading), angle);
+    bone.parent.updateWorldMatrix(true, false);
+    bone.parent.getWorldQuaternion(this.qp);
+    this.qLean.setFromAxisAngle(this.axis.set(ax, ay, az), angle);
+    bone.quaternion.premultiply(this.q.copy(this.qp).invert().multiply(this.qLean).multiply(this.qp));
     a.applied.copy(bone.quaternion); a.on = true;
   }
+
+  /** Extra rotation of one bone about the character's right axis (world space). */
+  bend(c, bone, heading, angle) { this.turn(c, bone, Math.cos(heading), 0, -Math.sin(heading), angle); }
 
   /** After the legs were turned: put each foot (a root-space bone) back on the end of its shin. */
   feet(c) {
@@ -644,13 +641,13 @@ export class Characters {
     if (pose === POSE.RIDE || pose === POSE.PEDAL) {
       // Hands forward on the handlebar; a little lean; knees a touch apart astride a bike.
       this.bend(c, c.spine, h, 0.12);
-      for (const s of [L, R]) { this.bend(c, s.arm, h, -0.95); this.bend(c, s.fore, h, -0.55); }
+      for (const s of [L, R]) { this.bend(c, s.arm, h, -0.85); this.bend(c, s.fore, h, -0.2); }
       if (pose === POSE.PEDAL) {
         const k = Math.sin(ph);
         this.bend(c, L.thigh, h, 0.28 * k); this.bend(c, L.shin, h, -0.4 * k);
         this.bend(c, R.thigh, h, -0.28 * k); this.bend(c, R.shin, h, 0.4 * k);
       } else {
-        this.turn(L.thigh, 0, 1, 0, 0.14); this.turn(R.thigh, 0, 1, 0, -0.14);
+        this.turn(c, L.thigh, 0, 1, 0, 0.07); this.turn(c, R.thigh, 0, 1, 0, -0.07);
       }
       this.feet(c);
     } else if (pose === POSE.CROUCH) {
@@ -661,15 +658,15 @@ export class Characters {
       // Gully cricket: a forward lean, hands together low in front, the swing from the phase.
       const sw = Math.sin(ph);
       this.bend(c, c.spine, h, 0.3);
-      this.turn(c.chest, 0, 1, 0, -0.45 * sw);
+      this.turn(c, c.chest, 0, 1, 0, -0.45 * sw);
       for (const s of [L, R]) { this.bend(c, s.arm, h, -0.75 + 0.45 * sw); this.bend(c, s.fore, h, -0.5); }
-      this.turn(L.arm, fx, 0, fz, 0.35); this.turn(R.arm, fx, 0, fz, -0.35);
+      this.turn(c, L.arm, fx, 0, fz, 0.35); this.turn(c, R.arm, fx, 0, fz, -0.35);
     } else if (pose === POSE.ARGUE) {
       // Hands up and talking with them.
       const a = Math.max(0, Math.sin(ph * 1.7 + 1.6)), b = Math.max(0, Math.sin(ph * 1.7 - 1.6));
       this.bend(c, L.arm, h, -0.45 - 0.6 * a); this.bend(c, L.fore, h, -0.7 - 0.3 * a);
       this.bend(c, R.arm, h, -0.45 - 0.6 * b); this.bend(c, R.fore, h, -0.7 - 0.3 * b);
-      this.turn(L.arm, fx, 0, fz, 0.2 * a); this.turn(R.arm, fx, 0, fz, -0.2 * b);
+      this.turn(c, L.arm, fx, 0, fz, 0.2 * a); this.turn(c, R.arm, fx, 0, fz, -0.2 * b);
     }
     void rx; void rz;
   }
