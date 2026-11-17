@@ -215,7 +215,7 @@ export class CityMap {
     const cache = (chunk.paths ||= {});
     if (cache[layer]) return cache[layer];
     const { pts, starts } = chunk.layers[layer];
-    const closed = !layer.startsWith('road') && layer !== 'rails';
+    const closed = !layer.startsWith('road') && !layer.startsWith('deck') && layer !== 'rails' && layer !== 'tunnel';
     const p = new Path2D();
     for (let i = 0; i + 1 < starts.length; i++) {
       for (let k = starts[i]; k < starts[i + 1]; k++) (k === starts[i] ? p.moveTo : p.lineTo).call(p, pts[k * 2], pts[k * 2 + 1]);
@@ -265,9 +265,20 @@ export class CityMap {
     // Main roads, tertiary roads and links, lanes (only when zoomed in far enough to read them).
     const roadStyle = [['#ffffff', Math.max(12, 3 * px)], ['#f4efe4', Math.max(8, 2.4 * px)], ['#e9e3d6', Math.max(5, 1.6 * px)]];
     const groups = scale < 0.1 ? [1, 0] : [2, 1, 0];
+    // Tunnels: dashed, under the streets.
+    g.strokeStyle = 'rgba(120,114,104,0.7)'; g.lineWidth = Math.max(5, 1.6 * px); g.setLineDash([8 * px, 6 * px]);
+    for (const c of vis) if (c.layers.tunnel) g.stroke(this.path(c, 'tunnel'));
+    g.setLineDash([]);
     g.strokeStyle = '#8f887a';
     for (const k of groups) { g.lineWidth = roadStyle[k][1] + 1.5 * px; for (const c of vis) if (c.layers[`road${k}`]) g.stroke(this.path(c, `road${k}`)); }
     for (const k of groups) { g.strokeStyle = roadStyle[k][0]; g.lineWidth = roadStyle[k][1]; for (const c of vis) if (c.layers[`road${k}`]) g.stroke(this.path(c, `road${k}`)); }
+    // Flyovers and bridges on top of the streets they cross, with a darker edge.
+    for (const k of [1, 0]) {
+      g.strokeStyle = '#5d5850'; g.lineWidth = roadStyle[k][1] + 3 * px;
+      for (const c of vis) if (c.layers[`deck${k}`]) g.stroke(this.path(c, `deck${k}`));
+      g.strokeStyle = k ? '#efe9dc' : '#fffdf6'; g.lineWidth = roadStyle[k][1];
+      for (const c of vis) if (c.layers[`deck${k}`]) g.stroke(this.path(c, `deck${k}`));
+    }
     g.strokeStyle = '#6d6a66'; g.lineWidth = 2 * px; g.setLineDash([6 * px, 5 * px]);
     for (const c of vis) if (c.layers.rails) g.stroke(this.path(c, 'rails'));
     g.setLineDash([]);

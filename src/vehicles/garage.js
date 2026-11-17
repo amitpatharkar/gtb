@@ -88,10 +88,11 @@ export class Garage {
    * The vehicle a person at (x, z) could get into: the nearest of traffic cars, parked and
    * abandoned vehicles within reach. Returns { kind, v, d } or null.
    */
-  nearest(x, z, reach = 2.4) {
+  nearest(x, z, reach = 2.4, y = null) {
     let best = null;
     const test = (v, kind) => {
       if (Math.abs(v.x - x) > 9 || Math.abs(v.z - z) > 9) return;
+      if (y !== null && Math.abs((v.y ?? 0.02) - y) > 2.5) return; // on the flyover overhead, or the street below
       const T = this.traffic.types[v.type];
       if (!T) return;
       const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
@@ -109,10 +110,10 @@ export class Garage {
   park() {
     const p = this.player;
     if (this.inTaxi) {
-      this.home = { x: p.pos.x, z: p.pos.z, heading: p.heading, fuel: p.fuel, condition: p.condition };
+      this.home = { x: p.pos.x, z: p.pos.z, y: p.pos.y, heading: p.heading, fuel: p.fuel, condition: p.condition };
       this.homeBody = { pos: new THREE.Vector3(p.pos.x, p.pos.y, p.pos.z), heading: p.heading, condition: p.condition, speed: 0 };
     } else {
-      this.traffic.left.push({ type: this.type, x: p.pos.x, z: p.pos.z, heading: p.heading, tint: this.tint, fuel: p.fuel, condition: p.condition, taken: true });
+      this.traffic.left.push({ type: this.type, x: p.pos.x, z: p.pos.z, y: p.pos.y, heading: p.heading, tint: this.tint, fuel: p.fuel, condition: p.condition, taken: true });
       this.scene.remove(this.model.root);
       this.model = null;
     }
@@ -135,7 +136,7 @@ export class Garage {
     this.scene.add(this.model.root);
     p.model = this.model;
     this.shape(v.type);
-    p.pos.set(v.x, p.pos.y, v.z); p.heading = v.heading; p.speed = 0; p.vx = p.vz = 0; p.lastSpeed = 0; p.steer = 0;
+    p.pos.set(v.x, v.y ?? p.pos.y, v.z); p.heading = v.heading; p.speed = 0; p.vx = p.vz = 0; p.lastSpeed = 0; p.steer = 0;
     p.fuel = v.fuel ?? 0.35 + Math.random() * 0.55;
     p.condition = v.condition ?? 0.9 + Math.random() * 0.1;
     this.moveLamps(this.model.root, this.spec);
@@ -152,7 +153,7 @@ export class Garage {
     this.type = 'taxi'; this.tint = null;
     p.model = this.taxi;
     this.shape('taxi');
-    p.pos.set(h.x, p.pos.y, h.z); p.heading = h.heading; p.speed = 0; p.vx = p.vz = 0; p.lastSpeed = 0;
+    p.pos.set(h.x, h.y ?? p.pos.y, h.z); p.heading = h.heading; p.speed = 0; p.vx = p.vz = 0; p.lastSpeed = 0;
     p.fuel = h.fuel; p.condition = h.condition;
     this.home = null;
     this.moveLamps(this.taxi.root, null);
@@ -194,9 +195,9 @@ export class Garage {
   }
 
   /** Circles other things should avoid for the parked taxi (while the player drives something else). */
-  taxiHits(x, z, r) {
+  taxiHits(x, z, r, y = 0.02) {
     const h = this.home;
-    if (!h) return false;
+    if (!h || Math.abs((h.y ?? 0.02) - y) > 2.5) return false; // (parked on a flyover, or under one)
     const fx = Math.sin(h.heading) * 1.1, fz = Math.cos(h.heading) * 1.1;
     return (x - h.x - fx) ** 2 + (z - h.z - fz) ** 2 < (r + 0.8) ** 2 || (x - h.x + fx) ** 2 + (z - h.z + fz) ** 2 < (r + 0.8) ** 2;
   }

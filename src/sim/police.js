@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { endKey, keyXZ } from './roadKeys.js';
+import { keyXZ, keyY, segEndKey } from './roadKeys.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { POSE, FLAG, outfit, makePerson } from './people.js';
 import { LIGHT } from './signals.js';
@@ -30,7 +30,6 @@ const DRIVER_SAYS = { sorry: ['Sorry saheb!', 'Galti ho gayi…', 'Jaldi mein th
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const hash = (x, z) => { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); };
 const rupees = (n) => `₹${Math.round(n).toLocaleString('en-IN')}`;
-const nodeKey = endKey;
 
 /** Min-heap for A*. */
 class Heap {
@@ -68,7 +67,8 @@ const TAXI_CIRCLES = [1.1, -1.1];
  * Circles along a car, like the player's own collision shape: the player Car's real ones (a
  * bus is long), two for the parked taxi's stand-in; a person on foot is one small circle.
  */
-function carHit(car, x, z, r) {
+function carHit(car, x, z, r, y = Y.ROAD) {
+  if (car.pos.y - y > 2.5 || y - car.pos.y > 2.5) return false; // on a flyover, or under one
   if (car.condition === undefined) { const dx = x - car.pos.x, dz = z - car.pos.z; return dx * dx + dz * dz < (r + 0.5) * (r + 0.5); } // a person on foot
   const fx = Math.sin(car.heading || 0), fz = Math.cos(car.heading || 0), R = r + (car.radius ?? 0.8);
   const list = car.circles || (car.halfLength !== undefined ? [car.halfLength, -car.halfLength] : TAXI_CIRCLES);
@@ -308,16 +308,18 @@ export class Police {
 
   checkDriving(dt, player) {
     const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
-    const speed = player.speed;
+    const speed = player.speed, py = player.pos.y;
+    // Signals and footpaths are at street level (a flyover passes over the junction).
+    const street = py < Y.ROAD + 1.5 && py > Y.ROAD - 1.5;
     // Red light: crossing a stop line while red.
-    const sig = this.signals.ahead(player.pos.x, player.pos.z, fx, fz, 30);
+    const sig = street ? this.signals.ahead(player.pos.x, player.pos.z, fx, fz, 30) : null;
     if (sig && this.pSig && sig.ap === this.pSig.ap && this.pSig.dist > 0 && sig.dist <= 0 && sig.light === LIGHT.RED && speed > 2 && !this.cooldown.red) {
       this.cooldown.red = 6;
       this.offence('red', player);
     }
     this.pSig = sig;
     // Wrong way on a one-way street.
-    const r = this.tiles.roadAt(player.pos.x, player.pos.z, 0, true);
+    const r = this.tiles.roadAt(player.pos.x, player.pos.z, 0, true, py);
     if (r) {
       const s = this.tiles.segment(r.tile, r.index);
       const len = Math.hypot(s[2] - s[0], s[3] - s[1]) || 1;
@@ -326,7 +328,7 @@ export class Police {
       this.footT = 0;
     } else {
       // Off the road but next to one: on the footpath.
-      const nearRoad = this.tiles.roadAt(player.pos.x, player.pos.z, 4, true);
+      const nearRoad = street && this.tiles.roadAt(player.pos.x, player.pos.z, 4, true);
       this.footT = nearRoad && Math.abs(speed) > 2.5 ? this.footT + dt : 0;
       this.wrongT = 0;
     }
@@ -425,14 +427,14 @@ export class Police {
       let n = byList.get(list);
       if (!n) {
         const [x, z] = keyXZ(k);
-        n = { x, z, adj: [], comp: 0 };
+        n = { x, z, y: keyY(k) + Y.ROAD, adj: [], comp: 0 }; // y: junctions on flyovers and in tunnels
         byList.set(list, n);
       }
       byKey.set(k, n);
     }
     for (const seg of this.traffic.segList) {
       const s = seg.s;
-      const a = byKey.get(nodeKey(s[0], s[1])), b = byKey.get(nodeKey(s[2], s[3]));
+      const a = byKey.get(segEndKey(s, 0)), b = byKey.get(segEndKey(s, 1));
       if (a && b && a !== b) { a.adj.push([b, seg.len]); b.adj.push([a, seg.len]); } // police ignore one-ways
     }
     this.nodes = [...byList.values()];
@@ -452,11 +454,12 @@ export class Police {
     }
   }
 
-  nearestNode(x, z, r = 60) {
+  /** Nearest junction to (x, z) — at height y if given (the deck a player is on, not the street under it). */
+  nearestNode(x, z, r = 60, y = null) {
     if (this.graphVersion !== this.traffic.graphVersion) this.buildGraph(); // built lazily
     let best = null, bd = r * r;
     for (let gx = Math.floor((x - r) / 30); gx <= Math.floor((x + r) / 30); gx++) for (let gz = Math.floor((z - r) / 30); gz <= Math.floor((z + r) / 30); gz++) {
-      for (const n of this.grid.get(`${gx},${gz}`) || []) { const d = (n.x - x) ** 2 + (n.z - z) ** 2; if (d < bd) { bd = d; best = n; } }
+      for (const n of this.grid.get(`${gx},${gz}`) || []) { const d = (n.x - x) ** 2 + (n.z - z) ** 2 + (y === null ? 0 : ((n.y - y) * 12) ** 2); if (d < bd) { bd = d; best = n; } }
     }
     return best;
   }
@@ -503,7 +506,7 @@ export class Police {
 
   spawnPatrol(player) {
     const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
-    const home = this.nearestNode(player.pos.x, player.pos.z);
+    const home = this.nearestNode(player.pos.x, player.pos.z, 60, player.pos.y);
     if (!home) return;
     const nodes = this.nodes.filter((n) => n.comp === home.comp && n.adj.length >= 2);
     for (let tries = 0; tries < 60 && nodes.length; tries++) {
@@ -513,12 +516,12 @@ export class Police {
       if (d < 110 || d > 230) continue;
       if (tries < 40 && ((x - player.pos.x) * fx + (z - player.pos.z) * fz) > 0) continue; // prefer behind
       if (tries < 50 && this.los(x, z, player.pos.x, player.pos.z)) continue;           // appear out of sight
-      if (this.tiles.hits(x, z, 1.2)) continue;
+      if (this.tiles.hits(x, z, 1.2, node.y, true)) continue;
       const model = this.modelPool.pop() || createTaxi({ police: true });
       model.lights.bar.red.emissiveIntensity = model.lights.bar.blue.emissiveIntensity = 0;
       this.scene.add(model.root);
       const car = new Car(model, { maxSpeed: 23, accel: 6.5, fuel: 1 });
-      car.pos.set(x, Y.ROAD, z);
+      car.pos.set(x, node.y, z);
       const next = node.adj[0][0];
       car.heading = Math.atan2(next.x - x, next.z - z);
       this.patrols.push({ car, model, mode: 'chase', route: null, routeT: 0, stuck: 0, reverse: 0, flash: 0, gone: 0 });
@@ -539,7 +542,7 @@ export class Police {
       if (dPlayer < 6.5) cruise = 0;
     } else {
       p.routeT -= dt;
-      const goal = p.mode === 'chase' ? this.nearestNode(player.pos.x, player.pos.z) : (p.leaveGoal ||= this.leaveNode(pos, player));
+      const goal = p.mode === 'chase' ? this.nearestNode(player.pos.x, player.pos.z, 60, player.pos.y) : (p.leaveGoal ||= this.leaveNode(pos, player));
       if (p.routeT <= 0 || !p.route?.length) {
         p.routeT = 1.2;
         if (!p.route?.length || goal !== p.goal) {
@@ -585,8 +588,8 @@ export class Police {
     }
   }
 
-  hits(x, z, r) {
-    for (const p of this.patrols) if (carHit(p.car, x, z, r)) return true;
+  hits(x, z, r, y = Y.ROAD) {
+    for (const p of this.patrols) if (carHit(p.car, x, z, r, y)) return true;
     return false;
   }
 
@@ -628,15 +631,15 @@ export class Police {
     // real size, or on foot), the vehicle the player left standing, the parked taxi, other patrols.
     this.player = player;
     const world = this.world || (this.world = {
-      hits: (x, z, r) => {
+      hits: (x, z, r, y = Y.ROAD) => {
         const pl = this.player, car = this.car;
-        if (this.tiles.hits(x, z, r) || this.traffic.hits(x, z, r) || carHit(pl, x, z, r)) return true;
-        if (car && car !== pl && carHit(car, x, z, r)) return true;
-        if (this.taxi && this.taxi !== pl && this.taxi !== car && carHit(this.taxi, x, z, r)) return true;
-        for (const q of this.patrols) if (q !== this.driving && carHit(q.car, x, z, r)) return true;
+        if (this.tiles.hits(x, z, r, y, true) || this.traffic.hits(x, z, r, y) || carHit(pl, x, z, r, y)) return true;
+        if (car && car !== pl && carHit(car, x, z, r, y)) return true;
+        if (this.taxi && this.taxi !== pl && this.taxi !== car && carHit(this.taxi, x, z, r, y)) return true;
+        for (const q of this.patrols) if (q !== this.driving && carHit(q.car, x, z, r, y)) return true;
         return false;
       },
-      groundHeight: (x, z) => this.tiles.groundHeight(x, z),
+      groundHeight: (x, z, y) => this.tiles.groundHeight(x, z, y, true),
     });
     let siren = 0;
     for (const p of this.patrols) {

@@ -1,7 +1,7 @@
 // Headless smoke tests for the built game (dist/). Run after `npm run build`:
 //   node tests/smoke.mjs            all checks on the Low tier
 //   node tests/smoke.mjs --only=boot,drive --quality=medium
-//   checks: boot, drive, traffic, steal, missions, trains, night, touch (phone controls)
+//   checks: boot, drive, traffic, steal, missions, trains, night, touch (phone controls), clutter, people, flyover
 // Needs Playwright with Chromium (a devDependency: `npx playwright install chromium`; a global
 // install found through NODE_PATH works too). In CI it runs inside deploy.yml, before the deploy.
 // Serves dist/ the way GitHub Pages does (under /gtb/, .gz files as plain application/gzip)
@@ -498,6 +498,102 @@ await check('clutter', async () => {
   else if (!info.pulled) fails.push('could not take a handcart');
   else if (info.cartTop < 0.8 || info.cartTop > 3.6) fails.push(`handcart speed ${info.cartTop} m/s`);
   if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms`);
+  return { info, fails };
+});
+
+await check('flyover', async () => {
+  // Up a flyover ramp onto its deck (the car rises with the road and never falls through), then
+  // traffic on the sea link at deck height; the cable-stayed pylons are standing.
+  const { page, errors } = await game('hour=11');
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, ix = g.tiles.index, T = g.tiles;
+    const out = { pylons: ix.bridges?.pylons?.length || 0, cables: g.bridges?.cableCount || 0 };
+    const at = (lat, lon) => [(lon - ix.origin.lon) * ix.metresPerDegree.lon, -(lat - ix.origin.lat) * ix.metresPerDegree.lat];
+    // 1. Dadar's flyovers: a ramp that climbs to a deck.
+    const [x, z] = at(19.0190, 72.8435);
+    await T.whenReady(x, z, 420); g.player.pos.set(x, 0.02, z);
+    for (let i = 0; i < 4; i++) g.step(0.05);
+    const pathFrom = (seg, dir) => {
+      const pts = [];
+      for (let n = 0; n < 80; n++) {
+        const s = seg.s;
+        if (!pts.length) pts.push(dir > 0 ? [s[0], s[1], s[6]] : [s[2], s[3], s[7]]);
+        pts.push(dir > 0 ? [s[2], s[3], s[7]] : [s[0], s[1], s[6]]);
+        const fx = (s[2] - s[0]) * dir, fz = (s[3] - s[1]) * dir, fl = Math.hypot(fx, fz) || 1;
+        let best = null, bs = 0.5;
+        for (const o of g.traffic.ends.get(dir > 0 ? seg.k1 : seg.k0) || []) {
+          if (o.seg === seg) continue;
+          const d2 = o.end === 0 ? 1 : -1, ox = (o.seg.s[2] - o.seg.s[0]) * d2, oz = (o.seg.s[3] - o.seg.s[1]) * d2;
+          const sc = (ox * fx + oz * fz) / (fl * (Math.hypot(ox, oz) || 1));
+          if (sc > bs) { bs = sc; best = [o.seg, d2]; }
+        }
+        if (!best) break;
+        [seg, dir] = best;
+      }
+      return pts;
+    };
+    let path = null;
+    for (const seg of g.traffic.segList) {
+      const s = seg.s;
+      if (!(s[5] & 32) || s[4] < 2.5) continue;
+      const dir = s[6] < 0.12 && s[7] > 0.2 ? 1 : s[7] < 0.12 && s[6] > 0.2 ? -1 : 0;
+      if (!dir) continue;
+      const pts = pathFrom(seg, dir);
+      const top = Math.max(...pts.map((p) => p[2]));
+      let len = 0; for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      if (top > 5.5 && len > 150 && (!path || len > path.len)) path = { pts, top, len };
+    }
+    if (!path) return { ...out, error: 'no flyover ramp found near Dadar' };
+    const pts = path.pts, p = g.player.pos, world = { hits: (a, b, r, y, v) => T.hits(a, b, r, y, v), groundHeight: (a, b, y) => T.wheelHeight(a, b, y) };
+    p.set(pts[0][0], 0.02, pts[0][1]);
+    g.player.heading = Math.atan2(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]);
+    g.player.speed = 0; g.player.vx = g.player.vz = 0; g.player.lastSpeed = 0; g.player.fuel = 1;
+    const input = { fwd: false, back: false, left: false, right: false, brake: false, steer: 0 };
+    let idx = 1, maxY = 0, fell = 0, travelled = 0, prevX = p.x, prevZ = p.z;
+    for (let i = 0; i < 900 && idx < pts.length - 1; i++) {
+      while (idx < pts.length - 1 && Math.hypot(pts[idx][0] - p.x, pts[idx][1] - p.z) < 9) idx++;
+      const t = pts[idx];
+      let a = Math.atan2(t[0] - p.x, t[1] - p.z) - g.player.heading; a = Math.atan2(Math.sin(a), Math.cos(a));
+      input.steer = Math.max(-1, Math.min(1, a * 2.5)); input.fwd = g.player.speed < 11; input.brake = g.player.speed > 13;
+      g.player.update(0.05, input, world);
+      travelled += Math.hypot(p.x - prevX, p.z - prevZ); prevX = p.x; prevZ = p.z;
+      maxY = Math.max(maxY, p.y);
+      // The road here (nearest path point): the car must be on it, not fallen to the street below.
+      let near = null, nd = Infinity;
+      for (const q of pts) { const d = Math.hypot(q[0] - p.x, q[1] - p.z); if (d < nd) { nd = d; near = q; } }
+      if (nd < 6 && near[2] > 3 && p.y < near[2] - 2) fell++;
+    }
+    Object.assign(out, { rampTop: +path.top.toFixed(1), maxY: +maxY.toFixed(1), travelled: Math.round(travelled), fell });
+    // 2. Traffic on the sea link's deck, at deck height.
+    const P = ix.bridges?.pylons?.[0];
+    if (P) {
+      await T.whenReady(P.x, P.z, 300);
+      const rd = T.roadAt(P.x, P.z, 30, true, P.deck);
+      if (rd) { const s = T.segment(rd.tile, rd.index); p.set((s[0] + s[2]) / 2, (s[6] + s[7]) / 2, (s[1] + s[3]) / 2); g.player.heading = Math.atan2(s[2] - s[0], s[3] - s[1]); }
+      g.player.speed = 0; g.player.vx = g.player.vz = 0; g.player.lastSpeed = 0;
+      for (let i = 0; i < 300; i++) g.step(0.05);
+      let onDeck = 0, wrongY = 0;
+      for (const c of g.traffic.cars) {
+        const s = c.seg.s;
+        if (!(s[5] & 32) || (s[6] + s[7]) / 2 < 4) continue;
+        const t = c.dir > 0 ? c.t : 1 - c.t, y = s[6] + (s[7] - s[6]) * t;
+        onDeck++;
+        if (Math.abs(c.y - y) > 0.8) wrongY++;
+      }
+      Object.assign(out, { playerOnDeck: +p.y.toFixed(1), trafficOnDeck: onDeck, wrongY });
+    }
+    g.post.render();
+    return out;
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (info.error) fails.push(info.error);
+  if (!info.pylons || info.cables < 100) fails.push('sea link pylons or stay cables missing');
+  if (!(info.maxY > 5)) fails.push(`car did not climb the ramp onto the deck (max height ${info.maxY} m)`);
+  if (info.fell) fails.push(`car fell through the deck ${info.fell} times`);
+  if (!(info.playerOnDeck > 5)) fails.push(`player not kept on the sea link deck (y ${info.playerOnDeck})`);
+  if (!(info.trafficOnDeck > 0)) fails.push('no traffic on the sea link deck');
+  if (info.wrongY) fails.push(`${info.wrongY} cars on the deck away from its height`);
   return { info, fails };
 });
 
