@@ -160,5 +160,100 @@ export function createTaxi(opts = {}) {
   }
   // Panels that can dent (painted body, roof and pillars).
   const dentable = body.children.filter((m) => m.material === black || m.material === yellow);
-  return { root, body, wheels, steerers, lights: { headMat, tailMat, bar }, wheelRadius: WHEEL_R, wheelBase: WB, track: TRACK, length: L, bumpers: { front: bumperF, rear: bumperR }, dentable };
+  const model = { root, body, wheels, steerers, lights: { headMat, tailMat, bar }, wheelRadius: WHEEL_R, wheelBase: WB, track: TRACK, length: L, bumpers: { front: bumperF, rear: bumperR }, dentable };
+  if (!police) model.useModel = (near) => useScannedBody(model, near, { black, glass, headMat, tailMat });
+  return model;
+}
+
+/** Triangles of a non-indexed geometry that pass `keep(cx, cy, cz)` (centroid test). */
+function filterTriangles(geo, keep) {
+  const pos = geo.attributes.position, out = {};
+  const names = Object.keys(geo.attributes);
+  for (const n of names) out[n] = [];
+  for (let t = 0; t < pos.count; t += 3) {
+    const cx = (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, cy = (pos.getY(t) + pos.getY(t + 1) + pos.getY(t + 2)) / 3, cz = (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3;
+    if (!keep(cx, cy, cz)) continue;
+    for (const n of names) { const a = geo.attributes[n]; for (let k = 0; k < 3; k++) for (let c = 0; c < a.itemSize; c++) out[n].push(a.getComponent(t + k, c)); }
+  }
+  const g = new THREE.BufferGeometry();
+  for (const n of names) g.setAttribute(n, new THREE.BufferAttribute(Float32Array.from(out[n]), geo.attributes[n].itemSize));
+  return g;
+}
+
+/**
+ * Cuts a non-indexed geometry with an axis-aligned box: triangles are clipped exactly at the
+ * box faces (attributes interpolated), so a door comes out with clean edges and the body keeps a
+ * matching opening. Returns { inside, outside } geometries.
+ */
+function splitBox(geo, lo, hi) {
+  const names = Object.keys(geo.attributes), sizes = names.map((n) => geo.attributes[n].itemSize), pos = geo.attributes.position;
+  const inside = Object.fromEntries(names.map((n) => [n, []])), outside = Object.fromEntries(names.map((n) => [n, []]));
+  const lerp = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+  const emit = (out, poly) => { for (let k = 1; k + 1 < poly.length; k++) for (const v of [poly[0], poly[k], poly[k + 1]]) names.forEach((n, i) => out[n].push(...v[i])); };
+  // Sutherland–Hodgman against one plane: axis a, value, keep side (+1: coordinate >= value).
+  const clip = (poly, a, val, side) => {
+    const out = [], P = (v) => v[0][a] - val;
+    for (let i = 0; i < poly.length; i++) {
+      const A = poly[i], B = poly[(i + 1) % poly.length], da = P(A) * side, db = P(B) * side;
+      if (da >= 0) out.push(A);
+      if ((da >= 0) !== (db >= 0)) { const t = P(A) / (P(A) - P(B)); out.push(names.map((_, j) => lerp(A[j], B[j], t))); }
+    }
+    return out;
+  };
+  const planes = [[0, lo[0], 1], [0, hi[0], -1], [1, lo[1], 1], [1, hi[1], -1], [2, lo[2], 1], [2, hi[2], -1]];
+  for (let t = 0; t < pos.count; t += 3) {
+    let poly = [0, 1, 2].map((k) => names.map((n, i) => Array.from({ length: sizes[i] }, (_, c) => geo.attributes[n].getComponent(t + k, c))));
+    for (const [a, val, side] of planes) {
+      const keep = clip(poly, a, val, side), drop = clip(poly, a, val, -side);
+      if (drop.length >= 3) emit(outside, drop);
+      poly = keep;
+      if (poly.length < 3) break;
+    }
+    if (poly.length >= 3) emit(inside, poly);
+  }
+  const build = (o) => { const g = new THREE.BufferGeometry(); names.forEach((n, i) => g.setAttribute(n, new THREE.BufferAttribute(Float32Array.from(o[n]), sizes[i]))); return g; };
+  return { inside: build(inside), outside: build(outside) };
+}
+
+/** Driver's door box on the scanned Padmini (metres, model space): sides beyond |x| = x0, hinge at the front edge z1, x1 = the skin. */
+const DOOR = { x0: 0.56, x1: 0.77, z0: -0.02, z1: 0.66, y0: 0.3, y1: 1.32 };
+
+/**
+ * Swaps the procedural body for the owner's scanned Padmini (public/art/vehicles/padmini.glb →
+ * the build's four parts: paint, glass, trim, lamps). The scan's own wheels (part of the trim)
+ * replace the procedural ones, which are hidden (so they no longer spin or steer); headlamps and
+ * tail lamps keep the car's light materials (night glow, brake lights). Dents act on paint and trim.
+ */
+function useScannedBody(model, near, mats) {
+  for (const m of model.body.children.slice()) model.body.remove(m); // the procedural shell
+  for (const w of model.wheels) w.visible = false;
+  const add = (geo, material) => { const m = new THREE.Mesh(geo, material); m.castShadow = m.receiveShadow = true; model.body.add(m); return m; };
+  const trimMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.2 });
+  // The driver's door (right side, local -x; India drives on the left, right-hand drive) is cut out of the
+  // paint, trim and glass by position and hung on a hinge at its front edge; the opening behind it gets a dark cabin.
+  const D = DOOR, lo = [-D.x1 - 0.1, D.y0, D.z0], hi = [-D.x0, D.y1, D.z1];
+  const hinge = new THREE.Group();
+  hinge.position.set(-D.x1, 0, D.z1);
+  model.body.add(hinge);
+  const twoSided = (m) => { const c = m.clone(); c.side = THREE.DoubleSide; return c; };
+  const cut = {};
+  for (const [k, geo] of [['paint', near.paint], ['trim', near.trim], ['glass', near.glass]]) cut[k] = splitBox(geo, lo, hi);
+  const doorPart = (k, material) => {
+    const g = cut[k].inside; g.translate(D.x1, 0, -D.z1); // relative to the hinge
+    const m = new THREE.Mesh(g, twoSided(material)); m.castShadow = m.receiveShadow = true; hinge.add(m);
+  };
+  doorPart('paint', mats.black); doorPart('trim', trimMat); doorPart('glass', mats.glass);
+  // The opening: a dark cabin floor and seat block below the waist line, so the open door shows a cabin, not the road.
+  const dark = new THREE.MeshStandardMaterial({ color: 0x15130f, roughness: 0.9, side: THREE.DoubleSide });
+  add(new THREE.BoxGeometry(2 * D.x0, 0.5, D.z1 - D.z0).translate(0, 0.6, (D.z0 + D.z1) / 2), dark);
+  const paint = add(cut.paint.outside, mats.black);
+  const trim = add(cut.trim.outside, trimMat);
+  add(cut.glass.outside, mats.glass);
+  model.door = { angle: 0, hinge, set(a) { this.angle = a; hinge.rotation.y = a; } };
+  for (const m of [mats.headMat, mats.tailMat]) { m.vertexColors = true; m.needsUpdate = true; } // lamp colours from the scan, lit by the car's own emissive control
+  add(filterTriangles(near.lamps, (x, y, z) => z > 0), mats.headMat);
+  add(filterTriangles(near.lamps, (x, y, z) => z <= 0), mats.tailMat);
+  model.dentable = [paint, trim];
+  model.bumpers = { front: new THREE.Object3D(), rear: new THREE.Object3D() }; // (bumpers are part of the scan)
+  model.scanned = true;
 }

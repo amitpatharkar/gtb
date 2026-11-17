@@ -291,6 +291,8 @@ export class StreetClutter {
     this.at = new THREE.Vector3(1e9, 0, 1e9);
     this.version = -1;
     this.timer = 0;
+    this.gateList = []; // gates near the player this build: leaf instance, hinge points, openness state
+    this.gateOpen = new Map(); // gate key → { o: 0 shut … 1 open } (kept between builds)
     this.m = new THREE.Matrix4(); this.m2 = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.p = new THREE.Vector3(); this.s = new THREE.Vector3(); this.c = new THREE.Color();
     this.up = new THREE.Vector3(0, 1, 0);
 
@@ -474,6 +476,7 @@ export class StreetClutter {
 
   // ------------------------------------------------------------------ per frame
   update(dt, focus, night = 0) {
+    this.swingGates(dt, focus, night);
     this.timer -= dt;
     const changed = this.version !== this.tiles.version;
     if (!changed && this.timer > 0) return;
@@ -482,6 +485,31 @@ export class StreetClutter {
     this.at.copy(focus.pos);
     this.version = this.tiles.version;
     this.rebuild(focus.pos.x, focus.pos.z, night);
+  }
+
+  /**
+   * Compound gates swing: open by day and whenever someone (the player on foot or in a vehicle)
+   * is within 7 m, shut at night (the watchman stays on his chair). Openness is kept per gate
+   * (`gateOpen`), the leaves of the gates near the player are re-posed every frame; a closed
+   * gate is solid, so crossing the "closed" threshold triggers a rebuild of the solids.
+   */
+  swingGates(dt, focus, night) {
+    const list = this.gateList;
+    for (let k = 0; k < list.length; k++) {
+      const G = list[k], near = (G.x - focus.pos.x) ** 2 + (G.z - focus.pos.z) ** 2 < 49;
+      const want = near || night < 0.55 ? 1 : 0, o0 = G.st.o;
+      if (o0 === want) continue;
+      G.st.o = want > o0 ? Math.min(want, o0 + dt * 0.55) : Math.max(want, o0 - dt * 0.55);
+      const o = G.st.o;
+      for (let j = 0; j < 2; j++) {
+        if (G.i0 < 0) break;
+        const e = o * o * (3 - 2 * o), yaw = G.a + (j ? Math.PI - 1.35 * e : 1.35 * e);
+        this.q.setFromAxisAngle(this.up, yaw);
+        this.m.compose(this.p.set(G.hx[j], Y.KERB, G.hz[j]), this.q, this.s.set(1, 1, 1));
+        this.solid.b.setMatrixAt(G.i0 + j, this.m);
+      }
+      if ((o0 < 0.6) !== (o < 0.6)) this.at.set(1e9, 0, 1e9); // solid or not: rebuild at the next update
+    }
   }
 
   /** People who belong to the clutter (called between people.begin() and people.end()). */
@@ -539,10 +567,11 @@ export class StreetClutter {
   }
 
   rebuild(px, pz, night) {
+    this.nightNow = night;
     this.stamp = (this.stamp || 0) + 1;
     const stamp = this.stamp, T = this.tiles;
     for (const B of [this.solid, this.cloth]) B.n = 0;
-    this.nb = 0; this.na = 0; this.nSolid = 0; this.folkList.length = 0;
+    this.nb = 0; this.na = 0; this.nSolid = 0; this.folkList.length = 0; this.gateList.length = 0;
     const counts = this.counts;
     for (const k in counts) counts[k] = 0;
     const budget = { n: 14 }; // new atlas cells drawn per refresh (no hitch while driving)
@@ -676,8 +705,16 @@ export class StreetClutter {
 
   gate(x, z, a, d2, wx, wz) {
     const S = this.solid, y = Y.KERB, tint = GATES[Math.floor(hash(x, z, 21) * GATES.length)];
-    // Both leaves swung open into the compound (local -z), hinged at the gate posts.
-    for (const [hx, yaw] of [[-2.1, 1.35], [2.1, Math.PI - 1.35]]) this.put(S, 'gateLeaf', wx(hx, -0.12), y, wz(hx, -0.12), a + yaw, 1, 1, 1, tint);
+    const key = `${Math.round(x * 10)},${Math.round(z * 10)}`;
+    let st = this.gateOpen.get(key);
+    if (!st) { st = { o: this.nightNow >= 0.55 ? 0 : 1 }; this.gateOpen.set(key, st); }
+    // Two leaves hinged at the gate posts, swung into the compound (local -z) as far as `o` says.
+    const G = { x, z, a, st, i0: S.n, hx: [wx(-2.1, -0.12), wx(2.1, -0.12)], hz: [wz(-2.1, -0.12), wz(2.1, -0.12)] };
+    const e = st.o * st.o * (3 - 2 * st.o);
+    [[0, 1.35 * e], [1, Math.PI - 1.35 * e]].forEach(([j, yaw]) => this.put(S, 'gateLeaf', G.hx[j], y, G.hz[j], a + yaw, 1, 1, 1, tint));
+    if (S.n - G.i0 !== 2) G.i0 = -1; // batch full: no animation
+    this.gateList.push(G);
+    if (st.o < 0.6) for (const hx of [-1.8, -1.05, -0.3, 0.3, 1.05, 1.8]) this.addSolid(wx(hx, -0.12), wz(hx, -0.12), 0.45); // a shut gate blocks the way
     // The watchman's plastic chair just inside the gate, facing the street.
     const cx = wx(1.35, -0.85), cz = wz(1.35, -0.85);
     this.put(S, 'chair', cx, y, cz, a + (hash(x, z, 22) - 0.5) * 0.5, 1, 1, 1, CHAIRS[Math.floor(hash(z, x, 23) * CHAIRS.length)]);

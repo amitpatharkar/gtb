@@ -19,6 +19,8 @@ import { VEHICLE_ART, lengthFor } from '../src/vehicles/vehicleModels.js';
 const PARTS = ['paint', 'glass', 'trim', 'lamps'];
 const NEAR = { paint: 2400, glass: 380, trim: 1800, lamps: 200 };
 const FAR = { paint: 300, glass: 50, trim: 200, lamps: 30 };
+// Hero models (the kaali-peeli taxi is the player's car) get a bigger budget.
+const HERO = { padmini: { near: { paint: 5500, glass: 900, trim: 9000, lamps: 700 }, far: { paint: 400, glass: 60, trim: 500, lamps: 60 } } };
 const lin = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); // sRGB byte/255 → linear
 
 function classify(mat, names) {
@@ -250,7 +252,7 @@ export async function buildVehicle(file, id, fleetLen = {}) {
     const out = w.build({ asset: { version: '2.0', generator: 'Bombay Bawaal art build' }, extensionsUsed: ['KHR_mesh_quantization'], extensionsRequired: ['KHR_mesh_quantization'], scene: 0, scenes: [{ nodes: nodes.map((_, i) => i) }], nodes, meshes });
     return { out, counts };
   };
-  const near = make(NEAR, 0.004), far = make(FAR, 0.03);
+  const near = make(HERO[id]?.near || NEAR, 0.004), far = make(HERO[id]?.far || FAR, 0.03);
   info.near = near.counts; info.far = far.counts;
   info.paint = groups.some((g) => g.part === 'paint');
   return { near: near.out, far: far.out, info };
