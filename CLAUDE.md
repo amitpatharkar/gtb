@@ -268,6 +268,15 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   art, tips), Esc pause menu; settings in localStorage (`gtb.settings`: tier — `pickTier()`: saved choice, else detected —, volume, mouse sensitivity,
   invert Y, hints, spoken GPS, radio). Graphics changes reload via `gtb.resume` (sessionStorage) back into the game.
   Tests skip the title with `?quality=`, `?hour=` or `?play`.
+- `src/ui/scenes.js` — the dusk illustrations (inline SVG drawn in code: Gateway at sunset, Sea Link at night, local-train street,
+  Marine Drive; seeded lights): the title uses `seaLink`, the loading screen cycles `LOADING_ORDER`. `public/brand/logo.webp` — the
+  BOMBAY Bawaal logo (owner's artwork, background keyed out to alpha, car and edges faded), used by title, loading, hub and the HUD
+  `#brand`; `Damion` script font (`public/fonts/`, SIL OFL) for the taglines. Title: flat menu with a magenta Play, "Mumbai, India"
+  pill with the real local time; loading: Pro Tip + magenta bar + percentage.
+- `src/ui/hud.js` — speedometer (40-segment dial, gear letter, fuel and lamps; shrinks to a number on foot / touch);
+  `src/ui/wheel.js` — weapon wheel (hold B on foot: fists, pichkari, five cracker types; virtual cursor from mouse movement,
+  `view.frozen` stops the camera). Desktop HUD (UI v3/v4 in `style.css`, scoped `body:not(.touch)`): place card, time card, wallet,
+  hint bar by mode (`HINTS` in main.js), vitals and hotbar as slots, task cards in `#cards`. Esc hub = Home / Map / Guide / Settings.
 - `src/ui/navigator.js` — turn-by-turn: next-turn panel, chevrons on the road, spoken Hinglish prompts (speechSynthesis)
 - `src/radio.js` — taxi radio (N): synthesised stations + RJ speech (traffic, AQI, fake ads, police gossip)
 - `src/world/landmarks.js` — hand-built Gateway of Indiyaa, Royal Chaj Mahal Palace (generic, not the trademarked

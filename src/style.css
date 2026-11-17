@@ -1062,28 +1062,8 @@ body:not(.touch) #keys { bottom: 276px; gap: 4px; }
 /* ================================================================================================
    UI v4 — HUD cards in the flatter, darker style (place card, time card, wallet, key hints, hint bar)
    and the new logo: a heavy BOMBAY up front and a neon script Bawaal tucked under it. */
-@font-face { font-family: 'Bombay Display'; src: url(/fonts/Anton-Regular.ttf) format('truetype'); font-display: swap; }
 @font-face { font-family: 'Bawaal Script'; src: url(/fonts/Damion-Regular.ttf) format('truetype'); font-display: swap; }
 :root { --glass: rgba(14, 14, 22, 0.74); --glass-hi: rgba(30, 30, 42, 0.8); --stroke: rgba(255, 255, 255, 0.11); --neon: #ff3df2; --logo-y: #ffd60a; }
-
-/* ---------------- Logo (title, loading, hub, HUD) */
-.logo, #brand { font-family: 'Bombay Display', Impact, 'Arial Black', sans-serif; }
-.logo { font-size: clamp(70px, min(12.5vw, 21vh), 200px); line-height: 1; }
-.logo.small, #pause-screen .logo.small { font-size: clamp(38px, 5.4vw, 70px); }
-#pause-screen .logo.small { font-size: 34px; }
-#brand { font-size: 28px; }
-#title-screen .logo b, #load-screen .logo b, #pause-screen .logo b, #pause-screen .logo.small b, .logo.small b, .logo b, #brand b {
-  display: block; position: relative; z-index: 2; font: 400 1em/0.88 'Bombay Display', Impact, 'Arial Black', sans-serif; letter-spacing: 0.012em; text-transform: uppercase; color: var(--logo-y); -webkit-text-stroke: 0;
-  text-shadow: 0.008em 0.008em 0 #e6b800, 0.016em 0.016em 0 #d9ac00, 0.024em 0.024em 0 #cc9f00, 0.032em 0.032em 0 #bf9400, 0.04em 0.04em 0 #b28900, 0.048em 0.048em 0 #a57e00, 0.056em 0.056em 0 #987400, 0.064em 0.064em 0 #8a6a00, 0.072em 0.072em 0 #7d6000, 0.08em 0.08em 0 #705600, 0.14em 0.2em 0.22em rgba(0, 0, 0, 0.6); }
-#title-screen .logo span, #load-screen .logo span, #pause-screen .logo span, #pause-screen .logo.small span, .logo.small span, .logo span, #brand span {
-  display: block; position: relative; z-index: 1; width: max-content; margin: -0.06em 0 0 1.1em; font: 400 0.95em/1 'Bawaal Script', 'Segoe Script', 'Brush Script MT', cursive; letter-spacing: 0; text-transform: none; -webkit-text-stroke: 0;
-  color: #ffe8fd; transform: rotate(-5deg); transform-origin: 0 100%; animation: neon 5s linear infinite;
-  text-shadow: 0 0 0.02em #fff, 0 0 0.07em #ff9cf7, 0 0 0.16em var(--neon), 0 0 0.34em var(--neon), 0 0 0.7em #b400ff; }
-@keyframes neon { 0%, 17%, 22%, 61%, 64%, 100% { opacity: 1; } 19%, 62.5% { opacity: 0.72; } }
-.logo small { margin-top: 0.22em; font: 600 0.12em 'Helvetica Neue', system-ui, sans-serif; letter-spacing: 0.28em; }
-#brand { top: 18px; right: 24px; text-align: left; line-height: 1; }
-#brand span { margin: -0.08em 0 0 0.35em; font-size: 0.9em; animation: none; }
-#brand b { text-shadow: 0.02em 0.02em 0 #b58c00, 0.04em 0.04em 0 #8a6600, 0.1em 0.14em 0.16em rgba(0, 0, 0, 0.6); }
 
 /* ---------------- Cards in the darker style */
 body:not(.touch) #place, body:not(.touch) #timecard, body:not(.touch) #money, body:not(.touch) #hintbar, body:not(.touch) #cards > *, body:not(.touch) #message {
@@ -1100,7 +1080,7 @@ body:not(.touch) #coords { margin: 2px 0 0; font-family: var(--font) !important;
 body.touch #place, body.touch #place .txt, body.touch #timecard, body.touch #timecard .txt { display: contents; }
 body.touch #place .ico, body.touch #timecard .ico, body.touch #coords { display: none; }
 
-body:not(.touch) #status { right: 140px; top: 22px; gap: 10px; align-items: stretch; }
+body:not(.touch) #status { right: 188px; top: 22px; gap: 10px; align-items: stretch; }
 body:not(.touch) #timecard { display: flex; align-items: center; gap: 12px; padding: 10px 20px 10px 14px; }
 #timecard .ico { flex: none; width: 26px; color: var(--logo-y); } #timecard .ico svg { width: 100%; display: block; }
 body:not(.touch) #clock, body:not(.touch) #aqi { margin: 0; padding: 0; background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; }
@@ -1145,3 +1125,57 @@ body:not(.touch) #message::before { content: '!'; margin-top: 1px; }
 body:not(.touch) #speed { right: 18px; bottom: 12px; width: 214px; height: 214px; }
 #speed .num { font-size: 46px; } #speed .gear { font-size: 24px; }
 body:not(.touch) #btn-phone { right: 244px; bottom: 26px; }
+
+
+/* ================================================================================================
+   UI v5 — the artwork theme: dusk scenes, the BOMBAY Bawaal logo image, a flat menu with a magenta Play,
+   and a loading screen with a Pro Tip and a magenta bar. */
+:root { --mag: #c026d3; --mag2: #7e1d9e; }
+.logo-img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.55)); pointer-events: none; }
+#brand { top: 14px; right: 22px; width: 150px; }
+#brand img { display: block; width: 100%; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.55)); }
+
+/* Shared: the scene, shade, taglines */
+#title-screen .shade, #load-screen .shade { background: linear-gradient(90deg, rgba(8, 4, 20, 0.7) 0%, rgba(8, 4, 20, 0.2) 45%, transparent 70%), linear-gradient(0deg, rgba(8, 4, 20, 0.78), transparent 42%), linear-gradient(180deg, rgba(8, 4, 20, 0.35), transparent 24%); }
+.tagline { position: absolute; right: 5vw; bottom: 9vh; font: 400 clamp(22px, 3vw, 40px)/1.05 'Bawaal Script', 'Segoe Script', cursive; color: #ffd60a; text-align: left; transform: rotate(-6deg); text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7), 0 0 18px rgba(255, 214, 10, 0.25); pointer-events: none; z-index: 2; }
+.tagline em { display: block; height: 4px; margin-top: 8px; border-radius: 3px; background: linear-gradient(90deg, transparent, var(--mag) 20%, #ff4fd8); box-shadow: 0 0 12px var(--mag); transform: rotate(1.5deg); }
+
+/* Title */
+#title-screen .logo-img { position: absolute; left: 5.5vw; top: 5vh; width: min(560px, 44vw, 62vh * 2.4); transform: perspective(1100px) rotateY(calc(var(--mx, 0) * 5deg)) rotateX(calc(var(--my, 0) * -3deg)); transition: transform 0.35s var(--ease); }
+#title-screen .town { position: absolute; top: 22px; right: 28px; display: flex; align-items: center; gap: 10px; padding: 9px 18px; border-radius: 10px; font: 500 13px var(--font); background: rgba(10, 6, 24, 0.6); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid var(--stroke); z-index: 2; }
+#title-screen .town i { width: 9px; height: 9px; border-radius: 50%; background: #29d764; box-shadow: 0 0 8px #29d764; }
+#title-screen .town u { width: 1px; height: 14px; background: rgba(255, 255, 255, 0.25); }
+#title-screen .town svg { width: 16px; height: 16px; } #title-screen .town b { font-weight: 600; }
+#title-screen .menu { left: 6vw; bottom: auto; top: calc(5vh + min(560px, 44vw) * 0.42 + 6vh); min-width: 260px; gap: 6px; transform: none; }
+#title-screen .menu button { background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 4px; padding: 11px 18px 11px 14px; gap: 16px; font: 500 17px var(--font); letter-spacing: 0; color: #fff; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6); }
+#title-screen .menu button::after { display: none; }
+#title-screen .menu button i { width: 24px; height: 24px; border-radius: 0; background: none; box-shadow: none; display: block; font-style: normal; }
+#title-screen .menu button i svg { width: 100%; height: 100%; display: block; }
+#title-screen .menu button:hover, #title-screen .menu button:focus-visible { background: rgba(255, 255, 255, 0.12); transform: translateX(6px); box-shadow: none; }
+#title-screen .menu button.main, #title-screen .menu button.main:hover { background: linear-gradient(90deg, var(--mag2), var(--mag)); color: #fff; border: 0; box-shadow: 0 8px 26px rgba(192, 38, 211, 0.45); font-weight: 600; text-shadow: none; }
+#title-screen .menu button.main i { background: none; box-shadow: none; }
+#title-screen .menu small { color: rgba(255, 255, 255, 0.8); }
+#title-screen .foot { left: 6vw; right: auto; transform: none; bottom: 16px; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 0; opacity: 0.6; }
+#title-screen .panel { border-radius: 18px; }
+@media (max-height: 640px) { #title-screen .menu button { padding: 7px 16px 7px 12px; font-size: 15px; } #title-screen .menu { top: auto; bottom: 8vh; } }
+
+/* Loading */
+#load-screen .logo-img { position: absolute; left: 4.5vw; top: 4vh; width: min(500px, 40vw); }
+#load-screen .art.on { animation: kenburns 12s ease-out forwards; }
+#load-screen .bottom { display: block; position: absolute; left: 4.5vw; bottom: 6vh; width: min(520px, 90vw); padding: 0; background: none; }
+#load-screen .tip { display: flex; align-items: flex-start; gap: 14px; margin: 0 0 22px; max-width: none; min-height: 3.4em; font: 500 14px/1.45 var(--font); color: rgba(255, 255, 255, 0.88); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8); }
+#load-screen .tip::before { display: none; }
+#load-screen .tip > i { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #ffd60a; color: #1b1400; font: 800 17px var(--font); font-style: normal; box-shadow: 0 0 16px rgba(255, 214, 10, 0.5); }
+#load-screen .tip b { display: block; margin-bottom: 2px; color: #ffd60a; font: 700 20px var(--font); }
+#load-screen .tip.swap { animation: tipIn 0.5s var(--ease); }
+#load-screen .status { margin: 0 0 8px; font: 600 14px var(--font); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8); opacity: 1; }
+#load-screen .barrow { display: flex; align-items: center; gap: 16px; }
+#load-screen .bar { flex: 1; max-width: none; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.22); }
+#load-screen .bar i { border-radius: 4px; background: linear-gradient(90deg, var(--mag2), var(--mag), #ff4fd8); background-size: 200% 100%; box-shadow: 0 0 14px var(--mag); animation: shimmer 1.6s linear infinite; }
+#load-screen .pct { font: 600 14px var(--font); position: static; min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; text-shadow: 0 2px 8px #000; }
+#load-screen .card, #load-screen .ring { display: none; }
+@media (max-width: 700px) { #load-screen .logo-img { width: 62vw; } #load-screen .tagline { display: none; } #title-screen .logo-img { width: 70vw; } #title-screen .town { display: none; } #title-screen .tagline { display: none; } #title-screen .menu { top: auto; bottom: 10vh; } }
+
+/* Hub logo */
+#pause-screen .topbar .logo-img { width: 150px; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5)); }
+body.touch #brand { display: none; }
