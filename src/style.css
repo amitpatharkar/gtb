@@ -1057,3 +1057,91 @@ body:not(.touch) #keys { bottom: 276px; gap: 4px; }
 #map-screen .map-bar .map-back kbd { border-radius: 7px; }
 #map-screen .map-credit { right: auto; left: 50%; transform: translateX(-50%); bottom: 6px; font: 500 10.5px var(--font); opacity: 0.6; z-index: 2; }
 @media (max-width: 700px) { #map-screen .map-top { padding: 14px 14px 22px; } #map-screen .map-name { display: none; } #map-screen .map-bar { right: 12px; bottom: 54px; } #map-screen .map-legend { display: none; } }
+
+
+/* ================================================================================================
+   UI v4 — HUD cards in the flatter, darker style (place card, time card, wallet, key hints, hint bar)
+   and the new logo: a heavy BOMBAY up front and a neon script Bawaal tucked under it. */
+@font-face { font-family: 'Bombay Display'; src: url(/fonts/Anton-Regular.ttf) format('truetype'); font-display: swap; }
+@font-face { font-family: 'Bawaal Script'; src: url(/fonts/Damion-Regular.ttf) format('truetype'); font-display: swap; }
+:root { --glass: rgba(14, 14, 22, 0.74); --glass-hi: rgba(30, 30, 42, 0.8); --stroke: rgba(255, 255, 255, 0.11); --neon: #ff3df2; --logo-y: #ffd60a; }
+
+/* ---------------- Logo (title, loading, hub, HUD) */
+.logo, #brand { font-family: 'Bombay Display', Impact, 'Arial Black', sans-serif; }
+.logo { font-size: clamp(70px, min(12.5vw, 21vh), 200px); line-height: 1; }
+.logo.small, #pause-screen .logo.small { font-size: clamp(38px, 5.4vw, 70px); }
+#pause-screen .logo.small { font-size: 34px; }
+#brand { font-size: 28px; }
+#title-screen .logo b, #load-screen .logo b, #pause-screen .logo b, #pause-screen .logo.small b, .logo.small b, .logo b, #brand b {
+  display: block; position: relative; z-index: 2; font: 400 1em/0.88 'Bombay Display', Impact, 'Arial Black', sans-serif; letter-spacing: 0.012em; text-transform: uppercase; color: var(--logo-y); -webkit-text-stroke: 0;
+  text-shadow: 0.008em 0.008em 0 #e6b800, 0.016em 0.016em 0 #d9ac00, 0.024em 0.024em 0 #cc9f00, 0.032em 0.032em 0 #bf9400, 0.04em 0.04em 0 #b28900, 0.048em 0.048em 0 #a57e00, 0.056em 0.056em 0 #987400, 0.064em 0.064em 0 #8a6a00, 0.072em 0.072em 0 #7d6000, 0.08em 0.08em 0 #705600, 0.14em 0.2em 0.22em rgba(0, 0, 0, 0.6); }
+#title-screen .logo span, #load-screen .logo span, #pause-screen .logo span, #pause-screen .logo.small span, .logo.small span, .logo span, #brand span {
+  display: block; position: relative; z-index: 1; width: max-content; margin: -0.06em 0 0 1.1em; font: 400 0.95em/1 'Bawaal Script', 'Segoe Script', 'Brush Script MT', cursive; letter-spacing: 0; text-transform: none; -webkit-text-stroke: 0;
+  color: #ffe8fd; transform: rotate(-5deg); transform-origin: 0 100%; animation: neon 5s linear infinite;
+  text-shadow: 0 0 0.02em #fff, 0 0 0.07em #ff9cf7, 0 0 0.16em var(--neon), 0 0 0.34em var(--neon), 0 0 0.7em #b400ff; }
+@keyframes neon { 0%, 17%, 22%, 61%, 64%, 100% { opacity: 1; } 19%, 62.5% { opacity: 0.72; } }
+.logo small { margin-top: 0.22em; font: 600 0.12em 'Helvetica Neue', system-ui, sans-serif; letter-spacing: 0.28em; }
+#brand { top: 18px; right: 24px; text-align: left; line-height: 1; }
+#brand span { margin: -0.08em 0 0 0.35em; font-size: 0.9em; animation: none; }
+#brand b { text-shadow: 0.02em 0.02em 0 #b58c00, 0.04em 0.04em 0 #8a6600, 0.1em 0.14em 0.16em rgba(0, 0, 0, 0.6); }
+
+/* ---------------- Cards in the darker style */
+body:not(.touch) #place, body:not(.touch) #timecard, body:not(.touch) #money, body:not(.touch) #hintbar, body:not(.touch) #cards > *, body:not(.touch) #message {
+  background: var(--glass); border: 1px solid var(--stroke); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); -webkit-backdrop-filter: blur(12px) saturate(1.3); backdrop-filter: blur(12px) saturate(1.3); color: #fff; }
+body:not(.touch) #hud { top: 22px; left: 22px; }
+body:not(.touch) #place { display: flex; align-items: center; gap: 16px; min-width: 292px; padding: 12px 24px 12px 14px; border-left: 3px solid var(--logo-y); }
+#place .ico { flex: none; width: 54px; color: rgba(255, 255, 255, 0.85); }
+#place .ico svg { width: 100%; display: block; }
+#place .txt { min-width: 0; }
+body:not(.touch) #place #road { display: block; margin: 0; padding: 0; max-width: none; background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; font: 700 15px/1.3 var(--font); }
+body:not(.touch) #place #road::before { display: none; }
+#coords { font: 500 12px/1.4 var(--font); opacity: 0.6; margin: 2px 0 0; font-variant-numeric: tabular-nums; }
+body:not(.touch) #coords { margin: 2px 0 0; font-family: var(--font) !important; font-size: 12px !important; opacity: 0.6 !important; }
+body.touch #place, body.touch #place .txt, body.touch #timecard, body.touch #timecard .txt { display: contents; }
+body.touch #place .ico, body.touch #timecard .ico, body.touch #coords { display: none; }
+
+body:not(.touch) #status { right: 140px; top: 22px; gap: 10px; align-items: stretch; }
+body:not(.touch) #timecard { display: flex; align-items: center; gap: 12px; padding: 10px 20px 10px 14px; }
+#timecard .ico { flex: none; width: 26px; color: var(--logo-y); } #timecard .ico svg { width: 100%; display: block; }
+body:not(.touch) #clock, body:not(.touch) #aqi { margin: 0; padding: 0; background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; }
+body:not(.touch) #clock { font: 700 16px/1.25 var(--font); } body:not(.touch) #clock::before { display: none; }
+body:not(.touch) #aqi { font: 500 12px/1.4 var(--font); opacity: 0.9; } body:not(.touch) #aqi b { font-size: 12px; }
+body:not(.touch) #money { position: static; display: flex; align-items: center; gap: 10px; padding: 0 20px 0 14px; font: 700 16px var(--font); color: #fff; margin: 0; }
+body:not(.touch) #money::before { content: '₹'; flex: none; display: grid; place-items: center; width: 26px; height: 26px; margin: 0; border-radius: 8px; background: var(--green); color: #04210f; font: 800 15px var(--font); }
+body:not(.touch) #money.debt { color: var(--red); }
+body:not(.touch) #wanted.none, #wanted:empty { display: none; }
+
+/* Right column: cards and key hints */
+body:not(.touch) #cards { top: 104px; right: 22px; width: 300px; }
+body:not(.touch) #cards > * { border-radius: 10px; }
+body:not(.touch) #cards #nav { background: rgba(48, 22, 62, 0.78); padding: 12px 16px 12px 14px; gap: 14px; font-size: 13px; }
+body:not(.touch) #cards #objective { padding: 12px 16px 12px 52px; }
+body:not(.touch) #cards #objective::after { content: '★'; position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: var(--logo-y); font-size: 20px; }
+body:not(.touch) #cards #job { padding: 12px 16px 12px 20px; }
+body:not(.touch) #keys { right: 22px; bottom: 232px; gap: 6px; }
+#keys span { font: 500 13px var(--font); color: rgba(255, 255, 255, 0.78); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
+#keys kbd { min-width: 38px; height: 28px; border-radius: 6px; background: var(--glass); font: 700 13px var(--font); box-shadow: none; }
+
+/* Bottom: hint bar under the vitals */
+#hintbar { display: none; }
+body:not(.touch) #hintbar { display: flex; position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); padding: 9px 20px; white-space: nowrap; font: 500 13px var(--font); color: rgba(255, 255, 255, 0.78); z-index: 3; pointer-events: none; }
+body:not(.touch) #hintbar.off { display: none; }
+#hintbar span + span { margin-left: 14px; padding-left: 14px; border-left: 1px solid rgba(255, 255, 255, 0.22); }
+#hintbar b { color: #fff; font-weight: 700; margin-right: 4px; letter-spacing: 0.04em; }
+body:not(.touch) #radar .meter { bottom: 78px; border-radius: 10px; background: var(--glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); }
+body:not(.touch) #weapon { bottom: 154px; }
+body:not(.touch) #weapon .slot { border-radius: 10px; background: var(--glass); }
+body:not(.touch) #foe { bottom: 228px; }
+
+/* Left: minimap, shield badge, notice card */
+body:not(.touch) #minimap { left: 22px; bottom: 18px; width: 214px; height: 214px; border-radius: 14px; border: 2px solid rgba(255, 255, 255, 0.85); }
+body:not(.touch) #mm-state { left: 34px; bottom: 30px; padding: 5px 12px 5px 30px; font: 700 13px var(--font); }
+#mm-state::before { left: 8px; width: 16px; height: 18px; margin-top: -9px; border-radius: 0; box-shadow: none; background: var(--green); clip-path: path('M8 0 16 3v6c0 5-3.5 8-8 9C3.5 17 0 14 0 9V3z'); }
+#mm-state.wanted::before { background: var(--red); }
+body:not(.touch) #message { left: 22px; bottom: 244px; width: 292px; border-radius: 12px; padding: 14px 16px; font: 500 13px/1.45 var(--font); align-items: flex-start; }
+body:not(.touch) #message::before { content: '!'; margin-top: 1px; }
+
+/* Speedometer, a little smaller */
+body:not(.touch) #speed { right: 18px; bottom: 12px; width: 214px; height: 214px; }
+#speed .num { font-size: 46px; } #speed .gear { font-size: 24px; }
+body:not(.touch) #btn-phone { right: 244px; bottom: 26px; }

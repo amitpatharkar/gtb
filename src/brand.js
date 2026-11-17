@@ -6,6 +6,6 @@
 export const GAME = {
   name: 'Bombay Bawaal',
   line1: 'BOMBAY',
-  line2: 'BAWAAL',
+  line2: 'Bawaal',
   tagline: 'Kaali-peeli · Bindaas · Full bawaal',
 };
