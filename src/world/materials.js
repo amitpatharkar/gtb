@@ -199,7 +199,7 @@ export function createMaterials(renderer, lib, tier) {
     roofRust: tex(std({ color: 0x8a5a44 }), 'tex-ph-rusty-corrugated-iron', 2, { onLoad: (x) => x.color.set(0xffffff) }),
     tank: new THREE.MeshStandardMaterial({ color: 0x1d1d1f, roughness: 0.55 }),
     walls: WALL_TEXTURES.map(([id, size]) => {
-      const w = makeFacadeMaterial(signs.texture, rooms);
+      const w = makeFacadeMaterial(signs.texture, rooms, { lite: tier?.name === 'Low' });
       lib.apply(w, id, { size, normalScale: 0.9, aoIntensity: 0.5 });
       return w;
     }),
