@@ -198,6 +198,8 @@ export async function buildVehicle(file, id, fleetLen = {}) {
       if (ind.length / 3 > budget[part]) {
         let [out] = MeshoptSimplifier.simplify(ind, pos, 3, budget[part] * 3, error);
         for (let e = error * 4; out.length / 3 > budget[part] * 1.5 && e < 0.5; e *= 3) [out] = MeshoptSimplifier.simplify(ind, pos, 3, budget[part] * 3, e); // (no 'Prune': car bodies are many separate panels)
+        // Stuck (hundreds of thousands of tiny loose parts): Sparse + Prune drop the specks and reach the budget.
+        if (out.length / 3 > budget[part] * 2) { MeshoptSimplifier.useExperimentalFeatures = true; [out] = MeshoptSimplifier.simplify(ind, pos, 3, budget[part] * 3, 0.3, ['Sparse', 'Prune']); }
         if (out.length >= 3) ind = out;
       }
       // Unwelded output with crease normals: a corner averages the faces round its vertex that

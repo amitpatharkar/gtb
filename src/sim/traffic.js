@@ -236,6 +236,8 @@ export class Traffic {
       T = this.types[id] = { ...base, base: info.base || 'wagonr', name: info.name || 'Car', len: info.len, wid: info.wid, weight: info.weight ?? 0.25, night: info.night ?? base.night, tints: info.tints || base.tints };
       this.typeNames.push(id);
       this.totalWeight += T.weight;
+      // A newer generation of a common car takes its share from the older one (the mix stays the same).
+      if (info.split && this.types[info.base]) { const B = this.types[info.base], take = Math.min(T.weight, B.weight * 0.6); B.weight -= take; this.totalWeight -= take; }
     } else if (info.wid && Math.abs(info.wid - T.wid) > 0.12) T.wid = info.wid;
     T.parts = near; T.far = far;
     for (const part in this.batches) {

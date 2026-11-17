@@ -302,6 +302,12 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   guessed wrong (i20, kona, omni). Several files for one type: `art-index.mjs` scores them (proportions, paint part, triangles)
   and uses the best. `HERO` in art-vehicles.mjs gives a model a bigger budget (padmini ~16k triangles).
   `loadVehicleArt(base, traffic, started, tier, hooks)` calls `hooks[id](near)` with the near parts (hooked ids load first).
+  Rare cars and generations (second eye check, 2026-11-17): fiesta1, kizashi, octavia, carnival + carnival2 (2011 generation), gvitara2,
+  hilux, endeavour, innova (2013 Kijang), alto2 (2020 generation, `split: true` takes 60 % at most of the Alto's weight). Rare weights add
+  up to ~0.3, about one rare car per three Dzires (weight 0.9). Rejected for shards, open shells or no glass: FJ40, Prado ×2, Land
+  Cruiser, Wuling, EV6, Fortuner 2015, Innova 2005/2008/2017, Baleno, Brezza, Palio, i10 ×2, Triber, Ertiga ×2, S-Presso ×2, Swift,
+  Dzire 2012/2014, Punch ×2, Tiago, Grand Vitara Mk2, TUV300, Contessa, Ace stall. art-vehicles.mjs falls back to Sparse + Prune
+  simplification when a model has 100k+ loose triangles (the Innova had 91k trim triangles left).
   **The kaali-peeli taxi** (`public/art/vehicles/padmini.glb`, Sunny khude, CC BY 4.0; source FBX in
   `docs/art-sources/kaali-peeli-taxi/`): `scripts/fbx-taxi.mjs` (no Blender needed) bakes the 2048 px photo texture into vertex
   colours, welds and simplifies 555k → 60k triangles and splits it by colour (black = paint, pale panes above the beltline =
