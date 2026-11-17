@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { Y } from './levels.js';
 
-// The sea link's cable-stayed spans: two inverted-Y concrete pylons over Mahim Bay (the Bandra
-// channel tower, 126 m, and the smaller Worli channel tower) with fans of stay cables down to
+// The sea link's cable-stayed spans over Mahim Bay (the Bandra channel towers, 126 m, and the
+// smaller Worli channel towers): per carriageway a concrete tower — diamond below the deck, inverted
+// Y above, one mast (shape after the owner's reference model) — with fans of stay cables down to
 // the deck edges. Built once on the main thread from index.json `bridges.pylons` (the converter
 // finds where the carriageways pass each pylon and how high the deck rises there), so the towers
 // stand on the skyline from kilometres away, whatever tiles are loaded. Decks, piers and
@@ -48,30 +49,32 @@ function build(p, m, cables) {
   const fx = Math.sin(p.angle), fz = Math.cos(p.angle); // along the bridge
   const lx = fz, lz = -fx;                              // across
   const deckY = Y.ROAD + p.deck, top = Y.SEA + p.top, foot = Y.SEA - 1.2;
-  const legOut = p.half + 3.2;                           // legs stand clear of both carriageways
+  const hw = Math.min(p.hw || 7.5, p.half);
+  // One tower per carriageway (as the real towers stand): a diamond under the deck, an inverted Y
+  // straddling the carriageway above it, a single mast on top. Legs stay outside the deck edges.
+  const centres = p.half - hw > 2.5 ? [p.half - hw, -(p.half - hw)] : [0];
+  const spread = hw + 1.7;                               // leg half-spread at deck level
   const join = deckY + 6 + (top - deckY - 6) * 0.42;     // where the legs meet
   const at = (a, o, y) => [p.x + fx * a + lx * o, y, p.z + fz * a + lz * o];
-  // Pile caps in the sea, the legs (leaning in), a cross beam under the deck, the shaft.
-  // (The legs rise straight past the deck edges, then lean in above the traffic.)
-  for (const s of [1, -1]) {
-    prism(m, at(0, s * legOut, foot), at(0, s * legOut, Y.SEA + 1.5), [fx, fz], [lx, lz], 7, 9, 7, 9);
-    prism(m, at(0, s * legOut, Y.SEA + 1.5), at(0, s * legOut, deckY + 6), [fx, fz], [lx, lz], 2.8, 3.2, 2.6, 3.0);
-    prism(m, at(0, s * legOut, deckY + 6), at(0, s * 2.2, join), [fx, fz], [lx, lz], 2.6, 3.0, 1.7, 2.4);
-  }
-  prism(m, at(0, -legOut + 1.5, deckY - 4.2), at(0, legOut - 1.5, deckY - 4.2), [fx, fz], [0, 1, 0], 2.2, 1.6, 2.2, 1.6, true);
-  prism(m, at(0, 0, join - 3), at(0, 0, top - 9), [fx, fz], [lx, lz], 3.4, 2.6, 2.2, 1.8);
-  prism(m, at(0, 0, top - 9), at(0, 0, top), [fx, fz], [lx, lz], 2.2, 1.8, 0.4, 0.4); // the pinnacle
-  // Stay cables: four planes (both edges of each carriageway), semi-harp, both ways along.
-  const hw = Math.min(p.hw || 7.5, p.half);
-  const planes = p.half - 2 * hw > 3 ? [p.half - 0.6, p.half - 2 * hw + 0.6] : [p.half - 0.6, Math.max(0.8, p.half * 0.35)];
-  const n = Math.max(10, Math.round(p.span / 11));
-  const a0 = join + 6, a1 = top - 12;
-  for (const dir of [1, -1]) for (const o of planes) for (const s of [1, -1]) {
-    for (let k = 0; k < n; k++) {
-      const f = k / (n - 1), d = 18 + f * (p.span - 30);
-      const ty = a0 + (a1 - a0) * f;
-      const t = at(dir * 1.1, s * 0.9, ty), b = at(dir * d, s * o, Bridges.deckAt(p, d) + 0.9);
-      cables.push(t[0], t[1], t[2], b[0], b[1], b[2]);
+  const F = [fx, fz], L = [lx, lz];
+  for (const c of centres) {
+    prism(m, at(0, c, foot), at(0, c, Y.SEA + 1.5), F, L, 6.5, 5, 6.5, 5);                     // pile cap
+    for (const s of [1, -1]) {
+      prism(m, at(0, c + s * 2.4, Y.SEA + 1.5), at(0, c + s * spread, deckY - 2.2), F, L, 2.3, 1.6, 2.1, 1.5); // diamond below
+      prism(m, at(0, c + s * spread, deckY - 2.2), at(0, c + s * 1.0, join), F, L, 2.1, 1.5, 1.6, 1.2);       // inverted Y above
+    }
+    prism(m, at(0, c - spread + 0.8, deckY - 3.2), at(0, c + spread - 0.8, deckY - 3.2), F, [0, 1, 0], 1.8, 1.0, 1.8, 1.0, true); // beam under the deck
+    prism(m, at(0, c, join - 3), at(0, c, top - 8), F, L, 2.4, 1.9, 1.7, 1.4);                   // mast
+    prism(m, at(0, c, top - 8), at(0, c, top), F, L, 1.7, 1.4, 0.35, 0.35);                      // pinnacle
+    // Stay cables: semi-harp fans from the mast to both edges of its carriageway, both ways along.
+    const n = Math.max(10, Math.round(p.span / 11));
+    const a0 = join + 5, a1 = top - 11;
+    for (const dir of [1, -1]) for (const s of [1, -1]) {
+      for (let k = 0; k < n; k++) {
+        const f = k / (n - 1), d = 18 + f * (p.span - 30);
+        const t = at(dir * 1.0, c + s * 0.7, a0 + (a1 - a0) * f), b = at(dir * d, c + s * (hw - 0.6), Bridges.deckAt(p, d) + 0.9);
+        cables.push(t[0], t[1], t[2], b[0], b[1], b[2]);
+      }
     }
   }
 }

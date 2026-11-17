@@ -147,8 +147,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   holes in the ground; `underDeck()` keeps infill, walls, trees, lamps, stalls, cranes and bus stops away; buildings
   under decks are lowered to fit (or dropped in ramp footprints); index.json `bridges` (pylons + stats). The sea link
   shows as "Bandra–Worli Sea Link" (`RENAME`)
-- `src/world/bridges.js` — the sea link's two inverted-Y pylons (legs past the deck edges, shaft, pinnacle) and four
-  planes of semi-harp stay cables (LineSegments) from `index.bridges.pylons`, built once on the main thread so they
+- `src/world/bridges.js` — the sea link's pylons, a tower per carriageway (diamond below the deck, inverted Y above,
+  one mast; after the owner's reference model) with semi-harp stay cables to both deck edges (LineSegments) from
+  `index.bridges.pylons`, built once on the main thread so they
   stand on the skyline whatever tiles are loaded (2 draw calls; `Bridges.deckAt` = the converter's deck rise)
 - `src/vehicles/taxi.js` + `car.js` — procedural kaali-peeli taxi (Premier Padmini proportions, clear-coat paint) and car
   handling (bicycle steering, two collision circles, kerb bumps, body roll/pitch, fuel ~40 km per tank, condition);
