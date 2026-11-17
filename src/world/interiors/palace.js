@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Geo, flip, POSE, FLAG, person, hex, font } from './kit.js';
 
-// The lobby of the Royal Chaj Mahal Palace: a generic grand heritage hotel (deliberately
+// The lobby of the Palace Hotel: a generic grand heritage hotel (deliberately
 // not the look of any real one). Marble floor, columns, a grand staircase under a painted
 // dome, chandeliers, the reception desk with its row of world clocks, sofas, a turbaned
 // doorman — and, through an arch, the Sea Lounge with tables at tall windows over the
@@ -10,7 +10,7 @@ import { Geo, flip, POSE, FLAG, person, hex, font } from './kit.js';
 const H = 7.5;           // lobby ceiling
 const CREAM = 0xfffaf0, GOLD = 0xc9a24a, DARKWOOD = 0x5a3a22, MARBLE = 0xece5d6, RED = 0x8c1c24;
 
-/** The harbour from the lounge windows: sea, boats, the Gateway of Indiyaa on its quay. */
+/** The harbour from the lounge windows: sea, boats, the Gateway of India on its quay. */
 function harbour(g, w, h) {
   const hz = h * 0.45;
   const sky = g.createLinearGradient(0, 0, 0, hz);
@@ -342,7 +342,7 @@ export function buildPalace(k, api) {
   k.ticks.push((dt, a) => {
     for (const p of [...loungers, ...diners, pianist]) p.phase += dt;
     doorman.heading = Math.atan2(a.me.x - doorman.lx, a.me.z - doorman.lz);
-    if (stage === 0 && a.sinceEnter > 0.9) { stage = 1; doorman.pose = POSE.WAVE; a.say(doorman, 'Welcome to the Royal Chaj Mahal Palace, sir!', 3.2); }
+    if (stage === 0 && a.sinceEnter > 0.9) { stage = 1; doorman.pose = POSE.WAVE; a.say(doorman, 'Welcome to the Palace Hotel, sir!', 3.2); }
     if (stage === 1 && a.sinceEnter > 4.6) { stage = 2; doorman.pose = POSE.STAND; a.say(doorman, 'Chappals, sir? …No problem. We shall call them open-toe loafers.', 4.2); }
     doorman.phase += dt * 3;
     teaT = Math.max(0, teaT - dt);

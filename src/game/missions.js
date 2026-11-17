@@ -83,10 +83,10 @@ export function buildMissions(index, home) {
     {
       id: 'welcome', title: 'Mumbai Meri Jaan', strand: 'story', at: P.start, giver: 'mamaji',
       steps: [
-        { cut: [['mamaji', 'Aa gaya bhanje! Welcome to Bombay. Yeh shehar sabko kuch na kuch deta hai.'], ['mamaji', 'Yeh meri purani kaali-peeli. Ab se teri. Dhyan se chalana, iski umar mujhse zyada hai.'], ['you', 'Thank you, Mamaji! Main aapko nirash nahi karunga.'], ['mamaji', 'Pehla kaam: Crawford Market se Shabbir bhai ko utha, unko Chai Terminus chhodna hai. Jaldi!']] },
+        { cut: [['mamaji', 'Aa gaya bhanje! Welcome to Bombay. Yeh shehar sabko kuch na kuch deta hai.'], ['mamaji', 'Yeh meri purani kaali-peeli. Ab se teri. Dhyan se chalana, iski umar mujhse zyada hai.'], ['you', 'Thank you, Mamaji! Main aapko nirash nahi karunga.'], ['mamaji', 'Pehla kaam: Crawford Market se Shabbir bhai ko utha, unko CSMT station chhodna hai. Jaldi!']] },
         { goto: P.crawford, label: 'Pick up Shabbir bhai at Crawford Market', on: 'taxi' },
         { pickup: 'shabbir', at: P.crawford, line: 'Arre, Mamaji ka bhanja! Chal, station chal. Train nahi chhootni chahiye!' },
-        { goto: P.terminus, label: 'Drop Shabbir bhai at Chhatrapati Chai Terminus', on: 'taxi', limit: 240, fail: 'Shabbir bhai missed his train!' },
+        { goto: P.terminus, label: 'Drop Shabbir bhai at Chhatrapati Shivaji Maharaj Terminus', on: 'taxi', limit: 240, fail: 'Shabbir bhai missed his train!' },
         { dropoff: 'shabbir', line: 'Shabaash! Time pe pahuncha diya. Yeh le, chai-paani.' },
         { reward: 500 },
       ],
@@ -169,9 +169,9 @@ export function buildMissions(index, home) {
       id: 'reel', title: 'Picture Abhi Baaki Hai', strand: 'side', after: 'welcome', at: P.fountain, giver: 'sawant',
       cast: { sawant: { name: 'Sawant kaka', kind: 'office' } },
       steps: [
-        { cut: [['sawant', 'Beta! Mahaan Mandir Talkies mein interval ho gaya hai, aur doosra reel yahan reh gaya!'], ['sawant', 'Tees saal se woh picture roz chalti hai. Aaj pehli baar adhuri reh jayegi. Bhaga, par reel ko jhatka mat dena!'], ['you', 'Fikar not, kaka. Picture abhi baaki hai.']] },
+        { cut: [['sawant', 'Beta! Maratha Mandir mein interval ho gaya hai, aur doosra reel yahan reh gaya!'], ['sawant', 'Tees saal se woh picture roz chalti hai. Aaj pehli baar adhuri reh jayegi. Bhaga, par reel ko jhatka mat dena!'], ['you', 'Fikar not, kaka. Picture abhi baaki hai.']] },
         { cargo: { name: 'Film reel', min: 0.35, icon: '🎞️' } },
-        { goto: P.talkies, label: 'Rush the reel to Mahaan Mandir Talkies before the interval ends', on: 'vehicle', limit: 300, radius: 30, fail: 'The audience went home. The projector is very sad.' },
+        { goto: P.talkies, label: 'Rush the reel to Maratha Mandir before the interval ends', on: 'vehicle', limit: 300, radius: 30, fail: 'The audience went home. The projector is very sad.' },
         { cargo: null },
         { reward: 900, line: 'Reel aa gaya! Picture shuru!' },
       ],
@@ -310,7 +310,7 @@ export function buildMissions(index, home) {
         { cut: [['conductor', 'Arre driver saab nahi aaye aaj! Bus bhari hai, log chilla rahe hain.'], ['conductor', 'Tum taxi chalate ho na? Bas thodi lambi taxi samjho. Chaar stop, phir Crawford Market. Aaraam se — log khade hain!'], ['you', 'Ticket, ticket! …Yeh aap bolo, main chalata hoon.']] },
         { lend: 'bus', at: P.colabaDepot },
         { cargo: { name: 'Standing passengers', min: 0.4, icon: '🚌' } },
-        { visit: [[...P.regal, 'Bus stop: Regal Circle'], [...P.fountain, 'Bus stop: Flora Fountain'], [...P.terminusRoad, 'Bus stop: Chai Terminus']], label: 'In the BEST bus: stop at all three bus stops', on: 'bus', limit: 420, fail: 'The passengers got off and took taxis. Kamble is writing a report.' },
+        { visit: [[...P.regal, 'Bus stop: Regal Circle'], [...P.fountain, 'Bus stop: Flora Fountain'], [...P.terminusRoad, 'Bus stop: CSMT']], label: 'In the BEST bus: stop at all three bus stops', on: 'bus', limit: 420, fail: 'The passengers got off and took taxis. Kamble is writing a report.' },
         { goto: P.crawford, label: 'Last stop: Crawford Market', on: 'bus', limit: 200, radius: 30, fail: 'Too late: the 138 behind you overtook. Twice.' },
         { cargo: null },
         { reward: 1400, line: 'Last stop! Sab utro. Driver saab, kal bhi aa jao!' },

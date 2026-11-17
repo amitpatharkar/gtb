@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Geo, POSE, person, hex, font, canvasTexture } from './kit.js';
 
-// Chhatrapati Chai Terminus (the game's take on the great Gothic railway terminus).
+// Chhatrapati Shivaji Maharaj Terminus (the game's take on the great Gothic railway terminus).
 //  - The booking hall, the "Star Chamber": a vaulted nave between pointed arcades, the
 //    ceiling painted deep blue with gold stars, stained glass, ticket windows with brass
 //    grilles, a clerk, a queue.
@@ -176,10 +176,10 @@ export function buildTerminus(k, api) {
     lineOf([[90, 330], [150, 310], [220, 290], [300, 285], [380, 300], [460, 320], [560, 340]], '#2e7d4f');
     lineOf([[60, 300], [70, 240], [78, 180], [84, 120], [90, 70]], '#1f4fa3');
     g.fillStyle = '#222'; g.font = font(17, 700); g.textAlign = 'left';
-    [['CCT', 98, 352], ['Thane', 255, 150], ['Kalyan', 425, 86], ['Kasara', 560, 60], ['Kurla', 196, 206], ['Vashi', 300, 274], ['Panvel', 520, 364], ['Andheri', 96, 184], ['Borivali', 100, 76]].forEach(([t, x, y]) => g.fillText(t, x, y));
+    [['CSMT', 98, 352], ['Thane', 255, 150], ['Kalyan', 425, 86], ['Kasara', 560, 60], ['Kurla', 196, 206], ['Vashi', 300, 274], ['Panvel', 520, 364], ['Andheri', 96, 184], ['Borivali', 100, 76]].forEach(([t, x, y]) => g.fillText(t, x, y));
   });
   k.to('signs').quad(HX - 0.03, 2.6, 6.75, 3.2, 1.9, -Math.PI / 2, undefined, map);
-  k.to('signs').quad(HX - 0.03, 2.6, 11.25, 2.4, 1.5, -Math.PI / 2, undefined, board(520, 320, '#23402f', '#f4e7c3', [['छत्रपती चाय टर्मिनस', 46, 60], ['CHHATRAPATI CHAI TERMINUS', 34, 112], ['opened 1888', 28, 156, '#e0c36a'], ['“Chai, chai, garam chai” since day one.', 24, 210, '#f4e7c3'], ['Please mind the gap. And the queue.', 24, 250], ['कृपया रांगेत उभे राहा', 30, 292, '#e0c36a']], '#d9b24a'));
+  k.to('signs').quad(HX - 0.03, 2.6, 11.25, 2.4, 1.5, -Math.PI / 2, undefined, board(520, 320, '#23402f', '#f4e7c3', [['छत्रपती शिवाजी महाराज टर्मिनस', 46, 60], ['CHHATRAPATI SHIVAJI MAHARAJ TERMINUS', 34, 112], ['opened 1888', 28, 156, '#e0c36a'], ['A World Heritage Site · since 1888', 24, 210, '#f4e7c3'], ['Please mind the gap. And the queue.', 24, 250], ['कृपया रांगेत उभे राहा', 30, 292, '#e0c36a']], '#d9b24a'));
   for (const z of [2.6, 3.7]) {  // ticket machines
     satin.box(HX - 0.35, 0, z, 0.5, 1.65, 0.7, 0x1f4fa3); glow.box(HX - 0.61, 1.0, z, 0.02, 0.42, 0.5, [0x9fd0ff, 1.3]); satin.box(HX - 0.62, 0.62, z, 0.03, 0.2, 0.36, 0xd8d8d4);
     k.solids.push([HX - 0.65, z - 0.4, HX, z + 0.4, false]);
@@ -314,7 +314,7 @@ export function buildTerminus(k, api) {
     const uv = board(160, 160, '#1d3a5c', '#ffffff', [[String(i + 1), 120, 86]], '#ffffff');
     k.to('signs').quad(cx, 4.3, C1 + 0.9, 0.9, 0.9, Math.PI, undefined, uv); flat.box(cx, 3.82, C1 + 0.95, 0.96, 0.96, 0.06, 0x101820); steel.cyl(cx, 4.78, C1 + 0.95, 0.02, 3.3, 0x2a2a2a, 5);
   });
-  const nameBoard = board(1000, 250, '#f2c200', '#141414', [['छत्रपती चाय टर्मिनस', 84, 62], ['CHHATRAPATI CHAI TERMINUS', 62, 142], ['समुद्रसपाटीपासून उंची 4 मी · 4 m above sea level', 30, 210]], '#141414');
+  const nameBoard = board(1000, 250, '#f2c200', '#141414', [['छत्रपती शिवाजी महाराज टर्मिनस', 84, 62], ['CHHATRAPATI SHIVAJI MAHARAJ TERMINUS', 62, 142], ['समुद्रसपाटीपासून उंची 4 मी · 4 m above sea level', 30, 210]], '#141414');
   for (const [x, z, ry] of [[0, 60, Math.PI], [-9.6, 34.2, 0], [9.6, 61, Math.PI]]) { k.to('signs').quad(x, 2.3, z, 3.6, 0.9, ry, undefined, nameBoard); k.to('signs').quad(x, 2.3, z + (ry ? 0.08 : -0.08), 3.6, 0.9, ry ? 0 : Math.PI, undefined, nameBoard); for (const dx of [-1.6, 1.6]) { satin.box(x + dx, 0, z + (ry ? 0.04 : -0.04), 0.1, 2.75, 0.1, 0x2a2a2a); k.posts.push([x + dx, z, 0.12, false]); } }
   // Water taps, bins, a porter's luggage pile.
   for (const [x, z] of [[-9.6, 38.5], [9.6, 50], [0, 47]]) { satin.box(x, 0, z, 0.9, 1.0, 0.5, 0x2e6f8c); steel.box(x, 1.0, z, 1.0, 0.04, 0.6, 0xc8cccc); for (const dx of [-0.3, 0, 0.3]) steel.cyl(x + dx, 1.04, z, 0.015, 0.2, 0xc8cccc, 5); k.solids.push([x - 0.5, z - 0.3, x + 0.5, z + 0.3, false]); }

@@ -17,8 +17,12 @@ repository, web address `/gtb/`, save keys. Never put "Grand Theft …" or "GTA"
   far beyond GTA Vice City. Not a drone-footage scan: realism comes from materials, district styles, street clutter,
   hand-made landmarks and lighting (detail where the camera looks).
 - **Real scale (decided 2026-11-13):** Mumbai stays 1:1 (1 game metre = 1 real metre); the map grows outward.
-- **Names:** real brands, logos and trademarked buildings (e.g. the Taj Mahal Palace facade) get altered names;
-  ideas in `docs/research/mumbai-guide.md` and `mumbai-guide-2.md`. The ride app is **Kidhar** ("Chalo" is BEST's
+- **Names (owner, 2026-11-17):** places keep their **real names**, written properly and respectfully — landmarks,
+  stations, streets, beaches, parks, markets and every religious site; places named after a person carry that name in
+  full (Chhatrapati Shivaji Maharaj Terminus, short form CSMT; Chhatrapati Shivaji Maharaj International Airport;
+  Rajabai Clock Tower). Never pun on a place, a revered person, a religion or a community. Only where a trademark is a
+  real risk (brands, logos, products, businesses' trademarks, the Taj hotel's name and facade → "The Palace Hotel")
+  use a plain short form or a fictional brand — never a joke version of the real name. The ride app is **Kidhar** ("Chalo" is BEST's
   real app). Never use "Jhakaas" or "Bhidu" (court-protected catchphrases). No real celebrities (names, faces,
   voices): fictional stars with original house designs and altered house names (OpenStreetMap carries "Mannat",
   "Jalsa", "Antilia" — never show those). No 2008-attack, riot or gangster references; never mock poverty.
@@ -41,7 +45,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - **Humour through systems:** traffic-police "challan" wanted stars, fake brands and billboards, a Bollywood-style radio.
 - **Playable early, iterate forever:** every push deploys; test feel on phone and laptop; nothing is locked.
 - **Research first (Garbut's "block guides"):** `docs/research/mumbai-guide.md` has district guides (styles, colours,
-  street life), 32 landmarks with altered names, vehicles and signage; use it when building each area.
+  street life), 32 landmarks under their real names, vehicles and signage; use it when building each area.
 
 ## Talking to the owner
 - Keep answers short and to the point.
@@ -299,8 +303,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   Tests skip the title with `?quality=`, `?hour=` or `?play`.
 - `src/ui/navigator.js` — turn-by-turn: next-turn panel, chevrons on the road, spoken Hinglish prompts (speechSynthesis)
 - `src/radio.js` — taxi radio (N): synthesised stations + RJ speech (traffic, AQI, fake ads, police gossip)
-- `src/world/landmarks.js` — hand-built Gateway of Indiyaa, Royal Chaj Mahal Palace (generic, not the trademarked
-  facade), Chhatrapati Chai Terminus, BMC HQ, Rajabhai clock tower, fitted to OSM footprints (converter `LANDMARKS`:
+- `src/world/landmarks.js` — hand-built Gateway of India, The Palace Hotel (generic, not the trademarked
+  facade), Chhatrapati Shivaji Maharaj Terminus, BMC HQ, Rajabai Clock Tower, fitted to OSM footprints (converter `LANDMARKS`:
   outline found by name, flagged `BUILDING_FLAG.HIDDEN` = collide only, `index.landmarks` = x, z, angle, w, d)
 - `src/world/interiors.js` + `interiors/` (`kit.js` room-building kit, `terminus.js`, `palace.js`, `cafe.js`, `flat.js`)
   — places to walk into: glowing street doors (E on foot), fade, rooms built on first entry 4 km west of the map and

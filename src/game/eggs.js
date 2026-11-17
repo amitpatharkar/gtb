@@ -16,8 +16,8 @@ const ll = (index, lat, lon) => [(lon - index.origin.lon) * index.metresPerDegre
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
 const CHAI = [
-  ['Gateway of Indiyaa', 18.9219, 72.8346], ['Colaba Causeway', 18.9227, 72.8317], ['Sassoon Dock', 18.9118, 72.8265], ['Kala Ghoda', 18.9280, 72.8322],
-  ['Flora Fountain', 18.9323, 72.8316], ['Oval Maidan', 18.9290, 72.8280], ['Chai Terminus', 18.9400, 72.8355], ['Crawford Market', 18.9475, 72.8340],
+  ['Gateway of India', 18.9219, 72.8346], ['Colaba Causeway', 18.9227, 72.8317], ['Sassoon Dock', 18.9118, 72.8265], ['Kala Ghoda', 18.9280, 72.8322],
+  ['Flora Fountain', 18.9323, 72.8316], ['Oval Maidan', 18.9290, 72.8280], ['CSMT', 18.9400, 72.8355], ['Crawford Market', 18.9475, 72.8340],
   ['the cricket stadium', 18.9388, 72.8258], ['Marine Drive', 18.9440, 72.8232], ['Girgaum Chowpatty', 18.9548, 72.8125], ['Hanging Gardens', 18.9565, 72.8052],
   ['Mani Bhavan', 18.9598, 72.8115], ['Chor-Chor Bazaar', 18.9594, 72.8299], ['Minaar Gali', 18.9545, 72.8331], ['the ferry wharf', 18.9568, 72.8495],
   ['Haji Wali Juice Corner', 18.9784, 72.8112], ['the racecourse', 18.9856, 72.8187], ['Dhulai Ghat', 18.9820, 72.8247], ['the zoo gate', 18.9777, 72.8349],
@@ -44,11 +44,11 @@ export class Eggs {
     this.eggs = [
       E('croc', 'Powai ka magarmach', 19.1262, 72.9042, { build: (e) => this.buildCroc(e), in: 'water', reach: 30, reward: 1000, text: 'Easter egg: the crocodile of Powai Lake is real. Do not feed him vada pav.' }),
       E('shoe', 'The Old Woman\'s Shoe', 18.9568, 72.8049, { build: (e) => this.buildShoe(e), reach: 22, reward: 500, text: 'Easter egg: the Old Woman\'s Shoe. Generations of children have climbed it.' }),
-      E('talkies', 'Mahaan Mandir Talkies', 18.9711, 72.8221, { build: (e) => this.buildMarquee(e), reach: 28, reward: 500, text: 'Easter egg: Mahaan Mandir Talkies — the same film, every day, for thirty years. Houseful.' }),
+      E('talkies', 'Maratha Mandir', 18.9711, 72.8221, { build: (e) => this.buildMarquee(e), reach: 28, reward: 500, text: 'Easter egg: Maratha Mandir — the same film, every day, for thirty years. Houseful.' }),
       E('flamingos', 'Sewri flamingos', 18.9950, 72.8640, { build: (e) => this.buildFlamingos(e), in: 'water', reach: 90, reward: 500, text: 'Easter egg: the flamingos of Sewri, pink all the way to the horizon.' }),
       E('wax', 'Wax taxi', 19.0466, 72.8226, { build: (e) => this.buildStall(e, 0xf2efe6, 'मोम की गाड़ी · WAX TAXI ₹50'), reach: 9, daily: true, act: (e, c) => this.waxTaxi(e, c) }),
       E('roses', 'Gandhigiri roses', 18.9598, 72.8115, { build: (e) => this.buildStall(e, 0xc0392b, 'गुलाब · ROSES FOR PEACE'), reach: 9, daily: true, act: () => this.takeRoses() }),
-      E('tower', 'Seth Dhanraj Tower', 18.9681, 72.8095, { build: (e) => this.buildGuard(e), reach: 16, reward: 0, text: 'Easter egg: Seth Dhanraj Tower. Twenty-seven floors, one family, and you may use the service gate.' }),
+      E('tower', 'Altamount Road tower', 18.9681, 72.8095, { build: (e) => this.buildGuard(e), reach: 16, reward: 0, text: 'Easter egg: the guard at the tower gate on Altamount Road. He salutes every taxi, just in case.' }),
     ];
   }
 
@@ -156,7 +156,7 @@ export class Eggs {
     const x = c.getContext('2d');
     x.fillStyle = '#7a1420'; x.fillRect(0, 0, 1024, 384);
     x.strokeStyle = '#f2c94c'; x.lineWidth = 14; x.strokeRect(12, 12, 1000, 360);
-    x.textAlign = 'center'; x.fillStyle = '#f2c94c'; x.font = 'bold 74px Georgia, serif'; x.fillText('महान मंदिर TALKIES', 512, 96);
+    x.textAlign = 'center'; x.fillStyle = '#f2c94c'; x.font = 'bold 74px Georgia, serif'; x.fillText('मराठा मंदिर · MARATHA MANDIR', 512, 96);
     x.fillStyle = '#fff'; x.font = 'bold 96px Georgia, serif'; x.fillText('PYAAR KI TRAIN', 512, 208);
     x.fillStyle = '#ffd9a0'; x.font = 'italic 52px Georgia, serif'; x.fillText('30th glorious year · daily 11:30 · HOUSEFUL', 512, 300);
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;

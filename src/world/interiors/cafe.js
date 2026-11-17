@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Geo, POSE, person, hex, font, bentwoodChair, pedestalTable } from './kit.js';
 
-// Khyaali & Co., an Irani café (fictional; the design is reusable for others): chequered
+// An Irani café at Dhobi Talao (fictional; the design is reusable for others): chequered
 // floor, pista-green walls over dark wood panelling, mirrors, bentwood chairs at marble-top
 // tables, glass biscuit jars on the counter, the owner at his till and a hand-painted board
 // of rules. E at the counter: bun maska and chai.

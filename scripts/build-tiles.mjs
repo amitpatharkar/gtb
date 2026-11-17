@@ -933,11 +933,11 @@ const fuelStations = fuel.map(([x, z]) => [r1(x), r1(z)]);
 // such as "BMC Building No E4" in Sion).
 const LANDMARK_RADIUS = 300;
 const LANDMARKS = [
-  { id: 'gateway', name: 'Gateway of Indiyaa', match: /gateway of india/i, at: [18.9220, 72.8347], hide: true },
-  { id: 'palace', name: 'Royal Chaj Mahal Palace', match: /taj mahal palace|taj mahal hotel/i, at: [18.9217, 72.8330], hide: true },
-  { id: 'terminus', name: 'Chhatrapati Chai Terminus', match: /chhatrapati shivaji (maharaj )?terminus|victoria terminus|^cs[m]?t$/i, at: [18.9400, 72.8355], hide: true },
-  { id: 'bmc', name: 'Big Mumbai Council HQ', match: /municipal corporation (building|head|of greater mumbai)|bmc (building|head)/i, at: [18.9405, 72.8344], hide: true },
-  { id: 'clocktower', name: 'Rajabhai Tick-Tock Tower', match: /rajabai/i, at: [18.9297, 72.8305], hide: false, size: [16, 16] },
+  { id: 'gateway', name: 'Gateway of India', match: /gateway of india/i, at: [18.9220, 72.8347], hide: true },
+  { id: 'palace', name: 'The Palace Hotel', match: /taj mahal palace|taj mahal hotel/i, at: [18.9217, 72.8330], hide: true },
+  { id: 'terminus', name: 'Chhatrapati Shivaji Maharaj Terminus', match: /chhatrapati shivaji (maharaj )?terminus|victoria terminus|^cs[m]?t$/i, at: [18.9400, 72.8355], hide: true },
+  { id: 'bmc', name: 'BMC Headquarters', match: /municipal corporation (building|head|of greater mumbai)|bmc (building|head)/i, at: [18.9405, 72.8344], hide: true },
+  { id: 'clocktower', name: 'Rajabai Clock Tower', match: /rajabai/i, at: [18.9297, 72.8305], hide: false, size: [16, 16] },
 ];
 function orientedBox(ring) {
   // Minimum-area rectangle over the outline's edge directions.

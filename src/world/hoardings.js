@@ -19,7 +19,7 @@ const ADS = [
   { big: 'MANGALDAS JEWELLERS', sub: 'Shaadi ho ya EMI — sona zaroori hai', foot: 'Since 1927 · Zaveri Bazaar', bg: ['#5c0d1c', '#2b050c'], accent: '#f1c75b', art: 'ring' },
   { big: 'DIL KA SIGNAL', sub: 'ARMAAN RAIZADA', foot: 'In cinemas this Diwali', bg: ['#7a0c12', '#12060a'], accent: '#ffcf4d', art: 'figure', film: true },
   { big: 'INSPECTOR TOOFAN 3', sub: 'VIKRAM OBEROI', foot: 'Is baar toofan… traffic mein phansega', bg: ['#10294f', '#060b16'], accent: '#ff7a1a', art: 'figure', film: true },
-  { big: 'PYAAR KI TRAIN', sub: '30th glorious year!', foot: 'Daily 12:15 · Mahaan Mandir Talkies', bg: ['#a8145a', '#3d0620'], accent: '#ffe08a', art: 'heart', film: true },
+  { big: 'PYAAR KI TRAIN', sub: '30th glorious year!', foot: 'Daily 12:15 · Maratha Mandir', bg: ['#a8145a', '#3d0620'], accent: '#ffe08a', art: 'heart', film: true },
   { big: 'BOLO 6G', sub: 'Ab buffering bhi fast', foot: 'Unlimited baatein · ₹299', bg: ['#d81b78', '#6d0a3d'], accent: '#ffffff', art: 'waves' },
   { big: 'CHATTAN CEMENT', sub: 'Saas hil gayi, deewar nahi.', foot: 'Grade 53 · Mazboot rishte', bg: ['#8d9399', '#4b5055'], accent: '#e2231a', art: 'bricks' },
   { big: 'TIGER BANIYAN', sub: 'Garmi mein bhi hero', foot: '100% cotton · 0% tension', bg: ['#f4f1e8', '#d9d2bf'], fg: '#c21f1f', accent: '#1b1b1b', art: 'vest' },

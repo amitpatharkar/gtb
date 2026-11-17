@@ -24,7 +24,7 @@ export const isTrainRoute = (t) => t.type === 'route' && t.route === 'train' && 
  */
 export function stationName(n) {
   n = (n || '').replace(/\s*\([^)]*\)/g, '').replace(/\s+/g, ' ').trim();
-  if (/\bcsm?t\b|chhatrapati shivaji|victoria terminus/i.test(n)) return 'Chhatrapati Chai Terminus';
+  if (/\bcsm?t\b|chhatrapati shivaji|victoria terminus/i.test(n)) return 'Chhatrapati Shivaji Maharaj Terminus';
   return n;
 }
 

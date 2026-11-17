@@ -10,7 +10,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 // Wings flap in the vertex shader (per-instance: x = flap amount, y = phase).
 
 const SPOTS = [
-  ['Gateway plaza', 18.9221, 72.8340, 46], ['Kabutarkhana, Dadar', 19.0178, 72.8437, 50], ['Chai Terminus forecourt', 18.9403, 72.8349, 30],
+  ['Gateway plaza', 18.9221, 72.8340, 46], ['Kabutarkhana, Dadar', 19.0178, 72.8437, 50], ['CSMT forecourt', 18.9403, 72.8349, 30],
   ['Marine Drive', 18.9440, 72.8232, 26], ['Girgaum Chowpatty', 18.9548, 72.8125, 30], ['Flora Fountain', 18.9323, 72.8316, 24],
   ['Kabutarkhana, Bhuleshwar', 18.9525, 72.8290, 40], ['Shivaji Park', 19.0267, 72.8384, 26], ['Bandstand', 19.0447, 72.8198, 24],
   ['Juhu Beach', 19.0980, 72.8265, 30], ['Worli Sea Face', 19.0090, 72.8150, 24], ['Carter Road', 19.0650, 72.8228, 22], ['Powai Lake', 19.1241, 72.8977, 20],

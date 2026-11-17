@@ -10,52 +10,52 @@ Extends `docs/research/mumbai-guide.md`; no repository files changed. **Key:** �
 
 ## 1. Sixty famous places and things
 
-| # | Place → game name | Where | Famous for · inside | Game idea |
+| # | Place (real name, used as it is — owner, 2026-11-17) | Where | Famous for · inside | Game idea |
 |---|---|---|---|---|
 | 1 | Gateway of India jetty | B1 ★ | Ferry steps, photographers, pigeons | Instant-photo job; ferries leave here (life-jacket gag) |
 | 2 | Taj Mahal Palace (Royal Chaj Mahal) | B2 ★ | Inside: cantilevered grand staircase under the dome, art-lined corridors, Sea Lounge tea room facing the Gateway, Harbour Bar (first licensed bar, 1933) | Turbaned doorman opens your taxi door; deliver a forgotten tiffin at high tea; "no chappals" rule |
-| 3 | Leopold Café → Leopard Café | 18.9227, 72.8317 ★ | Since 1871. Inside: open front, high ceilings, fans, mirrors, beer jugs, backpackers | Backpackers haggle fares. Never reference the 2008 attack |
-| 4 | Café Mondegar → Café Mondegaar | 18.9240, 72.8322 ★ | Jukebox; cartoon murals of city life (copyrighted: draw your own) | Jukebox switches radio station |
-| 5 | Bade Miya → Bade Bhaiyya Kebabs | ~18.9235, 72.8320 (?) ★ | Night kebab stall since 1946; eaten on car bonnets | Order from the taxi window |
-| 6 | Kyani & Co. (1904), Yazdani Bakery (18.9332, 72.8336) → Khyaali & Co. | 18.9441, 72.8288 ★ | Irani café. Inside: bentwood chairs, marble tables, mirrors, biscuit jars, "Rules" board (no credit, no combing hair) | Reusable café interior; bun-maska dunk game |
-| 7 | Britannia & Co. → Britaniya & Sons | 18.9345, 72.8404 ★ | Berry pulao, raspberry soda, royal portraits; lunch only | Fictional old owner chats about "the Queen" |
+| 3 | Leopold Café | 18.9227, 72.8317 ★ | Since 1871. Inside: open front, high ceilings, fans, mirrors, beer jugs, backpackers | Backpackers haggle fares. Never reference the 2008 attack |
+| 4 | Café Mondegar | 18.9240, 72.8322 ★ | Jukebox; cartoon murals of city life (copyrighted: draw your own) | Jukebox switches radio station |
+| 5 | Bade Miya | ~18.9235, 72.8320 (?) ★ | Night kebab stall since 1946; eaten on car bonnets | Order from the taxi window |
+| 6 | Kyani & Co. (1904), Yazdani Bakery (18.9332, 72.8336) | 18.9441, 72.8288 ★ | Irani café. Inside: bentwood chairs, marble tables, mirrors, biscuit jars, "Rules" board (no credit, no combing hair) | Reusable café interior; bun-maska dunk game |
+| 7 | Britannia & Co. | 18.9345, 72.8404 ★ | Berry pulao, raspberry soda, royal portraits; lunch only | Fictional old owner chats about "the Queen" |
 | 8 | Sassoon Dock | B23 ★ | Inside: 5 am auction, ice crushers, Koli women, wet floor | Dawn ice delivery; slippery physics |
-| 9 | Jehangir Art Gallery → Jahangiri Kala Bhavan | 18.9274, 72.8317 ★ | Pavement artists; Kala Ghoda festival (Feb) | Photograph 10 installations |
+| 9 | Jehangir Art Gallery | 18.9274, 72.8317 ★ | Pavement artists; Kala Ghoda festival (Feb) | Photograph 10 installations |
 | 10 | CSMVS museum | B24 ★ | Inside: domed hall, sculpture galleries | Escort a school trip |
 | 11 | Asiatic Society steps | B25 ★ | Film-shoot and selfie favourite | Shoot blocks the road; be an extra |
 | 12 | Bombay Stock Exchange | B27 ★ | Street ticker on Dalal Street | Parody shares react to your chaos |
 | 13 | CSMT | B3 ★ | Inside: "Star Chamber" booking hall (vaulted, star-painted ceiling, stained glass); concourse indicator boards (F/S, 12/15 coaches); red-shirted porters | "Catch the 6:12 fast"; marathon start |
 | 14 | Azad, Cross, Oval maidans + Khau Galli (18.9381, 72.8289) | B11 ★ | Overlapping cricket games; protest tents; lunch food lane | Five games chase one ball; protest "Vada pav sasta karo!" |
-| 15 | Fashion Street → Fashion Gully | ~18.9390, 72.8310 (?) ★ | 1 km of clothes stalls | Bargaining mini-game |
+| 15 | Fashion Street | ~18.9390, 72.8310 (?) ★ | 1 km of clothes stalls | Bargaining mini-game |
 | 16 | Wankhede Stadium | B10 ★ | 2011 World Cup final. Inside: stands named after real players (rename), loud North Stand | Ticket queue, diversions, catch a six |
 | 17 | Crawford Market | B15 ★ | Inside: Kipling-designed fountain, fruit halls, imported goods, porters with baskets | Timed shopping list |
-| 18 | Mohammed Ali Road, Minara Masjid → Minaar Gali | 18.9545, 72.8331 ★ | Ramzan nights: malpua, phirni, kebab smoke till dawn | Lunar-calendar food walk |
-| 19 | Chor Bazaar → Chor-Chor Bazaar | 18.9594, 72.8299 ★ | Antiques, gramophones, old film posters, car parts | Buy back your stolen side mirror |
-| 20 | Lamington Road → Lamington Lane | 18.9613, 72.8165 ★ | Electronics | Phone upgrades |
+| 18 | Mohammed Ali Road, Minara Masjid | 18.9545, 72.8331 ★ | Ramzan nights: malpua, phirni, kebab smoke till dawn | Lunar-calendar food walk |
+| 19 | Chor Bazaar | 18.9594, 72.8299 ★ | Antiques, gramophones, old film posters, car parts | Buy back your stolen side mirror |
+| 20 | Lamington Road | 18.9613, 72.8165 ★ | Electronics | Phone upgrades |
 | 21 | Girgaum Chowpatty | B20 ★ | Bhel stalls, kulfi; Ganesh immersions | Immersion-night finale |
 | 22 | Marine Drive | B9 ★ | Queen's Necklace; monsoon waves over the wall | Night race; spray soaks the taxi |
-| 23 | Coastal Road → Samudra Marg | 18.9715, 72.8034 ★ (promenade) | Tunnels from Chowpatty under Malabar Hill | Radio cuts out; time trial to the Sea Link |
+| 23 | Mumbai Coastal Road | 18.9715, 72.8034 ★ (promenade) | Tunnels from Chowpatty under Malabar Hill | Radio cuts out; time trial to the Sea Link |
 | 24 | Mani Bhavan | B21 ★ | Inside: library, photo staircase, Gandhi's room behind glass (spinning wheel), doll tableaux of his life | Quiet museum; unlocks a "Gandhigiri" calm-down move |
 | 25 | Banganga Tank | B18 (≈80 m west of the map edge) | Stone steps, ducks, temples; January music festival (?) | Calm zone; feed ducks |
 | 26 | Hanging Gardens + Old Woman's Shoe | B19 ★ | Walk-in shoe house; Necklace view | Sunset photo spot |
-| 27 | Antilia → Seth Dhanraj Tower (fictional tycoon) | 18.9681, 72.8095 ★ | 27-storey private tower | Guard sends you to the service gate |
+| 27 | a private residential tower on Altamount Road (a real family's home: never named or shown as theirs) | 18.9681, 72.8095 ★ | 27-storey private tower | Guard sends you to the service gate |
 | 28 | Bhau cha Dhakka ferry wharf | 18.9568, 72.8495 ★ | Fish market; car ferry to Mandwa | Ferry to a future Alibag |
-| 29 | Maratha Mandir → Mahaan Mandir Talkies | 18.9711, 72.8221 ★ | Ran one 1995 romance for ~20 years | Always shows the same fictional film |
-| 30 | Haji Ali Dargah + Haji Ali Juice Centre → Haji Wali Juice Corner (18.9784, 72.8112) | B12 | Inside: marble courtyard, mirror-work pillars, tomb under green-red cloth; Thursday qawwali; causeway floods at high tide | Tide system; juice stop |
+| 29 | Maratha Mandir | 18.9711, 72.8221 ★ | Ran one 1995 romance for ~20 years | Always shows the same fictional film |
+| 30 | Haji Ali Dargah + Haji Ali Juice Centre | B12 | Inside: marble courtyard, mirror-work pillars, tomb under green-red cloth; Thursday qawwali; causeway floods at high tide | Tide system; juice stop |
 | 31 | Mahalaxmi Temple | 18.9774, 72.8060 | Seaside temple; Navratri queues | Flower-stall queue |
-| 32 | Dhobi Ghat → Dhulai Ghat | 18.9829, 72.8254 | Open-air laundry (~1890): 700–1,000 wash pens with flogging stones (?); view from bridge 18.9820, 72.8247 | Linen delivery; lost-shirt hunt |
+| 32 | Dhobi Ghat | 18.9829, 72.8254 | Open-air laundry (~1890): 700–1,000 wash pens with flogging stones (?); view from bridge 18.9820, 72.8247 | Linen delivery; lost-shirt hunt |
 | 33 | Mahalaxmi Racecourse | B14 | Victorian stands; February Derby; "Central Park" planned (not built) | Sunday jog; pick-a-pony, no betting |
 | 34 | Byculla Zoo (Rani Baug) | 18.9782, 72.8369 | Humboldt penguins (25, July 2026) | Escaped-penguin chase |
 | 35 | Nehru Planetarium + Science Centre | 18.9901, 72.8147 | Dome shows, science park | School trip |
-| 36 | Lower Parel mills → Firebird Mills | 18.9952, 72.8243 | Mills turned malls, chimneys | Mall valet job |
-| 37 | Lalbaugcha Raja → Lalbaug ka Maharaja | ~18.9935, 72.8378 (?) | Top Ganesh pandal; 20-hour queues | Festival queue; slow procession |
+| 36 | the Lower Parel mill compounds | 18.9952, 72.8243 | Mills turned malls, chimneys | Mall valet job |
+| 37 | Lalbaugcha Raja | ~18.9935, 72.8378 (?) | Top Ganesh pandal; 20-hour queues | Festival queue; slow procession |
 | 38 | Worli Fort + Koliwada | 19.0237, 72.8168 | Fishing village under the Sea Link | Fish run; bridge view |
 | 39 | Bandra–Worli Sea Link | B13 | No two-wheelers, autos, walkers | Selfie stop = challan |
 | 40 | Sewri Fort + flamingos | 18.9956, 72.8615 | Flamingos Nov–May | Dawn photo challenge |
 | 41 | Siddhivinayak | B29 | Inside: carved wooden doors, gold-plated roof, black-stone Ganesh; Tuesday queues | Tuesday fare surge; no combat |
 | 42 | Shivaji Park + Chaitya Bhoomi (19.0251, 72.8338) | B31 | Cricket nursery, dawn laughter clubs; Ambedkar memorial crowds on 6 December | Laughter-club gag; diversions |
 | 43 | Dadar flower market | ~19.0119, 72.8371 (?) | Marigold mountains at dawn | Rush flowers to a wedding |
-| 44 | Café Madras → Café Madraas | 19.0277, 72.8550 | Dosa, filter coffee, queues | Hunger buff |
+| 44 | Café Madras | 19.0277, 72.8550 | Dosa, filter coffee, queues | Hunger buff |
 | 45 | Dharavi + Kumbharwada | 19.0444, 72.8555 | Inside lanes: 1 m alleys, overhead pipes; kilns, leather shops, rooftop recycling | On-foot deliveries; respectful, never mock poverty |
 | 46 | Mahim Dargah + Mahim Church | 19.0402, 72.8388 | December fair; Wednesday novena | Fair rides |
 | 47 | Bandra Fort | 19.0421, 72.8186 | Portuguese ruin, sunsets | Meet-up spot |
@@ -64,13 +64,13 @@ Extends `docs/research/mumbai-guide.md`; no repository files changed. **Key:** �
 | 50 | Hill Road, Elco Market, Linking Road | 19.0556, 72.8330 | Street shopping, pani puri | Bargain for wardrobe items |
 | 51 | Chimbai and Ranwar villages | 19.0565, 72.8242 | Cottages, Christmas stars, murals | Christmas decoration hunt |
 | 52 | Carter Road | 19.0650, 72.8228 | Promenade, cafés | Evening hangout |
-| 53 | Gaiety-Galaxy → Gaiety-Gallexy | 19.0614, 72.8387 | Whistling first-day crowds | Friday-release crowd |
-| 54 | Airport Terminal 2 → Chhatrapati Udaan Airport | ~19.0990, 72.8740 (?) | Inside: white canopy on tall columns, 3 km art wall | Big-tip fares |
+| 53 | Gaiety-Galaxy | 19.0614, 72.8387 | Whistling first-day crowds | Friday-release crowd |
+| 54 | Chhatrapati Shivaji Maharaj International Airport, Terminal 2 | ~19.0990, 72.8740 (?) | Inside: white canopy on tall columns, 3 km art wall | Big-tip fares |
 | 55 | Juhu Beach + fictional "Shahenshah" | 19.0980, 72.8265 (gate ~19.1050, 72.8276) | Pav bhaji, ice gola; Sunday fans at a legend's gate | Sunday greeting event |
-| 56 | Prithvi Theatre → Dharti Theatre | 19.1062, 72.8256 | Small theatre, café under trees | Deliver a prop before curtain-up |
+| 56 | Prithvi Theatre | 19.1062, 72.8256 | Small theatre, café under trees | Deliver a prop before curtain-up |
 | 57 | Gilbert Hill | 19.1206, 72.8400 | 60 m lava-basalt column, temples on top | Climb for a view collectible |
 | 58 | Powai Lake (player's home) | 19.1241, 72.8977 | Domed neo-classical towers, crocodiles in the lake | Crocodile easter egg |
-| 59 | Film City → Filmy City | 19.1653, 72.8827 | Sets: temple, courtroom, jail, village, helipad; stray leopards | Extra or stunt-driver jobs |
+| 59 | Film City | 19.1653, 72.8827 | Sets: temple, courtroom, jail, village, helipad; stray leopards | Extra or stunt-driver jobs |
 | 60 | National Park + Kanheri Caves; Global Pagoda; Elephanta | 19.2306, 72.8636 / 19.2070, 72.9061; 19.2282, 72.8060; 18.9631, 72.9316 | Forest in the city (leopards, lion safari); 100+ Buddhist caves; pillarless golden dome; Elephanta: 1 h ferry, toy train, ~120 steps, monkeys, giant three-faced Shiva, shut Mondays | Monkey steals your snack; Pagoda disables the horn |
 
 ## 2. Everyday life to stage

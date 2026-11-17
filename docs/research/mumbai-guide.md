@@ -360,12 +360,12 @@ Refs (one Wikipedia + one Street View each): [Worli](https://en.wikipedia.org/wi
 ---
 ## B. Landmarks
 
-For each: real name → two playful in-game names. Footprint and height are **approximate** (from plans/photos/OSM) — refine from OSM `building:levels`/`height` tags where present. Links: Wikipedia + Google Street View (links only).
+For each: the real name, used in the game as it is (owner, 2026-11-17: no playful renames of places; the Taj hotel is "The Palace Hotel" because its name and facade are trademarks). Footprint and height are **approximate** (from plans/photos/OSM) — refine from OSM `building:levels`/`height` tags where present. Links: Wikipedia + Google Street View (links only).
 
 > **Trademark note:** The **Taj Mahal Palace** building facade is a registered trademark (first Indian building to get one, 2017). Do not model a close copy; make a generic domed hotel with a different silhouette/colours. Names of businesses (cinemas, BSE, Air India, Wankhede/MCA, turf club) are trademarks even if the building design isn't — always use parody names and never real logos. Religious sites: keep respectful, no destruction/violence mechanics there.
 
 ### B1. Gateway of India
-- **In-game names:** "Doorway of Bombaystan" / "Gateway of Indiyaa"
+- **Name in the game:** Gateway of India
 - **Lat/lon:** 18.9220, 72.8347
 - **Footprint / height:** ~48 × 18 m (arch block) / 26 m (central arch top)
 - **Style:** Indo-Saracenic with Gujarati (Solanki) details
@@ -375,7 +375,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Gateway_of_India) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9220,72.8347)
 
 ### B2. Taj Mahal Palace hotel
-- **In-game names:** "Royal Chaj Mahal Palace" / "The Tajine Palace Hotel"
+- **Name in the game:** The Palace Hotel (short form; the Taj Mahal Palace name and facade are trademarks)
 - **Lat/lon:** 18.9217, 72.8330
 - **Footprint / height:** ~110 × 80 m (heritage wing) / ~45 m to central dome top; 7 storeys
 - **Style:** Indo-Saracenic / Moorish-Gothic hotel
@@ -385,7 +385,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Taj_Mahal_Palace_Hotel) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9217,72.8330)
 
 ### B3. Chhatrapati Shivaji Maharaj Terminus (CSMT)
-- **In-game names:** "Chhatrapati Chai Terminus" / "Victoria Junction Central (VJT)"
+- **Name in the game:** Chhatrapati Shivaji Maharaj Terminus (CSMT)
 - **Lat/lon:** 18.9400, 72.8355
 - **Footprint / height:** ~220 × 70 m main building (plus sheds) / ~50 m to central dome statue
 - **Style:** Victorian Gothic Revival + Indian (UNESCO site)
@@ -395,7 +395,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Chhatrapati_Shivaji_Terminus) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9400,72.8355)
 
 ### B4. BMC Headquarters (Municipal Corporation Building)
-- **In-game names:** "Bombay Municipal Committee Hall" / "BMC — Big Mumbai Council HQ"
+- **Name in the game:** BMC Headquarters (Brihanmumbai Municipal Corporation Building)
 - **Lat/lon:** 18.9405, 72.8344
 - **Footprint / height:** ~90 × 70 m (triangular plot) / ~78 m central tower
 - **Style:** Gothic Revival + Indo-Saracenic
@@ -405,7 +405,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Brihanmumbai_Municipal_Corporation_Building) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9405,72.8344)
 
 ### B5. Rajabai Clock Tower
-- **In-game names:** "Rajabhai Tick-Tock Tower" / "Rajabai Chime Spire"
+- **Name in the game:** Rajabai Clock Tower
 - **Lat/lon:** 18.9297, 72.8305
 - **Footprint / height:** ~16 × 16 m base / 85 m
 - **Style:** Venetian/Gothic Revival (modelled on Big Ben/Giotto's campanile)
@@ -415,7 +415,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Rajabai_Clock_Tower) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9297,72.8305)
 
 ### B6. Flora Fountain (Hutatma Chowk)
-- **In-game names:** "Flaura Fountain" / "Flora Fauna Fountain"
+- **Name in the game:** Flora Fountain, Hutatma Chowk
 - **Lat/lon:** 18.9326, 72.8317
 - **Footprint / height:** ~10 m diameter basin / ~10 m
 - **Style:** Victorian neo-classical fountain
@@ -425,7 +425,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Flora_Fountain) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9326,72.8317)
 
 ### B7. Bombay High Court
-- **In-game names:** "Bombay Hi-Court" / "Bambai Bade Adalat"
+- **Name in the game:** Bombay High Court
 - **Lat/lon:** 18.9310, 72.8300
 - **Footprint / height:** ~170 × 50 m / ~54 m central tower
 - **Style:** Gothic Revival (Early English)
@@ -435,7 +435,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Bombay_High_Court) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9310,72.8300)
 
 ### B8. Churchgate station + Western Railway HQ
-- **In-game names:** "Churchgate Chai-Station" / "Westward Rail House"
+- **Name in the game:** Churchgate station · Western Railway Headquarters
 - **Lat/lon:** 18.9348, 72.8272
 - **Footprint / height:** Station ~120 × 40 m; HQ ~80 × 40 m / HQ dome ~50 m; station ~15 m
 - **Style:** HQ: Indo-Saracenic/Gothic; station: 1930s modern
@@ -445,7 +445,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Churchgate_railway_station) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9348,72.8272)
 
 ### B9. Marine Drive Art Deco buildings
-- **In-game names:** "Marine Drive Decodence Row" / "Queens' Necklace Deco Mansions"
+- **Name in the game:** Marine Drive
 - **Lat/lon:** 18.9430, 72.8233
 - **Footprint / height:** Row of ~20 blocks, each ~25 × 30 m / 18–25 m (4–7 storeys)
 - **Style:** Art Deco (UNESCO Victorian & Art Deco Ensemble)
@@ -455,7 +455,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Victorian_and_Art_Deco_Ensemble_of_Mumbai) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9430,72.8233)
 
 ### B10. Wankhede Stadium
-- **In-game names:** "Wankhedi Cricket Bowl" / "Wakhede Stadium"
+- **Name in the game:** Wankhede Stadium
 - **Lat/lon:** 18.9389, 72.8258
 - **Footprint / height:** ~200 × 180 m / ~30 m roof
 - **Style:** Modern stadium (1974, renovated 2011)
@@ -465,7 +465,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Wankhede_Stadium) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9389,72.8258)
 
 ### B11. Oval Maidan
-- **In-game names:** "Oval Mai-Done" / "The Egg Maidan"
+- **Name in the game:** Oval Maidan
 - **Lat/lon:** 18.9290, 72.8285
 - **Footprint / height:** ~400 × 120 m / ground
 - **Style:** Open ground (Gothic + Deco skyline either side)
@@ -475,7 +475,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Oval_Maidan) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9290,72.8285)
 
 ### B12. Haji Ali Dargah
-- **In-game names:** "Haji Aali Shrine" / "Hajji Wali Island Dargah"
+- **Name in the game:** Haji Ali Dargah
 - **Lat/lon:** 18.9827, 72.8089
 - **Footprint / height:** ~70 × 50 m island complex; causeway ~500 m / ~26 m minaret
 - **Style:** Indo-Islamic
@@ -485,7 +485,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Haji_Ali_Dargah) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9827,72.8089)
 
 ### B13. Bandra–Worli Sea Link
-- **In-game names:** "Bandra–Worry Sea Link" / "Sea Lynx Bridge"
+- **Name in the game:** Bandra–Worli Sea Link
 - **Lat/lon:** 19.0335, 72.8180
 - **Footprint / height:** 5.6 km long, 8 lanes / Main pylons ~128 m
 - **Style:** Cable-stayed bridge
@@ -495,7 +495,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Bandra-Worli_Sea_Link) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=19.0335,72.8180)
 
 ### B14. Mahalaxmi Racecourse
-- **In-game names:** "Mahalakshmi Horse-Track" / "Royal Western Galloping Club"
+- **Name in the game:** Mahalaxmi Racecourse
 - **Lat/lon:** 18.9830, 72.8190
 - **Footprint / height:** ~1,100 × 650 m oval / Stands ~20 m
 - **Style:** Colonial (1883) grandstands
@@ -505,7 +505,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Mahalaxmi_Racecourse) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9830,72.8190)
 
 ### B15. Crawford Market (Mahatma Jyotiba Phule Mandai)
-- **In-game names:** "Crawfish Market" / "Crowford Mandi"
+- **Name in the game:** Mahatma Jyotiba Phule Mandai (Crawford Market)
 - **Lat/lon:** 18.9476, 72.8344
 - **Footprint / height:** ~110 × 80 m / ~39 m clock tower
 - **Style:** Norman/Flemish Gothic
@@ -515,7 +515,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Crawford_Market) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9476,72.8344)
 
 ### B16. Regal Cinema
-- **In-game names:** "Regale Talkies" / "Royal Regal Picture Palace"
+- **Name in the game:** Regal Cinema
 - **Lat/lon:** 18.9237, 72.8320
 - **Footprint / height:** ~45 × 40 m / ~20 m
 - **Style:** Art Deco (1933)
@@ -525,7 +525,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Special:Search?search=Regal+Cinema+Mumbai) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9237,72.8320)
 
 ### B17. Eros Cinema
-- **In-game names:** "Eros-ion Cinema" / "Heros Cinema"
+- **Name in the game:** Eros Cinema
 - **Lat/lon:** 18.9342, 72.8262
 - **Footprint / height:** ~40 × 40 m / ~24 m
 - **Style:** Art Deco (1938)
@@ -535,7 +535,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Eros_Cinema) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9342,72.8262)
 
 ### B18. Banganga Tank
-- **In-game names:** "Bangangaa Pond" / "Arrow-Ganga Tank"
+- **Name in the game:** Banganga Tank
 - **Lat/lon:** 18.9458, 72.7942
 - **Footprint / height:** Tank ~120 × 30 m / Steps; temples 10–20 m
 - **Style:** Ancient temple tank (rebuilt 1715)
@@ -545,7 +545,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Banganga_Tank) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9458,72.7942)
 
 ### B19. Hanging Gardens (Pherozeshah Mehta Gardens)
-- **In-game names:** "Hanging Gardnz" / "Dangling Gardens"
+- **Name in the game:** Pherozeshah Mehta Gardens (Hanging Gardens)
 - **Lat/lon:** 18.9565, 72.8050
 - **Footprint / height:** ~200 × 100 m / flat terrace on hilltop
 - **Style:** Terraced garden (1881)
@@ -555,7 +555,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Hanging_Gardens_of_Mumbai) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9565,72.8050)
 
 ### B20. Girgaon Chowpatty beach
-- **In-game names:** "Chowpaati Beach" / "Chow-Party Beach"
+- **Name in the game:** Girgaon Chowpatty
 - **Lat/lon:** 18.9545, 72.8152
 - **Footprint / height:** ~1,000 × 80 m beach / sea level
 - **Style:** Urban beach
@@ -565,7 +565,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Girgaon_Chowpatty) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9545,72.8152)
 
 ### B21. Mani Bhavan
-- **In-game names:** "Mani Bhawan Smriti" / "Gem Villa Museum"
+- **Name in the game:** Mani Bhavan
 - **Lat/lon:** 18.9598, 72.8115
 - **Footprint / height:** ~15 × 20 m / ~12 m (2 storeys + roof)
 - **Style:** Gujarati-colonial residence
@@ -575,7 +575,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Mani_Bhavan) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9598,72.8115)
 
 ### B22. Afghan Church (St John the Evangelist)
-- **In-game names:** "St Jon the Afghan Kirk" / "Church of the Old Colaba Spire"
+- **Name in the game:** Afghan Church (St John the Evangelist)
 - **Lat/lon:** 18.9063, 72.8126
 - **Footprint / height:** ~55 × 22 m / ~60 m spire
 - **Style:** Gothic Revival (1858)
@@ -585,7 +585,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Afghan_Church) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9063,72.8126)
 
 ### B23. Sassoon Dock
-- **In-game names:** "Sasoon Fish Dock" / "Salmon Dock"
+- **Name in the game:** Sassoon Dock
 - **Lat/lon:** 18.9113, 72.8266
 - **Footprint / height:** ~200 × 150 m / Gate block ~15 m
 - **Style:** Victorian dock (1875)
@@ -595,7 +595,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Sassoon_Docks) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9113,72.8266)
 
 ### B24. CSMVS (Prince of Wales Museum)
-- **In-game names:** "Prince of Whales Museum" / "Chhatrapati Museum of Everything"
+- **Name in the game:** Chhatrapati Shivaji Maharaj Vastu Sangrahalaya (CSMVS)
 - **Lat/lon:** 18.9269, 72.8326
 - **Footprint / height:** ~100 × 60 m / ~40 m dome
 - **Style:** Indo-Saracenic (George Wittet)
@@ -605,7 +605,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Chhatrapati_Shivaji_Maharaj_Vastu_Sangrahalaya) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9269,72.8326)
 
 ### B25. Asiatic Society / Town Hall
-- **In-game names:** "Old Town Hall of Bombay" / "Asiatik Society Library"
+- **Name in the game:** Asiatic Society of Mumbai (Town Hall)
 - **Lat/lon:** 18.9318, 72.8364
 - **Footprint / height:** ~80 × 40 m / ~22 m
 - **Style:** Neoclassical (Doric)
@@ -615,7 +615,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Asiatic_Society_of_Mumbai) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9318,72.8364)
 
 ### B26. Horniman Circle Gardens
-- **In-game names:** "Horniman Square" / "Hornbill Circle"
+- **Name in the game:** Horniman Circle Gardens
 - **Lat/lon:** 18.9325, 72.8350
 - **Footprint / height:** ~120 m circle / garden + 4-storey ring
 - **Style:** Victorian/Edwardian circus
@@ -625,7 +625,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Horniman_Circle_Gardens) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9325,72.8350)
 
 ### B27. Bombay Stock Exchange (Phiroze Jeejeebhoy Towers)
-- **In-game names:** "Bombay Stalk Exchange Tower" / "Dalal Tower of Moolah"
+- **Name in the game:** Phiroze Jeejeebhoy Towers (Bombay Stock Exchange)
 - **Lat/lon:** 18.9294, 72.8336
 - **Footprint / height:** ~35 × 35 m / ~115 m (29 floors)
 - **Style:** 1970s modernist tower
@@ -635,7 +635,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Bombay_Stock_Exchange) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9294,72.8336)
 
 ### B28. Air India Building, Nariman Point
-- **In-game names:** "Air Indiana Building" / "Air Indulge Tower"
+- **Name in the game:** Air India Building
 - **Lat/lon:** 18.9257, 72.8222
 - **Footprint / height:** ~40 × 30 m / ~105 m (23 floors)
 - **Style:** 1970s modernist
@@ -645,7 +645,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Air_India_Building) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=18.9257,72.8222)
 
 ### B29. Siddhivinayak Temple
-- **In-game names:** "Siddhi-Vinayaka Mandir" / "Shri Siddhi Ganpati Mandir"
+- **Name in the game:** Shree Siddhivinayak Temple
 - **Lat/lon:** 19.0169, 72.8303
 - **Footprint / height:** ~40 × 40 m / ~30 m (gold-plated dome)
 - **Style:** Modern Hindu temple (rebuilt 1990s)
@@ -655,7 +655,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Siddhivinayak_Temple,_Mumbai) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=19.0169,72.8303)
 
 ### B30. Mount Mary Basilica, Bandra
-- **In-game names:** "Mount Marie Basilica" / "Our Lady of the Mount Bandra"
+- **Name in the game:** Mount Mary Basilica
 - **Lat/lon:** 19.0466, 72.8223
 - **Footprint / height:** ~45 × 25 m / ~35 m twin spires
 - **Style:** Gothic Revival (1904)
@@ -665,7 +665,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Mount_Mary_Church,_Bandra) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=19.0466,72.8223)
 
 ### B31. Shivaji Park
-- **In-game names:** "Shivaji Maidan Park" / "Dadar Cricket Kingdom"
+- **Name in the game:** Chhatrapati Shivaji Maharaj Park (Shivaji Park)
 - **Lat/lon:** 19.0270, 72.8380
 - **Footprint / height:** ~420 × 280 m / ground
 - **Style:** Open maidan with Deco-era buildings around
@@ -675,7 +675,7 @@ For each: real name → two playful in-game names. Footprint and height are **ap
 - **Refs:** [Wikipedia](https://en.wikipedia.org/wiki/Shivaji_Park) · [Street View](https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=19.0270,72.8380)
 
 ### B32. Mumba Devi Temple
-- **In-game names:** "Mumbaa Devi Mandir" / "Mumbadevi Mata Mandir"
+- **Name in the game:** Mumba Devi Temple
 - **Lat/lon:** 18.9508, 72.8305
 - **Footprint / height:** ~30 × 30 m / ~20 m
 - **Style:** Hindu temple (1737 rebuild)

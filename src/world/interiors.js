@@ -34,13 +34,13 @@ const INDOORS = 1; // camera layer of everything that is drawn while indoors
 
 const SITES = [
   {
-    id: 'terminus', name: 'Chhatrapati Chai Terminus', deva: 'छत्रपती चाय टर्मिनस', sub: 'Booking office · तिकीट घर', icon: '🚆', color: '#8a5a2b',
+    id: 'terminus', name: 'Chhatrapati Shivaji Maharaj Terminus', deva: 'छत्रपती शिवाजी महाराज टर्मिनस', sub: 'Booking office · तिकीट घर', icon: '🚆', color: '#8a5a2b',
     landmark: 'terminus', style: 'gothic', build: buildTerminus,
     // The long front first, then the other sides.
     sides: (L) => [[0, 1, L.d / 2, L.w / 2], [-1, 0, L.w / 2, L.d / 2], [1, 0, L.w / 2, L.d / 2], [0, -1, L.d / 2, L.w / 2]],
   },
   {
-    id: 'palace', name: 'Royal Chaj Mahal Palace', deva: 'रॉयल छज महल पॅलेस', sub: 'Lobby · Sea Lounge', icon: '🏨', color: '#9c7a2e',
+    id: 'palace', name: 'The Palace Hotel', deva: 'द पॅलेस हॉटेल', sub: 'Lobby · Sea Lounge', icon: '🏨', color: '#9c7a2e',
     landmark: 'palace', style: 'palace', build: buildPalace,
     // The harbour front (the side facing the Gateway; its domed pavilion stands 4 m proud of the wall), then the rest.
     sides: (L, byId) => {
@@ -50,7 +50,7 @@ const SITES = [
       return [[0, f, L.d / 2, L.w / 2, (a) => (Math.abs(a) < 15.5 ? 4 : 0)], [0, -f, L.d / 2, L.w / 2], [-1, 0, L.w / 2, L.d / 2], [1, 0, L.w / 2, L.d / 2]];
     },
   },
-  { id: 'cafe', name: 'Khyaali & Co.', deva: 'ख्याली अँड कं.', sub: 'Irani café · Estd. 1923', icon: '☕', color: '#7a2e2e', at: [18.9441, 72.8288], search: 70, style: 'cafe', build: buildCafe },
+  { id: 'cafe', name: 'Irani Café', deva: 'इराणी कॅफे', sub: 'Irani café · Estd. 1923', icon: '☕', color: '#7a2e2e', at: [18.9441, 72.8288], search: 70, style: 'cafe', build: buildCafe },
   { id: 'flat', name: 'Lake Breeze Tower B', deva: 'लेक ब्रीझ टॉवर बी', sub: 'Flat 1204 · home', icon: '🏠', color: '#2e6a7a', at: HOME.at, search: 220, style: 'tower', build: buildFlat, enter: 'E: go up to your flat (1204, Lake Breeze Tower B)' },
 ];
 

@@ -5,11 +5,11 @@ import { Y } from './levels.js';
 // Hand-built landmarks, fitted to their OpenStreetMap footprints (placement comes from the
 // converter: index.landmarks). Parody names; the hotel is deliberately NOT a copy of the
 // trademarked Taj facade (green domes, different massing). Lit with warm floodlights at night.
-//  - Gateway of Indiyaa: yellow basalt arch, side halls, four turrets, jali parapet, steps
-//  - Royal Chaj Mahal Palace: grand courtyard hotel with arched windows, domes, turrets
-//  - Chhatrapati Chai Terminus: Gothic station, ribbed central dome, gables, corner turrets
-//  - Big Mumbai Council HQ: Gothic block with a tall central tower and onion dome
-//  - Rajabhai Tick-Tock Tower: 85 m clock tower with a lantern and spire
+//  - Gateway of India: yellow basalt arch, side halls, four turrets, jali parapet, steps
+//  - The Palace Hotel: grand courtyard hotel with arched windows, domes, turrets
+//  - Chhatrapati Shivaji Maharaj Terminus: Gothic station, ribbed central dome, gables, corner turrets
+//  - BMC Headquarters: Gothic block with a tall central tower and onion dome
+//  - Rajabai Clock Tower: 85 m clock tower with a lantern and spire
 
 /** Box-projected UVs in metres, so tiling textures keep their real size on any face. */
 function worldUV(g) {
