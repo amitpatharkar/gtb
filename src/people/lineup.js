@@ -78,6 +78,15 @@ async function start() {
     person.motion = new Motion(person, lib);
     people[i] = person;
   }));
+  // The main character, at the front of the line, as he looks on High.
+  try {
+    const t = await lib.hero('High');
+    const hero = lib.instantiateHero(t);
+    hero.root.position.set(x0 - gap * 1.6, 0, 0.4);
+    scene.add(hero.root);
+    hero.motion = new Motion(hero, lib);
+    people.push(hero);
+  } catch (e) { console.warn('main character:', e.message); }
   info.textContent = `${list.length} people · ${(list.reduce((a, p) => a + p.bytes, 0) / 1048576).toFixed(1)} MB + atlas`;
   who.textContent = 'Drag to look around, pinch or scroll to zoom. Heights: ' + list.map((p) => `${p.id.replace(/_/g, ' ')} ${Math.round(p.heightCm)} cm`).join(' · ');
   /** For tests: pose one person, alone, and frame the camera on them (view 'front' | 'side' | 'face'). */
@@ -87,8 +96,8 @@ async function start() {
     p.override = override;
     lodMode = override.lod ?? -1;
     const a = p.motion.play(clip, { fade: 0, time: at, speed: at !== undefined ? 0 : 1 });
-    const x = p.root.position.x, h = p.info.heightCm / 100;
-    if (view === 'face') { controls.target.set(x, h - 0.12, 0); camera.position.set(x + 0.12, h - 0.1, 0.7); }
+    const x = p.root.position.x, h = p.info.heightCm / 100, z0 = p.root.position.z;
+    if (view === 'face') { controls.target.set(x, h - 0.12, z0); camera.position.set(x + 0.12, h - 0.1, z0 + 0.7); }
     else if (view === 'torso') { controls.target.set(x, h * 0.7, 0); camera.position.set(x + 0.35, h * 0.72, 1.3); }
     else if (view === 'torsoSide') { controls.target.set(x, h * 0.7, 0); camera.position.set(x + 1.3, h * 0.72, 0.25); }
     else if (view === 'back') { controls.target.set(x, h * 0.75, 0); camera.position.set(x + 0.6, h * 0.85, -2.2); }

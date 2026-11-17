@@ -358,7 +358,16 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   (one chain; two opened a parting gap) simulated as a Verlet chain at 60 steps/s: fixed lengths, gravity, drag, a
   pull back to the animated drape (0.14), body spheres (head, neck, upper back, clavicles) fitted per person so none
   reaches where the hair rests (`fit()`; average-man spheres pushed a slim woman's hair aside). People within 18 m.
-- `src/people/lineup.js` + `people.html` — the people lineup page (`/gtb/people.html`): every template in random
+- **Main character** (the player's body, owner's choice 2026-11-17): "Indian Man In Casuals" by Pixel_Monster
+  (Sketchfab ar.jethin, CC BY 4.0; source `data/people/indian_man_in_casuals.glb`). `node scripts/people/build-hero.mjs`
+  → `public/people/hero/`: `blender/hero.py` removes Sketchfab's 2× wrapper (170.9 cm), renames the Mixamo-style bones to
+  the game skeleton (`game_name()`: Hips→pelvis, LeftArm→upperarm_l…; extra neck/twist bones keep own names) and writes
+  `hero-high.glb` (as uploaded: 57k triangles, original 1K textures — the owner asked to keep his detail), `hero-medium`
+  (60 %, JPEG) and `hero-low` (35 %, 512 px); `build-anims.mjs --target=… --out=…` retargets the 42 clips onto his own
+  skeleton (limb directions measured joint to joint, `bone_dir`). Runtime: `PeopleLibrary.hero(tier)` /
+  `instantiateHero()` (own materials, cut-outs write alpha 1, no face morphs), `characters.js` loads him after the crowd
+  and the player's body switches to him (`heroT`); `dress()` leaves him alone. Credits panel reads `hero/info.json`.
+- `src/people/lineup.js` + `people.html` — the people lineup page (the main character stands at the front) (`/gtb/people.html`): every template in random
   Mumbai colours, buttons for colours, faces, moves, detail level, close-up; `window.__people.show(id, clip,
   override, view, at)` poses one person for screenshots.
 - `scripts/people/` — the people build (not part of `npm run build`; outputs are committed in `public/people/`):
@@ -534,7 +543,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
   wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, a too-dark night,
   missing street clutter (boards with text, cables, awnings, solid poles, a handcart that can be pulled), or people
-  that don't load, place or move (and the lineup page). In GitHub Actions
+  that don't load, place or move, or a player who isn't the main character (and the lineup page). In GitHub Actions
   `deploy.yml` runs build → smoke (on the Pages artifact) → deploy, so a failing check stops the deploy (Playwright
   1.63.0 is a devDependency). Add a check there for every new system. `touch` plays a landscape phone (844×390,
   real touch events through the Chrome DevTools Protocol): steering slide, two thumbs, pedals, door, joystick, context

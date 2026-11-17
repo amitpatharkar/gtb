@@ -616,7 +616,7 @@ await check('people', async () => {
   // bodies are placed and animated, the player has one, building bodies doesn't stutter;
   // the people lineup page (people.html) loads without errors.
   const { page, errors } = await game('hour=10');
-  await page.waitForFunction(() => window.__gtb.characters.ready, null, { timeout: 120000 });
+  await page.waitForFunction(() => window.__gtb.characters.ready && window.__gtb.characters.heroT, null, { timeout: 180000 });
   const info = await page.evaluate(() => {
     const g = window.__gtb;
     g.toggleFoot();
@@ -633,13 +633,14 @@ await check('people', async () => {
     for (let i = 0; i < 10; i++) g.step(0.05);
     const moved = bone ? 1 - Math.abs(q0.dot(bone.quaternion)) > 1e-7 : false;
     g.post.render();
-    return { templates: c.templates.length, shown: shown.length, player: shown.some((x) => x.who?.isPlayer), bad, moved, worstMs: +worst.toFixed(1) };
+    return { templates: c.templates.length, shown: shown.length, player: shown.some((x) => x.who?.isPlayer), hero: shown.some((x) => x.who?.isPlayer && x.t.hero), bad, moved, worstMs: +worst.toFixed(1) };
   });
   await page.close();
   const fails = noErrors(errors);
   if (!info.templates) fails.push('no body templates loaded');
   if (info.shown < 2) fails.push(`only ${info.shown} real people shown`);
   if (!info.player) fails.push('the player on foot has no body');
+  else if (!info.hero) fails.push('the player is not the main character (public/people/hero)');
   if (info.bad) fails.push(`${info.bad} bodies unplaced or without motion`);
   if (!info.moved) fails.push('people do not move (no animation)');
   if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms`);

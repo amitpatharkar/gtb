@@ -15,7 +15,7 @@
 # The result is keyed on the reference skeleton (an average adult) and exported with the
 # skeleton's rest pose; the game plays the clips as deltas from rest, so every body (tall,
 # short, heavy, child) keeps its own proportions.
-import bpy, json, sys, math, os
+import bpy, json, sys, math, os, re
 from mathutils import Matrix, Vector, Quaternion
 
 from bl_ext.user_default.mpfb.services.humanservice import HumanService
@@ -37,6 +37,40 @@ def reference_rig():
     bpy.data.objects.remove(bm)
     rig.name = 'Reference'
     return rig
+
+
+def target_rig(spec):
+    """The skeleton to retarget onto: a rigged GLB (`spec['target']`, bones already named like the
+    game skeleton, e.g. the main character) or the MakeHuman reference adult."""
+    if not spec.get('target'):
+        return reference_rig()
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=spec['target'])
+    rig = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
+    for o in [o for o in bpy.data.objects if o is not rig]:
+        bpy.data.objects.remove(o)
+    rig.animation_data_clear()
+    for a in list(bpy.data.actions):
+        bpy.data.actions.remove(a)
+    rig.name = 'Reference'
+    return rig
+
+
+# The next joint down each limb: a bone's direction is measured to it (imported rigs' bone
+# tails follow the importer's guess and can point anywhere).
+NEXT = {'clavicle': 'upperarm', 'upperarm': 'lowerarm', 'lowerarm': 'hand', 'thigh': 'calf', 'calf': 'foot', 'foot': 'ball'}
+
+
+def bone_dir(arm, b):
+    m = re.match(r'^([a-z]+)_(l|r)$', b.name)
+    want = f"{NEXT[m.group(1)]}_{m.group(2)}" if m and m.group(1) in NEXT else None
+    f = re.match(r'^(thumb|index|middle|ring|pinky)_0(\d)_(l|r)$', b.name)
+    if f:
+        want = f"{f.group(1)}_0{int(f.group(2)) + 1}_{f.group(3)}"
+    child = arm.data.bones.get(want) if want else None
+    mw = arm.matrix_world
+    end = child.head_local if child else b.tail_local
+    return (mw @ end) - (mw @ b.head_local)
 
 
 def import_source(path):
@@ -73,9 +107,8 @@ def calibrate(src, tgt, mapping):
         r = G @ rest
         s = mapping.get(b.name)
         if s and b.name not in TRUNK and s in src.data.bones:
-            sb = src.data.bones[s]
-            sdir = (sw @ sb.tail_local) - (sw @ sb.head_local)
-            tdir = G @ ((tw @ b.tail_local) - (tw @ b.head_local))
+            sdir = bone_dir(src, src.data.bones[s])
+            tdir = G @ bone_dir(tgt, b)
             r = rot_between(tdir, sdir) @ r
         cal[b.name] = r
         carried[b.name] = r @ rest.inverted()
@@ -161,7 +194,7 @@ def main():
     clips_file, out = argv[0], argv[1]
     with open(clips_file) as f:
         spec = json.load(f)
-    tgt = reference_rig()
+    tgt = target_rig(spec)
     for b in tgt.pose.bones:
         b.rotation_mode = 'QUATERNION'
     made = []

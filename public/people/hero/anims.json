@@ -1,0 +1,134 @@
+{
+ "clips": {
+  "idle": {
+   "once": false
+  },
+  "talk": {
+   "once": false
+  },
+  "walk": {
+   "once": false
+  },
+  "walkFormal": {
+   "once": false
+  },
+  "jog": {
+   "once": false
+  },
+  "sprint": {
+   "once": false
+  },
+  "crouch": {
+   "once": false
+  },
+  "crouchWalk": {
+   "once": false
+  },
+  "sitDown": {
+   "once": true
+  },
+  "sit": {
+   "once": false
+  },
+  "sitTalk": {
+   "once": false
+  },
+  "standUp": {
+   "once": true
+  },
+  "guard": {
+   "once": true
+  },
+  "jab": {
+   "once": true
+  },
+  "cross": {
+   "once": true
+  },
+  "hitChest": {
+   "once": true
+  },
+  "hitHead": {
+   "once": true
+  },
+  "fall": {
+   "once": true
+  },
+  "drive": {
+   "once": false
+  },
+  "push": {
+   "once": false
+  },
+  "interact": {
+   "once": true
+  },
+  "pickUp": {
+   "once": true
+  },
+  "dance": {
+   "once": false
+  },
+  "fix": {
+   "once": false
+  },
+  "aim": {
+   "once": false
+  },
+  "aimIdle": {
+   "once": false
+  },
+  "shoot": {
+   "once": true
+  },
+  "jumpStart": {
+   "once": true
+  },
+  "jump": {
+   "once": false
+  },
+  "jumpLand": {
+   "once": true
+  },
+  "foldArms": {
+   "once": false
+  },
+  "no": {
+   "once": false
+  },
+  "phone": {
+   "once": false
+  },
+  "rail": {
+   "once": false
+  },
+  "railCall": {
+   "once": true
+  },
+  "knockback": {
+   "once": true
+  },
+  "getUp": {
+   "once": true
+  },
+  "hook": {
+   "once": true
+  },
+  "throw": {
+   "once": true
+  },
+  "consume": {
+   "once": true
+  },
+  "yes": {
+   "once": true
+  },
+  "carry": {
+   "once": false
+  },
+  "water": {
+   "once": false
+  }
+ },
+ "bytes": 1275108
+}

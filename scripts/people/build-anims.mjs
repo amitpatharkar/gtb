@@ -15,7 +15,10 @@ import { MeshoptEncoder } from 'meshoptimizer';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
 const CACHE = path.resolve(ROOT, process.argv.find((a) => a.startsWith('--cache='))?.slice(8) || '.people-cache');
-const OUT = path.join(ROOT, 'public/people/anims.glb');
+// --target=<rigged glb> retargets onto that skeleton instead (the main character), --out=<glb>.
+const argOf = (k) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3);
+const TARGET = argOf('target') ? path.resolve(ROOT, argOf('target')) : null;
+const OUT = path.resolve(ROOT, argOf('out') || 'public/people/anims.glb');
 
 const UAL1 = { zip: 'https://opengameart.org/sites/default/files/universal_animation_librarystandard.zip', file: 'Animation Library[Standard]/Unreal Engine/AL_Standard.fbx' };
 const UAL2 = { zip: 'https://opengameart.org/sites/default/files/universal_animation_library_2standard.zip', file: 'Universal Animation Library 2 [Standard]/Unreal-Godot/UAL2_Standard.glb' };
@@ -54,6 +57,7 @@ async function main() {
     files[key] = path.join(target, src.file);
   }
   const spec = {
+    ...(TARGET ? { target: TARGET } : {}),
     sources: Object.entries(CLIPS).map(([key, list]) => ({
       file: files[key],
       clips: list.map(([name, from, o = {}]) => ({ name, from, ...o })),
@@ -66,7 +70,7 @@ async function main() {
   for (const l of `${r.stdout}\n${r.stderr}`.split('\n')) if (l.startsWith('[anims]') || /Error|Traceback/.test(l)) console.log(l);
   if (r.status !== 0) { console.log(r.stderr.slice(-3000)); process.exit(1); }
   await slim(OUT);
-  fs.writeFileSync(path.join(ROOT, 'public/people/anims.json'), JSON.stringify({ clips: CLIP_INFO, bytes: fs.statSync(OUT).size }, null, 1));
+  fs.writeFileSync(OUT.replace(/\.glb$/, '.json'), JSON.stringify({ clips: CLIP_INFO, bytes: fs.statSync(OUT).size }, null, 1));
   console.log('[anims]', `${(fs.statSync(OUT).size / 1048576).toFixed(2)} MB`);
 }
 

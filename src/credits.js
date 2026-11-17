@@ -45,6 +45,8 @@ export function setupCredits(baseUrl) {
       const name = (c) => c.asset.replace(/_/g, ' ');
       const packs = link('https://static.makehumancommunity.org/assets/assetpacks/index.html', 'MakeHuman asset packs');
       parts.push(`<h3>People</h3><p>Bodies, faces, eyes and skins made with ${link('https://static.makehumancommunity.org', 'MakeHuman')} (CC0) and its plugin for Blender (MPFB 2); hair and clothes from the ${packs}. Motion: ${link('https://quaternius.com/packs/universalanimationlibrary.html', 'Universal Animation Library 1 and 2')} by Quaternius (CC0), retargeted for this game.</p>`);
+      const hero = await fetch(`${baseUrl}people/hero/info.json`, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (hero?.credit) parts.push(`<p>Main character: ${link(hero.credit.source, '"Indian Man In Casuals"')} by ${esc(hero.credit.author)} — ${link('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0')}, re-rigged to the game skeleton with the game's animations.</p>`);
       const by = credits.filter((c) => c.license === 'CC-BY');
       if (by.length) parts.push(`<ul>${by.map((c) => `<li>"${esc(name(c))}" by ${esc(c.author)} — ${link('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0')}, fitted and recoloured</li>`).join('')}</ul>`);
       const zero = credits.filter((c) => c.license !== 'CC-BY');

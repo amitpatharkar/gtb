@@ -56,7 +56,11 @@ export class Characters {
     if (!pickOrder.some((p) => p.id === PLAYER)) { const pl = L.people.find((p) => p.id === PLAYER); if (pl) pickOrder.unshift(pl); }
     const loaded = await Promise.allSettled(pickOrder.map((p) => L.template(p.id)));
     for (const r of loaded) if (r.status === 'fulfilled') { await L.clipsFor(r.value); this.prepare(r.value); this.templates.push(r.value); }
+
     this.ready = this.templates.length > 0;
+    // The main character (the owner's chosen model, detail by tier: High = as uploaded) loads
+    // after the crowd is ready; the player's body switches to him when he arrives.
+    try { const h = await L.hero(this.tier.name); this.prepare(h); this.heroT = h; } catch (e) { console.warn('Main character not loaded:', e.message); }
   }
 
   /** Measurements a template needs: seat offset when sitting. */
@@ -79,7 +83,7 @@ export class Characters {
   }
 
   make(t) {
-    const person = this.people.instantiate(t);
+    const person = t.hero ? this.people.instantiateHero(t) : this.people.instantiate(t);
     const holder = new THREE.Group();
     holder.add(person.root);
     holder.visible = false;
@@ -90,8 +94,8 @@ export class Characters {
 
   /** Pick a body template for a person (stable per person). */
   templateFor(p) {
+    if (p.isPlayer) return (p._tpl = this.heroT || this.templates.find((t) => t.info.id === PLAYER) || this.templates[0]);
     if (p._tpl && this.templates.includes(p._tpl)) return p._tpl;
-    if (p.isPlayer) return (p._tpl = this.templates.find((t) => t.info.id === PLAYER) || this.templates[0]);
     const female = !!(p.flags & FLAG.SARI) || p.kind === 'sari';
     const kid = p.kind === 'kid' || (p.scale ?? 1) < 0.85;
     const hints = (p.wear || []).map((w) => WEAR[w]).filter(Boolean);
@@ -110,6 +114,7 @@ export class Characters {
 
   /** Colours for this person (skin, hair, clothes; Holi colour where they've been hit). */
   dress(c, p) {
+    if (c.t.hero) { c.who = p; return; }   // the main character keeps his own look
     const n = p.patches?.length || 0;
     if (c.who === p && c.patchN === n && c.shirtHex === p.shirt?.getHex()) return;
     c.who = p; c.patchN = n; c.shirtHex = p.shirt?.getHex();
@@ -203,6 +208,8 @@ export class Characters {
     this.camPos.copy(cam);
     for (const p of want) {
       let c = this.pool.find((x) => x.who === p);
+      // The player changes body once the main character has loaded.
+      if (c && p.isPlayer && c.t !== this.templateFor(p)) { c.holder.visible = false; c.who = null; c.motion.stop(); free.push(c); c = null; }
       if (!c) {
         const t = this.templateFor(p);
         c = free.find((x) => x.t === t) || null;

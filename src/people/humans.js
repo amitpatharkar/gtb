@@ -114,13 +114,16 @@ export class PeopleLibrary {
    * and only takes the motion. Resolves to Map(name → AnimationClip).
    */
   anims() {
-    this._anims ||= Promise.all([
-      this.loader.loadAsync(`${this.base}people/anims.glb?v=${this.v}`),
-      fetch(`${this.base}people/anims.json?v=${this.v}`).then((r) => r.json()),
-    ]).then(([g, meta]) => {
+    this._anims ||= this.loadClips(`${this.base}people/anims.glb?v=${this.v}`, `${this.base}people/anims.json?v=${this.v}`)
+      .then(({ clips, rest }) => { this.refPelvis = rest.get('pelvis')?.p.clone(); return clips; });
+    return this._anims;
+  }
+
+  /** Clips from a GLB, turned into deltas from that file's skeleton rest pose (additive). */
+  loadClips(url, metaUrl) {
+    return Promise.all([this.loader.loadAsync(url), fetch(metaUrl).then((r) => r.json())]).then(([g, meta]) => {
       const rest = new Map();
       g.scene.traverse((o) => rest.set(o.name, { q: o.quaternion.clone(), p: o.position.clone() }));
-      this.refPelvis = rest.get('pelvis')?.p.clone();
       const qi = new THREE.Quaternion(), q = new THREE.Quaternion();
       const clips = new Map();
       for (const clip of g.animations) {
@@ -140,9 +143,55 @@ export class PeopleLibrary {
         clip.userData = meta.clips[clip.name] || {};
         clips.set(clip.name, clip);
       }
-      return clips;
+      return { clips, rest };
     });
-    return this._anims;
+  }
+
+  /**
+   * The main character (public/people/hero/, scripts/people/build-hero.mjs): the owner's chosen
+   * model with its own materials and textures, at a detail level by graphics tier (High = the
+   * model as uploaded), with the game's clips retargeted onto its own skeleton.
+   */
+  hero(tierName = 'Medium') {
+    this._hero ||= (async () => {
+      const info = await fetch(`${this.base}people/hero/info.json`, { cache: 'no-cache' }).then((r) => { if (!r.ok) throw new Error(`hero: ${r.status}`); return r.json(); });
+      const q = tierName === 'High' ? 'high' : tierName === 'Low' ? 'low' : 'medium';
+      const v = info.version;
+      const [g, { clips }] = await Promise.all([
+        this.loader.loadAsync(`${this.base}people/hero/hero-${q}.glb?v=${v}`),
+        this.loadClips(`${this.base}people/hero/anims.glb?v=${v}`, `${this.base}people/hero/anims.json?v=${v}`),
+      ]);
+      return { hero: true, info: { ...info, kinds: ['player'], palette: {}, build: 'fit' }, gltf: g, scene: g.scene, clips, lods: [] };
+    })();
+    return this._hero;
+  }
+
+  /** A person from the main character's template: its own materials, one level of detail, no face morphs. */
+  instantiateHero(t) {
+    const root = cloneSkinned(t.scene);
+    const meshes = [];
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
+      o.material = [o.material].flat().map((m) => {
+        const c = m.clone();
+        // Cut-out parts (eyelashes, glasses) write full alpha: partial alpha leaked into the
+        // game's post-processing buffer and showed the background through (the hair bug).
+        if (c.alphaTest > 0 && !c.transparent) {
+          c.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\ndiffuseColor.a = 1.0;'); };
+          c.customProgramCacheKey = () => 'gtb-hero-cutout';
+        }
+        return c;
+      });
+      if (o.material.length === 1) o.material = o.material[0];
+      meshes.push(o);
+    });
+    const bones = new Map();
+    root.traverse((o) => { if (o.isBone) bones.set(o.name, o); });
+    return {
+      id: 'hero', hero: true, info: t.info, root, meshes, bones, morphs: {}, tints: [], material: null, lod: 0, template: t,
+      setLod() {}, face() {},
+    };
   }
 
   /** Clips for one template: shared tracks, the hip track scaled to its leg length. */
@@ -219,6 +268,7 @@ export class PeopleLibrary {
 
 /** Colours for a person's slots (linear tints; 0.5 grey = the texture as drawn). */
 export function dress(person, look) {
+  if (person.hero) return;      // the main character keeps his own clothes and colours
   const t = person.tints;
   const set = (slot, c) => { if (c !== undefined && c !== null) t[slot].set(c); };
   set(SLOT.skin, look.skin ?? SKIN_TONES[4]);
