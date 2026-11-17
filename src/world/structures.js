@@ -3,11 +3,13 @@
 // these add floors at other heights, so the same spot can have a platform at 1.3 m and a
 // footbridge deck at 8 m above it, and the walker is on whichever one they climbed to.
 //
-// Four kinds of piece, all in world metres:
+// Five kinds of piece, all in world metres:
 //   floor  a polygon at height y (platform tops, bridge decks, concourse floors)
 //   ramp   a strip whose height runs from y0 to y1 along its length (stairs, end ramps)
 //   wall   a vertical slab between heights y0 and y1 (platform faces, railings, booth walls)
 //   post   a vertical cylinder between heights y0 and y1 (columns)
+//   grid   a walk grid made from a model (scripts/art-station.mjs): per cell the floor heights
+//          and the height spans of solid parts, placed at a spot facing a direction
 // Pieces belong to an owner (a station) and are added and dropped with it. They are kept in
 // a grid of 16 m cells; queries look at one or a few cells and allocate nothing.
 //
@@ -87,6 +89,12 @@ export class Structures {
         if (al < 0 || al > p.len || Math.abs(dx * p.uz - dz * p.ux) > p.hw) continue;
         h = p.y0 + (p.y1 - p.y0) * (al / p.len);
         if (h > reach || h <= best) continue;
+      } else if (p.kind === 4) {
+        const W = p.W, e = gridCell(p, x, z);
+        if (e < 0) continue;
+        h = -Infinity;
+        for (let q = W.fOff[e], q1 = W.fOff[e + 1]; q < q1; q++) { const f = W.fl[q]; if (f > reach) break; h = f; }
+        if (h <= best) continue;
       } else continue;
       best = h;
     }
@@ -117,6 +125,7 @@ export class Structures {
         const p = list[i];
         if (p.kind < 2 || p.y1 <= lo || p.y0 >= hi || x + r < p.x0 || x - r > p.x1 || z + r < p.z0 || z - r > p.z1) continue;
         if (p.pass && p.pass()) continue; // a fare gate that is open for this traveller
+        if (p.kind === 4) { if (gridHits(p, x, z, r, lo, hi)) return true; continue; }
         if (p.kind === 2) {
           const dx = p.bx - p.ax, dz = p.bz - p.az, l2 = dx * dx + dz * dz || 1;
           const t = Math.max(0, Math.min(1, ((x - p.ax) * dx + (z - p.az) * dz) / l2)), ex = x - p.ax - dx * t, ez = z - p.az - dz * t;
@@ -126,6 +135,25 @@ export class Structures {
     }
     return false;
   }
+}
+
+/** Table entry of the walk-grid cell under (x, z), or -1 outside the grid. */
+function gridCell(p, x, z) {
+  const W = p.W, dx = x - p.ox, dz = z - p.oz, a = dx * p.ux + dz * p.uz, t = (dz * p.ux - dx * p.uz) / p.k;
+  const i = Math.floor((a - W.a0) / W.G), j = Math.floor((t - W.t0) / W.G);
+  return i < 0 || j < 0 || i >= W.nx || j >= W.nz ? -1 : W.cell[j * W.nx + i];
+}
+
+/** Does a body of radius r spanning heights lo…hi touch a solid cell of a walk grid? */
+function gridHits(p, x, z, r, lo, hi) {
+  const W = p.W, dx = x - p.ox, dz = z - p.oz, a = dx * p.ux + dz * p.uz, t = (dz * p.ux - dx * p.uz) / p.k, rt = r / p.k;
+  const i0 = Math.max(0, Math.floor((a - r - W.a0) / W.G)), i1 = Math.min(W.nx - 1, Math.floor((a + r - W.a0) / W.G));
+  const j0 = Math.max(0, Math.floor((t - rt - W.t0) / W.G)), j1 = Math.min(W.nz - 1, Math.floor((t + rt - W.t0) / W.G));
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const e = W.cell[j * W.nx + i];
+    for (let q = W.sOff[e], q1 = W.sOff[e + 1]; q < q1; q += 2) if (W.sp[q] < hi && W.sp[q + 1] > lo) return true;
+  }
+  return false;
 }
 
 /** Point in polygon (flat array x0, z0, x1, z1 …). */
@@ -165,4 +193,38 @@ export function wall(ax, az, bx, bz, t, y0, y1) {
 /** A post (column) at (x, z), radius r, from height y0 to y1. */
 export function post(x, z, r, y0, y1) {
   return { kind: 3, x, z, r, y0, y1, x0: x - r, x1: x + r, z0: z - r, z1: z + r };
+}
+
+/**
+ * A walk grid placed at (ox, oz), its a axis along (ux, uz), the across axis (t, toward
+ * (-uz, ux)) stretched by k. W comes from readWalkGrid().
+ */
+export function grid(W, ox, oz, ux, uz, k = 1) {
+  const p = { kind: 4, W, ox, oz, ux, uz, k, y0: -3, y1: 30, x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity };
+  for (const a of [W.a0, W.a0 + W.nx * W.G]) for (const t of [W.t0, W.t0 + W.nz * W.G]) {
+    const x = ox + ux * a - uz * t * k, z = oz + uz * a + ux * t * k;
+    p.x0 = Math.min(p.x0, x); p.x1 = Math.max(p.x1, x); p.z0 = Math.min(p.z0, z); p.z1 = Math.max(p.z1, z);
+  }
+  return p;
+}
+
+/** Decode a walk grid file (format in scripts/art-station.mjs). */
+export function readWalkGrid(buf) {
+  const v = new DataView(buf instanceof ArrayBuffer ? buf : buf.buffer, buf.byteOffset || 0, buf.byteLength);
+  if (v.getUint32(0, true) !== 0x57425447) throw new Error('not a walk grid'); // 'GTBW'
+  let o = 8;
+  const nx = v.getUint32(o, true), nz = v.getUint32(o + 4, true), a0 = v.getFloat32(o + 8, true), t0 = v.getFloat32(o + 12, true), G = v.getFloat32(o + 16, true), n = v.getUint32(o + 20, true);
+  o += 24;
+  const fOff = new Uint32Array(n + 1), sOff = new Uint32Array(n + 1), fl = [], sp = [];
+  for (let e = 0; e < n; e++) {
+    const nf = v.getUint8(o), ns = v.getUint8(o + 1);
+    o += 2;
+    fOff[e] = fl.length; sOff[e] = sp.length;
+    for (let q = 0; q < nf; q++, o += 2) fl.push(v.getInt16(o, true) / 100);
+    for (let q = 0; q < ns * 2; q++, o += 2) sp.push(v.getInt16(o, true) / 100);
+  }
+  fOff[n] = fl.length; sOff[n] = sp.length;
+  const cell = new Uint16Array(nx * nz);
+  for (let k = 0; k < nx * nz && o < v.byteLength; o += 4) { const len = v.getUint16(o, true), id = v.getUint16(o + 2, true); cell.fill(id, k, k + len); k += len; }
+  return { nx, nz, a0, t0, G, cell, fOff, fl: Float32Array.from(fl), sOff, sp: Float32Array.from(sp) };
 }

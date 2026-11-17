@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { floor, ramp, wall, post } from './structures.js';
+import { floor, ramp, wall, post, grid, readWalkGrid } from './structures.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { Buf, corrugated } from './stations.js';
 import { metroFare } from '../game/tickets.js';
 import { trainLoad } from '../sim/railDemand.js';
@@ -8,10 +10,13 @@ import { POSE, FLAG, outfit } from '../sim/people.js';
 // The Mumbai Metro and Monorail as they run in November 2026 (tiles/metro.json from
 // scripts/lib/metro.mjs; research: docs/research/metro/reports/Mumbai Metro A to Z.md):
 //  - Line 1 (blue), the ends of Lines 2A, 7 (yellow, red) and 2B: twin U-girders on single
-//    piers, rails 13 m above the road; trains of 4 (Line 1) or 6 cars, 3.2 m wide, every 3 min
+//    piers, rails 12.5 m above the road; trains of 4 (Line 1) or 6 cars, 3.2 m wide, every 3 min
 //    20 s at peak on Line 1, 5–9 min on the others; 5:30 am to about midnight.
-//  - Elevated stations at the real places: concourse 7 m up with ticket counters, security and
-//    fare gates, side platforms at 14 m under a roof, stairs to the street on both footpaths.
+//  - Elevated stations at the real places: concourse 7–8 m up with ticket counters, security and
+//    fare gates, side platforms at 13.6 m under a roof, stairs to the street on both footpaths.
+//    Where the two tracks run straight through, the station is the uploaded model
+//    (public/art/stations, made walkable by scripts/art-station.mjs: its own stairs, escalators
+//    and walls); elsewhere (curves, three tracks) it is built here from boxes.
 //    You walk up, buy a QR ticket (E), tap through the gate, wait, board (F), ride, get off and
 //    tap out (the fare is settled at the exit gate).
 //  - Line 3 (aqua) is underground: its street entrances stand where they are mapped; E at one
@@ -19,7 +24,7 @@ import { POSE, FLAG, outfit } from '../sim/people.js';
 //  - The Monorail's beam and stations stand, but it has carried no passengers since
 //    20 September 2025: trains parked, shutters down.
 
-const RAIL = 13.0, MONO = 9.6, PLAT = RAIL + 1.05, CONC = 7.0, GROUND = 0.2;
+const RAIL = 12.55, MONO = 9.6, PLAT = RAIL + 1.05, CONC = 7.0, GROUND = 0.2;
 const HALF_W = 1.6, CAR_H = 3.85, FLOORH = 1.05;              // metro car: 3.2 m wide, floor 1.05 m over the rail
 const VMAX = 22, ACC = 1.0, DEC = 1.0, DWELL = 28, TURN = 90;  // 80 km/h; doors open about half a minute
 const CHUNK = 400, BUILD = 750, DROP = 1050;
@@ -178,16 +183,21 @@ export class Metro {
     if (!res?.ok) return null;
     const json = await res.json();
     if (!json.lines?.length) return null;
-    const m = new Metro(ctx, json);
+    const shell = await loadShell(ctx.base).catch((e) => { console.warn('metro: station model not loaded', e); return null; });
+    const m = new Metro({ ...ctx, shell }, json);
     await (ctx.compile ? ctx.compile(m.mesh) : null)?.catch?.(() => {});
+    if (shell && ctx.compile) await ctx.compile(shell.scene)?.catch?.(() => {});
     return m;
   }
 
-  /** ctx: scene, tiles, structures, materials, clock, tier, state, tickets, hud, bubbles, people, walker, view, audio, compile, snap. */
+  /** ctx: base, scene, tiles, structures, materials, clock, tier, state, tickets, hud, bubbles, people, walker, view, audio, compile, snap; shell (the station model, from create()). */
   constructor(ctx, json) {
     Object.assign(this, ctx);
     this.lines = json.lines.map((j, i) => new MLine(j, i));
     this.stations = json.stations.map((s, i) => ({ ...s, i, built: null }));
+    this.shell = ctx.shell || null;
+    for (const s of this.stations) s.fit = this.fitShell(s);
+    this.shellStations = this.stations.filter((s) => s.fit);
     this.t = 0;
     this.trains = new Map();
     this.tmp = {}; this.a = [0, 0, 0, 0]; this.b = [0, 0, 0, 0];
@@ -441,6 +451,17 @@ export class Metro {
   girder(L, i, B) {
     const ax = L.x[i - 1], az = L.z[i - 1], bx = L.x[i], bz = L.z[i], len = Math.hypot(bx - ax, bz - az);
     if (len < 0.05) return;
+    // Through a station built from the model, its own track beds carry the trains.
+    if (L.kind !== 'monorail') {
+      const cut = this.shellCut(ax, az, bx, bz, len);
+      if (cut) { for (const [s0, s1] of cut) this.girderPart(L, ax + (bx - ax) * s0, az + (bz - az) * s0, ax + (bx - ax) * s1, az + (bz - az) * s1, B); return; }
+    }
+    this.girderPart(L, ax, az, bx, bz, B);
+  }
+
+  girderPart(L, ax, az, bx, bz, B) {
+    const len = Math.hypot(bx - ax, bz - az);
+    if (len < 0.05) return;
     const ux = (bx - ax) / len, uz = (bz - az) / len, cx = (ax + bx) / 2, cz = (az + bz) / 2;
     if (L.kind === 'monorail') { B.concrete.box(cx, cz, ux, uz, len / 2 + 0.05, 0.42, L.rail - 1.5, L.rail, 0xd8d4cc); return; }
     const y = L.rail;
@@ -468,6 +489,7 @@ export class Metro {
           if (q && q.dist < 9) { x = (x + q.x) / 2; z = (z + q.z) / 2; break; }
         }
         done.push([x, z]);
+        if (L.kind !== 'monorail' && this.inShell(x, z, 3)) continue; // the model stands on its own piers
         const top = L.rail - (L.kind === 'monorail' ? 1.5 : 1.6), base = this.tiles.groundHeight(x, z) - 0.2;
         if (L.kind === 'monorail') {
           B.concrete.box(x, z, p[2], p[3], 0.6, 0.6, base, top - 0.8, 0xd4d0c6);
@@ -498,13 +520,23 @@ export class Metro {
   buildStation(s) {
     s.building = true;
     const B = { concrete: new Buf(), top: new Buf(), roof: new Buf(), flat: new Buf(), steel: new Buf(), glass: new Buf(), glow: new Buf() }, pieces = [], owner = `metro-station:${s.i}`;
-    const tasks = s.kind === 'underground' ? [() => this.entrances(s, B, pieces)] : [() => this.elevated(s, B, pieces)];
-    this.job = { tasks, i: 0, done: () => { s.building = false; s.built = { group: this.meshes(B, owner), owner }; this.structures.add(owner, pieces); s.sign = this.signFor(s); } };
+    const tasks = s.kind === 'underground' ? [() => this.entrances(s, B, pieces)] : s.fit ? [() => this.shellStation(s, B, pieces)] : [() => this.elevated(s, B, pieces)];
+    this.job = {
+      tasks, i: 0,
+      done: () => {
+        s.building = false;
+        const group = this.meshes(B, owner);
+        if (s.shellObj) { group.add(s.shellObj); s.shellObj = null; }
+        s.built = { group, owner };
+        this.structures.add(owner, pieces);
+        s.sign = this.signFor(s);
+      },
+    };
   }
 
   dropStation(s) {
     this.scene.remove(s.built.group);
-    s.built.group.traverse((o) => o.isMesh && o.geometry.dispose());
+    s.built.group.traverse((o) => o.isMesh && !o.userData.shared && o.geometry.dispose());
     this.structures.remove(s.built.owner);
     if (s.sign) { this.scene.remove(s.sign); s.sign.material.map.dispose(); s.sign.material.dispose(); s.sign.geometry.dispose(); s.sign = null; }
     s.built = null;
@@ -523,17 +555,7 @@ export class Metro {
     const tr = s.tracks?.length === 2 ? s.tracks.slice().sort((a, b) => a - b) : [-2.5, 2.5];
     const yr = mono ? MONO : RAIL, yp = mono ? MONO + 0.3 : PLAT, yc = mono ? 4.6 : CONC;
     const tIn = [tr[0] - 1.7, tr[1] + 1.7], tOut = [tIn[0] - (mono ? 3.5 : 4.5), tIn[1] + (mono ? 3.5 : 4.5)];
-    const rect = (a0, a1, t0, t1, y) => [P(a0, t0, y), P(a1, t0, y), P(a1, t1, y), P(a0, t1, y)];
-    const slab = (buf, a0, a1, t0, t1, y0, y1, col) => {
-      const cx = (a0 + a1) / 2, ct = (t0 + t1) / 2, c = P(cx, ct, 0);
-      buf.box(c[0], c[2], ux, uz, (a1 - a0) / 2, (t1 - t0) / 2, y0, y1, col);
-    };
-    const floorRect = (a0, a1, t0, t1, y) => pieces.push(floor(rect(a0, a1, t0, t1, y).map((p) => [p[0], p[2]]), y));
-    const wallLine = (a0, t0, a1, t1, y0, y1, buf, col, thick = 0.08) => {
-      const p = P(a0, t0, 0), q = P(a1, t1, 0);
-      pieces.push(wall(p[0], p[2], q[0], q[2], thick, y0, y1));
-      if (buf) { const cx = (p[0] + q[0]) / 2, cz = (p[2] + q[2]) / 2, len = Math.hypot(q[0] - p[0], q[2] - p[2]), dx = (q[0] - p[0]) / (len || 1), dz = (q[2] - p[2]) / (len || 1); buf.box(cx, cz, dx, dz, len / 2, thick, y0, y1, col); }
-    };
+    const T = this.tools(P, ux, uz, pieces), { rect, slab, floorRect, wallLine } = T;
     // Track bed through the station (a floor 1 m below the platform edge) and the box under it.
     slab(B.concrete, -half, half, tIn[0], tIn[1], yr - 1.7, yr - 0.95, 0xcbc6bd);
     floorRect(-half, half, tIn[0], tIn[1], yr - 0.95);
@@ -598,34 +620,15 @@ export class Metro {
     for (const t of [-cw, cw]) B.glass.face(P(-ca, t, yc), P(ca, t, yc), P(ca, t, yc + 3), P(-ca, t, yc + 3), 0xffffff, t > 0 ? vx : -vx, 0, t > 0 ? vz : -vz);
     slab(B.flat, -ca, ca, -cw, cw, yc + 3.6, yc + 3.75, 0xd8d6d0); // ceiling under the track box
     // Fare gates: two lines across the concourse; the paid area is between them.
+    const gateA = 9, lanes = [-3.6, -1.8, 0, 1.8, 3.6];
     if (!mono) {
-      const gateA = 9;
       s.gates = [];
-      for (const ga of [-gateA, gateA]) {
-        let t = -cw;
-        const lanes = [-3.6, -1.8, 0, 1.8, 3.6];
-        for (const lt of lanes) {
-          wallLine(ga, t, ga, lt - 0.45, yc, yc + 1.1, B.steel, 0x2c2f33, 0.12);
-          const g = wall(...(() => { const p = P(ga, lt - 0.45, 0), q = P(ga, lt + 0.45, 0); return [p[0], p[2], q[0], q[2]]; })(), 0.1, yc, yc + 1.1);
-          g.pass = () => this.gateOpenT > 0;
-          pieces.push(g);
-          slab(B.steel, ga - 0.6, ga + 0.6, lt - 0.55, lt - 0.45, yc, yc + 1.05, 0xa9b0b6); // gate cabinets
-          slab(B.flat, ga - 0.05, ga + 0.05, lt - 0.42, lt + 0.42, yc + 0.6, yc + 0.95, 0xd23b2f); // flaps (drawn closed)
-          s.gates.push(P(ga, lt, yc));
-          t = lt + 0.45;
-        }
-        wallLine(ga, t, ga, cw, yc, yc + 1.1, B.steel, 0x2c2f33, 0.12);
-      }
+      for (const ga of [-gateA, gateA]) this.gateRow(s, B, T, ga, lanes, -cw, cw, yc);
       // Ticket counters and QR machines in the unpaid area, a security arch at each end.
       for (const a of [-ca + 7, ca - 7]) {
-        slab(B.flat, a - 1.5, a + 1.5, -1.2, 1.2, yc, yc + 1.15, 0x3f6f9c);
-        slab(B.glass, a - 1.5, a + 1.5, -1.2, -1.15, yc + 1.15, yc + 2.4, 0xffffff);
-        slab(B.flat, a - 1.5, a + 1.5, -1.2, 1.2, yc + 2.4, yc + 2.7, 0x18b5b0);
-        wallLine(a - 1.5, -1.2, a + 1.5, -1.2, yc, yc + 2.4, null);
-        wallLine(a - 1.5, 1.2, a + 1.5, 1.2, yc, yc + 2.4, null);
+        this.counter(B, T, a, 0, yc);
         for (const t of [-streetT + 3, streetT - 3]) slab(B.steel, a - 0.4, a + 0.4, t - 0.3, t + 0.3, yc, yc + 1.8, 0x2b3f55); // QR ticket machine
       }
-      s.counters = [P(-ca + 7, -2, yc), P(ca - 7, -2, yc), P(-ca + 7, 2, yc), P(ca - 7, 2, yc)];
     }
     // Stairs from the concourse down to the street, on both sides, at both ends (if they land clear).
     // Each stair runs along the road from a concourse end and must land clear of buildings: try
@@ -666,7 +669,136 @@ export class Metro {
       B.concrete.box(p[0], p[2], ux, uz, 0.9, 0.9, base, yc - 0.5, 0xd2cdc4);
       pieces.push(post(p[0], p[2], 1.2, base, yc - 0.5));
     }
-    s.frame = { ux, uz, vx, vz, half, tIn, tOut, yp, yc, ca, cw, mono };
+    s.frame = { ux, uz, vx, vz, half, tIn, tOut, yp, yc, ca, cw, mono, gateA, lanes, frisk: ca - 6 };
+  }
+
+  /** Box, floor and wall helpers in a station's frame (P(a, t, y) → world). */
+  tools(P, ux, uz, pieces) {
+    const rect = (a0, a1, t0, t1, y) => [P(a0, t0, y), P(a1, t0, y), P(a1, t1, y), P(a0, t1, y)];
+    const slab = (buf, a0, a1, t0, t1, y0, y1, col) => {
+      const c = P((a0 + a1) / 2, (t0 + t1) / 2, 0);
+      buf.box(c[0], c[2], ux, uz, (a1 - a0) / 2, (t1 - t0) / 2, y0, y1, col);
+    };
+    const floorRect = (a0, a1, t0, t1, y) => pieces.push(floor(rect(a0, a1, t0, t1, y).map((p) => [p[0], p[2]]), y));
+    const wallLine = (a0, t0, a1, t1, y0, y1, buf, col, thick = 0.08) => {
+      const p = P(a0, t0, 0), q = P(a1, t1, 0);
+      pieces.push(wall(p[0], p[2], q[0], q[2], thick, y0, y1));
+      if (buf) { const cx = (p[0] + q[0]) / 2, cz = (p[2] + q[2]) / 2, len = Math.hypot(q[0] - p[0], q[2] - p[2]), dx = (q[0] - p[0]) / (len || 1), dz = (q[2] - p[2]) / (len || 1); buf.box(cx, cz, dx, dz, len / 2, thick, y0, y1, col); }
+    };
+    return { P, pieces, rect, slab, floorRect, wallLine };
+  }
+
+  /** A line of fare gates across the concourse at a = ga: barriers from t0 to t1, a gate at each lane. */
+  gateRow(s, B, T, ga, lanes, t0, t1, yc) {
+    const { P, pieces, slab, wallLine } = T;
+    let t = t0;
+    for (const lt of lanes) {
+      if (lt - 0.45 > t) wallLine(ga, t, ga, lt - 0.45, yc, yc + 1.1, B.steel, 0x2c2f33, 0.12);
+      const p = P(ga, lt - 0.45, 0), q = P(ga, lt + 0.45, 0), g = wall(p[0], p[2], q[0], q[2], 0.1, yc, yc + 1.1);
+      g.pass = () => this.gateOpenT > 0;
+      pieces.push(g);
+      slab(B.steel, ga - 0.6, ga + 0.6, lt - 0.55, lt - 0.45, yc, yc + 1.05, 0xa9b0b6); // gate cabinets
+      slab(B.flat, ga - 0.05, ga + 0.05, lt - 0.42, lt + 0.42, yc + 0.6, yc + 0.95, 0xd23b2f); // flaps (drawn closed)
+      s.gates.push(P(ga, lt, yc));
+      t = lt + 0.45;
+    }
+    slab(B.steel, ga - 0.6, ga + 0.6, t - 0.1, t, yc, yc + 1.05, 0xa9b0b6);
+    wallLine(ga, t, ga, t1, yc, yc + 1.1, B.steel, 0x2c2f33, 0.12);
+  }
+
+  /** A ticket counter (glass-fronted booth, aqua fascia) centred at (a, t). */
+  counter(B, T, a, t, yc) {
+    const { slab, wallLine } = T;
+    slab(B.flat, a - 1.5, a + 1.5, t - 1.2, t + 1.2, yc, yc + 1.15, 0x3f6f9c);
+    slab(B.glass, a - 1.5, a + 1.5, t - 1.2, t - 1.15, yc + 1.15, yc + 2.4, 0xffffff);
+    slab(B.flat, a - 1.5, a + 1.5, t - 1.2, t + 1.2, yc + 2.4, yc + 2.7, 0x18b5b0);
+    wallLine(a - 1.5, t - 1.2, a + 1.5, t - 1.2, yc, yc + 2.4, null);
+    wallLine(a - 1.5, t + 1.2, a + 1.5, t + 1.2, yc, yc + 2.4, null);
+  }
+
+  // ---------------------------------------------------------------- stations from the model
+  /** Does the uploaded station model fit here: two tracks about its width apart, straight through it? */
+  fitShell(s) {
+    const sh = this.shell;
+    if (!sh || s.kind !== 'elevated' || s.ref === 'Mono 1' || s.tracks?.length !== 2) return null;
+    const tr = s.tracks.slice().sort((a, b) => a - b), k = (tr[1] - tr[0]) / sh.info.sep;
+    if (k < 0.9 || k > 1.25) return null;
+    const [ux, uz] = s.axis, vx = -uz, vz = ux, half = sh.info.half, R = half + 20;
+    for (const L of this.lines) {
+      if (L.ref !== s.ref) continue;
+      for (let i = 1; i < L.x.length; i++) {
+        const ax = L.x[i - 1], az = L.z[i - 1], bx = L.x[i], bz = L.z[i];
+        if (Math.max(ax, bx) < s.x - R || Math.min(ax, bx) > s.x + R || Math.max(az, bz) < s.z - R || Math.min(az, bz) > s.z + R) continue;
+        const n = Math.ceil(Math.hypot(bx - ax, bz - az) / 2);
+        for (let q = 0; q <= n; q++) {
+          const dx = ax + ((bx - ax) * q) / n - s.x, dz = az + ((bz - az) * q) / n - s.z, a = dx * ux + dz * uz, t = dx * vx + dz * vz;
+          if (Math.abs(a) > half || Math.abs(t) > 15) continue;
+          if (Math.min(Math.abs(t - tr[0]), Math.abs(t - tr[1])) > 0.7) return null; // a curve: the boxes do better
+        }
+      }
+    }
+    return { k, tm: (tr[0] + tr[1]) / 2, half };
+  }
+
+  /** Is (x, z) inside a model station's footprint (grown by m metres)? */
+  inShell(x, z, m = 0) {
+    for (const s of this.shellStations) {
+      const dx = x - s.x, dz = z - s.z, [ux, uz] = s.axis;
+      if (Math.abs(dx * ux + dz * uz) < s.fit.half + m && Math.abs(dz * ux - dx * uz) < 12 + m) return true;
+    }
+    return false;
+  }
+
+  /** The parts of a viaduct segment outside every model station (fractions 0…1), or null if it misses them all. */
+  shellCut(ax, az, bx, bz, len) {
+    let parts = null;
+    for (const s of this.shellStations) {
+      if (Math.min(Math.hypot(ax - s.x, az - s.z), Math.hypot(bx - s.x, bz - s.z)) > s.fit.half + len + 20) continue;
+      const [ux, uz] = s.axis, a0 = (ax - s.x) * ux + (az - s.z) * uz, a1 = (bx - s.x) * ux + (bz - s.z) * uz;
+      const t0 = (az - s.z) * ux - (ax - s.x) * uz, t1 = (bz - s.z) * ux - (bx - s.x) * uz;
+      if (Math.min(Math.abs(t0), Math.abs(t1)) > 12 || Math.abs(a1 - a0) < 1e-6) continue;
+      // The fraction range where |a| < half.
+      let f0 = (-s.fit.half - a0) / (a1 - a0), f1 = (s.fit.half - a0) / (a1 - a0);
+      if (f0 > f1) [f0, f1] = [f1, f0];
+      f0 = Math.max(0, f0); f1 = Math.min(1, f1);
+      if (f1 <= f0) continue;
+      parts ||= [[0, 1]];
+      parts = parts.flatMap(([p0, p1]) => [[p0, Math.min(p1, f0)], [Math.max(p0, f1), p1]]).filter(([p0, p1]) => p1 - p0 > 1e-4);
+    }
+    return parts;
+  }
+
+  /**
+   * A station from the uploaded model: the model itself (shared geometry, placed and stretched
+   * across to the tracks), its walk grid, and what the game adds — fare gates across the
+   * concourse between the street entrances and the platform stairs, counters and QR machines on
+   * the unpaid side, the yellow line along the platform edges, lamps under the roof.
+   */
+  shellStation(s, B, pieces) {
+    const { k, tm, half } = s.fit, sh = this.shell, info = sh.info, [ux, uz] = s.axis, vx = -uz, vz = ux;
+    const ox = s.x + vx * tm, oz = s.z + vz * tm;
+    const g = sh.scene.clone();
+    g.position.set(ox, 0, oz); g.rotation.y = Math.atan2(-uz, ux); g.scale.set(1, 1, k);
+    g.updateMatrixWorld(true);
+    s.shellObj = g;
+    pieces.push(grid(sh.W, ox, oz, ux, uz, k));
+    // Frame values relative to the station point (t includes the shift to the track middle).
+    const P = (a, t, y) => [s.x + ux * a + vx * t, y, s.z + uz * a + vz * t], T = this.tools(P, ux, uz, pieces), { rect, slab } = T;
+    const yp = info.platform, yc = info.concourseY, M = (t) => t * k + tm;
+    const tIn = [M(info.platforms[0][1]), M(info.platforms[1][0])], tOut = [M(info.platforms[0][0]), M(info.platforms[1][1])];
+    const c0 = M(info.concourse[0]), c1 = M(info.concourse[1]);
+    for (const [e, d] of [[tIn[0], -1], [tIn[1], 1]]) B.flat.face(...rect(-half + 1, half - 1, e + d * 0.3, e + d * 0.6, yp + 0.012), 0xf2c21a, 0, 1, 0);
+    for (let a = -half + 6; a < half; a += 10) for (const t of [(tOut[0] + tIn[0]) / 2, (tOut[1] + tIn[1]) / 2]) slab(B.glow, a - 1, a + 1, t - 0.06, t + 0.06, yp + 4.6, yp + 4.7, 0xffffff);
+    // Fare gates between the street entrances (|a| ≈ 67–78) and the platform stairs (|a| < 47).
+    const gateA = info.gates ?? 55, lanes = [-6, -4.2, -2.4, 2.4, 4.2, 6].map((t) => t + tm);
+    s.gates = [];
+    for (const ga of [-gateA, gateA]) this.gateRow(s, B, T, ga, lanes, c0 + 0.1, c1 - 0.1, yc);
+    for (const a of [-gateA - 13, gateA + 13]) {
+      for (const t of [M(-4.5), M(4.5)]) this.counter(B, T, a, t, yc);
+      for (const t of [M(-8.6), M(8.6)]) slab(B.steel, a - 4.4, a - 3.6, t - 0.3, t + 0.3, yc, yc + 1.8, 0x2b3f55); // QR ticket machines
+    }
+    s.streetStairs = 4;
+    s.frame = { ux, uz, vx, vz, half, tIn, tOut, yp, yc, ca: half, cw: Math.max(-c0, c1) + 8, mono: false, gateA, lanes, frisk: gateA + 8, shell: true };
   }
 
   /** A straight flight with railings: from (x, z) at height y0 along (ux, uz) for L metres to height y1. */
@@ -696,16 +828,36 @@ export class Metro {
   entrances(s, B, pieces) {
     const list = s.entrances?.length ? s.entrances : [[s.x, s.z, '', '']];
     s.doors = [];
-    for (const [ex, ez, ref] of list.slice(0, 6)) {
-      // Face the nearest road.
-      let fx = 0, fz = 1, bd = Infinity;
-      for (let k = 0; k < 8; k++) {
-        const a = (k / 8) * Math.PI * 2, x = ex + Math.sin(a) * 6, z = ez + Math.cos(a) * 6;
-        const r = this.tiles.roadAt?.(x, z, 3);
-        const d = r ? 0 : 1;
-        if (d < bd) { bd = d; fx = Math.sin(a); fz = Math.cos(a); }
+    const onRoad = (x, z) => !!this.tiles.roadAt?.(x, z, 0, true);
+    for (const [mx, mz, ref] of list.slice(0, 6)) {
+      // Entrances are often mapped on the carriageway's edge: start from the nearest spot off it.
+      let nx = mx, nz = mz;
+      if (onRoad(nx, nz)) {
+        off: for (let d = 1.5; d <= 24; d += 1.5) for (let k = 0; k < 16; k++) {
+          const a = (k / 16) * Math.PI * 2, x = mx + Math.sin(a) * d, z = mz + Math.cos(a) * d;
+          if (!onRoad(x, z) && !this.tiles.hits(x, z, 0.5)) { nx = x; nz = z; break off; }
+        }
       }
-      const vx = -fz, vz = fx, g = this.tiles.groundHeight(ex, ez);
+      // Face the nearest road (its carriageway, not the footpath).
+      let fx = 0, fz = 1;
+      find: for (const d of [1, 2, 4, 6, 9, 12, 16]) for (let k = 0; k < 16; k++) {
+        const a = (k / 16) * Math.PI * 2;
+        if (onRoad(nx + Math.sin(a) * d, nz + Math.cos(a) * d)) { fx = Math.sin(a); fz = Math.cos(a); break find; }
+      }
+      // The glass box stands behind that spot, away from the road, as near as it stays off the
+      // carriageway and clear of buildings (sliding along the road if it must).
+      const vx = -fz, vz = fx;
+      const fits = (back, side) => {
+        for (const [a, t] of [[-3.1, -1.9], [3, -1.9], [3, 1.9], [-3.1, 1.9], [0, 0]]) {
+          const x = nx + fx * (a - back) + vx * (t + side), z = nz + fz * (a - back) + vz * (t + side);
+          if (onRoad(x, z) || this.tiles.hits(x, z, 0.2)) return false;
+        }
+        return true;
+      };
+      let back = 3.3, side = 0;
+      pick: for (const sd of [0, 2.5, -2.5, 5, -5]) for (const b of [3.3, 4.5, 2.2, 6, 1, 8]) if (fits(b, sd)) { back = b; side = sd; break pick; }
+      nx += vx * side; nz += vz * side;
+      const ex = nx - fx * back, ez = nz - fz * back, g = this.tiles.groundHeight(ex, ez);
       const P = (a, t, y) => [ex + fx * a + vx * t, y, ez + fz * a + vz * t];
       // Glass box 3.6 × 6 m, roof slab, an aqua band with the station's name, dark stair mouth.
       for (const [a0, a1, t0, t1] of [[-3, 3, -1.9, -1.8], [-3, 3, 1.8, 1.9], [-3.1, -3, -1.9, 1.9]]) {
@@ -768,17 +920,17 @@ export class Metro {
     }
     const { s, a } = here, f = s.frame;
     if (f.mono) { this.prompt = `${s.name} monorail — services suspended since 20 September 2025. "Restart next month," says the board.`; return; }
-    const onConcourse = Math.abs(w.pos.y - f.yc) < 0.8, paid = onConcourse && Math.abs(a) < 9;
+    const G = f.gateA, onConcourse = Math.abs(w.pos.y - f.yc) < 0.8, paid = onConcourse && Math.abs(a) < G;
     if (onConcourse && !paid) {
       const ticket = this.tickets.findMetro(s.ref, s.name);
-      const nearGate = Math.abs(Math.abs(a) - 9) < 2.2;
+      const nearGate = Math.abs(Math.abs(a) - G) < 2.2;
       if (nearGate && ticket) { this.gateOpenT = 0.6; if (!this.tapped) { this.tapped = ticket; ticket.entered = true; this.chime(); this.hud.message(`Beep. QR ticket ${ticket.from} → ${ticket.to} accepted.`); } }
       if (!this.tapped || this.tapped.from !== s.name) this.prompt = ticket ? 'Walk through a fare gate (tap the QR ticket)' : 'E: buy a QR ticket at the counter';
-      if (Math.abs(a) > 9 + 3 && this.tapped?.used) this.tapped = null;
-      if (!this.frisked && Math.abs(a) > f.ca - 6) { this.frisked = true; this.bubbles.say(this.walker, 'Security: Bag scanner pe rakho. Haath upar… theek hai, jao.', 3); }
+      if (Math.abs(a) > G + 3 && this.tapped?.used) this.tapped = null;
+      if (!this.frisked && Math.abs(a) > f.frisk) { this.frisked = true; this.bubbles.say(this.walker, 'Security: Bag scanner pe rakho. Haath upar… theek hai, jao.', 3); }
     } else if (paid) {
       // Leaving the paid area: tap out at the gate (the fare is settled here).
-      const nearGate = Math.abs(Math.abs(a) - 9) < 2.2;
+      const nearGate = Math.abs(Math.abs(a) - G) < 2.2;
       if (nearGate && this.tapped && this.tapped.entered && !this.tapped.used && this.tapped.exitAt === s.name) {
         this.gateOpenT = 0.6;
         this.settle(this.tapped, s.name);
@@ -820,7 +972,7 @@ export class Metro {
     const here = this.here;
     if (!here || here.s.frame.mono) return !!here;
     const { s, a } = here;
-    if (Math.abs(w.pos.y - s.frame.yc) > 0.8 || Math.abs(a) < 9) return false;
+    if (Math.abs(w.pos.y - s.frame.yc) > 0.8 || Math.abs(a) < s.frame.gateA) return false;
     this.tickets.open({ title: `🚇 ${s.name} — ${this.lineName(s)} ticket counter`, sub: `QR ticket for one trip. Next train ${this.nextTrain(s)}.`, sys: 'metro', from: s.name, groups: this.groups(s), where: 'counter' });
     return true;
   }
@@ -921,7 +1073,7 @@ export class Metro {
       // Onto the platform of the last station in the map.
       const rec = this.stations.find((o) => o.name === s?.name && o.ref === L.ref), f = rec?.frame;
       this.r = null;
-      if (f) { const t = (f.tIn[1] + f.tOut[1]) / 2; w.pos.set(rec.x + f.vx * t, f.yp, rec.z + f.vz * t); }
+      if (f) { const t = f.tIn[1] + 1.2; w.pos.set(rec.x + f.vx * t, f.yp, rec.z + f.vz * t); }
       if (this.tapped) this.tapped.exitAt = s?.name;
       this.hud.message(`This train runs on to ${L.to}, beyond the map: off at ${s?.name}.`);
       return;
@@ -1012,6 +1164,31 @@ export class Metro {
 
   /** Metro trains run on the viaduct, over everyone's head: nothing on the street touches them. */
   hits() { return false; }
+}
+
+/**
+ * The uploaded station model, if the build made one (public/art/index.json → stations): the
+ * scene (shared by every station that uses it), its walk grid and its measurements.
+ */
+async function loadShell(base = '/') {
+  const idx = await fetch(`${base}art/index.json`, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {}));
+  const info = idx.stations?.[0];
+  if (!info) return null;
+  const q = info.v ? `?v=${info.v}` : '';
+  const [gltf, walk] = await Promise.all([
+    new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`${base}art/${info.file}${q}`),
+    fetch(`${base}art/${info.walk}${q}`).then((r) => { if (!r.ok) throw new Error(`walk grid ${r.status}`); return r.arrayBuffer(); }),
+  ]);
+  const body = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.02 });
+  const roof = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.55, side: THREE.DoubleSide });
+  gltf.scene.traverse((o) => {
+    if (!o.isMesh) return;
+    o.material = o.name.startsWith('roof') || o.parent?.name?.startsWith('roof') ? roof : body;
+    o.castShadow = o.receiveShadow = true;
+    o.userData.shared = true;
+    o.geometry.computeBoundingSphere();
+  });
+  return { scene: gltf.scene, W: readWalkGrid(walk), info };
 }
 
 export { rupees, FLAG };

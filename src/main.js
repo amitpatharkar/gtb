@@ -965,7 +965,7 @@ started.then(() => import('./world/stations.js'))
 // trains; Line 3's street entrances (underground rides); the closed monorail (src/world/metro.js).
 let metro = null;
 started.then(() => import('./world/metro.js'))
-  .then(({ Metro }) => Metro.create({ scene, tiles, structures, materials, clock, tier, state, tickets, hud, bubbles, people, walker, view, audio, compile: (o) => post.compile(o, camera, scene), snap: () => placeCamera(0) }))
+  .then(({ Metro }) => Metro.create({ base: BASE, scene, tiles, structures, materials, clock, tier, state, tickets, hud, bubbles, people, walker, view, audio, compile: (o) => post.compile(o, camera, scene), snap: () => placeCamera(0) }))
   .then((m) => {
     metro = window.__gtb.metro = m;
     if (m) m.otherBusy = () => !!stations?.job; // one builder per frame: the stations first, then the metro

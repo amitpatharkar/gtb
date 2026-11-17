@@ -940,12 +940,22 @@ for (const L of LANDMARKS) {
 const partGrid = new Grid(50);
 for (const b of buildingsRaw) if (b.part) { const [x, z] = G.centroid(b.polys[0][0]); partGrid.add([x, z, x, z], [x, z]); }
 const skylineList = []; // tall buildings for the far skyline (lib/skyline.mjs)
-let bCount = 0, bSkipped = 0, bWithHeight = 0, bProfiled = 0, bNetting = 0, bArcade = 0, bWalls = 0;
+let bCount = 0, bSkipped = 0, bWithHeight = 0, bProfiled = 0, bNetting = 0, bArcade = 0, bWalls = 0, bMetro = 0;
+// Elevated metro and monorail stations are built by the game (src/world/metro.js) over the
+// road: the station outlines OpenStreetMap maps there (building=train_station, layer 1, …)
+// would stand as solid blocks from the street up, so they are left out.
+const metroBoxes = metroNet.json.stations.filter((s) => s.kind !== 'underground' && s.axis).map((s) => ({ x: s.x, z: s.z, ux: s.axis[0], uz: s.axis[1], half: s.ref === 'Mono 1' ? 60 : 100, w: s.ref === 'Mono 1' ? 10 : 14 }));
+const stationLike = (t) => /^(station|platform)$/.test(t.railway || '') || /^(station|platform)$/.test(t.public_transport || '') || /^(train_station|transportation|station|roof)$/.test(t.building || '') || +(t.layer || 0) >= 1 || t.min_height || t['building:min_level'];
+const overMetro = (b, c) => !b.infill && metroBoxes.some((m) => {
+  const dx = c[0] - m.x, dz = c[1] - m.z, a = dx * m.ux + dz * m.uz, t = dz * m.ux - dx * m.uz;
+  return Math.abs(a) < m.half && Math.abs(t) < m.w && (stationLike(b.tags) || Math.abs(t) < 7);
+});
 for (const b of buildingsRaw) {
   for (const poly of b.polys) {
     const outer = poly[0];
     const c = G.centroid(outer);
     if (!inBox(c)) continue;
+    if (!b.wall && overMetro(b, c)) { bMetro++; continue; }
     if (b.wall) {
       // Compound walls, pillars, hoardings and fences (lib/walls.mjs): style = wall kind, height = wall height.
       const tile = getTile(Math.floor(c[0] / T), Math.floor(c[1] / T));
@@ -1029,7 +1039,7 @@ for (const b of buildingsRaw) {
     if (h >= 15 && !b.hidden && minH < 1) skylineList.push({ ring: outer, area, h, color: look.color });
   }
 }
-log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts; ${bProfiled} dressed by their street's profile, ${bNetting} under netting, ${bArcade} arcaded; ${bWalls} wall pieces)`);
+log(`buildings: ${bCount} (${bWithHeight} with height or levels tagged, ${bSkipped} outlines replaced by parts; ${bProfiled} dressed by their street's profile, ${bNetting} under netting, ${bArcade} arcaded; ${bWalls} wall pieces; ${bMetro} station blocks under elevated metro stations left out)`);
 
 // Roads and rails: polylines clipped to each tile. Junction points shared by two or more
 // roads are never simplified away, so the road graph stays connected.

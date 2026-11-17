@@ -211,7 +211,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `src/world/structures.js` — walkable structures above the street (platforms, footbridges, stairs, metro concourses):
   floors, ramps, walls, posts in a 16 m grid; `groundHeight(x, z, y, base)` (highest floor within a step of y),
   `hits(x, z, r, y)` (walls whose height span meets the body; `pass()` = an open fare gate). The walker passes its
-  height (`footWorld`); vehicles collide at street level.
+  height (`footWorld`); vehicles collide at street level. Kind 4 `grid(W, x, z, ux, uz, k)`: a model's walk grid
+  (`readWalkGrid`; 0.25 m cells of floor heights + solid height spans, placed and stretched across by k).
 - `src/world/stations.js` + `scripts/lib/stations.mjs` (→ `tiles/stations.json`) — every railway station in the map:
   OSM platform outlines grown and cut back to 1.7 m from the track centres, tops 0.9 m above the rail (1.3 m), end
   ramps; footways on bridges → decks 7.5 m above the rail with parapets, roofs and piers off the tracks; mapped steps →
@@ -219,11 +220,19 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   which the converter raises clear), benches, a stall, yellow boards (Marathi/Hindi/English), LED indicators
   (`drawIndicator`, next trains). Built a few ms per frame within 560 m (`job`), `buildNow(x, z)` after a teleport.
 - `src/world/metro.js` + `scripts/lib/metro.mjs` (→ `tiles/metro.json`) — Line 1, the 2A/7/2B ends and the Monorail
-  on viaducts (U-girders 13 m up on single piers, monorail beam 9.6 m; 400 m chunks), elevated stations at the mapped
-  places (side platforms 14.05 m, concourse 7 m with counters, QR machines, security and fare gates, stairs to the
-  street where they land clear), metro trains (`MLine` run profile, `METRO_LINES` headways and hours, sliding
-  doors), ride (F board/alight, Space next station), tap in/out with excess fare; Line 3 = glass street entrances,
-  E → ticket → underground trip to the other station's entrance; the closed monorail has parked trains.
+  on viaducts (U-girders, rails 12.55 m up on single piers, monorail beam 9.6 m; 400 m chunks), elevated stations at
+  the mapped places, metro trains (`MLine` run profile, `METRO_LINES` headways and hours, sliding doors), ride (F
+  board/alight, Space next station), tap in/out with excess fare (gates at `frame.gateA`); Line 3 = glass street
+  entrances (moved off the carriageway when OSM maps them on it), E → ticket → underground trip to the other
+  station's entrance; the closed monorail has parked trains. Elevated stations: where both tracks run straight
+  through and are 0.9–1.25 × the model's spacing apart (`fitShell`), the owner's uploaded station model
+  (`public/art/stations/elevated-metro-station.glb`, CC BY-SA 4.0; `scripts/art-station.mjs` in art-index: ground and
+  approach viaducts cut off, recoloured, walk grid, reachability self-check; `STATION_FITS` = measured fit) is placed
+  and stretched across to the tracks (`shellStation`: platform 13.6 m, concourse 7.6 m, its own stairs, escalators
+  and piers; the game adds fare gates at ±55 m, counters, QR machines, yellow edge lines, lamps; viaduct girders and
+  piers are cut there, `shellCut`/`inShell`); elsewhere (curves, three tracks, monorail) the box-built station
+  (`elevated`: platforms rail + 1.05 m, concourse 7 m, street stairs where they land clear). The converter leaves
+  out OSM station blocks under elevated stations (`overMetro` in build-tiles.mjs).
 - `src/sim/street.js` — street life near the player: pedestrians on footpaths (jaywalk, dodge the taxi, puddle splash),
   scenarios from map points (thela vendors calling + customers, bus-stop commuters, dogs by garbage that chase the taxi,
   cows on lanes, gully cricket, push-starting a broken-down taxi), red-light hawkers, bump-and-argue drivers

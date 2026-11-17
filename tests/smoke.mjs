@@ -402,7 +402,7 @@ await check('metro', async () => {
     const L = M.lines.find((l) => l.ref === '1' && l.stations.some((o) => o.name === 'Saki Naka'));
     const i = L.stations.findIndex((o) => o.name === 'Saki Naka'), next = L.stations[i + 1] || L.stations[i - 1];
     const bought = T.buy(T.metro('1', 'Saki Naka', next.name, Math.abs(next.d - L.stations[i].d)));
-    at(10.5, 0, f.yc + 0.05);
+    at(f.gateA + 1.5, f.lanes[0], f.yc + 0.05);
     for (let k = 0; k < 10; k++) g.step(0.05);
     const tapped = !!M.tapped;
     // Platform beside the train when one stands there with its doors open.
@@ -435,7 +435,7 @@ await check('metro', async () => {
     const mono = [...M.trains.values()].filter((q) => q.line.closed && q.parked == null).length;
     let worst = 0;
     for (let k = 0; k < 60; k++) { const t0 = performance.now(); g.step(0.05); worst = Math.max(worst, performance.now() - t0); }
-    return { station: s.name, train: true, bought, tapped, boarded, moved, off, offY, platform: f.yp, line3: up, monoRunning: mono, money: g.state.s.money, worstMs: +worst.toFixed(1) };
+    return { station: s.name, model: !!f.shell, models: M.shellStations.length, train: true, bought, tapped, boarded, moved, off, offY, platform: f.yp, line3: up, monoRunning: mono, money: g.state.s.money, worstMs: +worst.toFixed(1) };
   });
   await page.close();
   const fails = noErrors(errors);
@@ -443,6 +443,7 @@ await check('metro', async () => {
   else if (!info.train) fails.push('no Line 1 train stopped at Saki Naka');
   else {
     if (!info.bought || !info.tapped) fails.push('ticket or gate failed');
+    if (!info.models || !info.model) fails.push(`Saki Naka is not built from the station model (${info.models} stations use it)`);
     if (!info.boarded) fails.push('could not board the metro');
     if (info.moved < 300) fails.push(`the rider moved only ${info.moved} m`);
     if (!info.off || Math.abs(info.offY - info.platform) > 0.6) fails.push(`did not step off onto the platform (y ${info.offY})`);

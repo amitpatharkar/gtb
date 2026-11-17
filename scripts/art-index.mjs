@@ -9,6 +9,8 @@
 //   missing, texture shrunk to 512 px (JPEG unless it has transparency).
 // - public/art/vehicles/<id>.glb (free vehicle models): split into the fleet's four parts with
 //   a far version (scripts/art-vehicles.mjs) → public/art/opt/vehicles/<id>.glb and <id>-far.glb.
+// - public/art/stations/<id>.glb (an elevated metro station): trimmed, recoloured and given a
+//   walk grid (scripts/art-station.mjs) → public/art/opt/stations/<id>.glb and <id>.walk.bin.
 // If a file cannot be processed, a model is listed as uploaded and a vehicle is left out.
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -17,15 +19,16 @@ import sharp from 'sharp';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import { readGlb, readAccessor, imageBytes, GlbWriter } from './lib/glb.mjs';
 import { buildVehicle } from './art-vehicles.mjs';
+import { buildStation, STATION_FITS } from './art-station.mjs';
 
 const ART = path.resolve('public/art');
-const dir = path.join(ART, 'models'), vdir = path.join(ART, 'vehicles'), optDir = path.join(ART, 'opt');
+const dir = path.join(ART, 'models'), vdir = path.join(ART, 'vehicles'), sdir = path.join(ART, 'stations'), optDir = path.join(ART, 'opt');
 const glbs = (d) => (fs.existsSync(d) ? fs.readdirSync(d).filter((f) => /\.glb$/i.test(f)) : []);
-const files = glbs(dir), vfiles = glbs(vdir);
+const files = glbs(dir), vfiles = glbs(vdir), sfiles = glbs(sdir);
 // Triangle budget by model id (big carts and the shelter get more; small props very few).
 const SMALL = /stool|cylinder|milk-can|dustbin|barricade/;
 const budget = (id) => (SMALL.test(id) ? 900 : 5000);
-const scripts = ['art-index.mjs', 'art-vehicles.mjs', 'lib/glb.mjs'].map((f) => fs.statSync(new URL(f, import.meta.url)).mtimeMs);
+const scripts = ['art-index.mjs', 'art-vehicles.mjs', 'art-station.mjs', 'lib/glb.mjs'].map((f) => fs.statSync(new URL(f, import.meta.url)).mtimeMs);
 /** Short content hash: the game asks for <file>?v=<hash>, so a new upload is never served from an old cache. */
 const hashOf = (f) => crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex').slice(0, 10);
 const stale = (src, ...outs) => outs.some((o) => !fs.existsSync(o) || fs.statSync(o).mtimeMs < Math.max(fs.statSync(src).mtimeMs, ...scripts));
@@ -186,5 +189,29 @@ if (vfiles.length) {
     console.log(`art: ${type} ← ${best.f} (${best.info.len} × ${best.info.wid} × ${best.info.hgt} m, ${best.tris} triangles${best.info.paint ? '' : ', no paint part'}${cands.length > 1 ? `; ${cands.length - 1} other file(s) not used` : ''})`);
   }
 }
-fs.writeFileSync(path.join(ART, 'index.json'), JSON.stringify({ models, vehicles }, null, 1));
-console.log(`art: ${files.length} model(s), ${vehicles.length} vehicle(s) listed`);
+// Stations: a model with a measured fit (STATION_FITS) and a credit line under a free licence
+// (CC0, CC BY, CC BY-SA — the trimmed copy keeps the model's licence).
+const stations = [];
+if (sfiles.length) {
+  fs.mkdirSync(path.join(optDir, 'stations'), { recursive: true });
+  const credits = fs.existsSync(path.join(ART, 'CREDITS.md')) ? fs.readFileSync(path.join(ART, 'CREDITS.md'), 'utf8') : '';
+  for (const f of sfiles) {
+    const id = f.replace(/\.glb$/i, '').toLowerCase(), src = path.join(sdir, f);
+    const line = credits.split('\n').find((l) => l.includes(`stations/${f}`));
+    if (!line || /\bNC\b|non-?commercial|\bND\b|no-?deriv/i.test(line) || !/CC0|CC[ -]?BY/i.test(line)) { console.log(`art: station ${f} not used — add a credit line with a free licence to public/art/CREDITS.md`); continue; }
+    if (!STATION_FITS[id]) { console.log(`art: station ${f} not used — measure it and add it to STATION_FITS (scripts/art-station.mjs)`); continue; }
+    const glb = path.join(optDir, 'stations', `${id}.glb`), walk = path.join(optDir, 'stations', `${id}.walk.bin`), meta = path.join(optDir, 'stations', `${id}.json`);
+    try {
+      if (stale(src, glb, walk, meta)) {
+        const r = await buildStation(fs.readFileSync(src), id);
+        if (!r.reach.platformA || !r.reach.platformB) throw new Error(`walk grid: a platform cannot be reached from the street (${JSON.stringify(r.reach)})`);
+        fs.writeFileSync(glb, r.glb); fs.writeFileSync(walk, r.walk); fs.writeFileSync(meta, JSON.stringify(r.info));
+        console.log(`art: station ${f} → ${r.info.triangles} triangles, ${(r.glb.length / 1e6).toFixed(2)} MB + walk grid ${(r.walk.length / 1e3).toFixed(0)} kB`);
+      }
+      stations.push({ id, file: `opt/stations/${id}.glb`, walk: `opt/stations/${id}.walk.bin`, v: hashOf(glb).slice(0, 6) + hashOf(walk).slice(0, 4), ...JSON.parse(fs.readFileSync(meta, 'utf8')) });
+    } catch (e) { console.warn(`art: station ${f} left out (${e.message})`); }
+  }
+}
+
+fs.writeFileSync(path.join(ART, 'index.json'), JSON.stringify({ models, vehicles, stations }, null, 1));
+console.log(`art: ${files.length} model(s), ${vehicles.length} vehicle(s), ${stations.length} station(s) listed`);
