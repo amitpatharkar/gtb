@@ -1,4 +1,5 @@
 import { HOME } from '../game/state.js';
+import { icon } from './icons.js';
 import { FARE_BASE, FARE_KM, AUTO_BASE, AUTO_KM } from '../game/jobs.js';
 
 // The player's phone (P, or the phone button): parody apps for maps, taxi duty, food
@@ -36,9 +37,9 @@ const SHOP = [
 ];
 
 const APPS = [
-  ['maps', 'Maps', '🗺️', '#3b8ad9'], ['chalo', 'Kidhar Driver', '🚕', '#f7c600'], ['bhookh', 'Bhookh', '🍛', '#f26722'],
-  ['jhatpat', 'JhatPat', '⚡', '#2e9e44'], ['dukaan', 'Dukaan', '📦', '#1b4f8a'], ['paykaro', 'PayKaro', '💸', '#5f259f'],
-  ['messages', 'Messages', '💬', '#27ae60'], ['camera', 'Camera', '📷', '#444'], ['home', 'Ghar', '🏠', '#b5651d'], ['tikit', 'Tikitwala', '🎫', '#c0392b'], ['settings', 'Settings', '⚙️', '#777'],
+  ['maps', 'Maps', 'map', '#3b8ad9'], ['chalo', 'Kidhar Driver', 'car-taxi-front', '#f7c600'], ['bhookh', 'Bhookh', 'utensils', '#f26722'],
+  ['jhatpat', 'JhatPat', 'zap', '#2e9e44'], ['dukaan', 'Dukaan', 'package', '#1b4f8a'], ['paykaro', 'PayKaro', 'wallet', '#5f259f'],
+  ['messages', 'Messages', 'message-circle', '#27ae60'], ['camera', 'Camera', 'camera', '#444'], ['home', 'Ghar', 'house', '#b5651d'], ['tikit', 'Tikitwala', 'ticket', '#c0392b'], ['settings', 'Settings', 'settings', '#777'],
 ];
 
 export class Phone {
@@ -168,7 +169,7 @@ export class Phone {
     switch (this.app) {
       case null: {
         const DOCK = ['maps', 'chalo', 'messages', 'camera'];
-        const icon = ([id, name, glyph, col], label) => `<button data-act="app:${id}"><i style="--c:${col}">${glyph}${id === 'messages' && s.unread ? `<em>${s.unread}</em>` : ''}</i>${label ? `<span>${name}</span>` : ''}</button>`;
+        const icon = ([id, name, glyph, col], label) => `<button data-act="app:${id}"><i style="--c:${col}">${icon(glyph)}${id === 'messages' && s.unread ? `<em>${s.unread}</em>` : ''}</i>${label ? `<span>${name}</span>` : ''}</button>`;
         html = `<div class="home"><div class="widget"><div class="w-time">${this.clock.label}</div><div class="w-sub">AQI ${this.clock.aqi} · ${rupees(d.money)}</div>
           <div class="meters"><span>🍽️ ${Math.round(d.hunger * 100)}%</span><span>⚡ ${Math.round(d.energy * 100)}%</span><span>⭐ ${s.rating ? s.rating.toFixed(1) : '–'}</span></div></div>
           <div class="grid">${APPS.filter((a) => !DOCK.includes(a[0])).map((a) => icon(a, true)).join('')}</div>

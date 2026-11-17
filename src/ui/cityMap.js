@@ -21,6 +21,8 @@ const LABELS = [
   ['Powai', 19.1240, 72.8990], ['Hiranandani', 19.1170, 72.9100],
 ];
 
+import { drawIcon, EMOJI, icon } from './icons.js';
+
 // Look: a dark, moody map. Black land, teal sea, grey lanes, pale roads, orange main roads.
 const SEA = '#0c262c', LAND = '#121a19';
 
@@ -42,9 +44,9 @@ export class CityMap {
     this.el.innerHTML = `
       <canvas></canvas>
       <div class="map-top"><div class="map-tabs"><b>Map</b><span class="chip on">All</span><span class="map-name">${index.name || 'Mumbai'}</span></div><span class="map-hint">Drag to move · scroll or pinch to zoom · tap to set a waypoint</span>
-        <button class="map-clear">Clear route</button><button class="map-close" aria-label="Close">✕</button></div>
+        <button class="map-clear">Clear route</button><button class="map-close" aria-label="Close">${icon('x')}</button></div>
       <div class="map-legend"><i style="background:#e0902f"></i>Main road <i style="background:#cfd2a8"></i>Road <i style="background:#7d8782"></i>Lane <i style="background:#2f4a36"></i>Park
-        <i style="background:#c13bd9"></i>GPS route <span>⛽ Petrol</span><span>★ Landmark</span></div>
+        <i style="background:#c13bd9"></i>GPS route <span>${icon('fuel')} Petrol</span><span>${icon('star')} Landmark</span></div>
       <div class="map-bar"><button data-z="0.7"><kbd>−</kbd>Zoom out</button><button data-z="1.43"><kbd>+</kbd>Zoom in</button><button class="map-back"><kbd>Esc</kbd>Back</button></div>
       <div class="map-credit">Map data © OpenStreetMap contributors</div>`;
     document.body.appendChild(this.el);
@@ -55,8 +57,12 @@ export class CityMap {
     for (const b of this.el.querySelectorAll('[data-z]')) b.onclick = () => { this.view.scale = Math.min(4, Math.max(0.05, this.view.scale * Number(b.dataset.z))); this.draw(); };
     this.el.querySelector('.map-clear').onclick = () => { this.setWaypoint(null, this.waypoint?.owner); this.draw(); };
     this.view = { x: 0, z: 0, scale: 0.12 };
+    this.W = innerWidth; this.H = innerHeight;
+    this.host = null; // set by the game: the map then lives inside the hub menu ({ open(), close() })
     this.bindInput();
-    addEventListener('resize', () => this.open && this.resize());
+    const refit = () => { if (this.open) { this.resize(); this.draw(); } };
+    addEventListener('resize', refit);
+    new ResizeObserver(refit).observe(this.el);
   }
 
   // ------------------------------------------------------------------ data (in the worker)
@@ -147,13 +153,23 @@ export class CityMap {
   }
 
   // ------------------------------------------------------------------ screen
-  async toggle(on = !this.open, player = this.player) {
-    this.open = on;
-    this.el.hidden = !on;
-    if (!on) return;
+  /** Open or close the map. With a host (the hub menu) this asks the host, which calls activate()/deactivate(). */
+  toggle(on = !this.open, player = this.player) {
+    if (player) this.player = player;
+    if (this.host) { if (on) this.host.open(); else this.host.close(); return; }
+    return on ? this.activate(player) : this.deactivate();
+  }
+
+  deactivate() { this.open = false; this.el.hidden = true; }
+
+  async activate(player = this.player) {
+    this.open = true;
+    this.el.hidden = false;
+    this.el.classList.toggle('embedded', !!this.host);
     this.player = player;
     this.resize();
     if (player) { this.view.x = player.pos.x; this.view.z = player.pos.z; this.view.scale = Math.max(this.view.scale, 0.35); }
+    this.g.setTransform(1, 0, 0, 1, 0, 0);
     this.g.fillStyle = SEA; this.g.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.g.fillStyle = '#fff'; this.g.font = '20px sans-serif'; this.g.fillText('Loading map…', 30, 90);
     try { await this.load(); } catch { this.g.fillText('Map unavailable — try again in a moment', 30, 120); return; }
@@ -163,15 +179,18 @@ export class CityMap {
   resize() {
     const dpr = Math.min(2, devicePixelRatio || 1);
     this.dpr = dpr;
-    this.canvas.width = innerWidth * dpr;
-    this.canvas.height = innerHeight * dpr;
-    this.canvas.style.width = `${innerWidth}px`;
-    this.canvas.style.height = `${innerHeight}px`;
+    this.W = this.el.clientWidth || innerWidth;
+    this.H = this.el.clientHeight || innerHeight;
+    this.canvas.width = this.W * dpr;
+    this.canvas.height = this.H * dpr;
+    this.canvas.style.width = `${this.W}px`;
+    this.canvas.style.height = `${this.H}px`;
   }
 
-  toWorld(sx, sy) {
-    const { x, z, scale } = this.view;
-    return { x: x + (sx - innerWidth / 2) / scale, z: z + (sy - innerHeight / 2) / scale };
+  /** Screen (client) position to world metres. */
+  toWorld(cx, cy) {
+    const { x, z, scale } = this.view, r = this.canvas.getBoundingClientRect();
+    return { x: x + (cx - r.left - this.W / 2) / scale, z: z + (cy - r.top - this.H / 2) / scale };
   }
 
   bindInput() {
@@ -248,7 +267,7 @@ export class CityMap {
   draw() {
     if (!this.open) return;
     const g = this.g, dpr = this.dpr, { x, z, scale } = this.view;
-    const W = innerWidth, H = innerHeight;
+    const W = this.W, H = this.H;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = SEA;
     g.fillRect(0, 0, W, H);
@@ -310,14 +329,16 @@ export class CityMap {
     }
     g.shadowBlur = 0; g.letterSpacing = '0px';
     // Round icons: dark disc, white ring, a glyph inside.
-    const icon = (sx, sy, r, glyph, ring = '#fff', fill = '#0b1214', col = '#fff') => {
+    const disc = (sx, sy, r, glyph, ring = '#fff', fill = '#0b1214', col = '#fff') => {
       g.fillStyle = fill; g.strokeStyle = ring; g.lineWidth = 2;
       g.beginPath(); g.arc(sx, sy, r, 0, 7); g.fill(); g.stroke();
-      g.fillStyle = col; g.font = `${Math.round(r * 1.15)}px sans-serif`; g.fillText(glyph, sx, sy + 1);
+      const name = EMOJI[String(glyph).replace('\uFE0F', '')];
+      if (glyph === '!') { g.fillStyle = col; g.font = `800 ${Math.round(r * 1.25)}px system-ui, sans-serif`; g.fillText('!', sx, sy + 1); }
+      else drawIcon(g, Array.isArray(name) ? name[0] : name || String(glyph), sx, sy, r * 1.15, col, 2.2);
     };
     for (const L of this.index.landmarks || []) {
       const [sx, sy] = S(L.x, L.z);
-      icon(sx, sy, 9, '★', '#fff', '#0b1214', '#ffd60a');
+      disc(sx, sy, 9, 'star', '#fff', '#0b1214', '#ffd60a');
       if (scale > 0.15) { g.font = `600 12px ${NARROW}`; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.85)'; g.strokeText(L.name, sx, sy + 20); g.fillStyle = '#e8ecea'; g.fillText(L.name, sx, sy + 20); }
     }
     // Petrol pumps: icons when zoomed in, small dots across the whole city.
@@ -325,13 +346,13 @@ export class CityMap {
     for (const [fx, fz] of this.fuel) {
       const [sx, sy] = S(fx, fz);
       if (sx < -12 || sx > W + 12 || sy < -12 || sy > H + 12) continue;
-      if (big) icon(sx, sy, 10, '⛽', '#fff', '#0b1214');
+      if (big) disc(sx, sy, 10, 'fuel', '#fff', '#0b1214');
       else { g.fillStyle = '#e8ecea'; g.beginPath(); g.arc(sx, sy, 3, 0, 7); g.fill(); }
     }
     // Missions and things to find: coloured discs with a white ring and "!" (or their own icon).
     for (const m of this.markers?.() || []) {
       const [sx, sy] = S(m.x, m.z);
-      icon(sx, sy, Math.max(9, (m.r || 8) + 2), m.icon || '!', '#fff', m.color, '#fff');
+      disc(sx, sy, Math.max(9, (m.r || 8) + 2), m.icon || '!', '#fff', m.color, '#fff');
     }
     if (this.waypoint) {
       const [sx, sy] = S(this.waypoint.x, this.waypoint.z);

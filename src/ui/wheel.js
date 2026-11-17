@@ -3,19 +3,21 @@
 // release B to equip. The camera stops turning while it is open. A small panel shows the stats of
 // the sector under the cursor.
 
+import { icon } from './icons.js';
+
 const SVG = 'http://www.w3.org/2000/svg';
 const R0 = 88, R1 = 178, C = 200, GAP = 1.6;
 const pt = (r, deg) => [C + r * Math.cos((deg * Math.PI) / 180), C + r * Math.sin((deg * Math.PI) / 180)];
 
 /** What the wheel offers. stats: 0..1 bars (label, value). */
 export const WHEEL_ITEMS = [
-  { id: 'fists', icon: '👊', name: 'Fists', note: 'Click: punch combo · right mouse: block', stats: [['Punch', 0.5], ['Speed', 0.8], ['Reach', 0.2], ['Mess', 0.1]] },
-  { id: 'pichkari', icon: '💦', name: 'Pichkari', note: 'Holi spray gun · C colour · [ ] pressure', stats: [['Reach', 0.7], ['Tank', 1], ['Colour', 0.9], ['Mess', 1]] },
-  { id: 'cracker:anar', icon: '🌸', name: 'Anar', note: 'Flower pot: a fountain of sparks', stats: [['Bang', 0.2], ['Sparkle', 0.9], ['Fuse', 0.4], ['Risk', 0.2]] },
-  { id: 'cracker:chakri', icon: '🌀', name: 'Chakri', note: 'Ground spinner', stats: [['Bang', 0.2], ['Sparkle', 0.6], ['Fuse', 0.4], ['Risk', 0.4]] },
-  { id: 'cracker:ladi', icon: '🧨', name: 'Ladi', note: 'A string of crackers', stats: [['Bang', 0.7], ['Sparkle', 0.2], ['Fuse', 0.5], ['Risk', 0.6]] },
-  { id: 'cracker:bomb', icon: '💣', name: 'Sutli bomb', note: 'One loud bang. Not after 10 pm', stats: [['Bang', 1], ['Sparkle', 0], ['Fuse', 1], ['Risk', 0.9]] },
-  { id: 'cracker:rocket', icon: '🚀', name: 'Sky shot', note: 'Shell bursts over the rooftops', stats: [['Bang', 0.6], ['Sparkle', 1], ['Fuse', 0.6], ['Risk', 0.5]] },
+  { id: 'fists', icon: 'hand-fist', name: 'Fists', note: 'Click: punch combo · right mouse: block', stats: [['Punch', 0.5], ['Speed', 0.8], ['Reach', 0.2], ['Mess', 0.1]] },
+  { id: 'pichkari', icon: 'droplets', name: 'Pichkari', note: 'Holi spray gun · C colour · [ ] pressure', stats: [['Reach', 0.7], ['Tank', 1], ['Colour', 0.9], ['Mess', 1]] },
+  { id: 'cracker:anar', icon: 'flower-2', name: 'Anar', note: 'Flower pot: a fountain of sparks', stats: [['Bang', 0.2], ['Sparkle', 0.9], ['Fuse', 0.4], ['Risk', 0.2]] },
+  { id: 'cracker:chakri', icon: 'loader', name: 'Chakri', note: 'Ground spinner', stats: [['Bang', 0.2], ['Sparkle', 0.6], ['Fuse', 0.4], ['Risk', 0.4]] },
+  { id: 'cracker:ladi', icon: 'sparkles', name: 'Ladi', note: 'A string of crackers', stats: [['Bang', 0.7], ['Sparkle', 0.2], ['Fuse', 0.5], ['Risk', 0.6]] },
+  { id: 'cracker:bomb', icon: 'bomb', name: 'Sutli bomb', note: 'One loud bang. Not after 10 pm', stats: [['Bang', 1], ['Sparkle', 0], ['Fuse', 1], ['Risk', 0.9]] },
+  { id: 'cracker:rocket', icon: 'rocket', name: 'Sky shot', note: 'Shell bursts over the rooftops', stats: [['Bang', 0.6], ['Sparkle', 1], ['Fuse', 0.6], ['Risk', 0.5]] },
 ];
 
 export class WeaponWheel {
@@ -30,7 +32,7 @@ export class WeaponWheel {
     this.el.id = 'wheel';
     this.el.hidden = true;
     this.el.innerHTML = `<div class="disc"><svg viewBox="0 0 400 400"><g class="sectors"></g></svg><div class="icons"></div>
-      <div class="mid"><b></b><small></small><i class="hint">Release B to equip</i></div><div class="dot"></div></div><div class="stats"></div>`;
+      <div class="mid"><b></b><small></small><i class="hint">Release B to equip</i></div><div class="dot"></div><div class="wnote"><i>i</i> Press <b>1</b>–<b>7</b> to switch weapons</div></div><div class="stats"></div>`;
     document.body.appendChild(this.el);
     const g = this.el.querySelector('.sectors'), icons = this.el.querySelector('.icons');
     this.paths = [];
@@ -45,7 +47,7 @@ export class WeaponWheel {
       const node = document.createElement('div');
       node.className = 'ico';
       node.style.left = `${(ix / 400) * 100}%`; node.style.top = `${(iy / 400) * 100}%`;
-      node.innerHTML = `<i>${it.icon}</i><small></small>`;
+      node.innerHTML = `<kbd>${i + 1}</kbd><i>${icon(it.icon)}</i><small></small>`;
       icons.appendChild(node); this.nodes.push(node);
     });
     this.mid = this.el.querySelector('.mid');
@@ -87,6 +89,9 @@ export class WeaponWheel {
     this.el.hidden = false;
     document.body.classList.add('wheel-open');
   }
+
+  /** A number key: equip that sector straight away. */
+  pickIndex(i) { if (!this.open || i < 0 || i >= WHEEL_ITEMS.length) return; this.sel = i; this.hide(true); }
 
   /** Close; equips the sector under the cursor unless cancelled. */
   hide(pick = true) {
