@@ -40,20 +40,21 @@ function parts(gltf) {
   return out;
 }
 
-export async function loadVehicleArt(base, traffic, started = Promise.resolve(), tier = null) {
+export async function loadVehicleArt(base, traffic, started = Promise.resolve(), tier = null, hooks = {}) {
   await started;
   const res = await fetch(`${base}art/index.json`, { cache: 'no-cache' }).catch(() => null);
   if (!res?.ok) return [];
   let { vehicles = [] } = await res.json();
   // Most common first (they replace the fleet's own bodies), then the new types by how often
   // they show up; fewer on the lighter tiers (each is ~0.3 MB and grows the traffic batches).
-  const weight = (v) => (traffic.types[v.id] ? 10 + traffic.types[v.id].weight : VEHICLE_ART[v.id]?.weight ?? 0);
+  const weight = (v) => (hooks[v.id] ? 100 : traffic.types[v.id] ? 10 + traffic.types[v.id].weight : VEHICLE_ART[v.id]?.weight ?? 0);
   vehicles = vehicles.sort((a, b) => weight(b) - weight(a)).slice(0, tier?.name === 'Low' ? 12 : tier?.name === 'Medium' ? 24 : 99);
   const loader = new GLTFLoader(), done = [];
   for (const v of vehicles) {
     try {
       const [near, far] = await Promise.all([v.near, v.far].map((f) => loader.loadAsync(`${base}art/${f}${v.v ? `?v=${v.v}` : ''}`).then(parts)));
       traffic.useModel(v.id, near, far, { ...(VEHICLE_ART[v.id] || {}), len: v.len, wid: v.wid });
+      hooks[v.id]?.(near);
       done.push(v.id);
     } catch (e) { console.warn(`Vehicle model ${v.id} not used:`, e.message); }
   }
