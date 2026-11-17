@@ -1179,3 +1179,120 @@ body:not(.touch) #btn-phone { right: 244px; bottom: 26px; }
 /* Hub logo */
 #pause-screen .topbar .logo-img { width: 150px; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5)); }
 body.touch #brand { display: none; }
+
+/* ================================================================================================
+   On foot, compact: the player's vitals sit in a column on the left (beside the minimap), only the active
+   weapon shows (one small pill), and the wheel (hold B) shows number badges and an "i" note for 1-7. */
+body:not(.touch) #radar .meter { left: 250px; bottom: calc(18px + (3 - var(--k)) * 38px); width: 176px; height: 34px; padding: 5px 12px 9px 10px; border-radius: 10px; grid-template: 'i n v' 1fr / 20px 1fr auto; align-content: center; align-items: center; gap: 0 6px; }
+body:not(.touch) #radar .meter::before { font-size: 14px; line-height: 20px; }
+body:not(.touch) #radar .meter span { align-self: center; margin: 0; font: 600 12px/1 var(--font); }
+body:not(.touch) #radar .meter::after { font: 700 12px/1 var(--font); }
+body:not(.touch) #radar .meter .bar { left: 10px; right: 12px; bottom: 5px; }
+body:not(.touch) #weapon { bottom: 74px; }
+body:not(.touch) #weapon .slot.one { width: auto; min-width: 190px; height: auto; padding: 9px 16px 12px 12px; display: flex; align-items: center; gap: 12px; transform: none; }
+body:not(.touch) #weapon .slot.one i { font-size: 22px; line-height: 1; }
+#weapon .slot.one .meta { display: grid; gap: 2px; text-align: left; }
+#weapon .slot.one b { margin: 0; font: 700 14px/1.2 var(--font); }
+#weapon .slot.one small { position: static; font: 500 11px/1.2 var(--font); opacity: 0.75; white-space: nowrap; }
+#weapon .slot.one u { left: 12px; right: 16px; bottom: 5px; }
+body:not(.touch) #foe { bottom: 140px; }
+#wheel .ico kbd { position: absolute; top: -14px; left: -18px; min-width: 18px; padding: 0 5px; border-radius: 5px; background: rgba(255, 255, 255, 0.9); color: #111; font: 800 11px/17px var(--font); text-align: center; }
+#wheel .ico.on kbd { background: var(--accent); }
+#wheel .wnote { position: absolute; left: 50%; bottom: -46px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; white-space: nowrap; padding: 8px 16px; border-radius: 999px; background: var(--glass); border: 1px solid var(--stroke); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font: 500 13px var(--font); }
+#wheel .wnote i { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #1b1400; font: 800 12px var(--font); font-style: normal; }
+#wheel .wnote b { color: var(--accent); }
+
+
+/* ================================================================================================
+   UI v6 — icons instead of emoji, HUD corners (time and air top right, logo small at the bottom centre, no phone
+   button on desktop), key hints as pills, the fuel readout of the dial, and a darker, stronger hub that holds the map. */
+.ic { width: 1em; height: 1em; flex: none; vertical-align: -0.14em; }
+.ic.dot { fill: currentColor; stroke: none; } .ic.dot.g { color: #30d158; } .ic.dot.o { color: #ff9f0a; } .ic.dot.w { color: #fff; }
+button .ic, .t-btn .ic { vertical-align: middle; }
+body:not(.touch) #btn-phone { display: none; }
+body.touch #btn-phone .ic { width: 22px; height: 22px; }
+
+/* Vitals: real icons now */
+body:not(.touch) #radar .meter::before { display: none; }
+body:not(.touch) #radar .meter .mi { grid-area: i; display: grid; place-items: center; width: 20px; height: 20px; font-style: normal; font-size: 15px; }
+body.touch #radar .meter .mi { display: none; }
+
+/* Top right: time and air quality in the corner, the wallet to its left */
+body:not(.touch) #status { right: 22px; top: 22px; flex-direction: row-reverse; }
+/* Logo: small, bottom centre */
+body:not(.touch) #brand { display: block; top: auto; right: auto; left: 50%; bottom: 6px; width: 124px; transform: translateX(-50%); opacity: 0.95; }
+body:not(.touch) #credit { left: 22px; right: auto; transform: none; bottom: 0; padding: 1px 10px; font-size: 10px; border-radius: 8px 8px 0 0; }
+body:not(.touch) #hintbar { bottom: 64px; }
+body:not(.touch) #weapon { bottom: 108px; }
+body:not(.touch) #foe { bottom: 172px; }
+
+/* Key hints: a pill for the label and a key for the letter */
+body:not(.touch) #keys { right: 22px; bottom: 262px; gap: 8px; }
+#keys div { gap: 8px; }
+#keys span { padding: 7px 15px; border-radius: 12px; background: linear-gradient(180deg, rgba(38, 33, 33, 0.85), rgba(16, 14, 14, 0.9)); border: 1px solid rgba(255, 255, 255, 0.1); font: 500 14px/1.1 var(--font); color: #ece8e4; text-shadow: none; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+#keys kbd { position: relative; min-width: 48px; height: 34px; padding: 0 10px; border-radius: 11px; background: linear-gradient(180deg, rgba(38, 33, 33, 0.9), rgba(12, 10, 10, 0.95)); border: 1px solid rgba(255, 255, 255, 0.14); font: 700 17px var(--font); color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+#keys div[data-unread]:not([data-unread=""]) kbd::after { content: attr(data-unread); position: absolute; top: -7px; right: -7px; min-width: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; background: var(--red); color: #fff; font: 700 11px/18px var(--font); text-align: center; }
+@media (max-height: 720px) { #keys { display: none !important; } }
+
+/* Dial: the fuel readout under the speed, as in the reference */
+#speed .fuel { left: 0; right: 0; top: 66%; display: flex; align-items: center; justify-content: center; gap: 8px; padding-right: 22px; color: #f5a800; }
+#speed .fuel .ic { width: 22px; height: 22px; stroke-width: 2.2; }
+#speed .fuel b { font: 700 22px/1 var(--font); letter-spacing: 0; }
+#speed.lowfuel .fuel { color: var(--red); }
+#speed .ticks text { font: 700 17px var(--font); font-style: normal; fill: #fff; }
+#speed .segs path { stroke-width: 9; }
+#speed .unit { top: 55%; }
+
+/* ---------------- Hub: dark and strong, with the same dusk art as the title */
+#pause-screen { background: #08050f; -webkit-backdrop-filter: none; backdrop-filter: none; }
+#pause-screen .backdrop { position: absolute; inset: -4%; opacity: 0.38; filter: blur(2px) saturate(1.1); pointer-events: none; }
+#pause-screen .backdrop svg { width: 100%; height: 100%; display: block; }
+#pause-screen .shade2 { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(8, 5, 15, 0.94), rgba(8, 5, 15, 0.72) 60%, rgba(8, 5, 15, 0.88)), linear-gradient(0deg, rgba(8, 5, 15, 0.85), transparent 45%); }
+#pause-screen .topbar { z-index: 2; border-bottom-color: rgba(255, 255, 255, 0.16); }
+#pause-screen nav button { color: rgba(255, 255, 255, 0.55); font-weight: 600; letter-spacing: 0.14em; }
+#pause-screen nav button.on { color: #fff; border-bottom: 3px solid var(--mag); box-shadow: 0 10px 18px -12px var(--mag); }
+#pause-screen .topbar .logo-img { width: 190px; }
+#pause-screen .rail { z-index: 2; background: rgba(0, 0, 0, 0.35); border-right-color: rgba(255, 255, 255, 0.12); }
+#pause-screen .rail button { background: rgba(255, 255, 255, 0.07); border-radius: 12px; font-size: 20px; display: grid; place-items: center; }
+#pause-screen .rail button:hover { background: linear-gradient(135deg, var(--mag2), var(--mag)); border-color: transparent; box-shadow: 0 8px 20px rgba(192, 38, 211, 0.4); }
+#pause-screen .page { z-index: 2; }
+.profile .avatar { background: linear-gradient(150deg, #ffd60a, #ff7a2e 55%, var(--mag)); box-shadow: 0 14px 34px rgba(192, 38, 211, 0.35); color: #1b1400; font-size: 64px; }
+.profile .avatar .ic { width: 64px; height: 64px; stroke-width: 1.5; }
+.profile .facts b { font-weight: 700; }
+.prow u { background: linear-gradient(90deg, var(--mag), #ffd60a); }
+.tile { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.16); border-bottom: 3px solid var(--mag); border-radius: 8px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45); }
+.tile .art { color: #fff; font-size: 84px; filter: drop-shadow(0 10px 18px rgba(192, 38, 211, 0.4)); }
+.tile .art .ic { width: 88px; height: 88px; stroke-width: 1.2; }
+.glist button.on { background: linear-gradient(90deg, var(--mag2), var(--mag)); color: #fff; }
+.glist { border-right-color: rgba(255, 255, 255, 0.25); }
+
+/* The map as a page of the hub */
+#pause-screen .page.map { left: 96px; right: 40px; top: 118px; bottom: 28px; padding: 0; overflow: hidden; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); animation: none; }
+#map-screen.embedded { position: absolute; inset: 0; z-index: auto; }
+#map-screen.embedded .map-close, #map-screen.embedded .map-back, #map-screen.embedded .map-tabs, #map-screen.embedded .map-credit { display: none; }
+#map-screen.embedded .map-top { padding: 14px 18px 26px; justify-content: space-between; }
+#map-screen.embedded .map-hint { margin: 0; }
+#map-screen.embedded .map-legend { left: 16px; bottom: 14px; }
+#map-screen.embedded .map-bar { right: 16px; bottom: 14px; }
+
+/* Vehicle name when you get in: bottom corner, 1.5 seconds */
+#vehname { position: fixed; right: 258px; bottom: 36px; z-index: 6; display: flex; align-items: center; gap: 14px; padding: 12px 22px 12px 16px; border-radius: 14px; background: var(--glass); border: 1px solid var(--stroke); border-left: 3px solid var(--logo-y); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: #fff; pointer-events: none; opacity: 0; transform: translateY(14px); transition: opacity 0.25s var(--ease), transform 0.3s var(--ease); }
+#vehname.on { opacity: 1; transform: none; }
+#vehname i { font-style: normal; font-size: 30px; line-height: 1; color: var(--logo-y); display: grid; }
+#vehname small { display: block; font: 600 10px var(--font); letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.6; }
+#vehname b { display: block; margin-top: 2px; font: 700 18px/1.2 var(--font); letter-spacing: -0.01em; white-space: nowrap; }
+body.touch #vehname { right: auto; left: 50%; bottom: 14px; margin-left: -110px; padding: 8px 16px 8px 12px; }
+body:not(.touch) #wanted:empty { display: none; }
+
+/* keep the vitals column clear of the hint bar on 1366-wide screens */
+body:not(.touch) #radar .meter { left: 246px; width: 140px; }
+body:not(.touch) #hintbar { padding: 9px 16px; }
+#hintbar span + span { margin-left: 11px; padding-left: 11px; }
+
+/* Wanted stars in the top-left corner; road name and coordinates sit right on top of the minimap */
+body:not(.touch) #wanted { left: 22px; top: 22px; transform: none; border-radius: 10px; border: 1px solid var(--stroke); padding: 8px 14px; }
+body:not(.touch) #hud { top: auto; bottom: 240px; left: 22px; }
+body:not(.touch) #place { width: 214px; min-width: 0; box-sizing: border-box; gap: 12px; padding: 10px 14px 10px 10px; }
+body:not(.touch) #place .ico { width: 38px; }
+body:not(.touch) #place #road { font-size: 14px; white-space: normal; overflow-wrap: anywhere; }
+body:not(.touch) #message { bottom: 316px; }

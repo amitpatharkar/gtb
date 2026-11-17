@@ -3,6 +3,8 @@
 // engine and lights. Built once; update() only touches what changed. On foot (or a touch screen)
 // CSS shrinks it to a plain number.
 
+import { icon } from './icons.js';
+
 const N = 40, START = 135, SWEEP = 270, MAX = 120;
 const SVG = 'http://www.w3.org/2000/svg';
 const pt = (r, deg) => [130 + r * Math.cos((deg * Math.PI) / 180), 130 + r * Math.sin((deg * Math.PI) / 180)];
@@ -10,8 +12,7 @@ const pt = (r, deg) => [130 + r * Math.cos((deg * Math.PI) / 180), 130 + r * Mat
 export function initSpeedo(el) {
   el.innerHTML = `<svg viewBox="0 0 260 260" aria-hidden="true"><g class="segs"></g><g class="ticks"></g></svg>
     <div class="num">0</div><div class="unit">km/h</div><div class="gear">P</div>
-    <div class="fuel"><i>⛽</i><b>100%</b></div>
-    <div class="lamps"><span class="eng" title="Car condition">🔧</span><span class="lamp" title="Lights">💡</span></div>`;
+    <div class="fuel">${icon('fuel')}<b>100%</b></div>`;
   const segs = el.querySelector('.segs'), ticks = el.querySelector('.ticks');
   const parts = [];
   for (let i = 0; i < N; i++) {
@@ -36,7 +37,6 @@ export function initSpeedo(el) {
     }
   }
   const num = el.querySelector('.num'), gear = el.querySelector('.gear'), fuel = el.querySelector('.fuel b');
-  const eng = el.querySelector('.eng'), lamp = el.querySelector('.lamp');
   let lit = -1, shown = -1, g = '', f = -1;
   return {
     /** kmh, signed (negative = reverse), foot, fuel and cond 0..1, night. */
@@ -48,8 +48,6 @@ export function initSpeedo(el) {
       if (gg !== g) { g = gg; gear.textContent = gg; }
       const ff = Math.round(fu * 100);
       if (ff !== f) { f = ff; fuel.textContent = `${ff}%`; el.classList.toggle('lowfuel', fu < 0.15); }
-      eng.classList.toggle('warn', cond < 0.35);
-      lamp.classList.toggle('on', !!night);
       el.classList.toggle('foot', !!foot);
     },
   };

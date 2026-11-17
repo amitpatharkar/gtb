@@ -5,6 +5,7 @@ import { CHEATS } from '../game/cheats.js';
 import { GAME } from '../brand.js';
 import { pickTier } from '../settings.js';
 import { SCENE_LIST, LOADING_ORDER } from './scenes.js';
+import { icon } from './icons.js';
 
 const LOGO = `<img class="logo-img" src="${import.meta.env.BASE_URL}brand/logo.webp" alt="${GAME.name}" draggable="false">`;
 const ICON = {
@@ -185,29 +186,30 @@ function homeHtml(p) {
   if (!p) return '<p class="small">Nothing to show yet.</p>';
   const rupees = (n) => `₹${Math.round(n).toLocaleString('en-IN')}`;
   return `<div class="profile">
-    <div class="who"><div class="avatar">🚕</div><div><h2>${p.name}</h2><p>${p.title}</p></div></div>
+    <div class="who"><div class="avatar">${icon('car-taxi-front')}</div><div><h2>${p.name}</h2><p>${p.title}</p></div></div>
     <div class="facts"><div><small>Day</small><b>${p.day}</b></div><div><small>Time</small><b>${p.clock}</b></div><div><small>Money</small><b>${rupees(p.money)}</b></div>
       <div><small>Rides</small><b>${p.rides}</b></div><div><small>Rating</small><b>${p.rating ? p.rating.toFixed(1) + '★' : '–'}</b></div><div><small>Earned</small><b>${rupees(p.earned)}</b></div></div>
     <div class="prows">${bar('Missions', p.missions, p.missionsTotal)}${bar('Chai glasses', p.chai, 32)}${bar('Food', Math.round(p.hunger * 100), 100, `${Math.round(p.hunger * 100)}%`)}${bar('Energy', Math.round(p.energy * 100), 100, `${Math.round(p.energy * 100)}%`)}${bar('Unpaid challans', Math.min(5000, p.fines), 5000, rupees(p.fines))}</div>
   </div>
   <div class="cards3">
-    <div class="tile"><small>Your ride</small><h4>${p.vehicle}</h4><div class="art">🚕</div><div class="spec"><span>Engine<b>${Math.round(p.condition * 100)}%</b></span><span>Fuel<b>${Math.round(p.fuel * 100)}%</b></span><span>Plate<b>MH 01 T</b></span></div></div>
-    <div class="tile"><small>Today</small><h4>${p.clock}</h4><div class="art">🌤️</div><div class="spec"><span>Air quality<b>${p.aqi}</b></span><span>Stars<b>${'★'.repeat(p.stars) || '–'}</b></span></div></div>
+    <div class="tile"><small>Your ride</small><h4>${p.vehicle}</h4><div class="art">${icon('car-taxi-front')}</div><div class="spec"><span>Engine<b>${Math.round(p.condition * 100)}%</b></span><span>Fuel<b>${Math.round(p.fuel * 100)}%</b></span><span>Plate<b>MH 01 T</b></span></div></div>
+    <div class="tile"><small>Today</small><h4>${p.clock}</h4><div class="art">${icon('cloud-sun')}</div><div class="spec"><span>Air quality<b>${p.aqi}</b></span><span>Stars<b>${'★'.repeat(p.stars) || '–'}</b></span></div></div>
   </div>`;
 }
 
-/** In-game hub (Esc, or ⏸ on touch screens): Home (profile), Map, Guide, Settings. handlers: resume, quality(tier),
- *  settings(s), quit, abandon, skipHour, tow, map, profile. */
+/** In-game hub (Esc, or the pause button on touch screens): Home (profile), Map, Guide, Settings. The map lives inside it
+ *  (handlers.mapEl is the map's element; mapActive(true/false) tells the map when its tab is shown).
+ *  handlers: paused, quality(tier), settings(s), quit, abandon, skipHour, tow, profile, canAbandon, mapEl, mapActive. */
 export function pauseMenu(handlers) {
-  const root = el(`<div id="pause-screen" hidden>
+  const root = el(`<div id="pause-screen" hidden><div class="backdrop">${SCENE_LIST.seaLink()}</div><div class="shade2"></div>
     <div class="topbar"><nav><button data-tab="home" class="on">Home</button><button data-tab="map">Map</button><button data-tab="guide">Guide</button><button data-tab="settings">Settings</button></nav>
       ${LOGO}</div>
-    <div class="rail"><button data-a="resume" title="Resume (Esc)">▶</button><button data-a="hour" title="Skip an hour (T)">⏩</button><button data-a="tow" title="Call a tow truck (R R)">🛻</button><button data-a="abandon" title="Abandon mission" hidden>✕</button><span></span><button data-a="quit" title="Save &amp; quit to title">⏻</button></div>
+    <div class="rail"><button data-a="resume" title="Resume (Esc)">${icon('play')}</button><button data-a="hour" title="Skip an hour (T)">${icon('fast-forward')}</button><button data-a="tow" title="Call a tow truck (R R)">${icon('truck')}</button><button data-a="abandon" title="Abandon mission" hidden>${icon('x')}</button><span></span><button data-a="quit" title="Save &amp; quit to title">${icon('power')}</button></div>
     <div class="page"></div></div>`);
   document.body.appendChild(root);
   const page = root.querySelector('.page');
   const s = loadSettings();
-  let tab = 'home', guideIx = 0;
+  let tab = 'home', guideIx = 0, mapShown = false;
   const bindSettings = () => {
     for (const i of page.querySelectorAll('[data-s]')) {
       const k = i.dataset.s;
@@ -222,8 +224,15 @@ export function pauseMenu(handlers) {
     }
   };
   const render = () => {
+    if (mapShown && tab !== 'map') { mapShown = false; handlers.mapActive?.(false); }
     for (const b of root.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === tab);
     page.className = `page ${tab}`;
+    if (tab === 'map') {
+      page.replaceChildren(handlers.mapEl);
+      mapShown = true;
+      handlers.mapActive?.(true);
+      return;
+    }
     if (tab === 'home') page.innerHTML = homeHtml(handlers.profile?.());
     if (tab === 'guide') {
       page.innerHTML = `<div class="glist">${GUIDE_PAGES.map((g, i) => `<button data-g="${i}" class="${i === guideIx ? 'on' : ''}">${g.title}</button>`).join('')}</div>
@@ -233,8 +242,7 @@ export function pauseMenu(handlers) {
   };
   root.addEventListener('click', (e) => {
     const t = e.target.closest('[data-tab]')?.dataset.tab;
-    if (t === 'map') { api.toggle(false); handlers.map?.(); return; }
-    if (t) { tab = t; render(); return; }
+    if (t) { tab = t; api.tab = t; render(); return; }
     const g = e.target.closest('[data-g]')?.dataset.g;
     if (g !== undefined) { guideIx = Number(g); render(); return; }
     const a = e.target.closest('[data-a]')?.dataset.a;
@@ -246,12 +254,17 @@ export function pauseMenu(handlers) {
   });
   const api = {
     open: false,
-    toggle(on = !api.open) {
+    tab: 'home',
+    /** Open or close the hub; `where` is the tab to open on (home, map, guide, settings). */
+    toggle(on = !api.open, where = 'home') {
       api.open = on; root.hidden = !on;
-      if (on) { tab = 'home'; render(); }
+      if (on) { tab = where; api.tab = where; render(); }
+      else if (mapShown) { mapShown = false; handlers.mapActive?.(false); }
       root.querySelector('[data-a="abandon"]').hidden = !handlers.canAbandon?.();
       handlers.paused?.(on);
     },
+    /** Switch tab while the hub is open. */
+    show(where) { tab = where; api.tab = where; render(); },
   };
   return api;
 }
