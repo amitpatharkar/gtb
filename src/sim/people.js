@@ -1,19 +1,55 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { dress, lookFor, finishBits, NOW, BIT, zoneAt, setWorldFrame, SKIN_TONES } from './looks.js';
 
-// Light procedural people for crowds: one instanced mesh, ~500 triangles each, limbs
-// swung in the vertex shader. Clothes and skin colours are per instance, plus up to six
-// Holi colour patches per person (blotchy splats that move with the limbs), so a few
-// hundred people cost one draw call.
+// Light procedural people for crowds: one instanced mesh, ~800 triangles each, limbs
+// swung in the vertex shader. The far crowd wears the same looks as the real characters
+// near the camera (looks.js): kurtas and knee skirts, saris and lungis to the ankle, a
+// dupatta or pallu, long hair, a bun or a plait, hard hats, Gandhi caps, turbans, school
+// bags, shorts and long sleeves — shapes switched on per person by bits, colours packed into
+// two attributes. Up to six Holi colour patches per person (blotchy splats that move with
+// the limbs), so a few hundred people cost one draw call.
+//
+// People are plain objects; make them with `makePerson()` (every field the game ever sets on
+// a person exists from the start, so all people share one object shape and the per-frame
+// loops read their numbers without allocating).
 
-export const POSE = { WALK: 0, STAND: 1, WAVE: 2, POINT: 3, ARGUE: 4, BAT: 5, SIT: 6, CROUCH: 7, FALLEN: 8, KICK: 9, PUSH: 10, PUNCH: 11, FIGHT: 12, THROW: 13, PEDAL: 14 };
+export const POSE = { WALK: 0, STAND: 1, WAVE: 2, POINT: 3, ARGUE: 4, BAT: 5, SIT: 6, CROUCH: 7, FALLEN: 8, KICK: 9, PUSH: 10, PUNCH: 11, FIGHT: 12, THROW: 13, PEDAL: 14, RIDE: 15 };
+/** CAP: peaked cap (police); SARI: a woman (her look decides what she wears); BERET: helmet or turban. */
 export const FLAG = { CAP: 1, SARI: 2, BERET: 4 };
+export { setWorldFrame, zoneAt };
 
 /** Holi colours (pichkari, gulal, tomatoes use index 6 = red). */
 export const HOLI_HEX = [0xff2e88, 0x1fbf4f, 0xffd400, 0x1e7bff, 0xff7a00, 0x9b30ff, 0xd8141c, 0x19c6c0, 0xff4fd8, 0xd4a017, 0x7cff3a, 0xffffff];
 export const HOLI_NAMES = ['Gulabi', 'Hara', 'Peela', 'Neela', 'Kesari', 'Jamuni', 'Laal', 'Firozi', 'Rani', 'Sunehri', 'Tota hara', 'Safed'];
 export const HOLI = HOLI_HEX.map((h) => new THREE.Color(h));
 const SPLATS = 6;
+const TURBAN_DEFAULT = new THREE.Color(0xd84315);
+
+/**
+ * A person with every field the game's systems use, in one fixed order (one object shape:
+ * per-frame loops over people then read numbers without allocating). `props` fills in what
+ * the caller knows; new per-person fields belong in this list.
+ */
+export function makePerson(props) {
+  const p = {
+    // where and how
+    x: 0, y: 0, z: 0, heading: 0, phase: 0, pose: 1, amp: 1, speed: 1.3, flags: 0, scale: 1, h: 2.1,
+    kind: '', shirt: null, pants: null, skin: null, look: null, patches: null,
+    // drawing (people.js, characters.js)
+    hero: false, noHero: false, keep: false, isPlayer: false, hidden: false, drawn: 0, body: null, tpl: '',
+    model: null, build: null, shoe: null, hair: null, hatColor: null, wear: null, handPos: null,
+    hitT: 0, swingN: 0, kickT: 0, kickN: 0,
+    // fights (combat.js)
+    free: false, combat: null, hp: 1, downT: 0, sprayer: false, sprayColour: 0, rolled: false,
+    // street life (street.js)
+    seg: null, dir: 1, t: 0, side: 1, off: 0, state: '', timer: 0, ox: 0, oz: 0, vx: 0, vz: 0, crossTo: 0, watch: null, dead: false,
+    role: '', homeX: 0, homeZ: 0, baseHeading: 0, basePose: null, dance: undefined, line: '', said: false,
+    // other systems (stars, story, jobs, police)
+    fan: false, cop: false, name: '', placed: false, inTaxi: false, gone: false, task: null, idleT: 0, ux: 0, uz: 0, site: null,
+  };
+  return props ? Object.assign(p, props) : p;
+}
 
 /**
  * Add a colour patch to a person (object with x, y, z, heading, scale) at a world-space hit
@@ -34,6 +70,11 @@ export function addPatch(person, wx, wy, wz, colour, radius = 0.12) {
   if (person.patches.length > SPLATS) person.patches.shift();
 }
 
+// Part ids (partLimb.x): what colours a vertex and which bit shows it.
+const PART = {
+  SKIN: 0, SHIRT: 1, PANTS: 2, HAIR: 3, SHOE: 4, CAP: 5, ANKLE: 6, HEADDOME: 8, GANDHI: 9, SHIN: 10, FOREARM: 11,
+  KNEE: 12, DUPATTA: 16, PALLU: 17, BAG: 18, HAIRLONG: 19, BUN: 20, PLAIT: 21, BRIM: 22,
+};
 function piece(geo, part, limb) {
   geo = geo.index ? geo.toNonIndexed() : geo;
   const n = geo.attributes.position.count;
@@ -43,36 +84,47 @@ function piece(geo, part, limb) {
   geo.deleteAttribute('uv');
   return geo;
 }
-const cyl = (r0, r1, h, seg, x, y, z) => new THREE.CylinderGeometry(r1, r0, h, seg).translate(x, y + h / 2, z);
+const cyl = (r0, r1, h, seg, x, y, z, open = false) => new THREE.CylinderGeometry(r1, r0, h, seg, 1, open).translate(x, y + h / 2, z);
 
 function personGeometry() {
   const parts = [];
   for (const s of [-1, 1]) {
     const leg = s < 0 ? 1 : 2, arm = s < 0 ? 3 : 4;
-    parts.push(piece(cyl(0.062, 0.078, 0.8, 7, s * 0.09, 0.06, 0), 2, leg));
-    parts.push(piece(new THREE.BoxGeometry(0.1, 0.07, 0.24).translate(s * 0.09, 0.035, 0.04), 4, leg));
-    parts.push(piece(cyl(0.048, 0.055, 0.3, 6, s * 0.235, 1.08, 0), 1, arm));        // sleeve
-    parts.push(piece(cyl(0.036, 0.044, 0.3, 6, s * 0.235, 0.8, 0), 0, arm));         // forearm
-    parts.push(piece(new THREE.SphereGeometry(0.045, 6, 4).translate(s * 0.235, 0.78, 0), 0, arm)); // hand
+    parts.push(piece(cyl(0.07, 0.078, 0.4, 7, s * 0.09, 0.46, 0), PART.PANTS, leg));          // thigh
+    parts.push(piece(cyl(0.058, 0.07, 0.41, 7, s * 0.09, 0.06, 0), PART.SHIN, leg));          // shin
+    parts.push(piece(new THREE.BoxGeometry(0.1, 0.07, 0.24).translate(s * 0.09, 0.035, 0.04), PART.SHOE, leg));
+    parts.push(piece(cyl(0.048, 0.055, 0.3, 6, s * 0.235, 1.08, 0), PART.SHIRT, arm));        // sleeve
+    parts.push(piece(cyl(0.036, 0.044, 0.3, 6, s * 0.235, 0.8, 0), PART.FOREARM, arm));       // forearm
+    parts.push(piece(new THREE.SphereGeometry(0.045, 6, 4).translate(s * 0.235, 0.78, 0), PART.SKIN, arm)); // hand
   }
-  parts.push(piece(cyl(0.15, 0.135, 0.12, 10, 0, 0.84, 0).scale(1, 1, 0.7), 2, 0));   // hips
-  parts.push(piece(cyl(0.14, 0.175, 0.46, 10, 0, 0.94, 0).scale(1, 1, 0.66), 1, 0));  // torso
-  parts.push(piece(new THREE.SphereGeometry(0.17, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.45, 0.66).translate(0, 1.39, 0), 1, 0)); // shoulders
-  parts.push(piece(cyl(0.05, 0.05, 0.1, 6, 0, 1.42, 0), 0, 0));                       // neck
-  parts.push(piece(new THREE.SphereGeometry(0.105, 12, 9).scale(0.95, 1.18, 1.05).translate(0, 1.6, 0.01), 0, 0)); // head
-  parts.push(piece(new THREE.SphereGeometry(0.112, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.55).scale(0.98, 1.1, 1.08).translate(0, 1.62, -0.005), 3, 0)); // hair
-  parts.push(piece(new THREE.CylinderGeometry(0.115, 0.118, 0.07, 12).translate(0, 1.75, 0), 5, 0)); // police cap
-  parts.push(piece(new THREE.BoxGeometry(0.2, 0.012, 0.09).translate(0, 1.72, 0.13), 5, 0));         // cap visor
-  parts.push(piece(new THREE.SphereGeometry(0.12, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.05, 0.5, 1.1).translate(0.015, 1.7, 0), 7, 0)); // beret
-  parts.push(piece(cyl(0.3, 0.16, 0.78, 12, 0, 0.06, 0).scale(1, 1, 0.75), 6, 0));    // sari / long skirt
+  parts.push(piece(cyl(0.15, 0.135, 0.12, 10, 0, 0.84, 0).scale(1, 1, 0.7), PART.PANTS, 0));   // hips
+  parts.push(piece(cyl(0.14, 0.175, 0.46, 10, 0, 0.94, 0).scale(1, 1, 0.66), PART.SHIRT, 0));  // torso
+  parts.push(piece(new THREE.SphereGeometry(0.17, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.45, 0.66).translate(0, 1.39, 0), PART.SHIRT, 0)); // shoulders
+  parts.push(piece(cyl(0.05, 0.05, 0.1, 6, 0, 1.42, 0), PART.SKIN, 0));                       // neck
+  parts.push(piece(new THREE.SphereGeometry(0.105, 12, 9).scale(0.95, 1.18, 1.05).translate(0, 1.6, 0.01), PART.SKIN, 0)); // head
+  parts.push(piece(new THREE.SphereGeometry(0.112, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.55).scale(0.98, 1.1, 1.08).translate(0, 1.62, -0.005), PART.HAIR, 0)); // hair
+  parts.push(piece(new THREE.CylinderGeometry(0.115, 0.118, 0.07, 12).translate(0, 1.75, 0), PART.CAP, 0)); // police cap
+  parts.push(piece(new THREE.BoxGeometry(0.2, 0.012, 0.09).translate(0, 1.72, 0.13), PART.CAP, 0));         // cap visor
+  parts.push(piece(new THREE.SphereGeometry(0.125, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.75, 1.08).translate(0, 1.66, 0), PART.HEADDOME, 0)); // helmet / hard hat / turban
+  parts.push(piece(new THREE.CylinderGeometry(0.16, 0.16, 0.012, 12).translate(0, 1.67, 0.02), PART.BRIM, 0)); // hard-hat brim
+  parts.push(piece(new THREE.ConeGeometry(0.1, 0.07, 4).scale(0.7, 1, 1.4).translate(0, 1.75, 0), PART.GANDHI, 0)); // Gandhi cap
+  parts.push(piece(cyl(0.3, 0.16, 0.8, 12, 0, 0.06, 0, true).scale(1, 1, 0.75), PART.ANKLE, 0));  // sari or lungi to the ankle
+  parts.push(piece(cyl(0.21, 0.155, 0.42, 10, 0, 0.45, 0, true).scale(1, 1, 0.72), PART.KNEE, 0)); // kurta, school skirt or folded lungi
+  parts.push(piece(cyl(0.185, 0.17, 0.07, 10, 0, 1.25, 0.005, true).scale(1, 1, 0.72), PART.DUPATTA, 0)); // dupatta round the shoulders
+  parts.push(piece(new THREE.BoxGeometry(0.1, 0.62, 0.27).rotateZ(-0.62).translate(0.0, 1.13, 0), PART.PALLU, 0)); // pallu across the chest
+  parts.push(piece(new THREE.BoxGeometry(0.21, 0.26, 0.09).translate(0, 1.18, -0.16), PART.BAG, 0));        // school bag
+  parts.push(piece(new THREE.BoxGeometry(0.2, 0.3, 0.035).translate(0, 1.42, -0.105), PART.HAIRLONG, 0));    // long hair down the back
+  parts.push(piece(new THREE.SphereGeometry(0.06, 6, 4).translate(0, 1.56, -0.115), PART.BUN, 0));           // bun
+  parts.push(piece(cyl(0.022, 0.03, 0.42, 5, 0, 1.1, -0.125), PART.PLAIT, 0));                              // plait
   return mergeGeometries(parts);
 }
 
 const ANIM_GLSL = `
   attribute vec2 partLimb;
-  attribute vec4 aAnim;   // phase, pose, stride amplitude, flags
+  attribute vec4 aAnim;   // phase, pose, stride amplitude, flags (+ look bits)
   vec3 rotX(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(p.x, p.y * c - p.z * s, p.y * s + p.z * c); }
   vec3 rotZ(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z); }
+  bool bit(float f, float b) { return mod(floor(f / b), 2.0) >= 1.0; }
   // Swing angles (about x, about z) for this vertex's limb.
   vec2 limbAngles(float limb) {
     float ph = aAnim.x, pose = aAnim.y, amp = aAnim.z;
@@ -93,26 +145,57 @@ const ANIM_GLSL = `
     if (pose < 11.5) return arm ? vec2((sw * side > 0.0) ? -1.55 : -0.85, -side * 0.15) : leg ? vec2(side * 0.18, 0.0) : vec2(0.0); // punches
     if (pose < 12.5) return arm ? vec2(-0.95 + sin(ph * 2.0 + side) * 0.12, -side * 0.2) : leg ? vec2(side * 0.22, 0.0) : vec2(0.0); // guard
     if (pose < 13.5) return limb == 4.0 ? vec2(-2.7 + max(0.0, sin(ph)) * 1.6, 0.1) : arm ? vec2(-0.3, -0.1) : vec2(0.0);     // throw
-    return leg ? vec2(-0.52 + sw * 0.34 * side, side * 0.07) : vec2(-0.95, side * 0.1);                       // pedalling a bicycle
+    if (pose < 14.5) return leg ? vec2(-0.52 + sw * 0.34 * side, side * 0.07) : vec2(-0.95, side * 0.1);    // pedalling a bicycle
+    return leg ? vec2(-1.45, side * 0.14) : vec2(-1.05, side * 0.08);                                       // riding: hands on the handlebar
+  }
+  // Is this part worn? (flags: 1 cap, 2 a woman, 4 helmet; then the look's bits)
+  bool worn(float part, float f, float pose) {
+    bool cap = bit(f, 1.0), helmet = bit(f, 4.0);
+    bool hardhat = bit(f, ${BIT.HARDHAT}.0), turban = bit(f, ${BIT.TURBAN}.0), gandhi = bit(f, ${BIT.GANDHI}.0);
+    // Seated, crouching or riding: skirts give way to the legs (coloured like the cloth).
+    bool seated = (pose > 5.5 && pose < 7.5) || pose > 13.5;
+    if ((part == 6.0 || part == 12.0) && seated) return false;
+    if (part == 3.0) return !(cap || helmet || hardhat || turban || bit(f, ${BIT.BALD}.0));
+    if (part == 5.0) return cap;
+    if (part == 8.0) return (helmet || hardhat || turban) && !cap;
+    if (part == 22.0) return hardhat;
+    if (part == 9.0) return gandhi;
+    if (part == 6.0) return bit(f, ${BIT.SARI}.0) || bit(f, ${BIT.LUNGI}.0);
+    if (part == 12.0) return bit(f, ${BIT.KURTA}.0) || bit(f, ${BIT.SKIRT}.0);
+    if (part == 16.0) return bit(f, ${BIT.DUPATTA}.0);
+    if (part == 17.0) return bit(f, ${BIT.PALLU}.0);
+    if (part == 18.0) return bit(f, ${BIT.BAG}.0);
+    if (part == 19.0) return bit(f, ${BIT.LONGHAIR}.0) && !helmet;
+    if (part == 20.0) return bit(f, ${BIT.BUN}.0) && !helmet;
+    if (part == 21.0) return bit(f, ${BIT.PLAIT}.0);
+    return true;
   }
   vec3 animate(vec3 p, bool isNormal) {
     float part = partLimb.x, limb = partLimb.y;
     float flags = aAnim.w;
-    bool cap = mod(flags, 2.0) >= 1.0, sari = mod(floor(flags / 2.0), 2.0) >= 1.0, beret = mod(floor(flags / 4.0), 2.0) >= 1.0;
-    if ((part == 5.0 && !cap) || (part == 6.0 && !sari) || (part == 7.0 && !beret) || (part == 3.0 && (cap || beret))) return vec3(0.0);
+    if (!worn(part, flags, aAnim.y)) return vec3(0.0);
+    // A lungi is a narrower tube than a sari.
+    if (part == 6.0 && !bit(flags, ${BIT.SARI}.0)) p.xz *= vec2(0.66, 0.78);
     float pose = aAnim.y;
     if (limb > 0.5) {
       vec2 a = limbAngles(limb);
       vec3 pivot = limb < 2.5 ? vec3(limb == 1.0 ? -0.09 : 0.09, 0.86, 0.0) : vec3(limb == 3.0 ? -0.235 : 0.235, 1.38, 0.0);
-      if (isNormal) p = rotZ(rotX(p, a.x), a.y);
-      else p = pivot + rotZ(rotX(p - pivot, a.x), a.y);
+      if (limb < 2.5 && (part == 10.0 || part == 4.0) && pose > 5.5 && (pose < 7.5 || pose > 13.5)) {
+        // Seated, crouching or riding: the shin hangs down from the knee.
+        vec3 knee = vec3(pivot.x, 0.46, 0.0);
+        if (isNormal) p = rotX(p, a.x + 1.4); else p = knee + rotX(p - knee, 1.4);
+        if (!isNormal) p = pivot + rotZ(rotX(p - pivot, a.x), a.y);
+      } else {
+        if (isNormal) p = rotZ(rotX(p, a.x), a.y);
+        else p = pivot + rotZ(rotX(p - pivot, a.x), a.y);
+      }
     }
     if (pose > 7.5 && pose < 8.5) {
       // Knocked down: lying on the back.
       p = rotX(p, -1.5);
       if (!isNormal) p += vec3(0.0, 0.14, 0.9);
     } else if (!isNormal) {
-      if (pose > 5.5 && pose < 6.5) p.y -= 0.42;               // sitting on a stool, kerb or bike
+      if ((pose > 5.5 && pose < 6.5) || pose > 14.5) p.y -= 0.42;  // sitting on a stool, kerb or bike
       if (pose > 6.5 && pose < 7.5) p.y -= 0.3;                // crouching
       if (pose > 11.5 && pose < 12.5) p.y += abs(sin(aAnim.x * 2.0)) * 0.03; // bouncing in a fight
       if (pose < 0.5) p.y += abs(sin(aAnim.x)) * 0.03 * aAnim.z; // bob while walking
@@ -121,29 +204,46 @@ const ANIM_GLSL = `
   }
 `;
 
+/**
+ * A colour (linear) → packed sRGB 24-bit float (exact in a float). A lookup table, not
+ * Color.getHex(): this runs for six colours of every person every frame and must not allocate.
+ */
+const SRGB8 = new Uint8Array(4097);
+for (let i = 0; i <= 4096; i++) { const l = i / 4096; SRGB8[i] = Math.round(255 * (l <= 0.0031308 ? l * 12.92 : 1.055 * l ** (1 / 2.4) - 0.055)); }
+const q8 = (v) => SRGB8[v <= 0 ? 0 : v >= 1 ? 4096 : (v * 4096) | 0];
+const pack = (c) => (c ? (q8(c.r) << 16) | (q8(c.g) << 8) | q8(c.b) : 0x808080);
+const PACK_GLSL = `
+  vec3 unpack(float v) { vec3 c = vec3(floor(v / 65536.0), mod(floor(v / 256.0), 256.0), mod(v, 256.0)) / 255.0; return pow(c, vec3(2.2)); }
+`;
+
 export class PeopleRenderer {
   constructor(scene, max = 400) {
     this.max = max;
     const geo = personGeometry();
     const dyn = (n) => new THREE.InstancedBufferAttribute(new Float32Array(max * n), n).setUsage(THREE.DynamicDrawUsage);
-    this.anim = dyn(4); this.colA = dyn(3); this.colB = dyn(3); this.skin = dyn(3);
+    this.anim = dyn(4); this.col0 = dyn(4); this.col1 = dyn(4);
     this.splat = [dyn(4), dyn(4), dyn(4)]; // 6 patches: (packed position, colour code) × 2 per vec4
     geo.setAttribute('aAnim', this.anim);
-    geo.setAttribute('aColA', this.colA);
-    geo.setAttribute('aColB', this.colB);
-    geo.setAttribute('aSkin', this.skin);
+    geo.setAttribute('aCol0', this.col0); // shirt, pants, skin, hair (packed sRGB)
+    geo.setAttribute('aCol1', this.col1); // look colour A (dupatta, lungi, hat), B (bag, border), -, -
     this.splat.forEach((a, i) => geo.setAttribute(`aSplat${i}`, a));
 
     const vert = (shader, colour) => {
       shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', `#include <common>\n${ANIM_GLSL}${colour ? `attribute vec3 aColA; attribute vec3 aColB; attribute vec3 aSkin;
+        .replace('#include <common>', `#include <common>\n${ANIM_GLSL}${colour ? `${PACK_GLSL} attribute vec4 aCol0; attribute vec4 aCol1;
           attribute vec4 aSplat0; attribute vec4 aSplat1; attribute vec4 aSplat2;
           varying vec3 vTint; varying vec3 vRest; flat varying vec4 vS0; flat varying vec4 vS1; flat varying vec4 vS2;` : ''}`)
         .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nobjectNormal = animate(objectNormal, true);')
         .replace('#include <begin_vertex>', `#include <begin_vertex>\n${colour ? 'vRest = position; vS0 = aSplat0; vS1 = aSplat1; vS2 = aSplat2;' : ''}\ntransformed = animate(transformed, false);${colour ? `
-          float part = partLimb.x;
-          vTint = part == 0.0 ? aSkin : part == 1.0 ? aColA : part == 2.0 ? aColB : part == 3.0 ? vec3(0.018, 0.014, 0.012)
-            : part == 4.0 ? vec3(0.03, 0.022, 0.018) : part == 5.0 ? vec3(0.9, 0.9, 0.86) : part == 6.0 ? aColB : vec3(0.02, 0.03, 0.12);` : ''}`);
+          float part = partLimb.x, fl = aAnim.w;
+          vec3 shirt = unpack(aCol0.x), pants = unpack(aCol0.y), skin = unpack(aCol0.z), hair = unpack(aCol0.w), accA = unpack(aCol1.x), accB = unpack(aCol1.y);
+          vTint = part == 0.0 ? skin : part == 1.0 ? shirt : part == 2.0 ? (bit(fl, ${BIT.LUNGI}.0) ? accA : pants) : part == 3.0 || part > 18.5 && part < 21.5 ? hair
+            : part == 4.0 ? vec3(0.03, 0.022, 0.018) : part == 5.0 || part == 8.0 || part == 22.0 || part == 16.0 ? accA : part == 9.0 ? vec3(0.9, 0.89, 0.85)
+            : part == 6.0 ? (bit(fl, ${BIT.SARI}.0) ? pants : accA)
+            : part == 10.0 ? (bit(fl, ${BIT.SHORTS}.0) ? skin : bit(fl, ${BIT.LUNGI}.0) ? accA : pants)
+            : part == 11.0 ? (bit(fl, ${BIT.SLEEVES}.0) ? shirt : skin)
+            : part == 12.0 ? (bit(fl, ${BIT.KURTA}.0) ? shirt : bit(fl, ${BIT.LUNGI}.0) ? accA : pants)
+            : part == 17.0 ? pants : part == 18.0 ? accB : skin;` : ''}`);
     };
     const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
     const holi = { value: HOLI.map((c) => c.clone()) };
@@ -175,10 +275,10 @@ export class PeopleRenderer {
           sp = patchAt(vS2.x, vS2.y); diffuseColor.rgb = mix(diffuseColor.rgb, sp.rgb, sp.a);
           sp = patchAt(vS2.z, vS2.w); diffuseColor.rgb = mix(diffuseColor.rgb, sp.rgb, sp.a);`);
     };
-    mat.customProgramCacheKey = () => 'gtb-people-v2';
+    mat.customProgramCacheKey = () => 'gtb-people-v3';
     const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
     depth.onBeforeCompile = (shader) => vert(shader, false);
-    depth.customProgramCacheKey = () => 'gtb-people-depth-v2';
+    depth.customProgramCacheKey = () => 'gtb-people-depth-v3';
 
     this.mesh = new THREE.InstancedMesh(geo, mat, max);
     this.mesh.customDepthMaterial = depth;
@@ -188,12 +288,20 @@ export class PeopleRenderer {
     this.mesh.frustumCulled = false;
     scene.add(this.mesh);
     this.n = 0;
+    this.pending = [];
+    this.frameNo = 0;
+    this.clock = null;     // the game clock (main.js): hour and Sundays for who wears what
+    this.zoneT = 0;
     this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.p = new THREE.Vector3(); this.s = new THREE.Vector3();
   }
 
-  begin() { this.n = 0; this.pending = []; }
+  begin() {
+    this.n = 0; this.pending.length = 0; this.frameNo++;
+    // Who gets dressed how: the hour, the day and the district around the player.
+    if (this.clock) { NOW.hour = this.clock.hour; NOW.sunday = (this.clock.day | 0) % 7 === 0; }
+    if (this.focus && --this.zoneT <= 0) { this.zoneT = 30; NOW.zone = zoneAt(this.focus.x, this.focus.z); }
+  }
 
-  /** p: { x, y, z, heading, phase, pose, amp, flags, scale, shirt, pants, skin, patches } (colours as THREE.Color). */
   /** Hide people right in front of the lens or between the camera and the player. */
   occludes(p) {
     if (!this.cam || p.isPlayer || p.keep) return false; // keep: someone riding with the player
@@ -209,57 +317,99 @@ export class PeopleRenderer {
   }
 
   /** Queue a person for this frame (written in end(), after real characters pick theirs). */
-  add(p) { (this.pending ||= []).push(p); }
+  add(p) { this.pending.push(p); }
 
   write(p) {
     if (this.n >= this.max || this.occludes(p)) return;
     const i = this.n++;
     this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, p.heading);
     const sc = p.scale ?? 1;
-    this.m.compose(this.p.set(p.x, p.y, p.z), this.q, this.s.set(sc, sc, sc));
+    this.m.compose(this.p.set(p.x, p.y || 0, p.z), this.q, this.s.set(sc, sc, sc));
     this.mesh.setMatrixAt(i, this.m);
-    this.anim.setXYZW(i, p.phase ?? 0, p.pose ?? 0, p.amp ?? 1, p.flags ?? 0);
-    this.colA.setXYZ(i, p.shirt.r, p.shirt.g, p.shirt.b);
-    this.colB.setXYZ(i, p.pants.r, p.pants.g, p.pants.b);
-    this.skin.setXYZ(i, p.skin.r, p.skin.g, p.skin.b);
+    const L = p.look || lookFor(p);
+    this.anim.setXYZW(i, p.phase ?? 0, p.pose ?? 0, p.amp ?? 1, ((p.flags || 0) & 5) | L.bits);
+    this.col0.setXYZW(i, pack(p.shirt), pack(p.pants), pack(p.skin), pack(p.hair || L.hairColor));
+    this.col1.setXYZW(i, pack(p.flags & 1 ? p.pants : p.flags & 4 && !L.hat ? p.hatColor || TURBAN_DEFAULT : L.accA), pack(L.accB), 0, 0);
     const pt = p.patches;
     for (let k = 0; k < 3; k++) {
-      const a = pt?.[k * 2], b = pt?.[k * 2 + 1];
+      const a = pt ? pt[k * 2] : null, b = pt ? pt[k * 2 + 1] : null;
       this.splat[k].setXYZW(i, a ? a[0] : 0, a ? a[1] : -1, b ? b[0] : 0, b ? b[1] : -1);
     }
   }
 
   end() {
-    const list = this.pending || [];
+    const list = this.pending;
     this.beforeEnd?.(list);   // real rigged characters take the nearest people (p.hero)
-    for (const p of list) if (!p.hero) this.write(p);
+    for (let i = 0; i < list.length; i++) if (!list[i].hero) this.write(list[i]);
     this.mesh.count = this.n;
     // Upload only the instances drawn this frame, not the whole buffers (the range replaces any
     // left from frames that were stepped but not drawn: everything below n was just written).
     if (!this.n) return;
-    for (const a of this.attrs || (this.attrs = [this.mesh.instanceMatrix, this.anim, this.colA, this.colB, this.skin, ...this.splat])) {
+    for (const a of this.attrs || (this.attrs = [this.mesh.instanceMatrix, this.anim, this.col0, this.col1, ...this.splat])) {
       a.clearUpdateRanges();
       a.addUpdateRange(0, this.n * a.itemSize);
       a.needsUpdate = true;
     }
   }
-}
 
-// Clothing palettes (linear colours) by kind of person.
+  /**
+   * Someone on a traffic two-wheeler or auto (traffic.riders): one persistent person per
+   * vehicle (a real character when near), astride the seat with hands on the handlebar,
+   * pedalling a bicycle; an auto's passenger on the back bench; a porter walking between the
+   * shafts of a handcart (`T.pull`; `tiles` gives the ground height).
+   */
+  rider(r, T, dt, tiles = null) {
+    const sh = Math.sin(r.heading), ch = Math.cos(r.heading), seat = T?.seat ?? 0.92, back = -(T?.seatZ ?? -0.28);
+    let p = r.person;
+    if (!p) {
+      const L = r.look, rnd = Math.random;
+      const kind = T?.dabbawala ? 'dabbawala' : T?.open ? 'khaki' : T?.pull ? 'casual' : !T?.pedal && T?.rider && T?.len < 1.95 && rnd() < 0.22 ? 'sari' : 'casual';
+      const o = dress(kind, rnd, T?.pull ? 'bazaar' : NOW.zone);
+      if (T?.pull) { o.look.hat = ''; o.look.glasses = 0; }
+      if (L.helmet) { o.look.hat = 'helmet'; o.look.accA.setHSL(rnd(), 0.5, 0.25); }
+      if (kind === 'sari') {
+        // Women ride scooters in salwar-kameez or jeans (no sari skirt astride).
+        if (o.look.garment === 'sari' || o.look.garment === 'nauvari') { o.look.garment = 'kurta'; o.look.pallu = false; o.look.legs = 0; o.look.style = 'salwar'; o.look.dupatta = true; }
+        o.look.garment = o.look.garment === 'kurta' ? 'kurtaShort' : o.look.garment;
+        L.shirt = o.shirt; L.pants = o.pants; L.skin = o.skin;
+      } else if (o.look.garment === 'lungi' || o.look.garment === 'sari') { o.look.garment = 'lungiShort'; o.look.legs = 2; }
+      if (o.look.garment === 'kurta') o.look.garment = 'kurtaShort';
+      finishBits(o.look);
+      L.look = o.look; // a rider pulled off the bike (garage.eject) keeps the same look
+      p = r.person = makePerson({ kind, shirt: L.shirt, pants: L.pants, skin: L.skin, look: o.look, flags: kind === 'sari' ? FLAG.SARI : 0, scale: 0.97 + rnd() * 0.06 });
+    }
+    if (T?.pull) {
+      // Walking between the shafts, leaning into the crossbar.
+      r.pedal += dt * (r.speed || 0) * 2.6;
+      p.x = r.x - sh * back; p.z = r.z - ch * back; p.y = tiles ? tiles.groundHeight(r.x, r.z) : 0;
+      p.heading = r.heading; p.phase = r.pedal; p.pose = r.speed > 0.2 ? POSE.WALK : POSE.STAND; p.amp = 0.8; p.speed = r.speed || 0;
+      this.add(p);
+      return;
+    }
+    if (T?.pedal) r.pedal += dt * (r.speed || 0) * 1.7;
+    p.x = r.x - sh * back; p.z = r.z - ch * back; p.y = seat - (T?.pedal ? 0.86 : 0.42);
+    p.heading = r.heading; p.phase = r.pedal; p.pose = T?.pedal ? POSE.PEDAL : POSE.RIDE;
+    this.add(p);
+    if (r.pax && T?.pax) {
+      let q = r.paxPerson;
+      if (!q) {
+        const o = dress(r.pax.sari ? 'sari' : 'casual');
+        q = r.paxPerson = makePerson({ kind: r.pax.sari ? 'sari' : 'casual', shirt: r.pax.shirt, pants: r.pax.pants, skin: r.pax.skin, look: o.look, flags: r.pax.sari ? FLAG.SARI : 0, scale: 0.96 });
+      }
+      q.x = r.x + sh * T.pax.z - ch * 0.22; q.z = r.z + ch * T.pax.z + sh * 0.22; q.y = T.pax.seat - 0.42;
+      q.heading = r.heading; q.pose = POSE.SIT;
+      this.add(q);
+    }
+  }
+}
+// Clothing palettes (sRGB) by kind of person: looks.js chooses; these stay for callers that read them.
 const C = (hex) => new THREE.Color(hex);
-export const SKIN = [0x8d5a3b, 0x7a4a2f, 0xa06a46, 0x6b3f26, 0xb07a52, 0x5e3720].map(C);
-export const OUTFIT = {
-  office: { shirt: [0xf2f2f0, 0xbcd3ea, 0xe8e2d0, 0x9fb4c8, 0xd9c9e8], pants: [0x2a2d33, 0x3b3f47, 0x4a4036, 0x1d2430] },
-  casual: { shirt: [0xc0392b, 0x2e86c1, 0x27ae60, 0xf1c40f, 0x8e44ad, 0x34495e, 0xe67e22, 0xecf0f1, 0x16a085], pants: [0x2c3e50, 0x34495e, 0x5d4e3c, 0x1c1c1c, 0x4f5b66] },
-  sari: { shirt: [0xb03a2e, 0xd35400, 0x7d3c98, 0x1f618d, 0x117a65, 0xd4ac0d, 0xc0392b], pants: [0xe74c3c, 0xf39c12, 0x9b59b6, 0x2980b9, 0x1abc9c, 0xf4d03f, 0xe91e63] },
-  worker: { shirt: [0x7f8c8d, 0x95a5a6, 0xa04000, 0x566573], pants: [0x4d4d4d, 0x3e3a33, 0x5b5045] },
-  trafficCop: { shirt: [0xf4f4f0], pants: [0x1f2a44] },
-  police: { shirt: [0xb59a62], pants: [0xa88d58] },
-  khaki: { shirt: [0xb39a68], pants: [0x9a8457] }, // auto-rickshaw drivers
-  kid: { shirt: [0xffffff, 0xe74c3c, 0x3498db, 0x2ecc71], pants: [0x2c3e50, 0x7f8c8d, 0x1e3799] },
-};
-export function outfit(kind, rnd = Math.random) {
-  const o = OUTFIT[kind] || OUTFIT.casual;
-  const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
-  return { shirt: C(pick(o.shirt)), pants: C(pick(o.pants)), skin: pick(SKIN) };
+export const SKIN = SKIN_TONES.map(([h]) => C(h));
+/**
+ * Clothes for a kind of person ('casual', 'office', 'worker', 'sari' (a woman), 'kid',
+ * 'police', 'trafficCop', 'khaki', 'jogger', 'dabbawala'): { shirt, pants, skin, look },
+ * by district, hour and day (see looks.js). `rnd` makes it repeatable.
+ */
+export function outfit(kind, rnd = Math.random, zone = NOW.zone, hour = NOW.hour, sunday = NOW.sunday) {
+  return dress(kind, rnd, zone, hour, sunday);
 }

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { endKey, keyXZ } from './roadKeys.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { POSE, FLAG, outfit } from './people.js';
+import { POSE, FLAG, outfit, makePerson } from './people.js';
 import { LIGHT } from './signals.js';
 import { createTaxi } from '../vehicles/taxi.js';
 import { Car } from '../vehicles/car.js';
@@ -126,7 +126,7 @@ export class Police {
     const look = outfit('trafficCop');
     site.cop = {
       site, x: hx, y: Y.KERB, z: hz, h: 2.3, homeX: hx, homeZ: hz, ux: hx + lx * 0.5 - ap.fx * 0.3, uz: hz + lz * 0.5 - ap.fz * 0.3, heading: Math.atan2(site.x - hx, site.z - hz),
-      phase: Math.random() * 6, pose: POSE.STAND, task: null, idleT: 0, ...look,
+      phase: Math.random() * 6, pose: POSE.STAND, task: null, idleT: 0, ...look, person: null,
     };
     return site.cop;
   }
@@ -654,7 +654,9 @@ export class Police {
     // Draw constables and their umbrellas.
     let n = 0;
     for (const c of this.cops) {
-      this.people.add({ x: c.x, y: c.y, z: c.z, heading: c.heading, phase: c.phase, pose: c.pose, amp: 1, flags: FLAG.CAP, shirt: c.shirt, pants: c.pants, skin: c.skin });
+      const p = (c.person ||= makePerson({ kind: 'trafficCop', flags: FLAG.CAP, h: 2.3, shirt: c.shirt, pants: c.pants, skin: c.skin, look: c.look }));
+      p.x = c.x; p.y = c.y; p.z = c.z; p.heading = c.heading; p.phase = c.phase; p.pose = c.pose;
+      this.people.add(p); // one persistent person per constable (the real character keeps them)
       if (n < 120) {
         this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, 0);
         this.m.compose(this.v.set(c.ux, Y.KERB, c.uz), this.q, this.one);
