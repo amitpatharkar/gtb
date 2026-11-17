@@ -795,6 +795,11 @@ function step(dt) {
     player.impact = 0;
   }
   damage.update(dt, garage.inTaxi ? player : garage.homeBody, camera);
+  // The taxi's driver door swings open when you walk up to it on foot and shuts when you get in or drive off.
+  if (taxi.door) {
+    const T = garage.inTaxi ? player : garage.homeBody, near = onFoot && T && (walker.pos.x - T.pos.x) ** 2 + (walker.pos.z - T.pos.z) ** 2 < 12;
+    taxi.door.set(taxi.door.angle + ((near ? 1.1 : 0) - taxi.door.angle) * Math.min(1, dt * 6));
+  }
   garage.update(dt);
   traffic.taxi = police.taxi = garage.inTaxi ? player : garage.homeBody; // NPC cars and patrols avoid the parked taxi
   if (!onFoot) propPhysics.sweep(player);

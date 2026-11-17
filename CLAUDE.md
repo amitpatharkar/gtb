@@ -308,6 +308,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   glass, orange = lamps, the rest incl. yellow roof and chrome = trim). Replaces the traffic Padmini's close-up body, and
   `taxi.useModel(near)` (taxi.js) also swaps the player's taxi body to it (wheels are baked in, so they no longer spin or steer;
   `damage.rebind()` after the swap; police cars stay procedural).
+  **Car doors:** the scanned taxi has a working driver door (right side, `DOOR` box in taxi.js): `splitBox()` clips the paint, trim and
+  glass exactly at the door box, the door hangs on a hinge at its front edge (`taxi.door.set(angle)`), a dark cabin block fills the
+  opening; main.js opens it (1.1 rad) when the walker is within ~3.5 m of the taxi on foot and shuts it when you get in. Other vehicles
+  (batched traffic cars) have no doors.
 - `src/world/models.js` — glTF/GLB → instanced meshes (metres, base on ground); `src/world/streetProps.js` — Poly Haven
   chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
 - `src/sim/characters.js` — real people for the player and everyone near the camera (pool 11/20/30 within 34–46 m;
