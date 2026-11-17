@@ -1283,3 +1283,8 @@ body:not(.touch) #keys { right: 22px; bottom: 262px; gap: 8px; }
 #vehname b { display: block; margin-top: 2px; font: 700 18px/1.2 var(--font); letter-spacing: -0.01em; white-space: nowrap; }
 body.touch #vehname { right: auto; left: 50%; bottom: 14px; margin-left: -110px; padding: 8px 16px 8px 12px; }
 body:not(.touch) #wanted:empty { display: none; }
+
+/* keep the vitals column clear of the hint bar on 1366-wide screens */
+body:not(.touch) #radar .meter { left: 246px; width: 140px; }
+body:not(.touch) #hintbar { padding: 9px 16px; }
+#hintbar span + span { margin-left: 11px; padding-left: 11px; }
