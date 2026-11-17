@@ -193,9 +193,37 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   one instanced mesh, wings flap in the vertex shader (`aFlap`: 0 folded, 1 flapping, 2 gliding).
 - `src/sim/trains.js` — local trains (loaded after play starts; `scripts/lib/trains.mjs` writes `tiles/trains.json`: lines
   from the OSM route relations, stations, turn-rounds; buildings over the tracks raised by the converter): one
-  instanced mesh of coaches within ~1 km, timetable from the game clock (`Line.state`), `hits`/`bodyAt` (solid,
-  heavy), `shove` (cars and the walker knocked aside), level crossings (traffic and people wait), station life,
-  ticket window (`interact()`, E on foot), ride by fade, `markers()` for the map; hooks at the end of main.js.
+  instanced mesh of coaches within ~1 km (20.73 m coaches at 21 m pitch, 3.66 m wide), timetable from the game clock
+  (`Line.state`, 20 s dwell, first 4:15 / last ~1:00), `hits`/`bodyAt` (solid, heavy), `shove`, level crossings,
+  `COACH_CLASS` per line (first class red-yellow stripes, ladies lime, luggage, disabled — `aOpt2` in the shader),
+  AC locals (`AC_SHARE`, blue band, sliding doors `tr.doors`), doorway riders and door-hangers by load, platform crowds
+  that grow between trains and board/alight (`stationLife`, `fillPlatform`, `toDoor`, `alighting`), booking office
+  (`interact()` → tickets panel, `ticketGroups`), `nearestStation`, `ride()` = quick travel for tests/missions.
+- `src/sim/trainRide.js` — riding a local: F at an open door boards (`tryBoard`), the walker stands in the doorway
+  (`ride`), Space skips to the ticket's station (`skip`: moves `trains.t`, clock by the real trip time), F gets off
+  (`alight`; jumping at a crawl); ticket checkers on board/at exits (₹500 + fare), RPF in the ladies coach (₹2,500);
+  a train leaving the map drops you at its last stop. `src/sim/railDemand.js` — the rush model shared by locals and
+  metro: `hourIndex`, `townShare` (peak direction), `stationWeight`, `trainLoad`, `waiting`, `COACH_LOAD`.
+- `src/game/tickets.js` — tickets for locals (II/I/AC × single/return/monthly pass; `localFare`, `localPass`;
+  `findLocal(from, to, need, dist)` = a ticket covering the trip) and metro QR (`metroFare` slabs, `findMetro`);
+  the counter panel `open({ sys, from, groups, where, onBuy })`; `fine()`; saved in `state.s.tickets`. The phone app
+  Tikitwala (`phone.tikitHtml`/`onTikit` in main.js) books from the nearest station (not within 35 m of it).
+- `src/world/structures.js` — walkable structures above the street (platforms, footbridges, stairs, metro concourses):
+  floors, ramps, walls, posts in a 16 m grid; `groundHeight(x, z, y, base)` (highest floor within a step of y),
+  `hits(x, z, r, y)` (walls whose height span meets the body; `pass()` = an open fare gate). The walker passes its
+  height (`footWorld`); vehicles collide at street level.
+- `src/world/stations.js` + `scripts/lib/stations.mjs` (→ `tiles/stations.json`) — every railway station in the map:
+  OSM platform outlines grown and cut back to 1.7 m from the track centres, tops 0.9 m above the rail (1.3 m), end
+  ramps; footways on bridges → decks 7.5 m above the rail with parapets, roofs and piers off the tracks; mapped steps →
+  stairs, generated where a platform or deck end has none; butterfly roofs on a column row (unless OSM maps a canopy,
+  which the converter raises clear), benches, a stall, yellow boards (Marathi/Hindi/English), LED indicators
+  (`drawIndicator`, next trains). Built a few ms per frame within 560 m (`job`), `buildNow(x, z)` after a teleport.
+- `src/world/metro.js` + `scripts/lib/metro.mjs` (→ `tiles/metro.json`) — Line 1, the 2A/7/2B ends and the Monorail
+  on viaducts (U-girders 13 m up on single piers, monorail beam 9.6 m; 400 m chunks), elevated stations at the mapped
+  places (side platforms 14.05 m, concourse 7 m with counters, QR machines, security and fare gates, stairs to the
+  street where they land clear), metro trains (`MLine` run profile, `METRO_LINES` headways and hours, sliding
+  doors), ride (F board/alight, Space next station), tap in/out with excess fare; Line 3 = glass street entrances,
+  E → ticket → underground trip to the other station's entrance; the closed monorail has parked trains.
 - `src/sim/street.js` — street life near the player: pedestrians on footpaths (jaywalk, dodge the taxi, puddle splash),
   scenarios from map points (thela vendors calling + customers, bus-stop commuters, dogs by garbage that chase the taxi,
   cows on lanes, gully cricket, push-starting a broken-down taxi), red-light hawkers, bump-and-argue drivers
@@ -395,7 +423,9 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `public/tiles/`, `public/media/`, `public/basis/` — generated, not committed (`npm run build` makes tiles; deploy copies
   media from the `assets` branch, locally `npm run assets:pull`; Vite plugin copies the Basis transcoder)
 - `src/credits.js` — in-game Credits panel
-- `docs/research/` — Mumbai street guide, live check, 130 free assets (`assets.json`/`assets.md`)
+- `docs/research/` — Mumbai street guide, live check, 130 free assets (`assets.json`/`assets.md`); metro and monorail A to Z
+  and local trains and stations A to Z (`metro/reports/`, notes in `metro/research_notes/`; stations and tracks in
+  game coordinates in `metro/osm-metro.json` and `metro/osm-stations.json` from `scripts/research/*-from-osm.mjs`)
 - `scripts/assets/build-assets.mjs` + `.github/workflows/assets.yml` — asset pipeline → `assets` branch (see Status)
 - `data/raw/mumbai-region.osm.pbf` — OpenStreetMap extract from extract.bbbike.org, 2026-11-13, ~34 megabytes.
   Bounding box 72.598,18.520 → 73.533,19.500 (Vasai-Virar to Alibag, coast to Lonavala).
@@ -461,7 +491,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `manifest.shipped.version`). Site about 80 MB.
 - Allocation per step: the browser's sampling heap profiler (`HeapProfiler.startSampling` with
   `includeObjectsCollectedByMajorGC`/`MinorGC` true) through Playwright's CDP session.
-- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,night,touch,clutter,people`,
+- `npm test` (= `node tests/smoke.mjs`, after a build; `--only=boot,drive,traffic,steal,missions,trains,ride,stations,metro,night,touch,clutter,people`,
   `--quality=medium`) plays the built game headless and fails on console errors, stutter (worst step > 60 ms),
   wrong-side traffic, a broken carjack, any mission that cannot be finished, trains that do not run, a too-dark night,
   missing street clutter (boards with text, cables, awnings, solid poles, a handcart that can be pulled), or people

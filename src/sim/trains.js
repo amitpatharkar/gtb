@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { POSE, FLAG, outfit } from './people.js';
 import { Y } from '../world/levels.js';
+import { trainLoad, waiting, stationWeight, COACH_LOAD } from './railDemand.js';
 
 // Mumbai's suburban locals. Trains run on the real tracks (tiles/trains.json from the map
 // converter: one polyline per track and direction, with its stations), stop at the real
@@ -12,14 +13,28 @@ import { Y } from '../world/levels.js';
 // All coaches of all trains are one instanced mesh (one draw call): cab ends and pantographs
 // are part of the coach geometry and are collapsed in the vertex shader where not wanted.
 
-const COACHES = 12, PITCH = 20.3, LEN = COACHES * PITCH; // a 12-car rake, about 244 m
-const BODY = 9.9, BOGIE = 7, HALF_W = 1.83, FLOOR = 1.2;   // half body length, bogie centres, half width, floor above rail
+const COACHES = 12, PITCH = 21.0, LEN = COACHES * PITCH; // a 12-car rake: 20.73 m coaches, about 252 m over the couplers
+const BODY = 10.36, BOGIE = 7.2, HALF_W = 1.83, FLOOR = 1.2; // half body length, bogie centres, half width (3.66 m), floor above rail
 const RAIL_Y = Y.KERB + 0.2;                               // top of the rails drawn by the tile mesher
 const VMAX = 19.4, ACC = 0.9, DEC = 1.0;                   // 70 km/h; peak acceleration and braking (m/s²)
-const DWELL = 18, TURN = 30;                               // seconds at a platform; at a terminus before leaving again
+const DWELL = 20, TURN = 30;                               // seconds at a platform (about 20 s in Mumbai); at a terminus before leaving again
 const HEADWAY = 150;                                       // seconds between trains on one track at peak hours
 const MASS = 400000;                                       // kg: nothing on the road argues with a local
-const DOORS = [-6.4, 0, 6.4], DOOR_HALF = 0.75;
+const DOORS = [-6.6, 0, 6.6], DOOR_HALF = 0.75;
+// What each coach is, counted from the town end (Churchgate / CSMT) of a 12-car rake. The
+// order is fixed per line and painted on every platform; no primary diagram was found, so this
+// is the research notes' approximation: Western Railway's ladies coaches towards the Virar end,
+// Central and Harbour with four first-class coaches and the luggage / senior-citizen coach 6th
+// from CSMT, compartments for people with disabilities next to the cabs.
+// 0 general, 1 first class, 2 ladies, 3 ladies first class, 4 luggage / senior citizens, 5 disabled.
+export const COACH_CLASS = {
+  W: [5, 0, 0, 1, 0, 0, 1, 0, 0, 2, 3, 4],
+  C: [5, 0, 1, 2, 0, 4, 1, 0, 3, 0, 1, 5],
+  H: [5, 0, 1, 2, 0, 4, 1, 0, 3, 0, 1, 5],
+};
+export const CLASS_NAME = ['General', 'First class', 'Ladies', 'Ladies first class', 'Luggage', 'Disabled'];
+const AC_SHARE = { W: 0.1, C: 0.1, H: 0.05 };              // about 147 of Western Railway's 1,414 weekday services are AC (2026); Central 92 + 28 Harbour of 1,820
+const ROUTE_NO = { W: 1, C: 2, H: 3 };            // about 109 of Western Railway's 1,406 weekday services are AC
 const LIVERY = { W: 0x6b3fa0, C: 0x1d5ea8, H: 0x8c2b2b };  // violet, blue, maroon bands on white
 const MAP_COLOUR = { W: '#7a3fb0', C: '#1f6fbf', H: '#9b2f2f' };
 const SHOUT = ['Arre! Patri pe kaun hai?! Hato!', 'Line cross mat karo, bhai!', 'Yeh platform nahi hai, boss!', 'Horn sunai nahi diya kya?!', 'Local kisi ke liye nahi rukti!', 'Signal dekha karo, saheb!'];
@@ -179,13 +194,21 @@ function coachGeometry() {
       const z0 = edges[p], z1 = edges[p + 1];
       px(sx * W, SOLE, FLOOR, z0, z1, dark, sx);
       px(sx * W, FLOOR, 1.36, z0, z1, line, sx, 0, 1);
-      px(sx * W, 1.36, 2.0, z0, z1, white, sx);
+      px(sx * W, 1.36, 2.0, z0, z1, white, sx, 0, 7); // class band: white, first-class stripes, ladies lime (shader)
       px(sx * W, 2.0, 2.9, z0, z1, line, sx, 0, 1);
       px(sx * W, 2.9, EAVE, z0, z1, white, sx);
       const n = Math.floor((z1 - z0) / 1.35), step = (z1 - z0) / n;
       for (let w = 0; w < n; w++) px(sx * (W + 0.012), 2.12, 2.78, z0 + step * (w + 0.5) - 0.47, z0 + step * (w + 0.5) + 0.47, glass, sx, 0, 2);
     }
     for (const d of DOORS) { px(sx * W, SOLE, FLOOR, d - DOOR_HALF, d + DOOR_HALF, dark, sx); px(sx * W, HEAD, EAVE, d - DOOR_HALF, d + DOOR_HALF, white, sx); }
+  }
+  // Sliding doors of the AC rakes (group 3, collapsed on the others): two leaves per doorway,
+  // kind 8 slides towards -z and kind 9 towards +z as the doors open.
+  const leafGrey = rgb(0xc9ccd0), leafGlass = rgb(0x1a242e);
+  for (const sx of [-1, 1]) for (const d of DOORS) for (const [k, za, zb] of [[8, d - DOOR_HALF, d], [9, d, d + DOOR_HALF]]) {
+    px(sx * (W - 0.03), FLOOR, 2.05, za, zb, leafGrey, sx, 3, k);
+    px(sx * (W - 0.03), 2.05, 2.8, za, zb, leafGlass, sx, 3, k);
+    px(sx * (W - 0.03), 2.8, HEAD, za, zb, leafGrey, sx, 3, k);
   }
   // Doorways: a passage right across the coach (floor, ceiling, partitions) with a grab pole.
   for (const d of DOORS) {
@@ -289,9 +312,10 @@ export class Trains {
 
     const geo = coachGeometry();
     const inst = (n) => new THREE.InstancedBufferAttribute(new Float32Array(this.max * n), n).setUsage(THREE.DynamicDrawUsage);
-    this.livery = inst(3); this.opt = inst(4);
+    this.livery = inst(3); this.opt = inst(4); this.opt2 = inst(4);
     geo.setAttribute('aLivery', this.livery);
     geo.setAttribute('aOpt', this.opt);
+    geo.setAttribute('aOpt2', this.opt2);
     this.uNight = { value: 0 };
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 });
     mat.onBeforeCompile = (shader) => {
@@ -299,22 +323,36 @@ export class Trains {
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>
           attribute vec2 aPart; attribute vec3 aLivery; attribute vec4 aOpt; // aOpt: cab, pantograph, lamps (1 front, -1 rear), doors lit
-          uniform float uNight; varying vec3 vGlow;`)
+          attribute vec4 aOpt2; // coach class (COACH_CLASS), AC rake, doors open (0–1), load
+          uniform float uNight; varying vec3 vGlow; varying vec3 vLocal; varying float vCls; varying float vBand;`)
         .replace('#include <color_vertex>', `#include <color_vertex>
           if (aPart.y > 0.5 && aPart.y < 1.5) vColor.rgb *= aLivery;
-          vGlow = aPart.y < 1.5 ? vec3(0.0)
+          if (aPart.y < 0.5 || (aPart.y > 6.5 && aPart.y < 7.5)) vColor.rgb *= mix(vec3(1.0), vec3(0.8, 0.82, 0.86), aOpt2.y); // AC rakes: brushed steel
+          vLocal = position; vCls = aOpt2.x; vBand = aPart.y > 6.5 && aPart.y < 7.5 ? 1.0 : 0.0;
+          vGlow = aPart.y > 6.5 || aPart.y < 1.5 ? vec3(0.0)
             : aPart.y < 2.5 ? vec3(1.0, 0.86, 0.6) * uNight * 1.5
             : aPart.y < 3.5 ? (aOpt.z > 0.5 ? vec3(1.0, 0.95, 0.82) * (1.2 + 7.0 * uNight) : vec3(0.0))
             : aPart.y < 4.5 ? vec3(1.0, 0.9, 0.7) * uNight * 0.3
             : aPart.y < 5.5 ? vec3(1.0, 0.45, 0.06) * (0.7 + 1.6 * uNight)
             : (aOpt.z > 0.5 ? vec3(1.0, 0.9, 0.7) : aOpt.z < -0.5 ? vec3(1.0, 0.04, 0.02) : vec3(0.0)) * (0.6 + 2.4 * uNight);`)
         .replace('#include <begin_vertex>', `#include <begin_vertex>
-          transformed *= aPart.x < 0.5 ? 1.0 : aPart.x < 1.5 ? aOpt.x : aOpt.y; // cab and pantograph only where wanted`);
+          if (aPart.y > 7.5) transformed.z += (aPart.y < 8.5 ? -1.0 : 1.0) * aOpt2.z * ${(DOOR_HALF * 0.96).toFixed(3)};
+          transformed *= aPart.x < 0.5 ? 1.0 : aPart.x < 1.5 ? aOpt.x : aPart.x < 2.5 ? aOpt.y : aOpt2.y; // cab, pantograph, AC doors only where wanted`);
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec3 vGlow;')
+        .replace('#include <common>', '#include <common>\nvarying vec3 vGlow; varying vec3 vLocal; varying float vCls; varying float vBand;')
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          if (vBand > 0.5 && vCls > 0.5) {
+            // First class: red and yellow diagonal stripes; ladies: lime; luggage: grey; disabled: blue.
+            float st = step(0.5, fract((vLocal.z + vLocal.y) * 1.6));
+            vec3 c = vCls < 1.5 ? mix(vec3(0.75, 0.08, 0.06), vec3(0.95, 0.75, 0.1), st)
+              : vCls < 2.5 ? vec3(0.45, 0.78, 0.16)
+              : vCls < 3.5 ? mix(vec3(0.45, 0.78, 0.16), vec3(0.75, 0.08, 0.06), st)
+              : vCls < 4.5 ? vec3(0.42, 0.4, 0.37) : vec3(0.12, 0.35, 0.75);
+            diffuseColor.rgb = c * c;
+          }`)
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vGlow;');
     };
-    mat.customProgramCacheKey = () => 'gtb-train-v1';
+    mat.customProgramCacheKey = () => 'gtb-train-v2';
     this.mesh = new THREE.InstancedMesh(geo, mat, this.max);
     this.mesh.count = 0;
     this.mesh.castShadow = this.mesh.receiveShadow = true;
@@ -336,7 +374,7 @@ export class Trains {
     this.xAt = { x: 1e9, z: 1e9, v: -1 };
     this.here = null;          // the station the player is standing at
     this.hereT = 0; this.hornT = 0; this.clackT = 0; this.bellT = 0; this.shoutT = 0;
-    this.buildPanel();
+    this.lowTier = ctx.tier?.name === 'Low';
   }
 
   /**
@@ -413,13 +451,14 @@ export class Trains {
     this.t += dt;
     const P = active.pos, night = this.clock.night;
     this.uNight.value = night;
+    this.structuresV = this.structures?.version;
     // A jump (tow, cheat, mission): the trains already near the new place are simply there.
-    if (Math.hypot(P.x - this.lastX, P.z - this.lastZ) > 150) { this.fresh = true; this.scanT = 0; }
+    if (Math.hypot(P.x - this.lastX, P.z - this.lastZ) > 150) { this.fresh = true; this.scanT = 0; this.hereT = Math.max(this.hereT, 0.25); } // platform crowds a few frames later
     this.lastX = P.x; this.lastZ = P.z;
     this.scanT -= dt;
     if (this.scanT <= 0) { this.scanT = 0.5; this.scan(P); }
 
-    const M = this.mesh.instanceMatrix.array, LV = this.livery.array, OP = this.opt.array, a = this.a, b = this.b, st = this.tmp;
+    const M = this.mesh.instanceMatrix.array, LV = this.livery.array, OP = this.opt.array, O2 = this.opt2.array, a = this.a, b = this.b, st = this.tmp;
     let n = 0, nearest = null, nd = 1e9;
     for (const tr of this.trains.values()) {
       let L = tr.line, tau = this.t - L.offset - tr.k * L.period;
@@ -435,6 +474,10 @@ export class Trains {
       L.state(tau, st);
       const was = tr.leg;
       tr.s = st.s; tr.v = st.v; tr.leg = st.leg; tr.left = st.left;
+      if (!((tr.loadT -= dt) > 0)) { tr.loadT = 2; tr.load = this.loadOf(tr); }
+      // AC rakes open their doors a moment after stopping and close them before leaving.
+      if (tr.leg.station >= 0) { const inT = tr.leg.T - tr.left; tr.doors = clamp((inT - 1.2) / 1.6, 0, 1) * clamp((tr.left - 2.5) / 1.6, 0, 1); } else tr.doors = 0;
+      if (!tr.ac) tr.doors = tr.v < 0.3 ? 1 : 0.5; // the others never close their doors
       L.at(clamp(tr.s, 0, L.len), a);
       tr.x = a[0]; tr.z = a[1];
       const d = Math.hypot(tr.x - P.x, tr.z - P.z);
@@ -456,6 +499,9 @@ export class Trains {
         LV[n * 3] = L.livery.r; LV[n * 3 + 1] = L.livery.g; LV[n * 3 + 2] = L.livery.b;
         const end = i === 0 || i === COACHES - 1;
         OP[n * 4] = end ? 1 : 0; OP[n * 4 + 1] = i % 3 === 1 ? 1 : 0; OP[n * 4 + 2] = i === 0 ? 1 : i === COACHES - 1 ? -1 : 0; OP[n * 4 + 3] = 0;
+        const phys = L.dir === 'up' ? i : COACHES - 1 - i; // counted from the town end
+        O2[n * 4] = (COACH_CLASS[L.route] || COACH_CLASS.C)[phys]; O2[n * 4 + 1] = tr.ac ? 1 : 0; O2[n * 4 + 2] = tr.ac ? tr.doors : 0; O2[n * 4 + 3] = 0;
+        if (tr.ac) { LV[n * 3] = 0.16; LV[n * 3 + 1] = 0.36; LV[n * 3 + 2] = 0.72; } // AC locals: a blue band
         n++;
       }
       if (!tr.n) continue;
@@ -468,7 +514,7 @@ export class Trains {
       if (tr.v > 1 && d < nd + LEN / 2) { const dd = this.gap(tr, P.x, P.z); if (dd < nd) { nd = dd; nearest = tr; } }
     }
     this.mesh.count = n;
-    this.mesh.instanceMatrix.needsUpdate = this.livery.needsUpdate = this.opt.needsUpdate = true;
+    this.mesh.instanceMatrix.needsUpdate = this.livery.needsUpdate = this.opt.needsUpdate = this.opt2.needsUpdate = true;
 
     this.hornT -= dt; this.shoutT -= dt;
     this.sounds(dt, nearest, nd);
@@ -493,7 +539,8 @@ export class Trains {
         const d = Math.hypot(a[0] - P.x, a[1] - P.z);
         // New trains come in from the haze (or from the map's edge); never out of thin air close by.
         if (d > R || !(this.fresh || key === this.force || d > R - 220 || (!L.start && st.s < 0))) continue;
-        this.trains.set(key, { line: L, k, key, flip: 0, seed: hash(L.index, k), s: st.s, v: st.v, leg: null, left: 0, x: a[0], z: a[1], n: 0, hornFor: -1,
+        const ac = hash(ROUTE_NO[L.route] || 4, L.fast ? 7 : 3, k) < (AC_SHARE[L.route] ?? 0.05);
+        this.trains.set(key, { line: L, k, key, flip: 0, seed: hash(L.index, k), ac, doors: 0, s: st.s, v: st.v, leg: null, left: 0, x: a[0], z: a[1], n: 0, hornFor: -1,
           cx: new Float64Array(COACHES), cz: new Float64Array(COACHES), sn: new Float32Array(COACHES), cs: new Float32Array(COACHES), on: new Uint8Array(COACHES), h: 4.4 });
       }
     }
@@ -755,61 +802,185 @@ export class Trains {
   // ---------------------------------------------------------------- people
   person() { return this.pool[this.poolN++] || (this.pool[this.poolN - 1] = { noHero: true, amp: 1, phase: 0, scale: 1, flags: 0 }); }
 
-  /** Commuters standing in the open doorways of coaches near the player. */
+  /** Load of a train (1 = full, ~1.4 crush) by the hour, its direction and how far into town it is. */
+  loadOf(tr) {
+    const L = tr.line, toTown = L.dir === 'up';
+    return trainLoad({ hour: this.clock.hour, toTown, fromTown: toTown ? L.len - tr.s : tr.s, lineLen: L.len, fast: L.fast, weekend: this.weekend() });
+  }
+
+  weekend() { return ((this.state?.s.day ?? 1) % 7) === 0; } // every seventh game day is a Sunday
+
+  /**
+   * Commuters in the open doorways of coaches near the player: how many depends on how full
+   * the train is (the hour, the direction, the kind of coach); at crush load they hang out of
+   * the doors holding the pole. AC locals show people only while the doors are open.
+   */
   riders(P) {
     this.poolN = 0;
-    const hour = this.clock.hour, crowd = service(hour) === 1 ? 0.7 : service(hour) === 2 ? 0.45 : 0.25;
+    const cap = this.lowTier ? 70 : 150;
     for (const tr of this.trains.values()) {
       if (!tr.n || (tr.x - P.x) ** 2 + (tr.z - P.z) ** 2 > (LEN / 2 + 70) ** 2) continue;
-      for (let i = 0; i < COACHES && this.poolN < 40; i++) {
+      if (tr.ac && tr.doors < 0.3) continue;
+      const load = tr.load ??= this.loadOf(tr), cls = COACH_CLASS[tr.line.route] || COACH_CLASS.C, up = tr.line.dir === 'up';
+      for (let i = 0; i < COACHES && this.poolN < cap; i++) {
         if (!tr.on[i] || (tr.cx[i] - P.x) ** 2 + (tr.cz[i] - P.z) ** 2 > 60 * 60) continue;
-        const phys = tr.flip ? COACHES - 1 - i : i, turn = tr.flip ? -1 : 1, sn = tr.sn[i], cs = tr.cs[i];
+        const phys = up ? i : COACHES - 1 - i, l = load * COACH_LOAD[cls[phys]] * (tr.ac ? 0.8 : 1);
+        const tx = up ? tr.sn[i] : -tr.sn[i], tz = up ? tr.cs[i] : -tr.cs[i]; // towards the town end
+        const look0 = Math.floor(hash(tr.seed * 91 + phys) * 977), ladies = cls[phys] === 2 || cls[phys] === 3;
         for (let dr = 0; dr < 3; dr++) for (const side of [-1, 1]) {
-          const r = hash(tr.seed * 91 + phys, dr, side);
-          if (r > crowd) continue;
-          const p = this.person(), look = this.looks[Math.floor(r * 977) % this.looks.length], zt = DOORS[dr] * turn + (r * 13 % 1 - 0.5) * 0.7, xt = side * turn * (HALF_W - 0.38);
-          p.x = tr.cx[i] + sn * zt + cs * xt; p.z = tr.cz[i] + cs * zt - sn * xt; p.y = RAIL_Y + FLOOR;
-          p.heading = Math.atan2(cs * side * turn, -sn * side * turn);
-          p.pose = POSE.STAND; p.phase = this.t * 1.5 + r * 40;
-          p.shirt = look.shirt; p.pants = look.pants; p.skin = look.skin; p.flags = look.flags; p.scale = 0.94 + (r * 7 % 1) * 0.1;
-          this.people.add(p);
+          if (this.rider && this.rider.tr === tr && this.rider.phys === phys && this.rider.a === DOORS[dr] && this.rider.l === side) continue;
+          const r0 = hash(tr.seed * 91 + phys, dr, side), inDoor = Math.min(4, Math.floor(l * 2.6 + r0)), hang = !tr.ac && l > 1.12 ? Math.min(2, Math.floor((l - 1.05) * 6 + r0)) : 0;
+          for (let k = 0; k < inDoor + hang && this.poolN < cap; k++) {
+            const r = hash(r0 * 13 + k, phys, dr), out = k >= inDoor;
+            const look = this.looks[(look0 + k * 7 + dr * 3) % this.looks.length];
+            const p = this.person();
+            const along = DOORS[dr] + (out ? (k - inDoor - 0.5) * 0.55 : (r - 0.5) * 1.2), lat = side * (out ? HALF_W + 0.18 : HALF_W - 0.3 - (k % 2) * 0.55);
+            p.x = tr.cx[i] + tx * along - tz * lat; p.z = tr.cz[i] + tz * along + tx * lat; p.y = RAIL_Y + FLOOR;
+            p.heading = out ? Math.atan2(tx * (tr.v > 0.5 ? 1 : 0) - tz * side, tz * (tr.v > 0.5 ? 1 : 0) + tx * side) : Math.atan2(-tz * side, tx * side) + (r - 0.5) * 2;
+            p.pose = out ? POSE.POINT : POSE.STAND; p.phase = this.t * 1.5 + r * 40;
+            p.shirt = look.shirt; p.pants = look.pants; p.skin = look.skin; p.scale = 0.94 + (r * 7 % 1) * 0.1;
+            p.flags = ladies ? FLAG.SARI : look.flags;
+            this.people.add(p);
+          }
         }
       }
     }
   }
 
-  /** People waiting on the platforms near the player, and the station the player is at. */
+  /** Seconds since the last train of line L left stop s (from the timetable alone). */
+  sinceTrain(s, q) {
+    const L = s.line, leg = this.dwell(s), P = L.period * Math.max(1, q);
+    let d = (this.t - L.offset - leg.t0 - leg.T) % P;
+    if (d < 0) d += P;
+    return d;
+  }
+
+  /**
+   * People on the platforms near the player: as many as the hour, the direction and the size
+   * of the station bring, growing until the next train takes them away. When a train stands at
+   * the platform they hurry to its doors and are gone; those getting off walk away along the
+   * platform.
+   */
   stationLife(dt, P, onFoot) {
     this.hereT -= dt;
-    if (this.hereT > 0) { for (const s of this.busy || []) for (const p of s.crowd) { p.phase += dt * 2; this.people.add(p); } return; }
-    this.hereT = 0.3;
-    const q = service(this.clock.hour), want = q === 0 ? 0 : q === 1 ? 9 : q === 2 ? 6 : 3;
-    let here = null, hd = 14;
-    const busy = [];
-    for (const s of this.stops) {
-      const d = Math.hypot(s.x - P.x, s.z - P.z);
-      if (d > 190) { s.crowd = null; continue; }
-      const [, away] = s.line.locate(P.x, P.z, s.d - 135, s.d + 135);
-      if (away < hd) { hd = away; here = s; }
-      if (d > 130 || !s.side || busy.length >= 6) continue;
-      if (!s.crowd || s.crowdN !== want || s.crowdV !== this.tiles.version) {
-        // Stand them along the platform edge, where the ground is free.
-        s.crowd = []; s.crowdN = want; s.crowdV = this.tiles.version;
-        for (let k = 0; k < want; k++) {
-          const r = hash(s.x, s.z, k), side = s.side === 2 ? (r < 0.5 ? -1 : 1) : s.side, p0 = s.line.at(s.d + (hash(s.z, k, 3) - 0.5) * 200), off = s.off + 0.2 + r * 1.8;
-          const x = p0[0] - p0[3] * side * off, z = p0[1] + p0[2] * side * off; // right of travel is (-dirZ, dirX)
-          if (this.tiles.hits(x, z, 0.3)) continue;
-          const look = this.looks[Math.floor(r * 991) % this.looks.length];
-          s.crowd.push({ noHero: true, x, z, y: this.tiles.groundHeight(x, z), heading: Math.atan2(p0[3] * side, -p0[2] * side) + (hash(k, s.x) - 0.5) * 1.2, pose: r * 17 % 1 < 0.2 ? POSE.ARGUE : POSE.STAND, phase: r * 30, amp: 1, flags: look.flags, scale: 0.93 + (r * 5 % 1) * 0.12, shirt: look.shirt, pants: look.pants, skin: look.skin, h: 2.1 });
-        }
+    const q = service(this.clock.hour);
+    if (this.hereT <= 0) {
+      this.hereT = 0.5;
+      let here = null, hd = 14;
+      const busy = [];
+      for (const s of this.stops) {
+        const d = Math.hypot(s.x - P.x, s.z - P.z);
+        if (d > 190) { s.crowd = null; continue; }
+        const [, away] = s.line.locate(P.x, P.z, s.d - 135, s.d + 135);
+        if (away < hd) { hd = away; here = s; }
+        if (d > 150 || !s.side) continue;
+        busy.push(s);
       }
-      busy.push(s);
+      busy.sort((a, b) => Math.hypot(a.x - P.x, a.z - P.z) - Math.hypot(b.x - P.x, b.z - P.z));
+      busy.length = Math.min(busy.length, 6);
+      const capAll = this.lowTier ? 70 : 170;
+      let used = 0;
+      this.fillBudget = 30; // people placed per pass: a crowd builds up over a few passes instead of in one frame
+      for (const s of busy) {
+        const toTown = s.line.dir === 'up';
+        const want = !q ? 0 : Math.min(this.lowTier ? 30 : 60, capAll - used, Math.round(waiting({ name: s.name, hour: this.clock.hour, toTown, sinceTrain: this.sinceTrain(s, q), weekend: this.weekend() }) * 0.55));
+        used += want;
+        this.fillPlatform(s, want);
+      }
+      for (const s of this.busy || []) if (!busy.includes(s)) s.crowd = null;
+      this.busy = busy;
+      if (here && here.name !== this.here?.name && onFoot && !this.rider) this.hud.message(`🚆 ${here.name} station (${here.line.name}) — E: ticket window · F at an open train door: board`);
+      this.here = onFoot ? here : null;
     }
-    this.busy = busy;
-    for (const s of busy) for (const p of s.crowd) this.people.add(p);
-    if (here && here.name !== this.here?.name && onFoot && !this.riding) this.hud.message(`🚆 ${here.name} station (${here.line.name}) — press E for a train ticket`);
-    this.here = onFoot ? here : null;
-    if (this.open && (!this.here || this.here.name !== this.open)) this.close();
+    // Trains standing at these platforms: people board and get off.
+    for (const s of this.busy || []) {
+      let at = null;
+      for (const tr of this.trains.values()) if (tr.line === s.line && tr.leg?.station === s.i && tr.n) { at = tr; break; }
+      if (at && at !== s.served) { s.served = at; this.alighting(s, at); }
+      if (!at) s.served = null;
+      const doorsOpen = at && (!at.ac || at.doors > 0.6);
+      for (let k = s.crowd.length - 1; k >= 0; k--) {
+        const p = s.crowd[k];
+        if (p.mode === 0 && doorsOpen && p.door == null) this.toDoor(p, s, at);
+        if (p.mode === 0) { p.phase += dt * 2; this.people.add(p); continue; }
+        // Walking: to a door (and in), or away along the platform after getting off.
+        const dx = p.tx - p.x, dz = p.tz - p.z, d = Math.hypot(dx, dz), step = p.speed * dt;
+        if (d < 0.5 || (p.mode === 1 && !doorsOpen) || (p.life -= dt) < 0) {
+          if (p.mode === 1 && !doorsOpen && d >= 0.5) { p.mode = 0; p.door = null; p.pose = POSE.STAND; } // missed it: wait for the next one
+          else { s.crowd.splice(k, 1); continue; }
+        } else {
+          p.x += (dx / d) * Math.min(step, d); p.z += (dz / d) * Math.min(step, d);
+          p.heading = Math.atan2(dx, dz); p.phase += dt * p.speed * 4.3;
+          p.y = this.floorY(p.x, p.z, p.y);
+        }
+        this.people.add(p);
+      }
+    }
+    if (this.tickets?.cfg?.where === 'window' && this.tickets.cfg.from !== this.here?.name) this.tickets.close();
+  }
+
+  /** Floor height for someone on a platform (the raised platform if there is one here). */
+  floorY(x, z, y = 1.5) {
+    const g = this.tiles.groundHeight(x, z);
+    return this.structures ? this.structures.groundHeight(x, z, Math.max(y, 1.4), g) : g;
+  }
+
+  /** Bring the people waiting on a platform to `want` (keeping those already there). */
+  fillPlatform(s, want) {
+    s.crowd ||= [];
+    const waitingN = s.crowd.reduce((n, p) => n + (p.mode === 0 ? 1 : 0), 0);
+    if (s.crowdV !== this.tiles.version || s.crowdS !== this.structuresV) { s.crowd = s.crowd.filter((p) => p.mode !== 0); s.crowdV = this.tiles.version; s.crowdS = this.structuresV; }
+    let have = s.crowd.reduce((n, p) => n + (p.mode === 0 ? 1 : 0), 0);
+    if (have > want + 4) { let drop = have - want; s.crowd = s.crowd.filter((p) => p.mode !== 0 || drop-- <= 0); have = want; }
+    void waitingN;
+    for (let k = 0; have < want && k < want * 3 && this.fillBudget > 0; k++) {
+      const r = hash(s.x + k * 3.1, s.z, (s.seedN = (s.seedN || 0) + 1));
+      const side = s.side === 2 ? (r < 0.5 ? -1 : 1) : s.side;
+      // Thickest around the middle of the platform (the foot-overbridge stairs), thinning to the ends.
+      const along = (hash(s.z, k, s.seedN) - 0.5) * (hash(k, s.x, 7) < 0.6 ? 110 : 230);
+      const p0 = s.line.at(s.d + along), off = s.off + 0.3 + hash(k, s.seedN, 2) * (r < 0.3 ? 4.5 : 2.2);
+      const x = p0[0] - p0[3] * side * off, z = p0[1] + p0[2] * side * off; // right of travel is (-dirZ, dirX)
+      if (this.tiles.hits(x, z, 0.3) || this.structures?.hits(x, z, 0.3, 1.4)) continue;
+      const look = this.looks[Math.floor(r * 991) % this.looks.length];
+      this.fillBudget--;
+      s.crowd.push({ noHero: hash(k, s.seedN) > 0.25, mode: 0, x, z, y: this.floorY(x, z), heading: Math.atan2(p0[3] * side, -p0[2] * side) + (hash(k, s.x) - 0.5) * 1.6, pose: r * 17 % 1 < 0.15 ? POSE.ARGUE : POSE.STAND, phase: r * 30, amp: 1, flags: look.flags, scale: 0.93 + (r * 5 % 1) * 0.12, shirt: look.shirt, pants: look.pants, skin: look.skin, h: 2.1, speed: 1.4, door: null });
+      have++;
+    }
+  }
+
+  /** A waiting passenger heads for the nearest door of the train at the platform (if near enough). */
+  toDoor(p, s, tr) {
+    let best = null, bd = 26;
+    for (let i = 0; i < COACHES; i++) {
+      if (!tr.on[i] || (tr.cx[i] - p.x) ** 2 + (tr.cz[i] - p.z) ** 2 > 40 * 40) continue;
+      for (const a of DOORS) {
+        const cx = tr.cx[i] + tr.sn[i] * a, cz = tr.cz[i] + tr.cs[i] * a;
+        const lat = (p.x - cx) * tr.cs[i] - (p.z - cz) * tr.sn[i], side = lat >= 0 ? 1 : -1;
+        const x = cx + tr.cs[i] * side * (HALF_W - 0.2), z = cz - tr.sn[i] * side * (HALF_W - 0.2), d = Math.hypot(x - p.x, z - p.z);
+        if (d < bd) { bd = d; best = [x, z]; }
+      }
+    }
+    if (!best) { p.door = false; return; }
+    p.door = true; p.mode = 1; p.tx = best[0]; p.tz = best[1];
+    p.speed = 1.5 + hash(p.x, p.z) * 1.6; p.pose = POSE.WALK; p.life = 14;
+  }
+
+  /** People getting off a train that has just stopped near the player. */
+  alighting(s, tr) {
+    if (Math.hypot(tr.x - this.lastX, tr.z - this.lastZ) > 170 || !s.side) return;
+    const load = tr.load ?? this.loadOf(tr), w = stationWeight(s.name);
+    const n = Math.min(this.lowTier ? 14 : 34, Math.round(load * w * 9));
+    for (let k = 0; k < n; k++) {
+      const i = Math.floor(hash(k, tr.seed, 5) * COACHES);
+      if (!tr.on[i]) continue;
+      const a = DOORS[k % 3], side = s.side === 2 ? (k % 2 ? 1 : -1) : s.side;
+      // Platform side of the track, in this line's travel frame: right of travel is (-dirZ, dirX).
+      const nx = -tr.cs[i] * side, nz = tr.sn[i] * side;
+      const x = tr.cx[i] + tr.sn[i] * a + nx * (HALF_W + 0.3), z = tr.cz[i] + tr.cs[i] * a + nz * (HALF_W + 0.3);
+      const dir = hash(k, 3, tr.seed) < 0.5 ? -1 : 1, go = 25 + hash(k, tr.seed) * 60;
+      const look = this.looks[(k * 5 + 3) % this.looks.length];
+      s.crowd.push({ noHero: true, mode: 2, x, z, y: this.floorY(x, z), tx: x + tr.sn[i] * dir * go + nx * (2 + hash(k, 9) * 3), tz: z + tr.cs[i] * dir * go + nz * (2 + hash(k, 9) * 3), heading: 0, pose: POSE.WALK, phase: k, amp: 1, flags: look.flags, scale: 0.95, shirt: look.shirt, pants: look.pants, skin: look.skin, h: 2.1, speed: 1.3 + hash(k, 2) * 0.9, life: 16 + hash(k) * 8 });
+    }
   }
 
   // ---------------------------------------------------------------- tickets and rides
@@ -846,132 +1017,74 @@ export class Trains {
     return out.sort((a, b) => a[0] - b[0]);
   }
 
-  buildPanel() {
-    const css = document.createElement('style');
-    css.textContent = `
-#train-panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 31; width: min(440px, 94vw); max-height: 84vh; display: flex; flex-direction: column; background: #0b0d12f4; color: #fff; border-top: 5px solid #f7c600; border-radius: 8px; font: 14px system-ui, sans-serif; box-shadow: 0 12px 40px #000a; }
-#train-panel[hidden] { display: none; }
-#train-panel header { padding: 12px 16px 6px; }
-#train-panel header b { font-size: 17px; }
-#train-panel header small { display: block; opacity: .75; margin-top: 3px; }
-#train-panel .list { overflow-y: auto; padding: 0 10px 6px; }
-#train-panel h4 { margin: 10px 6px 4px; font: 700 12px system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; }
-#train-panel h4 i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
-#train-panel button { display: flex; justify-content: space-between; gap: 12px; width: 100%; text-align: left; background: #ffffff14; color: #fff; border: 0; margin: 3px 0; padding: 8px 12px; border-radius: 6px; font: 600 14px system-ui, sans-serif; cursor: pointer; }
-#train-panel button.sel, #train-panel button:hover { background: #f7c60055; }
-#train-panel button span { opacity: .8; font-weight: 500; white-space: nowrap; }
-#train-panel footer { padding: 6px 16px 10px; font-size: 12px; opacity: .7; }`;
-    document.head.appendChild(css);
-    this.panel = document.createElement('div');
-    this.panel.id = 'train-panel';
-    this.panel.hidden = true;
-    document.body.appendChild(this.panel);
-    this.panel.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) this.choose(Number(b.dataset.i)); });
-    this.onKey = (e) => {
-      if (!this.open) return;
-      const n = this.options.length;
-      if (e.code === 'Escape') this.close();
-      else if (e.code === 'ArrowDown' || e.code === 'ArrowUp') this.select((this.sel + (e.code === 'ArrowDown' ? 1 : n - 1)) % n);
-      else if (e.code === 'Enter' || e.code === 'NumpadEnter') this.choose(this.sel);
-      else return;
-      e.preventDefault(); e.stopPropagation();
-    };
-    addEventListener('keydown', this.onKey, true);
-  }
-
-  /** E on foot at a station: the ticket window. Returns false when there is no station here. */
+  /** E on foot at a station: the booking office. Returns false when there is no station here. */
   interact() {
     const s = this.here;
-    if (!s || this.riding) return false;
-    if (this.open) { this.close(); return true; }
+    if (!s || this.rider || !this.tickets) return false;
+    if (this.tickets.isOpen) { this.tickets.close(); return true; }
     const q = service(this.clock.hour);
-    if (!q) { this.hud.message(`${s.name}: the last local has gone. First train at 4:15 am.`); return true; }
-    // Every line that calls here, the one whose platform this is first.
-    const dist = this.routes(s.name), routes = [...new Set([s.line.route, ...this.stops.filter((o) => o.name === s.name).map((o) => o.line.route)])];
-    this.options = [];
-    let html = '';
-    for (const r of routes) {
-      // Stations in line order, outwards from the terminus (both Harbour branches).
+    const next = this.nextTrains(s.name).slice(0, 3).map(([sec, L]) => `${L.to} ${L.fast ? 'fast' : 'slow'} ${sec < 8 ? 'now' : `in ${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`}`).join(' · ');
+    this.tickets.open({
+      title: `🚆 ${s.name} — booking office`, sub: q ? `Next trains: ${next || '—'}` : 'The last local has gone; first train at 4:15 am. The machine still sells tickets.',
+      sys: 'local', from: s.name, groups: this.ticketGroups(s.name), where: 'window',
+    });
+    return true;
+  }
+
+  /** Destinations from a station for the ticket panel: per route, in line order, with rail distances. */
+  ticketGroups(from) {
+    const dist = this.routes(from), routes = [...new Set([...this.stops.filter((o) => o.name === from).map((o) => o.line.route), 'W', 'C', 'H'])];
+    return routes.filter((r) => this.lines.some((L) => L.route === r)).map((r) => {
       const names = [];
       for (const L of this.lines) if (L.route === r && !L.fast && L.dir === 'down') for (const o of L.stations) if (!names.includes(o.name)) names.push(o.name);
       for (const L of this.lines) if (L.route === r) for (const o of L.stations) if (!names.includes(o.name)) names.push(o.name);
       const line = this.lines.find((L) => L.route === r);
-      html += `<h4><i style="background:${MAP_COLOUR[r]}"></i>${line.name}</h4>`;
-      for (const n of names) {
-        const to = dist.get(n);
-        if (n === s.name || !to) continue;
-        const fare = this.fare(to.d), mins = Math.max(3, Math.round(to.d / 480)); // a slow local averages about 30 km/h
-        html += `<button data-i="${this.options.length}">${n}<span>${rupees(fare)} · ${mins} min</span></button>`;
-        this.options.push({ name: n, route: r, fare, mins });
-      }
-    }
-    const next = this.nextTrains(s.name).slice(0, 3).map(([sec, L]) => `${L.to} ${L.fast ? 'fast' : 'slow'} ${sec < 8 ? 'now' : `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`}`).join(' · ');
-    this.panel.innerHTML = `<header><b>🚆 ${s.name} — ticket window</b><small>Second class. ${next ? `Next: ${next}` : ''}</small></header><div class="list">${html}</div><footer>↑ ↓ and Enter, or click · Esc closes · Wallet ${rupees(this.state.money)}</footer>`;
-    this.panel.hidden = false;
-    this.open = s.name;
-    this.select(0);
-    this.view?.release?.();
-    return true;
+      return { name: line.name, colour: MAP_COLOUR[r], stops: names.filter((n) => n !== from && dist.get(n)).map((n) => ({ name: n, m: dist.get(n).d })) };
+    });
   }
 
-  select(i) {
-    this.sel = i;
-    this.panel.querySelectorAll('button').forEach((b, k) => { b.classList.toggle('sel', k === i); if (k === i) b.scrollIntoView?.({ block: 'nearest' }); });
-  }
-
-  close() { this.panel.hidden = true; this.open = null; }
-
-  choose(i) {
-    const o = this.options?.[i];
-    if (!o || !this.open) return;
-    if (!this.state.canAfford(o.fare)) { this.hud.message(`A ticket to ${o.name} is ${rupees(o.fare)} — not enough in the wallet. (No, ticketless travel is not an option. The TC is watching.)`); return; }
-    const from = this.open;
-    this.close();
-    this.ride(from, o);
+  /** The station nearest to (x, z) and how far it is. */
+  nearestStation(x, z) {
+    let best = null, bd = Infinity;
+    for (const s of this.stops) { const d = Math.hypot(s.x - x, s.z - z); if (d < bd) { bd = d; best = s; } }
+    return best ? { name: best.name, d: bd, stop: best } : null;
   }
 
   /**
-   * Ride to another station: fade, the clock moves on by the journey time, the tiles there
-   * load, and the player steps off on the platform next to the train they came on.
+   * Quick travel for tests and missions: fade, the clock moves on by the journey time, and the
+   * player stands on the platform at `to` next to the train they came on.
    */
   async ride(from, o) {
     if (this.riding) return;
     this.riding = true;
     const w = this.walker, fade = document.getElementById('fade');
-    this.state.pay(o.fare, `Train ticket ${from} → ${o.name}`);
     fade?.classList.add('on');
     await new Promise((r) => setTimeout(r, 300));
-    // The stop to arrive at: on a line that comes from where we were, if there is one.
-    const stops = this.stops.filter((s) => s.name === o.name && s.line.route === o.route);
+    const stops = this.stops.filter((s) => s.name === o.name && (!o.route || s.line.route === o.route));
     const best = stops.find((s) => !s.line.fast && s.line.stations.some((p) => p.name === from && p.d < s.d)) || stops.find((s) => s.line.stations.some((p) => p.name === from && p.d < s.d)) || stops.find((s) => !s.line.fast) || stops[0];
     w.pos.set(best.x, this.tiles.groundHeight(best.x, best.z), best.z);
     w.speed = 0; w.vx = w.vz = 0;
-    this.clock.hour += o.mins / 60;
-    this.snap?.();
+    this.clock.hour += (o.mins || 10) / 60;
     await this.tiles.whenReady(best.x, best.z, Math.min(300, (this.tiles.loadRadius || 500) - 40));
-    // A free spot on the platform, beside the middle of the train.
+    this.stations?.()?.buildNow(best.x, best.z);
     const L = best.line, sides = best.side === 1 || best.side === -1 ? [best.side, -best.side] : [1, -1];
     let spot = null;
     search: for (const along of [0, 18, -18, 40, -40, 70, -70]) for (const side of sides) for (const off of [best.off, best.off + 1.2, best.off + 2.6]) {
       const p = L.at(best.d + along), x = p[0] - p[3] * side * off, z = p[1] + p[2] * side * off;
-      if (!this.tiles.hits(x, z, 0.4)) { spot = [x, z, Math.atan2(p[2], p[3])]; break search; } // facing the way the train leaves
+      if (!this.tiles.hits(x, z, 0.4)) { spot = [x, z, Math.atan2(p[2], p[3])]; break search; }
     }
     spot ||= [best.x + best.fz * 4, best.z - best.fx * 4, 0];
-    w.pos.set(spot[0], this.tiles.groundHeight(spot[0], spot[1]), spot[1]);
+    w.pos.set(spot[0], this.floorY(spot[0], spot[1]), spot[1]);
     w.heading = spot[2];
     if (this.view) this.view.yaw = spot[2];
-    // Put the clockwork where "our" train is standing at this platform, about to leave.
     const leg = this.dwell(best);
-    {
-      const k = Math.ceil((this.t - L.offset - leg.t0) / L.period);
-      this.t = L.offset + k * L.period + leg.t0 + Math.max(2, leg.T - 9);
-      this.force = `${L.index}:${k}`;
-    }
+    const k = Math.ceil((this.t - L.offset - leg.t0) / L.period);
+    this.t = L.offset + k * L.period + leg.t0 + Math.max(2, leg.T - 9);
+    this.force = `${L.index}:${k}`;
     this.trains.clear();
     this.fresh = true; this.scanT = 0; this.hereT = 0; this.here = best;
     this.snap?.();
     fade?.classList.remove('on');
-    this.hud.message(`${o.name}. ${rupees(o.fare)}, ${o.mins} minutes${o.mins > 20 ? ' and one elbow in the ribs' : ''}. Mind the gap!`);
     this.riding = false;
   }
 

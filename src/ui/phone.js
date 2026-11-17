@@ -38,7 +38,7 @@ const SHOP = [
 const APPS = [
   ['maps', 'Maps', '🗺️', '#3b8ad9'], ['chalo', 'Kidhar Driver', '🚕', '#f7c600'], ['bhookh', 'Bhookh', '🍛', '#f26722'],
   ['jhatpat', 'JhatPat', '⚡', '#2e9e44'], ['dukaan', 'Dukaan', '📦', '#1b4f8a'], ['paykaro', 'PayKaro', '💸', '#5f259f'],
-  ['messages', 'Messages', '💬', '#27ae60'], ['camera', 'Camera', '📷', '#444'], ['home', 'Ghar', '🏠', '#b5651d'], ['settings', 'Settings', '⚙️', '#777'],
+  ['messages', 'Messages', '💬', '#27ae60'], ['camera', 'Camera', '📷', '#444'], ['home', 'Ghar', '🏠', '#b5651d'], ['tikit', 'Tikitwala', '🎫', '#c0392b'], ['settings', 'Settings', '⚙️', '#777'],
 ];
 
 export class Phone {
@@ -82,6 +82,7 @@ export class Phone {
     const s = this.state;
     if (act === 'app') this.go(arg);
     if (act === 'back') this.go(null);
+    if (act === 'tikit') { this.toggle(false); this.onTikit?.(arg); }
     if (act === 'duty') { this.jobs.toggleDuty(this.player, 'taxi'); this.render(); }
     if (act === 'partner') { this.jobs.toggleDuty(this.player, 'delivery'); this.render(); }
     if (act === 'wear') { s.s.outfit = arg; s.changed(); this.toast(arg === 'default' ? 'Back in your usual clothes.' : 'Looking sharp!'); }
@@ -209,6 +210,10 @@ export class Phone {
           <h4>Wardrobe</h4><div class="row"><span>Usual shirt and jeans</span><button data-act="wear:default">Wear</button></div>
           ${['jersey', 'kurta', 'shades'].filter((id) => s.owns(id)).map((id) => `<div class="row"><span>${SHOP.find((i) => i.id === id).name}</span><button data-act="wear:${id}">${d.outfit === id ? 'Wearing' : 'Wear'}</button></div>`).join('')}
           ${d.pending.length ? `<h4>On the way</h4><p>${d.pending.map((p) => p.name).join(', ')}</p>` : ''}</div>`;
+        break;
+      case 'tikit':
+        // Rail tickets (a parody of the railway's ticket app and the city's one-ticket app): set up by main.js.
+        html = `${head('Tikitwala · rail tickets', '#c0392b')}<div class="pad">${this.tikitHtml ? this.tikitHtml() : '<p class="small">Trains are still loading…</p>'}</div>`;
         break;
       case 'settings':
         html = `${head('Settings', '#666')}<div class="pad"><button data-act="tier">Graphics quality (reloads)</button><br><br>
