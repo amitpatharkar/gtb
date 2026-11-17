@@ -50,3 +50,45 @@ Rally, convertible, in-progress, 3D-printing and wheel-only files, cars Mumbai h
 Ioniq, EV6, Kizashi, Elantra N, Octavia, Wuling, Fiesta…), duplicates (`(1)`, `(2)`, `(3)` copies), and models whose
 licence could not be confirmed (`fiat_uno_1994`, `kia_seltos`, `mg_hector`, and others with no unambiguous Sketchfab
 match). `honda-city.zip` holds a `.rar` that could not be opened here.
+
+## Batch 3 (same day): 22 more models, all new game types
+
+Same treatment as above (CC BY 4.0 checked against the Sketchfab API by title and triangle count; textures 512 px;
+meshes at most 60k triangles; all 22 pass `buildVehicle()`). None maps to an existing fleet type, so each needs a
+`VEHICLE_ART` entry (parody name, real length `len`, `base` type for handling and weight, `weight` = how common) and a
+`FILE_TYPES` regex, then an eye check and a `VERIFIED` entry. Suggested starting values (lengths are real, in metres):
+
+| File (base name) | id | Parody name | len | base | weight |
+|---|---|---|---|---|---|
+| `2013_honda_brio_amaze` | amaze | Honda Amayz | 3.99 | city | 0.3 |
+| `honda_brio_satya_e_2019` | brio | Honda Breeo | 3.6 | i10 | 0.2 |
+| `hyundai_i20_2010` | i20 | Hundai Ai-Twenty | 3.94 | i10 | 0.3 |
+| `mg_hector` | hector | Em-Jee Hektor | 4.67 | innova | 0.15 |
+| `kia_carnival_2011` | carnival | Kiya Carnivaal | 4.8 | innova | 0.05 |
+| `hyundai_ix35_tucson` | ix35 | Hundai Ix-35 | 4.41 | creta | 0.06 |
+| `hyundai_kona` | kona | Hundai Konaa | 4.17 | creta | 0.06 |
+| `2017_hyundai_sonata__hybrid` | sonata | Hundai Sonaata | 4.9 | city | 0.05 |
+| `hyundai_elantra_mk5_2010-2018` | elantra | Hundai Elantraa | 4.53 | city | 0.1 |
+| `2011_suzuki_kizashi_sport` | kizashi | Maroti Kizaashi | 4.65 | city | 0.03 |
+| `suzuki_grand_vitara_mk2_2005-2014` | gvitara | Maroti Grand Vitaara | 4.47 | creta | 0.06 |
+| `toyota_land_cruiser` | lcruiser | Toyoda Land Crooser | 4.95 | innova | 0.05 |
+| `2013_toyota_land_cruiser_prado` | prado | Toyoda Praado | 4.78 | innova | 0.05 |
+| `toyota_land_cruiser_prado_2022` | prado22 | Toyoda Praado Nayi | 4.92 | innova | 0.04 |
+| `1976_toyota_land_cruiser_fj40` | fj40 | Toyoda Jeep-Chalees | 3.85 | bolero | 0.03 |
+| `toyota_hilux_1983` | hilux | Toyoda Haylux | 4.6 | bolero | 0.03 |
+| `1976_ford_fiesta_mk1` | fiesta1 | Fored Fiyesta Puraani | 3.56 | alto | 0.03 |
+| `low-poly_skoda_octavia_rs_2020` | octavia | Skoda Oktaavia | 4.69 | city | 0.04 |
+| `2013_wuling_hongguang_s` | hongguang | Wuling Honggwang | 4.5 | ertiga | 0.03 |
+| `2022_kia_ev6_gt-line` | ev6 | Kiya EV-Chhe | 4.68 | creta | 0.03 |
+| `suzuki_grand_vitara` | gvitara2 | Maroti Grand Vitaara 2 | 4.5 | creta | 0.04 |
+| `kia_carnival` | carnival2 | Kiya Carnivaal 2 | 5.1 | innova | 0.04 |
+
+These car types are rare in Mumbai traffic, so keep the weights low and do not add all of them: the traffic batches
+grow with every type (Low tier loads 12 types, Medium 24). Prefer amaze, i20, brio, hector, elantra, sonata, ix35, kona.
+Five came out with **no paint part** (`2013_wuling_hongguang_s`, `2022_kia_ev6_gt-line`, `kia_carnival`, `mg_hector`,
+`suzuki_grand_vitara`): leave them out of `VERIFIED` unless `classify()` is improved.
+`2013_toyota_land_cruiser_prado` matched its Sketchfab model by title only (triangle count differs by 6 %): check the
+credit line is right before using it.
+
+Left out for licence: `2021-2023_hyundai_elantra_n` (CC BY-NC), `2024-hyundai-elantra-n` (CC BY-NC-SA),
+`2024_hyundai_ioniq_5_n` (CC BY-NC). The game allows only CC0 and CC BY.
