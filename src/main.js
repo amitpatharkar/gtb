@@ -969,12 +969,18 @@ function nearSea(at) {
   return Math.min(1, wet / 3);
 }
 
+const GEO_RAD = Math.PI / 180;
+const GEO_M_LAT = 111132.92 - 559.82 * Math.cos(2 * 19.03 * GEO_RAD) + 1.175 * Math.cos(4 * 19.03 * GEO_RAD);
+const GEO_M_LON = 111412.84 * Math.cos(19.03 * GEO_RAD) - 93.5 * Math.cos(3 * 19.03 * GEO_RAD);
+
 function updateHud() {
   $('speed').textContent = `${Math.round(Math.abs((onFoot ? walker : player).speed) * 3.6)} km/h`;
   $('fuel-label').textContent = onFoot ? 'Stamina' : 'Fuel';
   $('cond-label').textContent = onFoot ? 'Health' : 'Car';
   const here = onFoot ? walker : player;
   $('road').textContent = interiors.inside ? interiors.inside.name : tiles.roadNameAt(here.pos.x, here.pos.z);
+  // Real-world position: inverse of the converter's projection (scripts/build-tiles.mjs), origin Mahim 19.03, 72.85
+  $('coords').textContent = interiors.inside ? '' : `${(19.03 - here.pos.z / GEO_M_LAT).toFixed(5)}, ${(72.85 + here.pos.x / GEO_M_LON).toFixed(5)}`;
   $('clock').textContent = clock.label;
   const [label, colour] = clock.aqiLabel;
   $('aqi').innerHTML = `AQI <b style="color:${colour}">${clock.aqi}</b> ${label}`;
