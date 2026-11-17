@@ -526,6 +526,7 @@ function applySettings(st) {
   view.sens = st.sens;
   view.invertY = st.invertY;
   $('help').classList.toggle('show', !!st.hints && helpTimer > 0);
+  $('hintbar').classList.toggle('off', !st.hints);
 }
 let paused = false;
 const pause = pauseMenu({
@@ -1080,13 +1081,20 @@ $('coords').addEventListener('click', () => {
   if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
 });
 
-let shownStars = -1;
+let shownStars = -1, shownHints = '';
+const HINTS = {
+  drive: [['W A S D', 'Drive'], ['Space', 'Handbrake'], ['H', 'Horn'], ['N', 'Radio'], ['P', 'Phone'], ['F', 'Get out']],
+  foot: [['W A S D', 'Walk'], ['Shift', 'Run'], ['Click', 'Punch'], ['B', 'Weapons'], ['V', 'Kick'], ['F', 'Get in']],
+  inside: [['W A S D', 'Walk'], ['E', 'Use'], ['P', 'Phone']],
+};
 const speedo = initSpeedo($('speed'));
 const GEO_RAD = Math.PI / 180;
 const GEO_M_LAT = 111132.92 - 559.82 * Math.cos(2 * 19.03 * GEO_RAD) + 1.175 * Math.cos(4 * 19.03 * GEO_RAD);
 const GEO_M_LON = 111412.84 * Math.cos(19.03 * GEO_RAD) - 93.5 * Math.cos(3 * 19.03 * GEO_RAD);
 
 function updateHud() {
+  const hintMode = interiors.inside ? 'inside' : onFoot ? 'foot' : 'drive';
+  if (hintMode !== shownHints) { shownHints = hintMode; $('hintbar').innerHTML = HINTS[hintMode].map(([k, v]) => `<span><b>${k}</b> ${v}</span>`).join(''); }
   const mover = onFoot ? walker : player;
   const hour = clock.hour;
   speedo.update({ kmh: Math.round(Math.abs(mover.speed) * 3.6), reverse: mover.speed < -0.3, foot: onFoot, fuel: player.fuel, cond: player.condition, night: hour < 6 || hour >= 18.5 });
