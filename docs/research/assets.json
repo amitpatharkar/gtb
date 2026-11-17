@@ -781,6 +781,22 @@
     "notes": "'Pure sky' = no ground, ideal for a game skybox + environment lighting. Convert to RGBE/KTX2 or 8-bit LDR + separate PMREM."
   },
   {
+    "id": "hdri-kloofendal-48d-partly-cloudy-puresky",
+    "category": "hdri",
+    "use": "Midday, sun high (Mumbai's December noon sun stands about 50° up)",
+    "title": "Kloofendal 48d Partly Cloudy (Pure Sky)",
+    "source_page": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky",
+    "download_url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloofendal_48d_partly_cloudy_puresky_2k.hdr",
+    "format": "hdr",
+    "size_or_triangles": "2048x1024 equirectangular",
+    "licence": "CC0-1.0",
+    "author": "Greg Zaal (Poly Haven)",
+    "attribution": "",
+    "login_required": false,
+    "approx_size_mb": 4.4,
+    "notes": "'Pure sky' = no ground, ideal for a game skybox + environment lighting. Convert to RGBE/KTX2 or 8-bit LDR + separate PMREM."
+  },
+  {
     "id": "hdri-kloofendal-overcast-puresky",
     "category": "hdri",
     "use": "Overcast monsoon day",

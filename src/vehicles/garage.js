@@ -17,12 +17,13 @@ const DRIVE = {
   padmini: [26, 6.2], bus: [18, 2.6], decker: [16, 2.3], ace: [20, 3.6], tempo: [21, 3.2],
   scooter: [22, 6.5], delivery: [22, 6.5], bike: [27, 8], bullet: [30, 7.2],
   auto: [17, 4.2], cycle: [8, 3.2], dabba: [8, 3], ambulance: [30, 6], school: [17, 2.5], tanker: [19, 2.8], compactor: [17, 2.6],
+  handcart: [3.2, 1.3], // pushed at a run, at best
 };
 /** Rough kerb weights (kg) for collisions. */
 export const MASS = {
   alto: 760, wagonr: 850, taxi: 850, taxiI10: 900, i10: 900, swift: 900, dzire: 950, cabDzire: 950, city: 1150, ertiga: 1200, cabErtiga: 1200, coolcab: 1200,
   innova: 1800, bolero: 1650, creta: 1300, eeco: 950, padmini: 900, bus: 11000, decker: 15000, ace: 1100, tempo: 3200, scooter: 110, delivery: 120, bike: 115, bullet: 195,
-  auto: 380, cycle: 20, dabba: 40, ambulance: 1000, school: 9000, tanker: 7500, compactor: 8000,
+  auto: 380, cycle: 20, dabba: 40, ambulance: 1000, school: 9000, tanker: 7500, compactor: 8000, handcart: 220,
 };
 
 export class Garage {
@@ -43,7 +44,7 @@ export class Garage {
   get inTaxi() { return this.type === 'taxi'; }
   get spec() { return this.traffic.types[this.type === 'taxi' ? 'padmini' : this.type]; }
   get name() { return this.inTaxi ? 'your kaali-peeli' : this.spec.name; }
-  get rider() { return !this.inTaxi && !!this.spec.rider; }
+  get rider() { return !this.inTaxi && !!this.spec.rider && !this.spec.pull; } // two-wheelers (a handcart is pulled on foot)
   /** The player can be seen driving: two-wheelers and open autos. */
   get seated() { return !this.inTaxi && !!(this.spec.rider || this.spec.open); }
 
@@ -68,8 +69,8 @@ export class Garage {
   shape(type) {
     const p = this.player, S = type === 'taxi' ? null : this.traffic.types[type];
     if (this.audio) {
-      this.audio.engineKind = !S ? 'car' : S.pedal ? 'cycle' : S.rider ? 'bike' : S.open ? 'auto' : S.big ? 'big' : 'car';
-      this.audio.hornKind = !S ? null : S.pedal ? 'bell' : S.rider || S.open ? 'peep' : null;
+      this.audio.engineKind = !S ? 'car' : S.pedal || S.pull ? 'cycle' : S.rider ? 'bike' : S.open ? 'auto' : S.big ? 'big' : 'car';
+      this.audio.hornKind = !S ? null : S.pull ? 'none' : S.pedal ? 'bell' : S.rider || S.open ? 'peep' : null; // handcart pullers shout instead (main.js honk)
     }
     if (type === 'taxi') { Object.assign(p, this.taxiShape); p.mass = MASS.padmini; return; }
     const T = this.traffic.types[type], [top, accel] = DRIVE[type] || DRIVE[T.base] || [28, 6];

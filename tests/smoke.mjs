@@ -1,6 +1,7 @@
 // Headless smoke tests for the built game (dist/). Run after `npm run build`:
 //   node tests/smoke.mjs            all checks on the Low tier
 //   node tests/smoke.mjs --only=boot,drive --quality=medium
+//   checks: boot, drive, traffic, steal, missions, trains, night, touch (phone controls)
 // Needs Playwright with Chromium (a devDependency: `npx playwright install chromium`; a global
 // install found through NODE_PATH works too). In CI it runs inside deploy.yml, before the deploy.
 // Serves dist/ the way GitHub Pages does (under /gtb/, .gz files as plain application/gzip)
@@ -38,8 +39,9 @@ const base = `http://localhost:${server.address().port}/gtb/`;
 // ---------------------------------------------------------------- harness
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const results = [];
-async function game(query = '') {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+async function game(query = '', { touch = false } = {}) {
+  // touch: a landscape phone (touch screen, coarse pointer) instead of a desktop window.
+  const page = await browser.newPage(touch ? { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true } : { viewport: { width: 1280, height: 720 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(`${e.message} @ ${(e.stack || '').split('\n')[1] || ''}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -152,8 +154,10 @@ await check('steal', async () => {
     g.toggleFoot();
     let n = 0; for (; n < 120 && g.onFoot; n++) g.step(0.05);
     const type = g.garage.type;
-    g.input.fwd = true; for (let i = 0; i < 40; i++) g.step(0.05); g.input.fwd = false;
-    return { car: car.type, took: !g.onFoot && type === car.type, secs: +(n * 0.05).toFixed(1), driverOut: g.street.peds.filter((p) => p.kind === 'driver').length, speed: +Math.abs(g.player.speed).toFixed(1) };
+    // Peak speed: the stolen vehicle may drive off and then bump into something within the 2 s.
+    let top = 0;
+    g.input.fwd = true; for (let i = 0; i < 40; i++) { g.step(0.05); top = Math.max(top, Math.abs(g.player.speed)); } g.input.fwd = false;
+    return { car: car.type, took: !g.onFoot && type === car.type, secs: +(n * 0.05).toFixed(1), driverOut: g.street.peds.filter((p) => p.kind === 'driver').length, speed: +top.toFixed(1) };
   });
   await page.close();
   const fails = noErrors(errors);
@@ -306,6 +310,140 @@ await check('night', async () => {
   return { info, fails };
 });
 
+await check('touch', async () => {
+  // Phone controls on a landscape phone, driven by real touch events: the steering pad (slide
+  // from ◀ to ▶ without lifting), pedals with two thumbs at once, getting out, the joystick (a full
+  // push runs), the context button that gets back in. No two visible buttons may overlap.
+  const { page, errors } = await game('hour=11', { touch: true });
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type, pts = []) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
+  const centre = (sel) => page.evaluate((q) => { const r = document.querySelector(q).getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }, sel);
+  const step = (n) => page.evaluate((k) => { for (let i = 0; i < k; i++) window.__gtb.step(0.05); }, n);
+  const read = () => page.evaluate(() => { const g = window.__gtb, i = g.input, t = document.getElementById('touch'); return { mode: t.dataset.mode, left: i.left, right: i.right, fwd: i.fwd, back: i.back, analog: i.analog, moveY: i.moveY, speed: g.player.speed, onFoot: g.onFoot }; });
+  const overlaps = async () => {
+    await page.waitForTimeout(400); // pop-in animations
+    return page.evaluate(() => {
+      const els = [...document.querySelectorAll('#touch .t-btn, #touch .t-ctx, #btn-phone, #minimap')].filter((e) => e.offsetParent && !e.closest('[hidden]'));
+      const box = els.map((e) => ({ n: e.getAttribute('aria-label') || e.textContent.trim() || e.id, r: e.getBoundingClientRect(), round: getComputedStyle(e).borderRadius === '50%' }));
+      const out = [];
+      for (let i = 0; i < box.length; i++) {
+        const a = box[i].r;
+        if (a.left < 0 || a.top < 0 || a.right > innerWidth || a.bottom > innerHeight) out.push(`${box[i].n} off screen`);
+        for (let j = i + 1; j < box.length; j++) {
+          const b = box[j].r;
+          const hit = box[i].round && box[j].round
+            ? Math.hypot(a.x + a.width / 2 - b.x - b.width / 2, a.y + a.height / 2 - b.y - b.height / 2) < (a.width + b.width) / 2 - 1
+            : a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+          if (hit) out.push(`${box[i].n} × ${box[j].n}`);
+        }
+      }
+      return out;
+    });
+  };
+  const fails = [];
+  await step(6);
+  let s = await read();
+  if (s.mode !== 'drive') fails.push(`controls not in drive mode (${s.mode})`);
+  fails.push(...(await overlaps()).map((o) => `drive: ${o}`));
+  // Steering: press ◀, slide to ▶, lift.
+  const L = await centre('.t-steer [data-side="left"]'), R = await centre('.t-steer [data-side="right"]');
+  await touch('touchStart', [L]); s = await read();
+  if (!s.left || s.right) fails.push('◀ does not steer left');
+  await touch('touchMove', [R]); s = await read();
+  if (!s.right || s.left) fails.push('sliding from ◀ to ▶ does not switch to right');
+  await touch('touchEnd'); s = await read();
+  if (s.left || s.right) fails.push('steering stays held after lifting');
+  // Two thumbs: steer and gas together.
+  const gas = await centre('.t-pedals .gas');
+  await touch('touchStart', [L, gas]); s = await read();
+  if (!s.left || !s.fwd) fails.push('steering and gas do not work together');
+  await touch('touchEnd');
+  await touch('touchStart', [gas]); await step(40); await touch('touchEnd');
+  s = await read();
+  if (s.speed < 2) fails.push(`gas pedal: speed only ${s.speed.toFixed(1)} m/s`);
+  if (!(await page.evaluate(() => document.querySelector('.t-exit').classList.contains('off')))) fails.push('the door button is not dimmed while moving');
+  const brake = await centre('.t-pedals .brake');
+  await touch('touchStart', [brake]); for (let i = 0; i < 30 && (await read()).speed > 0.3; i++) await step(5); await touch('touchEnd');
+  await step(5);
+  if ((await page.evaluate(() => document.querySelector('.t-pedals .brake small').textContent)) !== 'REV') fails.push('brake pedal does not turn into REV when stopped');
+  // Get out with the door button.
+  const door = await centre('.t-exit');
+  await touch('touchStart', [door]); await touch('touchEnd'); await step(2);
+  s = await read();
+  if (!s.onFoot || s.mode !== 'foot') fails.push(`door button: onFoot ${s.onFoot}, mode ${s.mode}`);
+  fails.push(...(await overlaps()).map((o) => `on foot: ${o}`));
+  if (await page.evaluate(() => document.querySelector('[data-ctx="vehicle"]').hidden)) fails.push('no "get in" button next to the taxi');
+  const wpn = await centre('.t-weapon');
+  await touch('touchStart', [wpn]); await touch('touchEnd'); await step(2);
+  if ((await page.evaluate(() => window.__gtb.combat.weapon)) !== 'pichkari') fails.push('weapon button does not switch to the pichkari');
+  fails.push(...(await overlaps()).map((o) => `pichkari: ${o}`));
+  // Joystick: thumb down in the lower left, pushed all the way up (runs), then lifted.
+  const start = await page.evaluate(() => [window.__gtb.walker.pos.x, window.__gtb.walker.pos.z]);
+  await touch('touchStart', [[170, 300]]); await touch('touchMove', [[170, 220]]); await touch('touchMove', [[170, 150]]);
+  s = await read();
+  if (!s.analog || s.moveY < 0.9) fails.push(`joystick: analog ${s.analog}, push ${s.moveY?.toFixed(2)}`);
+  await step(30);
+  const walked = await page.evaluate(([x, z]) => Math.hypot(window.__gtb.walker.pos.x - x, window.__gtb.walker.pos.z - z), start);
+  await touch('touchEnd'); s = await read();
+  if (s.analog || s.moveY) fails.push('joystick stays pushed after lifting');
+  if (walked < 3) fails.push(`joystick walked only ${walked.toFixed(1)} m in 1.5 s`);
+  // Back by the taxi: the context button gets in.
+  await page.evaluate(([x, z]) => { window.__gtb.walker.pos.x = x; window.__gtb.walker.pos.z = z; }, start);
+  await step(5);
+  const ctx = await page.evaluate(() => { const b = document.querySelector('[data-ctx="vehicle"]'); return b.hidden ? null : b.textContent.trim(); });
+  if (!ctx) fails.push('no "get in" button back by the taxi');
+  else { await touch('touchStart', [await centre('[data-ctx="vehicle"]')]); await touch('touchEnd'); await step(2); }
+  s = await read();
+  if (s.onFoot) fails.push('the context button did not get back in');
+  await page.close();
+  return { info: { walked: +walked.toFixed(1), ctx }, fails: [...noErrors(errors), ...fails] };
+});
+
+await check('clutter', async () => {
+  // Street clutter in the Kalbadevi / Crawford Market bazaars: street-name boards with their text in
+  // the atlas, cables and tarps, awnings, gates with watchmen, parked handcarts (one can be pulled);
+  // poles and shrines are solid; the refreshes stay cheap.
+  const { page, errors } = await game('hour=11');
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, ix = g.tiles.index, C = g.clutter;
+    const at = (lat, lon) => [(lon - ix.origin.lon) * ix.metresPerDegree.lon, -(lat - ix.origin.lat) * ix.metresPerDegree.lat];
+    g.story.s.done = g.story.missions.map((m) => m.id);
+    const [x, z] = at(18.9488, 72.8318);
+    await g.tiles.whenReady(x, z, 300); g.player.pos.set(x, 0.02, z);
+    let worst = 0;
+    for (let i = 0; i < 80; i++) { const t0 = performance.now(); g.step(0.05); worst = Math.max(worst, performance.now() - t0); }
+    const K = (k) => C.counts[k] || 0;
+    const solidAt = C.nSolid ? C.hits(C.solids[0], C.solids[1], 0.2) : false, solidFar = C.hits(x + 5000, z, 0.3);
+    const res = { nameBoards: K(20), dirBoards: K(21) + K(22), cables: K(19), tarps: K(23) + K(24), gates: K(28), shrines: K(26), boards: C.boards.count, solid: C.solid.n, cloth: C.cloth.n, folk: C.folkList.length, cells: C.atlas.cells.size, solidAt, solidFar, worstMs: +worst.toFixed(1) };
+    // Pull a parked handcart: F next to it, walk it forward.
+    const cart = g.traffic.parked.find((v) => v.type === 'handcart');
+    res.handcarts = g.traffic.parked.filter((v) => v.type === 'handcart').length;
+    if (cart) {
+      g.toggleFoot(); for (let i = 0; i < 3; i++) g.step(0.05);
+      const h = cart.heading;
+      g.walker.pos.set(cart.x - Math.cos(h) * 1.4, 0.2, cart.z + Math.sin(h) * 1.4);
+      for (const list of [g.traffic.cars, g.traffic.parked]) for (let i = list.length - 1; i >= 0; i--) if (list[i] !== cart && Math.hypot(list[i].x - cart.x, list[i].z - cart.z) < 12) list.splice(i, 1);
+      g.step(0.05); g.toggleFoot(); for (let i = 0; i < 80 && g.onFoot; i++) g.step(0.05);
+      res.pulled = !g.onFoot && g.garage.type === 'handcart';
+      g.input.fwd = true; let top = 0; for (let i = 0; i < 80; i++) { g.step(0.05); top = Math.max(top, Math.abs(g.player.speed)); } g.input.fwd = false;
+      res.cartTop = +top.toFixed(2);
+    }
+    return res;
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (info.nameBoards < 2 || info.cells < 2 || info.boards < 4) fails.push(`street-name boards missing (${info.nameBoards} points, ${info.cells} atlas cells, ${info.boards} faces)`);
+  if (info.cables < 2) fails.push('no cable bundles over the bazaar lanes');
+  if (info.cloth < 5) fails.push('no awnings or tarps');
+  if (info.solid < 20) fails.push('solid clutter missing');
+  if (!info.solidAt || info.solidFar) fails.push('clutter collisions wrong');
+  if (!info.handcarts) fails.push('no handcarts parked in the bazaar');
+  else if (!info.pulled) fails.push('could not take a handcart');
+  else if (info.cartTop < 0.8 || info.cartTop > 3.6) fails.push(`handcart speed ${info.cartTop} m/s`);
+  if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms`);
+  return { info, fails };
+});
+
 await check('people', async () => {
   // Real people (MakeHuman bodies from public/people) near the player on foot: templates load,
   // bodies are placed and animated, the player has one, building bodies doesn't stutter;
@@ -315,9 +453,12 @@ await check('people', async () => {
   const info = await page.evaluate(() => {
     const g = window.__gtb;
     g.toggleFoot();
-    let worst = 0;
-    for (let i = 0; i < 120; i++) { const t = performance.now(); g.step(0.05); if (i > 10) worst = Math.max(worst, performance.now() - t); }
+    // Step until passers-by come within the bodies' radius (they spawn further out along the
+    // footpaths), up to 30 s of game time.
     const c = g.characters;
+    const others = () => c.pool.filter((b) => b.holder.visible && !b.who?.isPlayer).length;
+    let worst = 0;
+    for (let i = 0; i < 600 && (i < 120 || others() < 2); i++) { const t = performance.now(); g.step(0.05); if (i > 10) worst = Math.max(worst, performance.now() - t); }
     const shown = c.pool.filter((b) => b.holder.visible);
     const bad = shown.filter((b) => !Number.isFinite(b.holder.position.x) || !b.motion.current).length;
     const b = shown.find((x) => !x.who?.isPlayer);
