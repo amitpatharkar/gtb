@@ -654,10 +654,12 @@ const gates = [];  // gates in compound walls (lib/walls.mjs → POINT.GATE in l
   const onStreet = (x, z) => segGrid.near(x, z, 14, ({ a, b, p }) => G.segDist2([x, z], a, b) < (p.hw + p.fw + 0.3) ** 2);
   const inArea = (x, z) => areaGrid.near(x, z, 1, (ring) => G.pointInRing(x, z, ring));
   const free = (x, z) => inBox([x, z]) && !onStreet(x, z) && !inBuilding(x, z, 0.35) && !onTrack(x, z, 4.5) && !inArea(x, z);
-  let n = 0, wallCount = 0, towers = 0, seed = 11;
+  let n = 0, wallCount = 0, towers = 0, frames = 0, seed = 11;
+  // The owner's scaffolded frames (src/world/art.js): footprint (m) at their game height h.
+  const SITE_FRAMES = [{ kind: POINT.SITE_FRAME_A, w: 23.6, d: 22.1, h: 15 }, { kind: POINT.SITE_FRAME_B, w: 31.5, d: 23.4, h: 18 }];
   const rnd = () => hash01(seed++, 53);
   const addBuilding = (ring, tags) => {
-    const b = { id: 9e11 + n++, tags, infill: true, polys: [[ring]] };
+    const b = { id: 9e11 + n++, tags, infill: true, polys: [[ring]], ...(tags['gtb:frame'] ? { hidden: true } : {}) };
     buildingsRaw.push(b);
     buildingGrid.add(G.bboxOf(ring), ring);
   };
@@ -678,9 +680,21 @@ const gates = [];  // gates in compound walls (lib/walls.mjs → POINT.GATE in l
     for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l > best) { best = l; ex = (b[0] - a[0]) / l; ez = (b[1] - a[1]) / l; } }
     const hw = Math.min(14, Math.sqrt(area) * 0.32), hd = Math.min(11, Math.sqrt(area) * 0.26);
     const rect = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => [cx + ex * u * hw - ez * v * hd, cz + ez * u * hw + ex * v * hd]);
-    if (area > 380 && rnd() < 0.75 && rect.every(([x, z]) => G.pointInRing(x, z, ring) && !inBuilding(x, z, 1.5))) {
+    const roll = rnd(), fits = (r) => r.every(([x, z]) => G.pointInRing(x, z, ring) && !inBuilding(x, z, 1.5));
+    if (area > 380 && roll < 0.55 && fits(rect)) {
       addBuilding(rect, { building: 'construction', 'gtb:site': 'yes', 'building:levels': String(10 + Math.floor(rnd() * 26)) });
       towers++;
+    } else if (area > 300 && roll < 0.9) {
+      // Otherwise a low concrete frame going up in scaffolding (the owner's model, src/world/art.js
+      // `at`), scaled to the site; a hidden outline of the same size collides.
+      const f = SITE_FRAMES[2 * hw >= 26 ? 1 : 0], s = Math.min((2 * hw) / f.w, (2 * hd) / f.d, 1.1);
+      const fw = (f.w * s) / 2, fd = (f.d * s) / 2;
+      const fr = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => [cx + ex * u * fw - ez * v * fd, cz + ez * u * fw + ex * v * fd]);
+      if (s >= 0.55 && fits(fr)) {
+        addBuilding(fr, { building: 'construction', 'gtb:frame': 'yes', 'building:levels': String(Math.max(2, Math.round((f.h * s) / 3.2))) });
+        cranes.push({ kind: f.kind, x: cx, z: cz, angle: Math.atan2(-ez, ex), size: s });
+        frames++;
+      }
     }
     if (area > 350) {
       // The crane stands beside the tower, its jib swung over the site.
@@ -704,7 +718,7 @@ const gates = [];  // gates in compound walls (lib/walls.mjs → POINT.GATE in l
   }
   // Compound walls in front of set-back buildings; dock walls on port roads (survey).
   compoundWalls({ vparts, district: districtXZ, free, buildingWithin: (x, z, r) => inBuilding(x, z, r), hash: hash01, add: addWall, BRIDGE: ROAD_FLAG.BRIDGE, gates });
-  log(`walls: ${wallCount} wall pieces (compound walls, pillars and gates, dock walls, hoardings round ${mapped + infill.sites} construction sites); ${towers} towers going up, ${cranes.length} tower cranes`);
+  log(`walls: ${wallCount} wall pieces (compound walls, pillars and gates, dock walls, hoardings round ${mapped + infill.sites} construction sites); ${towers} towers going up, ${frames} scaffolded frames, ${cranes.length - frames} tower cranes`);
 }
 
 const streetMs = Date.now();

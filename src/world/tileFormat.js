@@ -62,6 +62,9 @@ export const POINT = {
   FLOWERS: 27,    // flower seller with baskets on the footpath
   GATE: 28,       // compound gate (open steel leaves) with a watchman on a plastic chair
   HANDCART: 29,   // handcart parked on a bazaar footpath (traffic.js: solid, can be taken); angle = heading
+  // Owner-made models placed whole (src/world/art.js `at`): angle = the model's local +X, size = scale.
+  SITE_FRAME_A: 40, // concrete frame going up, wrapped in scaffolding (owner's SB CITY 10 scene), on a construction site
+  SITE_FRAME_B: 41, // the same, a wider block
 };
 export const LABELLED = new Set([POINT.NAME_BOARD, POINT.DIR_BOARD, POINT.DIR_GANTRY]);
 
