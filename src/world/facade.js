@@ -1,21 +1,29 @@
 import * as THREE from 'three';
 import { Y } from './levels.js';
-import { WINDOW_RECT, CELL_HASH_GLSL, FEATURES_GLSL, K, SHOP_STOREY } from './facadeRules.js';
+import { WINDOW_RECT, CELL_HASH_GLSL, FEATURES_GLSL, BUILDING_HASH_GLSL, K, SHOP_STOREY, WIN, PIPE_X, ARCH_SPRING, AC_SIZE } from './facadeRules.js';
 
 // Facade shader: real wall textures (plaster, stone, concrete…) plus Mumbai facade details
 // computed per pixel. Windows and open shops use "interior mapping": a ray traced into a
-// fake room behind the glass (walls, floor, ceiling, tube light, shelves of goods), so the
-// inside has real depth and parallax from any angle. Near the player, 3D parts (sunshades,
-// sills, frames, grilles, AC units, balconies, signboards) are added by facadeParts.js using
-// the same per-window rules (facadeRules.js).
+// fake room behind the glass (walls, floor, ceiling, tube light), with the back wall and the
+// furniture in the middle of the room taken from the room atlas (roomAtlas.js), so the inside
+// has real depth and parallax from any angle, by day and lit at night. Window types follow the
+// building's era (facadeRules.js): aluminium sliders, wooden casements, louvred shutters, Art
+// Deco steel windows, Gothic pointed arches, portholes, box grilles and enclosed balconies.
+// Chawl galleries (doors in a row, railings with saris drying), clay-tile roofs, gable vents,
+// Art Deco name plaques, drain pipes, monsoon streaks under the roof line, algae and damp at
+// the foot of the walls are painted here too. Near the player, 3D parts (facadeParts.js) are
+// added by the same per-window rules.
 //
-// Per-vertex inputs (see src/world/mesh/buildings.js):
+// Per-vertex inputs (see src/world/mesh/buildings.js), flat per building:
 //   uv            x = metres along the wall, y = height in metres (also drives the textures)
 //   facadeBay     running bay (window column) coordinate along each wall
-//   facadeA       style + 0.5, building seed (integer), storey height, roof height
-//   facadeB       shop flag (1 = shops on this wall, 2 = blank wall), bay width in metres
+//   facadeA       style + 16 × facade kind + 0.5, building seed (integer), storey height, roof height
+//   facadeB       facade code (CODE in facadeRules.js, + 0.25 = shop-height ground floor), bay width in metres
 
 const RECTS = WINDOW_RECT.map((r, i) => `if (st == ${i}) return vec4(${r.map((v) => v.toFixed(2)).join(', ')});`).join('\n    ');
+const lin = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+const vec3 = (hex) => `vec3(${[16, 8, 0].map((sh) => lin(((hex >> sh) & 255) / 255).toFixed(4)).join(', ')})`;
+const f = (v) => v.toFixed(3);
 
 const GLSL = `
   ${CELL_HASH_GLSL}
@@ -26,6 +34,29 @@ const GLSL = `
   }
   float fBox(vec2 p, vec4 r) { return step(r.x, p.x) * step(p.x, r.y) * step(r.z, p.y) * step(p.y, r.w); }
   float fBand(float v, float a, float b) { return step(a, v) * step(v, b); }
+
+  // Window opening in cell space (1 inside): rectangle, Gothic pointed arch (equilateral, in the
+  // opening's own proportions), round arch, or Art Deco porthole (metres).
+  float winShape(int kind, vec2 p, vec4 r, float bw, float storey) {
+    if (kind == ${WIN.PORTHOLE}) {
+      vec2 c = vec2(r.x + r.y, r.z + r.w) * 0.5;
+      float rad = min((r.y - r.x) * bw, (r.w - r.z) * storey) * 0.42;
+      return step(length(vec2((p.x - c.x) * bw, (p.y - c.y) * storey)), rad);
+    }
+    if (p.x < r.x || p.x > r.y || p.y < r.z || p.y > r.w) return 0.0;
+    if (kind == ${WIN.ARCH} || kind == ${WIN.ROUND}) {
+      vec2 q = vec2((p.x - r.x) / (r.y - r.x), (p.y - r.z) / (r.w - r.z));
+      if (q.y > ${f(ARCH_SPRING)}) {
+        if (kind == ${WIN.ARCH}) {
+          float dy = (q.y - ${f(ARCH_SPRING)}) / ${f((1 - ARCH_SPRING) / 0.866)};
+          return step((q.x - 1.0) * (q.x - 1.0) + dy * dy, 1.0) * step(q.x * q.x + dy * dy, 1.0);
+        }
+        float dy = (q.y - ${f(ARCH_SPRING)}) / ${f(1 - ARCH_SPRING)}, dx = (q.x - 0.5) * 2.0;
+        return step(dx * dx + dy * dy, 1.0);
+      }
+    }
+    return 1.0;
+  }
 
   // Trace a ray into a box room behind the wall. p: entry point (x along wall, y up) in metres
   // from the room's lower-left corner; size: room width and height; d: ray (x along, y up, z in).
@@ -39,18 +70,23 @@ const GLSL = `
     float face = t == tz ? 0.0 : t == tx ? 1.0 : d.y < 0.0 ? 2.0 : 3.0;
     return vec4(h, face);
   }
+  // One cell of the room atlas (8 × 4 cells; row 0 at the top of the canvas = v 0.75..1).
+  vec4 atlas(float cellX, float row, vec2 q, float lod) {
+    q = clamp(q, vec2(0.004), vec2(0.996));
+    return textureLod(tRooms, vec2((cellX + q.x) / 8.0, (3.0 - row + q.y) / 4.0), lod);
+  }
 
-  vec3 homeInterior(vec2 p, vec2 size, vec3 d, int col, int row, int seed) {
-    float depth = 3.2 + 2.5 * cellHash(col, row, seed, ${K.DEPTH});
+  // One hash per room picks its depth, paint, back wall and furniture (shader-only choices).
+  vec3 homeInterior(vec2 p, vec2 size, vec3 d, float r, int st, float lod) {
+    float depth = 3.2 + 2.5 * fract(r * 7.13);
     vec4 hit = roomHit(p, size, depth, d);
     vec3 h = hit.xyz;
-    float r = cellHash(col, row, seed, ${K.ROOM});
     vec3 wall = mix(vec3(0.82, 0.78, 0.66), r < 0.33 ? vec3(0.62, 0.78, 0.74) : r < 0.66 ? vec3(0.86, 0.74, 0.62) : vec3(0.75, 0.75, 0.82), 0.6);
     vec3 c;
     if (hit.w < 0.5) {
-      c = wall;
-      if (h.x > size.x * 0.58 && h.x < size.x * 0.82 && h.y < 2.1) c = vec3(0.35, 0.22, 0.14);               // door
-      if (h.x > size.x * 0.12 && h.x < size.x * 0.42 && h.y > 1.1 && h.y < 1.8) c = vec3(0.4, 0.45, 0.42); // picture / cupboard
+      // Room atlas back wall (small on screen: its average).
+      if (lod < uRoomLod.x) { vec4 t = atlas(st == 6 ? 7.0 : floor(fract(r * 13.7) * 7.0), 0.0, h.xy / size, lod); c = t.rgb + wall * (1.0 - t.a); }
+      else c = wall * 0.75;
     } else if (hit.w < 1.5) {
       c = wall * 0.82;
       if (h.y < 1.9 && h.z > depth * 0.45 && d.x < 0.0) c = vec3(0.42, 0.28, 0.16);                         // wardrobe
@@ -61,84 +97,156 @@ const GLSL = `
       c = vec3(0.9, 0.88, 0.84);
       if (abs(h.x - size.x * 0.5) < 0.6 && abs(h.z - depth * 0.45) < 0.06) c = vec3(1.7, 1.65, 1.5);         // tube light
     }
-    return c * (1.0 - 0.5 * h.z / depth);
+    c *= 1.0 - 0.5 * h.z / depth;
+#ifndef FACADE_LITE
+    // Furniture in the middle of the room, with the ceiling fan (atlas cut-out).
+    float zf = depth * (0.36 + 0.2 * fract(r * 29.3));
+    if (lod < uRoomLod.y && d.z > 0.0 && zf < h.z) {
+      vec2 q = (p + d.xy * (zf / d.z)) / size;
+      if (q.x > 0.0 && q.x < 1.0 && q.y > 0.0 && q.y < 1.0) {
+        vec4 t = atlas(st == 6 ? 5.0 : floor(fract(r * 41.9) * 8.0), 1.0, q, lod);
+        c = t.rgb * (1.0 - 0.5 * zf / depth) + c * (1.0 - t.a);
+      }
+    }
+#endif
+    return c;
   }
 
-  vec3 shopInterior(vec2 p, vec2 size, vec3 d, int unit, int seed) {
-    float depth = 5.0 + 4.0 * cellHash(unit, -1, seed, ${K.DEPTH});
-    // Counter across the shop, 1.4 m in, 0.95 m high.
-    if (d.z > 0.0) {
-      float tc = 1.4 / d.z;
-      vec2 hc = p + d.xy * tc;
-      if (hc.y < 0.95 && hc.y > 0.0 && hc.x > 0.0 && hc.x < size.x) return vec3(0.42, 0.3, 0.2) * (0.8 + 0.2 * step(0.85, hc.y));
-    }
+  vec3 shopInterior(vec2 p, vec2 size, vec3 d, int unit, int seed, float lod) {
+    float sr = cellHash(unit, -1, seed, ${K.DEPTH});
+    float depth = 5.0 + 4.0 * sr;
     vec4 hit = roomHit(p, size, depth, d);
     vec3 h = hit.xyz;
     vec3 c;
     if (hit.w < 1.5) {
-      // Shelves of goods on the back and side walls: packets 8–12 cm wide (one width per
-      // shelf), of different heights, in muted printed colours, against a dark shelf back.
-      float along = hit.w < 0.5 ? h.x : h.z;
-      int row = int(floor(h.y / 0.48));
-      float shelf = fract(h.y / 0.48);
-      float gw = 0.08 + 0.04 * cellHash(row, -3, seed + unit, 14);
-      int gi = int(floor(along / gw));
-      vec3 goods = vec3(cellHash(gi, row, seed + unit, 11), cellHash(gi, row, seed + unit, 12), cellHash(gi, row, seed + unit, 13));
-      goods = mix(vec3(dot(goods, vec3(0.3, 0.59, 0.11))), goods, 0.45) * 0.62 + 0.1;
-      float top = 0.5 + 0.42 * cellHash(gi, row, seed + unit, 15);
-      bool packet = fract(along / gw) > 0.1 && shelf > 0.1 && shelf < top;
-      c = shelf < 0.1 ? vec3(0.46, 0.39, 0.3) : packet ? goods : vec3(0.24, 0.22, 0.2);
-      // Packets smaller than a pixel shimmer: further than ~15–35 m, their average instead.
-      c = mix(c, vec3(0.36, 0.34, 0.31), smoothstep(15.0, 35.0, length(vViewPosition)));
-      if (h.y > 2.3) c = vec3(0.85, 0.83, 0.78);
+      // Shelves of goods on the back wall (atlas), continuing along the side walls.
+      float u = hit.w < 0.5 ? h.x / size.x : fract(h.z / size.x);
+      c = vec3(0.36, 0.33, 0.3);
+      if (lod < uRoomLod.z) { vec4 t = atlas(floor(fract(sr * 13.7) * 8.0), 2.0, vec2(u, h.y / size.y), lod); c = t.rgb + vec3(0.6, 0.58, 0.55) * (1.0 - t.a); }
+      if (hit.w > 0.5) c *= 0.8;
+      if (h.y > 2.6) c = vec3(0.85, 0.83, 0.78);
     } else if (hit.w < 2.5) {
       c = mix(vec3(0.6, 0.58, 0.55), vec3(0.5, 0.48, 0.45), mod(floor(h.x / 0.5) + floor(h.z / 0.5), 2.0));
     } else {
       c = vec3(0.9);
       if (abs(h.z - depth * 0.5) < 0.05 || abs(h.z - depth * 0.2) < 0.05) c = vec3(1.9, 1.85, 1.7);
     }
-    return c * (1.0 - 0.35 * h.z / depth);
+    c *= 1.0 - 0.35 * h.z / depth;
+    if (d.z > 0.0) {
+      // Counter across the shop, 1.4 m in, 0.95 m high.
+      float tc = 1.4 / d.z;
+      vec2 hc = p + d.xy * tc;
+      if (hc.y < 0.95 && hc.y > 0.0 && hc.x > 0.0 && hc.x < size.x) c = vec3(0.42, 0.3, 0.2) * (0.8 + 0.2 * step(0.85, hc.y));
+#ifndef FACADE_LITE
+      // What hangs or stands just inside the shutter line (atlas cut-out, 0.5 m in).
+      vec2 q = (p + d.xy * (0.5 / d.z)) / size;
+      if (lod < uRoomLod.w && q.x > 0.0 && q.x < 1.0 && q.y > 0.0 && q.y < 1.0) {
+        vec4 t = atlas(floor(fract(sr * 29.3) * 6.0), 3.0, q, lod);
+        c = t.rgb + c * (1.0 - t.a);
+      }
+#endif
+    }
+    return c;
   }
 `;
 
-export function makeFacadeMaterial(signAtlas) {
+/** Room atlas stand-in until roomAtlas.js draws the real one (keeps the program the same). */
+const NO_ROOMS = (() => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1); t.needsUpdate = true; return t; })();
+
+/**
+ * Facade material. lite (Low tier): a shorter shader without the furniture and hanging-goods
+ * layers, TV glow, mosquito mesh, drips, repainted flats, Deco grooves, polychrome voussoirs
+ * and the view into chawl galleries (software and phone GPUs run every branch of a shader).
+ */
+export function makeFacadeMaterial(signAtlas, rooms = null, { lite = false } = {}) {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+  if (lite) mat.defines = { FACADE_LITE: '' };
   mat.userData.signs = { value: signAtlas };
+  mat.userData.rooms = { value: rooms?.texture || NO_ROOMS };
+  const cell = rooms?.cell || 256;
+  mat.userData.roomCell = { value: cell };
+  // Atlas look-ups only where a room is big enough on screen to show them (mip level for a bay
+  // of about 32 / 90 px: home back wall / furniture; 20 / 45 px: shop shelves / hanging goods).
+  const lodAt = (px) => Math.log2(Math.max(1, (cell * 1.3) / px));
+  mat.userData.roomLod = { value: new THREE.Vector4(lodAt(32), lodAt(90), lodAt(20), lodAt(45)) };
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.tSigns = mat.userData.signs;
+    shader.uniforms.tRooms = mat.userData.rooms;
+    shader.uniforms.uRoomCell = mat.userData.roomCell;
+    shader.uniforms.uRoomLod = mat.userData.roomLod;
     shader.uniforms.uNight = facadeNight;
     shader.uniforms.uFacadeDebug = facadeDebug;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
         attribute float facadeBay; attribute vec4 facadeA; attribute vec2 facadeB;
-        varying vec2 vFacadeP; varying float vBay; flat varying vec4 vFacadeA; flat varying vec2 vFacadeB;`)
+        varying vec2 vFacadeP; varying float vBay; flat varying vec4 vFacadeA; flat varying vec2 vFacadeB;
+        flat varying vec4 vBuildingA; flat varying vec4 vBuildingB;
+        ${CELL_HASH_GLSL}`)
       .replace('#include <uv_vertex>', `#include <uv_vertex>
-        vFacadeP = uv; vBay = facadeBay; vFacadeA = facadeA; vFacadeB = facadeB;`);
+        vFacadeP = uv; vBay = facadeBay; vFacadeA = facadeA; vFacadeB = facadeB;
+        { int seed = int(facadeA.y + 0.5); ${BUILDING_HASH_GLSL} }`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         varying vec2 vFacadeP; varying float vBay; flat varying vec4 vFacadeA; flat varying vec2 vFacadeB;
-        uniform sampler2D tSigns; uniform float uNight; uniform float uFacadeDebug;
+        flat varying vec4 vBuildingA; flat varying vec4 vBuildingB;
+        uniform sampler2D tSigns; uniform sampler2D tRooms; uniform float uRoomCell; uniform vec4 uRoomLod; uniform float uNight; uniform float uFacadeDebug;
         vec3 dbgColor = vec3(0.0);
         ${GLSL}`)
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
         float flatNormal = 0.0;
         vec3 facadeEmissive = vec3(0.0);
         {
-          int st = int(vFacadeA.x);
+          int sx = int(vFacadeA.x);
+          int st = sx & 15;
+          int fk = sx >> 4;
           int seed = int(vFacadeA.y + 0.5);
           float storey = vFacadeA.z;
           float roofY = vFacadeA.w;
-          float shop = vFacadeB.x;
+          float codeF = vFacadeB.x + 0.01;
+          int code = int(codeF);
+          bool tallGF = fract(codeF) > 0.2;
           float bw = vFacadeB.y;
           // Screen-space size of the facade grid (here, outside any branch, where derivatives are defined).
           vec2 fwF = vec2(fwidth(vBay), fwidth(vFacadeP.y));
+          float fwU = fwidth(vFacadeP.x);
+          float roomLod = log2(max(1.0, uRoomCell * fwF.x * 1.3));
           float y = vFacadeP.y - ${Y.KERB.toFixed(2)};
+          float tint = vBuildingA.x;
+          vec3 wood = woodPaint(tint), alu = aluColour(tint), steel = steelColour(tint);
+          if (code == 5) {
+            // ---------- roof slope: Mangalore clay tiles (warm colour) or slate (grey-blue)
+            vec2 p = vFacadeP;
+            bool slate = vColor.b > vColor.r;
+            float rowH = slate ? 0.27 : 0.34, tw = slate ? 0.3 : 0.24;
+            float row = floor(p.y / rowH), fy = fract(p.y / rowH);
+            float xo = p.x / tw + mod(row, 2.0) * 0.5, fx = fract(xo);
+            float th = cellHash(int(floor(xo)), int(row), seed, 70);
+            vec3 c = vColor.rgb * (0.84 + 0.28 * th);
+            c *= slate ? 0.88 + 0.12 * fy : (0.72 + 0.28 * sin(3.14159 * fx)) * (0.8 + 0.2 * smoothstep(0.0, 0.4, fy));
+            c *= 1.0 - 0.42 * smoothstep(0.8, 1.0, fy);                       // shadow under the next row's lip
+            c *= 0.82 + 0.18 * cellHash(int(floor(p.x / 0.9)), int(floor(p.y / 1.6)), seed, 71); // weathering
+            float tilePx = max(fwidth(p.x) / tw, fwidth(p.y) / rowH);
+            c = mix(c, vColor.rgb * (slate ? 0.84 : 0.72), smoothstep(0.25, 0.6, tilePx));
+            diffuseColor.rgb = c;
+            roughnessFactor = slate ? 0.6 : 0.82;
+            metalnessFactor = 0.0;
+            flatNormal = 1.0;
+          } else {
           // Painted walls take the building's paint colour; the photo texture keeps its grain.
           if (st <= 2 || st == 5) {
             vec3 texel = diffuseColor.rgb / max(vColor.rgb, vec3(0.02));
             float L = dot(texel, vec3(0.3, 0.59, 0.11));
             diffuseColor.rgb = mix(diffuseColor.rgb, L * 1.45 * vColor.rgb, st == 1 ? 0.55 : 0.85);
           }
+          float gf = code == 1 ? max(storey, ${SHOP_STOREY.toFixed(1)}) : 0.0;
+#ifndef FACADE_LITE
+          // Old buildings: some flats repainted their own part of the wall.
+          if ((fk == 1 || fk == 4) && (st <= 1 || st == 5) && code <= 1 && y > gf) {
+            int pc = int(floor(vBay)), pr = int(floor((y - gf) / storey));
+            float ph = cellHash(pc, pr, seed, ${K.PATCH});
+            if (ph < 0.16) diffuseColor.rgb *= mix(vec3(0.86, 0.9, 0.96), vec3(1.1, 1.05, 0.92), fract(ph * 37.3));
+          }
+#endif
           vec3 wallC = diffuseColor.rgb;
 
           // View ray in wall space (x along the wall's u direction, y up, z into the wall).
@@ -147,23 +255,50 @@ export function makeFacadeMaterial(signAtlas) {
           vec3 Tu = normalize(cross(Nv, upV));
           vec3 Vv = normalize(-vViewPosition);
           vec3 ray = normalize(vec3(dot(Vv, Tu), dot(Vv, upV), dot(Vv, -Nv)));
-          float lightsOn = 0.12 + uNight * 0.9;
 
-          // Rising damp and dirt near the ground, darker plinth.
-          diffuseColor.rgb *= mix(0.72, 1.0, smoothstep(0.0, 1.6, y));
-          if (y < 0.45) diffuseColor.rgb *= 0.78;
+          // Weathering: damp and algae at the foot of the wall (ragged top), black monsoon streaks
+          // hanging from the roof edge (0.22 m columns of random length).
+          if (st != 6 && code != 7) {
+            float sK = (fk == 1 || fk == 4 || st == 1) ? 1.0 : fk == 3 ? 0.75 : 0.55;
+            if (y < 2.1) {
+#ifdef FACADE_LITE
+              float damp = 1.0 - smoothstep(0.0, 1.3, y);
+#else
+              float xc = vFacadeP.x / 0.7, x0 = floor(xc);
+              float dh = mix(cellHash(int(x0), 5, seed, ${K.STAIN}), cellHash(int(x0) + 1, 5, seed, ${K.STAIN}), smoothstep(0.0, 1.0, fract(xc)));
+              float damp = 1.0 - smoothstep(0.0, 0.6 + 1.4 * dh, y);
+#endif
+              diffuseColor.rgb *= mix(vec3(1.0), vec3(0.6, 0.64, 0.55), damp * (0.5 + 0.5 * sK));
+              if (y < 0.45) diffuseColor.rgb *= 0.8;
+            }
+            float dTop = roofY + 0.8 - vFacadeP.y;
+            if (dTop > 0.0 && dTop < 4.6) {
+              float sc = vFacadeP.x / 0.22, si = floor(sc);
+              float Ls = 0.5 + 4.0 * pow(cellHash(int(si), 3, seed, ${K.STAIN}), 2.0);
+              float s1 = (1.0 - smoothstep(0.0, Ls, dTop)) * (0.35 + 0.65 * cellHash(int(si), 4, seed, ${K.STAIN}));
+              s1 *= 1.0 - abs(fract(sc) - 0.5) * 1.3;
+              float sAvg = (1.0 - smoothstep(0.0, 2.4, dTop)) * 0.42;
+              s1 = mix(s1, sAvg, smoothstep(0.25, 0.7, fwU / 0.22));
+              diffuseColor.rgb *= mix(vec3(1.0), vec3(0.42, 0.46, 0.38), s1 * sK);     // greenish-black algae
+            }
+          }
           if (vFacadeP.y > roofY + 0.78 && vFacadeP.y < roofY + 0.9) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.78, 0.76, 0.72), 0.6);
+          vec3 wallS = diffuseColor.rgb;
+          bool wallPx = true;
 
-          bool windows = shop < 1.5 && st < 7 && vFacadeP.y < roofY - 0.3 && y > 0.0;
-          float gf = shop > 0.5 ? max(storey, ${SHOP_STOREY.toFixed(1)}) : 0.0;
+          bool windows = code <= 1 && st < 7 && vFacadeP.y < roofY - 0.3 && y > 0.0;
+          float g1 = tallGF ? max(storey, ${SHOP_STOREY.toFixed(1)}) : storey; // chawl galleries start above the ground floor
+          int grow = int(floor((y - g1) / storey));
+          vec3 dado = code == 3 || code == 4 ? min(woodPaint(fract(tint * 7.31)) * 1.7 + 0.05, vec3(0.7)) : vec3(0.0);
 
-          if (windows && shop > 0.5 && y < gf) {
+          if (windows && code == 1 && y < gf) {
             // ---------- ground-floor shop
             int unit = int(floor(vBay));
             float lx = fract(vBay);
             bool pillar = lx < 0.06 || lx > 0.94;
             float signTop = gf - 0.2, signBot = gf - 1.15;
             if (!pillar) {
+              wallPx = false;
               if (y > signBot && y < signTop) {
                 float idx = floor(cellHash(unit, -1, seed, ${K.SIGN}) * 128.0);
                 vec2 cell = vec2(mod(idx, 8.0), floor(idx / 8.0));
@@ -179,7 +314,7 @@ export function makeFacadeMaterial(signAtlas) {
                 if (open) {
                   vec2 p = vec2((lx - 0.06) * bw, y - 0.22);
                   vec2 size = vec2(0.88 * bw, signBot - 0.27);
-                  vec3 c = shopInterior(p, size, ray, unit, seed);
+                  vec3 c = shopInterior(p, size, ray, unit, seed, roomLod);
                   diffuseColor.rgb = vec3(0.0);
                   roughnessFactor = 1.0;
                   flatNormal = 1.0;
@@ -203,26 +338,44 @@ export function makeFacadeMaterial(signAtlas) {
             float ly = fract(fy);
             int col = int(floor(vBay));
             float lx = fract(vBay);
-            // How big a window cell is on screen (cells per pixel): fine patterns (grille bars,
-            // railings, AC fins, streaks) fade to their average under ~1 px per bar, and the
-            // whole cell to its average under ~5 px per window — no crawling edges far away.
+            // How big a window cell is on screen (cells per pixel): fine patterns (bars, slats,
+            // railings, streaks) fade to their average under ~1 px per bar, and the whole cell to
+            // its average under ~5 px per window — no crawling edges far away.
             float cellPx = max(fwF.x, fwF.y / storey);
             float hf = smoothstep(0.02, 0.06, cellPx);
             float far = smoothstep(0.12, 0.3, cellPx);
-            vec4 r = windowRect(st);
-            float inWin = fBox(vec2(lx, ly), r);
-            if ((st == 3 || st == 4) && ly > 0.68) inWin *= step(abs(lx - 0.5), 0.2 * sqrt(max(0.0, (r.w - ly) / (r.w - 0.68))));
-            bool balcony = isBalcony(st, col, row, seed);
+            float roomFar = smoothstep(0.06, 0.1, cellPx); // rooms under ~10 px per window: their average (no ray into the room)
+            bool balconyCell = isBalconyCell(st, fk, col, row, seed);
+            bool enclosed = balconyCell && fk == 0 && cellHash(col, row, seed, ${K.ENCLOSE}) < 0.5;
+            bool balcony = balconyCell && !enclosed;
+            int kind = windowKind(st, fk, col, row, seed);
+            vec4 r = kindRect(st, kind, windowRect(st));
+            float inWin = winShape(kind, vec2(lx, ly), r, bw, storey);
+            int lst = kind == ${WIN.LOUVRE} ? louvreState(col, row, seed) : 0;
+            float lit = inWin > 0.5 || balconyCell ? step(0.5, cellHash(col, row, seed, ${K.LIT})) : 0.0;
             float band = st == 2 ? fBand(ly, 0.0, 0.09) : st == 6 ? fBand(ly, 0.0, 0.08) : fBand(ly, 0.0, 0.035);
             diffuseColor.rgb *= 1.0 - band * (st == 2 ? -0.08 : 0.12);
+            wallS = diffuseColor.rgb;
             vec2 roomP = vec2(lx * bw, ly * storey);
             vec2 roomS = vec2(bw, storey);
+            // The room behind this cell, traced once (curtain wall, enclosed balcony or window glass,
+            // which sits ~0.18 m behind the wall face).
+            float recess = 0.18 / max(ray.z, 0.08);
+            vec2 gp = roomP + ray.xy * recess;
+            bool encIn = enclosed && fBox(vec2(lx, ly), vec4(0.08, 0.92, 0.06, 0.92)) > 0.5;
+            vec3 room = vec3(0.56, 0.52, 0.44);
+            float rh = cellHash(col, row, seed, ${K.ROOM});
+            if (roomFar < 0.999 && (st == 6 || encIn || inWin > 0.5) && kind != ${WIN.PORTHOLE} && far < 0.999) {
+              vec2 rp = st == 6 ? roomP : encIn ? vec2((lx - 0.08) * bw, (ly - 0.06) * storey) : gp;
+              vec2 rs = encIn ? vec2(0.84 * bw, 0.86 * storey) : roomS;
+              room = mix(homeInterior(rp, rs, ray, rh, st, roomLod), room, roomFar);
+            }
             if (st == 6) {
               // Glass curtain wall: spandrels at floor lines, mullions between panes, offices behind.
+              wallPx = false;
               float mull = 1.0 - fBand(lx, 0.03, 0.97);
               if (band > 0.5 || mull > 0.5) { diffuseColor.rgb = vec3(0.32, 0.33, 0.34); roughnessFactor = 0.4; metalnessFactor = 0.6; flatNormal = 1.0; }
               else {
-                vec3 room = homeInterior(roomP, roomS, ray, col, row, seed);
                 diffuseColor.rgb = wallC * 0.3;
                 roughnessFactor = 0.05;
                 metalnessFactor = 0.55;
@@ -233,71 +386,205 @@ export function makeFacadeMaterial(signAtlas) {
               // Recessed balcony: a shallow room with a door, railing and clothes painted for distance.
               float inB = fBox(vec2(lx, ly), vec4(0.08, 0.92, 0.06, 0.92));
               if (inB > 0.5) {
+                wallPx = false;
                 vec4 hit = roomHit(vec2((lx - 0.08) * bw, (ly - 0.06) * storey), vec2(0.84 * bw, 0.86 * storey), 1.3, ray);
                 vec3 c = wallC * (hit.w < 0.5 ? 0.55 : 0.4);
                 if (hit.w < 0.5 && hit.x > 0.84 * bw * 0.35 && hit.x < 0.84 * bw * 0.6 && hit.y < 2.1) c = vec3(0.28, 0.18, 0.11);
                 diffuseColor.rgb = c;
                 float rail = step(ly, 0.42) * min(1.0, mix(step(0.75, fract(lx * 24.0)) + fBand(ly, 0.38, 0.42), 0.32, hf));
                 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.12), rail);
-                float cloth = fBand(ly, 0.48, 0.74) * step(0.45, cellHash(col, row, seed, ${K.CURTAIN})) * step(0.35, fract(lx * 5.0));
-                if (cloth > 0.5) diffuseColor.rgb = vec3(cellHash(col, int(lx * 5.0), seed, 21), cellHash(col, int(lx * 5.0), seed, 22), cellHash(col, int(lx * 5.0), seed, 23)) * 0.75 + 0.1;
+                float cloth = fBand(ly, 0.48, 0.74) * step(0.45, rh) * step(0.35, fract(lx * 5.0));
+                if (cloth > 0.5) { float cc = cellHash(col, int(lx * 5.0), seed, 21); diffuseColor.rgb = vec3(cc, fract(cc * 7.3), fract(cc * 13.7)) * 0.75 + 0.1; }
                 roughnessFactor = 0.9;
                 flatNormal = 1.0;
               }
+            } else if (enclosed) {
+              // Balcony closed in: aluminium sliding glass over a solid panel, or a grille box.
+              float inB = fBox(vec2(lx, ly), vec4(0.08, 0.92, 0.06, 0.92));
+              if (inB > 0.5) {
+                wallPx = false;
+                vec2 q = vec2((lx - 0.08) / 0.84, (ly - 0.06) / 0.86);
+                vec2 bp = vec2((lx - 0.08) * bw, (ly - 0.06) * storey), bs = vec2(0.84 * bw, 0.86 * storey);
+                if (cellHash(col, row, seed, ${K.CAGE}) < 0.3) {
+                  vec4 hit = roomHit(bp, bs, 1.3, ray);
+                  vec3 c = wallC * (hit.w < 0.5 ? 0.5 : 0.38);
+                  float bars = min(1.0, mix(step(0.78, fract(bp.x / 0.11)) + fBand(fract(q.y * 5.0), 0.0, 0.07) + step(q.y, 0.04), 0.3, hf));
+                  diffuseColor.rgb = mix(c, vec3(0.13, 0.1, 0.08), bars);
+                  roughnessFactor = 0.85;
+                } else {
+                  bool frm = abs(q.x - 0.333) < 0.012 || abs(q.x - 0.667) < 0.012 || q.x < 0.02 || q.x > 0.98 || abs(q.y - 0.3) < 0.015 || q.y > 0.97;
+                  if (q.y < 0.3) { diffuseColor.rgb = vec3(0.78, 0.76, 0.72) * (0.92 + 0.08 * mix(step(0.5, fract(bp.x * 8.0)), 0.5, hf)); roughnessFactor = 0.8; }
+                  else if (frm) { diffuseColor.rgb = alu; roughnessFactor = 0.4; metalnessFactor = 0.5; }
+                  else {
+                    diffuseColor.rgb = vec3(0.025, 0.035, 0.04);
+                    roughnessFactor = 0.06;
+                    metalnessFactor = 0.3;
+                    facadeEmissive = room * (0.07 + uNight * lit * 0.7);
+                  }
+                }
+                flatNormal = 1.0;
+              }
+            } else if (inWin > 0.5 && far >= 0.999) {
+              // Far away: just the glow of lit windows (the cell average comes below).
+              wallPx = false;
+              facadeEmissive = vec3(0.62, 0.55, 0.45) * (0.1 + uNight * lit * 0.75) * (kind == ${WIN.LOUVRE} && lst == 0 ? 0.25 : 1.0);
             } else if (inWin > 0.5) {
               // Window recess: the glass sits ~0.18 m behind the wall face. At an angle the view
               // ray meets the reveal first: the sill catches the light, sides and head are in shade.
-              float recess = 0.18 / max(ray.z, 0.08);
-              vec2 gp = roomP + ray.xy * recess;
+              wallPx = false;
               vec2 g01 = gp / roomS;
-              if (g01.x < r.x || g01.x > r.y || g01.y < r.z || g01.y > r.w) {
+              if (winShape(kind, g01, r, bw, storey) < 0.5) {
                 diffuseColor.rgb = wallC * (g01.y < r.z ? 0.92 : g01.y > r.w ? 0.42 : 0.6);
                 roughnessFactor = 0.9;
                 flatNormal = 1.0;
               } else {
-              lx = g01.x; ly = g01.y; roomP = gp; // frame, glass and room are drawn on the recessed plane
-              float frameW = 0.035;
-              float frame = 1.0 - fBox(vec2(lx, ly), r + vec4(frameW, -frameW, frameW, -frameW));
-              float mid = fBand(lx, 0.5 * (r.x + r.y) - 0.012, 0.5 * (r.x + r.y) + 0.012);
-              if (frame > 0.5 || (mid > 0.5 && st <= 2)) {
-                diffuseColor.rgb = (st == 3 || st == 4) ? vec3(0.28, 0.22, 0.16) : vec3(0.82, 0.8, 0.76);
-                roughnessFactor = 0.6;
-              } else {
-                // Glass with a room behind it; some windows have curtains half drawn.
-                vec3 room = homeInterior(roomP, roomS, ray, col, row, seed);
-                float lit = step(0.5, cellHash(col, row, seed, ${K.LIT}));
-                bool curtain = cellHash(col, row, seed, ${K.CURTAIN}) < 0.4;
-                if (curtain) {
-                  float tcu = 0.12 / max(ray.z, 1e-3);
-                  float cx = roomP.x / bw + ray.x * tcu / bw;
-                  bool leftHalf = cellHash(col, row, seed, 31) < 0.5;
-                  if ((leftHalf && cx < 0.5 * (r.x + r.y)) || (!leftHalf && cx > 0.5 * (r.x + r.y))) {
-                    room = vec3(0.55 + 0.35 * cellHash(col, row, seed, 32), 0.4 + 0.3 * cellHash(col, row, seed, 33), 0.3 + 0.4 * cellHash(col, row, seed, 34));
+                lx = g01.x; ly = g01.y; roomP = gp; // frame, glass and room are drawn on the recessed plane
+                vec2 q = vec2((lx - r.x) / (r.y - r.x), (ly - r.z) / (r.w - r.z)); // 0..1 across the opening
+                vec2 qs = vec2((r.y - r.x) * bw, (r.w - r.z) * storey);            // opening size, metres
+                bool stone = st == 3 || st == 4;
+                float solid = 0.0;   // frame or bars
+                vec3 solidC = vec3(0.82, 0.8, 0.76);
+                bool open = false, slats = false;
+                if (kind == ${WIN.PLAIN}) {
+                  solid = max(1.0 - fBox(q, vec4(0.07, 0.93, 0.07, 0.93)), fBand(q.x, 0.485, 0.515));
+                } else if (kind == ${WIN.SLIDER}) {
+                  solid = max(1.0 - fBox(q, vec4(0.045, 0.955, 0.045, 0.955)), fBand(q.x, 0.472, 0.528));
+                  solidC = alu;
+                  open = q.x > 0.5 && cellHash(col, row, seed, ${K.SLIDE}) < 0.35;
+                } else if (kind == ${WIN.CASEMENT}) {
+                  float bars = (q.y < 0.7 ? max(fBand(abs(q.x - 0.5), 0.0, 0.018), max(fBand(abs(q.x - 0.28), 0.0, 0.01), fBand(abs(q.x - 0.72), 0.0, 0.01))) : max(fBand(abs(q.x - 0.35), 0.0, 0.01), fBand(abs(q.x - 0.65), 0.0, 0.01)))
+                    + fBand(q.y, 0.7, 0.745) + (q.y < 0.7 ? fBand(abs(q.y - 0.33), 0.0, 0.01) + fBand(abs(q.y - 0.52), 0.0, 0.01) : 0.0);
+                  solid = max(1.0 - fBox(q, vec4(0.06, 0.94, 0.06, 0.94)), min(1.0, mix(bars, 0.18, hf)));
+                  solidC = wood;
+                  open = q.x < 0.5 && q.y < 0.7 && cellHash(col, row, seed, ${K.SLIDE}) < 0.3;
+                } else if (kind == ${WIN.DECO}) {
+                  float bars = fBand(abs(q.y - 0.28), 0.0, 0.008) + fBand(abs(q.y - 0.52), 0.0, 0.008) + fBand(abs(q.y - 0.74), 0.0, 0.008) + fBand(abs(q.x - 0.333), 0.0, 0.008) + fBand(abs(q.x - 0.667), 0.0, 0.008);
+                  solid = max(1.0 - fBox(q, vec4(0.035, 0.965, 0.035, 0.965)), min(1.0, mix(bars, 0.12, hf)));
+                  solidC = steel;
+                } else if (kind == ${WIN.LOUVRE}) {
+                  solid = max(1.0 - fBox(q, vec4(0.05, 0.95, 0.05, 0.95)), fBand(q.x, 0.49, 0.51));
+                  solidC = wood;
+                  slats = lst == 0 || (lst == 2 && q.x < 0.5);
+                } else if (kind == ${WIN.ARCH} || kind == ${WIN.ROUND}) {
+                  // Gothic: green louvres in some buildings, else glazing with a mullion, a transom at
+                  // the springing and a round tracery light in the head.
+                  solidC = vec3(0.1, 0.07, 0.05);
+                  slats = kind == ${WIN.ARCH} && vBuildingB.x < 0.45;
+                  float bars = fBand(abs(q.x - 0.5), 0.0, 0.02) * step(q.y, ${f(ARCH_SPRING)}) + fBand(abs(q.y - ${f(ARCH_SPRING)}), 0.0, 0.012);
+                  if (kind == ${WIN.ARCH}) { float d = length(vec2((q.x - 0.5) * qs.x, (q.y - 0.8) * qs.y)); bars += fBand(abs(d - 0.18 * qs.x), 0.0, 0.03); }
+                  else if (q.y > ${f(ARCH_SPRING)}) { float a = atan(q.y - ${f(ARCH_SPRING)}, (q.x - 0.5) * qs.x / qs.y); bars += fBand(abs(fract(a / 0.5236 + 0.5) - 0.5), 0.0, 0.06); }
+                  solid = min(1.0, mix(bars, 0.15, hf));
+                  if (slats) { solid = fBand(q.x, 0.49, 0.51); solidC = wood; }
+                } else {
+                  // Porthole: a thick steel ring; a stairwell behind.
+                  float d = length(vec2((q.x - 0.5) * qs.x, (q.y - 0.5) * qs.y)) / (min(qs.x, qs.y) * 0.42);
+                  solid = step(0.8, d) + fBand(abs(q.x - 0.5) * qs.x, 0.0, 0.02);
+                  solidC = steel;
+                }
+                if (solid > 0.5) {
+                  diffuseColor.rgb = stone && kind != ${WIN.ARCH} && kind != ${WIN.ROUND} ? vec3(0.28, 0.22, 0.16) : solidC;
+                  roughnessFactor = kind == ${WIN.SLIDER} ? 0.4 : 0.6;
+                  metalnessFactor = kind == ${WIN.SLIDER} || kind == ${WIN.DECO} ? 0.4 : 0.0;
+                  flatNormal = 1.0;
+                } else if (slats) {
+                  // Wooden louvres: slats every 6.5 cm, lit from above; a lit room glows between them.
+                  float s = fract(q.y * qs.y / 0.065);
+                  float sh = mix(0.6 + 0.4 * smoothstep(0.0, 0.7, s) * (1.0 - smoothstep(0.85, 1.0, s)), 0.8, hf);
+                  diffuseColor.rgb = wood * sh;
+                  roughnessFactor = 0.75;
+                  flatNormal = 1.0;
+                  facadeEmissive = vec3(1.0, 0.85, 0.6) * uNight * lit * 0.5 * mix(step(0.88, s), 0.12, hf);
+                } else {
+                  // Glass (or an open pane) with a room behind it; some windows have curtains half drawn.
+                  if (kind == ${WIN.PORTHOLE}) room = vec3(0.32, 0.3, 0.28);
+                  float ch = cellHash(col, row, seed, ${K.CURTAIN});
+                  bool curtain = ch < 0.4 && kind != ${WIN.PORTHOLE};
+                  if (curtain) {
+                    float tcu = 0.12 / max(ray.z, 1e-3);
+                    float cx = roomP.x / bw + ray.x * tcu / bw;
+                    bool leftHalf = fract(ch * 7.7) < 0.5;
+                    if ((leftHalf && cx < 0.5 * (r.x + r.y)) || (!leftHalf && cx > 0.5 * (r.x + r.y))) {
+                      room = vec3(0.55 + 0.35 * fract(ch * 13.1), 0.4 + 0.3 * fract(ch * 17.3), 0.3 + 0.4 * fract(ch * 23.9));
+                    }
+                  }
+#ifndef FACADE_LITE
+                  // A TV's blue light in some dark rooms at night.
+                  if (lit < 0.5 && fract(rh * 53.1) < 0.12) room += vec3(0.05, 0.1, 0.22) * uNight * 2.0;
+#endif
+                  diffuseColor.rgb = open ? vec3(0.0) : vec3(0.02, 0.025, 0.03);
+                  roughnessFactor = open ? 1.0 : 0.05;
+                  flatNormal = 1.0;
+                  facadeEmissive = room * ((open ? 0.16 : 0.1) + uNight * lit * 0.75);
+#ifndef FACADE_LITE
+                  if (open && kind == ${WIN.SLIDER} && fract(rh * 61.7) < 0.5) {
+                    diffuseColor.rgb = vec3(0.09); facadeEmissive *= 0.55;                       // mosquito mesh
+                  }
+#endif
+                  bool barsOn = hasGrille(st, kind, col, row, seed) || hasCage(fk, kind, col, row, seed);
+                  if (barsOn) {
+                    float bars = min(1.0, mix(step(0.82, fract(lx * 18.0)) + fBand(fract(ly * 4.0), 0.0, 0.08), 0.26, hf));
+                    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.1, 0.07), bars);
+                    roughnessFactor = mix(roughnessFactor, 0.8, bars);
+                    facadeEmissive *= 1.0 - 0.8 * bars;
                   }
                 }
-                diffuseColor.rgb = vec3(0.02, 0.025, 0.03);
-                roughnessFactor = 0.05;
-                flatNormal = 1.0;
-                facadeEmissive = room * (0.1 + uNight * lit * 0.75);
-                if (hasGrille(st, col, row, seed)) {
-                  float bars = min(1.0, mix(step(0.82, fract(lx * 18.0)) + fBand(fract(ly * 4.0), 0.0, 0.08), 0.26, hf));
-                  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.1, 0.07), bars);
-                  roughnessFactor = mix(roughnessFactor, 0.8, bars);
-                  facadeEmissive *= 1.0 - 0.8 * bars;
-                }
-              }
               }
             } else {
-              // Wall around the window: sunshade (chajja), monsoon streaks, AC unit (painted for distance).
-              if (st <= 2 || st >= 5) {
+              // Wall around the window: sunshade (chajja), louvres folded open, Gothic voussoirs,
+              // Deco grooves, AC unit, monsoon streaks and drips (painted for distance).
+              float W = r.y - r.x, cxw = (r.x + r.y) * 0.5;
+              bool chajja = (st <= 1 || st == 5 || (st == 2 && fk != 2));
+              if (chajja && kind != ${WIN.PORTHOLE}) {
                 if (fBand(ly, r.w + 0.015, r.w + 0.07) * fBand(lx, r.x - 0.06, r.y + 0.06) > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.7, 0.68, 0.64), 0.6);
+#ifndef FACADE_LITE
+                // Water runs off the ends of the sunshade.
+                float dx = min(abs(lx - (r.x - 0.05)), abs(lx - (r.y + 0.05))) * bw;
+                float drip = (1.0 - smoothstep(0.015, 0.09, dx)) * step(ly, r.w) * smoothstep(r.w - 1.5 / storey, r.w, ly);
+                diffuseColor.rgb *= 1.0 - 0.35 * mix(drip, 0.1 * step(ly, r.w), hf) * (fk == 0 ? 0.6 : 1.0);
+#endif
               }
+              if (kind == ${WIN.LOUVRE} && lst != 0 && ly > r.z + 0.05 * (r.w - r.z) && ly < r.w - 0.05 * (r.w - r.z)) {
+                float leaf = fBand(lx, cxw + 0.5 * W, cxw + 0.94 * W) + (lst == 1 ? fBand(lx, cxw - 0.94 * W, cxw - 0.5 * W) : 0.0);
+                if (leaf > 0.5) {
+                  float s = fract(ly * storey / 0.065);
+                  diffuseColor.rgb = wood * mix(0.55 + 0.35 * smoothstep(0.0, 0.7, s), 0.72, hf);
+                  roughnessFactor = 0.75;
+                  flatNormal = 1.0;
+                  wallPx = false;
+                }
+              }
+              if (kind == ${WIN.ARCH} || kind == ${WIN.ROUND}) {
+                // Voussoirs round the arch head (Gothic: buff and blue basalt alternating) and a sill course.
+                float ring = winShape(kind, vec2(lx, ly), r + vec4(-0.05, 0.05, 0.0, 0.05), bw, storey) * (1.0 - inWin);
+                float spring = r.z + (r.w - r.z) * ${f(ARCH_SPRING)};
+                if (ring > 0.5 && ly > spring - 0.01) {
+#ifdef FACADE_LITE
+                  diffuseColor.rgb = wallC * 1.12;
+#else
+                  float a = atan((ly - spring) * storey, (lx - cxw) * bw);
+                  float v = mod(floor(a * 9.0 / 3.14159), 2.0);
+                  diffuseColor.rgb = fk == 3 && v > 0.5 ? vec3(0.17, 0.17, 0.17) : wallC * 1.12;
+#endif
+                }
+                if (fk == 3 && fBand(ly, r.z - 0.035, r.z - 0.005) > 0.5) diffuseColor.rgb = vec3(0.2, 0.2, 0.19);
+              }
+#ifndef FACADE_LITE
+              if (fk == 2 && st == 2 && fract(tint * 41.3) < 0.6) {
+                float g = fBand(abs(ly - 0.1), 0.0, 0.006) + fBand(abs(ly - 0.14), 0.0, 0.006) + fBand(abs(ly - 0.18), 0.0, 0.006);
+                diffuseColor.rgb *= 1.0 - 0.25 * min(1.0, mix(g, 0.04, hf));
+              }
+#endif
               float streak = fBand(lx, r.x, r.y) * step(ly, r.z) * smoothstep(0.0, r.z, ly) * mix(cellHash(int(floor(lx * 23.0)), col, seed, 40), 0.5, hf);
               diffuseColor.rgb *= 1.0 - 0.35 * streak * (st == 1 ? 1.0 : 0.5);
-              if (hasAC(st, col, row, seed)) {
-                float ac = fBox(vec2(lx, ly), vec4(r.y + 0.03, r.y + 0.24, 0.33, 0.52));
-                if (ac > 0.5) { diffuseColor.rgb = vec3(0.78, 0.78, 0.76) * (0.85 + 0.15 * mix(step(0.5, fract(ly * 40.0)), 0.5, hf)); roughnessFactor = 0.5; flatNormal = 1.0; }
-                diffuseColor.rgb *= 1.0 - 0.35 * fBox(vec2(lx, ly), vec4(r.y + 0.03, r.y + 0.24, 0.26, 0.33));
+              if (!balconyCell && hasAC(st, fk, kind, col, row, seed)) {
+                vec2 ac = acCentre(r, bw, storey);
+                vec2 da = vec2(abs(lx - ac.x) * bw, (ly - ac.y) * storey);
+                if (da.x < ${f(AC_SIZE[0] / 2)} && abs(da.y) < ${f(AC_SIZE[1] / 2)}) {
+                  diffuseColor.rgb = vec3(0.78, 0.78, 0.76) * (0.85 + 0.15 * mix(step(0.5, fract(ly * 40.0)), 0.5, hf)); roughnessFactor = 0.5; flatNormal = 1.0; wallPx = false;
+                }
+#ifndef FACADE_LITE
+                else if (da.x < 0.05 && da.y < -${f(AC_SIZE[1] / 2)} && da.y > -1.4) diffuseColor.rgb *= 1.0 - 0.35 * (1.0 + da.y / 1.4) * (1.0 - hf); // drip stain
+#endif
               }
             }
             if (far > 0.0 && st != 6 && !balcony) {
@@ -305,10 +592,136 @@ export function makeFacadeMaterial(signAtlas) {
               // glass by area) instead of window edges and glints that shimmer. The glow of lit
               // windows stays per pixel: at night small bright windows read better than an
               // averaged grey block.
-              float A = (r.y - r.x) * (r.w - r.z) * 0.8;
-              diffuseColor.rgb = mix(diffuseColor.rgb, mix(wallC * 0.9, vec3(0.03), A), far);
+              float A = enclosed ? 0.55 : (r.y - r.x) * (r.w - r.z) * 0.8;
+              vec3 glassAvg = (kind == ${WIN.LOUVRE} && lst == 0) || (kind == ${WIN.ARCH} && vBuildingB.x < 0.45) ? wood * 0.7 : vec3(0.03);
+              diffuseColor.rgb = mix(diffuseColor.rgb, mix(wallS * 0.9, glassAvg, A), far);
               roughnessFactor = mix(roughnessFactor, mix(0.9, 0.3, A), far);
+              metalnessFactor = mix(metalnessFactor, 0.0, far);
             }
+          } else if (code == 3 && y > g1 - 0.05) {
+            // ---------- chawl gallery: one room per bay — a door, a barred window, a tube light
+            int room = int(floor(vBay));
+            float lxM = fract(vBay) * bw, lyM = y - g1 - float(grow) * storey;
+            float hd = cellHash(room, grow, seed, ${K.DOOR});   // one hash per room: door paint, open, curtain, light
+            float roomLit = step(0.35, fract(hd * 19.3));
+            if (lyM < 1.2) diffuseColor.rgb = mix(diffuseColor.rgb, dado, 0.85);              // oil-paint dado
+            if (abs(lyM - 1.2) < 0.02) diffuseColor.rgb *= 0.7;
+            if (lxM > 0.35 && lxM < 1.3 && lyM < 2.1) {
+              wallPx = false;
+              vec3 dc = woodPaint(hd);
+              bool open = fract(hd * 7.3) < 0.45;
+              if (lxM < 0.41 || lxM > 1.24 || lyM > 2.04) diffuseColor.rgb = dc * 0.7;
+              else if (open) {
+                diffuseColor.rgb = vec3(0.03);
+                facadeEmissive = vec3(0.6, 0.55, 0.45) * (0.1 + 0.7 * uNight * roomLit);
+                if (lyM > 0.8 && fract(hd * 11.7) < 0.7) {                                   // cloth curtain in the doorway
+                  vec3 cc = vec3(fract(hd * 13.1), fract(hd * 17.9), fract(hd * 23.3));
+                  diffuseColor.rgb = (cc * cc * 0.7 + 0.1) * (0.85 + 0.15 * sin(lxM * 40.0));
+                  facadeEmissive *= 0.3;
+                }
+              } else diffuseColor.rgb = dc * (0.82 + 0.18 * fBox(vec2(fract((lxM - 0.41) / 0.415), fract(lyM / 0.68)), vec4(0.12, 0.88, 0.12, 0.88)));
+              roughnessFactor = 0.7;
+              flatNormal = 1.0;
+            } else if (lxM > 1.75 && lxM < bw - 0.3 && lyM > 0.9 && lyM < 1.9) {
+              wallPx = false;
+              float wx = (lxM - 1.75) / (bw - 2.05), wy = (lyM - 0.9);
+              bool frm = wx < 0.06 || wx > 0.94 || wy < 0.06 || wy > 0.94 || abs(wx - 0.5) < 0.03;
+              bool bar = fract(lxM / 0.12) < 0.18 && !frm;
+              diffuseColor.rgb = frm ? wood : bar ? vec3(0.1, 0.09, 0.08) : vec3(0.02);
+              roughnessFactor = frm || bar ? 0.7 : 0.1;
+              facadeEmissive = frm || bar ? vec3(0.0) : vec3(0.6, 0.55, 0.45) * (0.06 + 0.7 * uNight * roomLit);
+              flatNormal = 1.0;
+            } else {
+              if (lxM > 1.38 && lxM < 1.62 && lyM > 1.35 && lyM < 1.68) diffuseColor.rgb = lyM > 1.6 ? vec3(0.6, 0.08, 0.06) : vec3(0.85, 0.83, 0.78); // calendar
+              if (lyM > 2.36 && lyM < 2.42 && abs(lxM - 0.82) < 0.6) {                          // tube light
+                diffuseColor.rgb = vec3(0.9);
+                facadeEmissive = vec3(1.2, 1.25, 1.2) * uNight * roomLit;
+              }
+            }
+          } else if (code == 4) {
+            // ---------- chawl gallery railing: balusters with the corridor seen between them, saris drying
+            wallPx = false;
+            int room = int(floor(vBay));
+            float lxM = fract(vBay) * bw, xM = vBay * bw, lyM = y - g1 - float(grow) * storey;
+            float rk = vBuildingB.y;
+            vec3 railC = rk < 0.4 ? vec3(0.03, 0.06, 0.04) : rk < 0.75 ? vec3(0.17, 0.09, 0.05) : wallC;
+            bool solid;
+            if (rk < 0.4) solid = fract(xM / 0.11) < 0.22 || lyM > 0.93 || lyM < 0.08 || (lyM > 0.42 && lyM < 0.47);
+            else if (rk < 0.75) solid = abs(fract(xM / 0.16) - 0.5) < 0.12 + 0.05 * sin(lyM * 14.0) || lyM > 0.9 || lyM < 0.1;
+            else solid = lyM < 0.55 || lyM > 0.92 || fract(xM / 0.12) < 0.2 || abs(fract(lyM / 0.12) - 0.5) < 0.1;
+#ifdef FACADE_LITE
+            vec3 behind = dado * 0.45;
+#else
+            float t = ${f(1.6)} / max(ray.z, 0.05);
+            vec2 bp = vec2(xM, lyM) + ray.xy * t;
+            vec3 behind;
+            if (bp.y < 0.0) behind = vec3(0.26, 0.16, 0.12);
+            else {
+              float bl = fract(bp.x / bw) * bw;
+              behind = bl > 0.35 && bl < 1.3 && bp.y < 2.1 ? woodPaint(cellHash(int(floor(bp.x / bw)), grow, seed, ${K.DOOR})) : bp.y < 1.2 ? dado : wallC;
+              behind *= 0.55;
+            }
+#endif
+            vec3 c = solid ? railC : behind;
+            c = mix(c, mix(behind, railC, rk < 0.4 ? 0.35 : rk < 0.75 ? 0.45 : 0.75), smoothstep(0.03, 0.08, fwU));
+            // Saris, towels and bedsheets over the railing.
+            float hr = cellHash(room, grow, seed, ${K.DRAPE} + 1);
+            if (hr < 0.45) {
+              float x0 = 0.25 + 0.6 * fract(hr * 7.1), x1 = x0 + 0.7 + 0.9 * fract(hr * 11.3);
+              float drop = 0.35 + 0.5 * fract(hr * 17.9);
+              if (lxM > x0 && lxM < min(x1, bw - 0.1) && lyM > 1.0 - drop) {
+                vec3 cc = vec3(fract(hr * 23.3), fract(hr * 29.7), fract(hr * 37.1));
+                cc = cc * cc * 0.8 + 0.08;
+                c = mix(cc, vec3(0.75, 0.55, 0.12), step(lyM, 1.0 - drop + 0.07) * 0.8) * (0.85 + 0.15 * sin(lxM * 23.0));
+              }
+            }
+            diffuseColor.rgb = c;
+            roughnessFactor = 0.8;
+            metalnessFactor = 0.0;
+            flatNormal = 1.0;
+          } else if (code == 6) {
+            // ---------- gable end: a round window (Gothic) or vent (chawl roofs) in the middle
+            vec2 pm = vec2((vBay - 0.5) * bw, vFacadeP.y - roofY - 0.42 * storey);
+            float R0 = clamp(0.1 * bw, 0.25, 0.75), d = length(pm);
+            if (d < R0) {
+              wallPx = false;
+              bool bar = abs(pm.x) < 0.03 || abs(pm.y) < 0.03;
+              diffuseColor.rgb = bar ? wallC * 1.1 : vec3(0.04, 0.045, 0.05);
+              roughnessFactor = bar ? 0.9 : 0.15;
+              flatNormal = 1.0;
+              facadeEmissive = bar ? vec3(0.0) : vec3(0.5, 0.45, 0.35) * uNight * 0.15;
+            } else if (d < R0 + 0.1) diffuseColor.rgb = wallC * 1.12;
+          } else if (code == 7) {
+            // ---------- Art Deco name plaque (bronze letters, room atlas)
+            wallPx = false;
+            float idx = floor(vBuildingB.z * 8.0);
+            vec2 pq = vec2(1.0 - clamp(vBay, 0.0, 1.0), clamp((vFacadeP.y - roofY) / storey, 0.0, 1.0));
+            vec4 t = textureLod(tRooms, vec2((6.0 + floor(idx / 4.0) + clamp(pq.x, 0.004, 0.996)) / 8.0, (3.0 - mod(idx, 4.0) + clamp(pq.y, 0.02, 0.98)) / 16.0), log2(max(1.0, uRoomCell * fwF.x)));
+            diffuseColor.rgb = t.rgb + wallC * 1.05 * (1.0 - t.a);
+            roughnessFactor = mix(roughnessFactor, 0.4, t.a);
+            metalnessFactor = 0.45 * t.a;
+            flatNormal = 1.0;
+          }
+
+          // Drain pipes down the left side of some window columns (same rule as the 3D pipes),
+          // with dark water stains round them.
+          if (code <= 1 && st < 6) {
+            int pcol = int(floor(vBay));
+            float px = fract(vBay) * bw - ${f(PIPE_X)};
+            if (abs(px) < 0.4 && pipeAt(fk, pcol, seed) && vFacadeP.y < roofY + 0.35 && (code == 0 || y > gf - 0.6)) {
+              float stain = (1.0 - smoothstep(0.05, 0.38, abs(px))) * (0.25 + 0.35 * cellHash(int(floor(vFacadeP.y / 0.8)), pcol, seed, ${K.STAIN}));
+              if (wallPx) diffuseColor.rgb *= 1.0 - stain * (fk == 0 ? 0.7 : 1.0);
+              float pv = 1.0 - smoothstep(0.03, 0.08, fwU);
+              if (abs(px) < 0.05 && pv > 0.0) {
+                vec3 pc = fk == 0 ? (vBuildingB.w < 0.5 ? ${vec3(0x8d8f8c)} : ${vec3(0xd2cdc2)}) : fk == 2 ? wallC : ${vec3(0x3d3732)};
+                diffuseColor.rgb = mix(diffuseColor.rgb, pc * (0.55 + 0.45 * sqrt(max(0.0, 1.0 - px * px / 0.0025))), pv);
+                roughnessFactor = mix(roughnessFactor, 0.55, pv);
+                metalnessFactor = mix(metalnessFactor, 0.0, pv);
+                facadeEmissive *= 1.0 - pv;
+                flatNormal = max(flatNormal, pv);
+              }
+            }
+          }
           }
         }`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
@@ -322,7 +735,7 @@ export function makeFacadeMaterial(signAtlas) {
       .replace('#include <dithering_fragment>', `#include <dithering_fragment>
         if (uFacadeDebug > 0.5) gl_FragColor = vec4(dbgColor, 1.0);`);
   };
-  mat.customProgramCacheKey = () => 'gtb-facade-v2';
+  mat.customProgramCacheKey = () => 'gtb-facade-v3';
   return mat;
 }
 

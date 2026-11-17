@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { addMacroVariation } from './textures.js';
 import { makeFacadeMaterial, makeSignAtlas } from './facade.js';
+import { makeRoomAtlas } from './roomAtlas.js';
 import { makeHoardingAtlas, makeHoardingMaterial } from './hoardings.js';
 import { addNightLight } from './nightLights.js';
 
@@ -159,6 +160,7 @@ export function createMaterials(renderer, lib, tier) {
   const offset = (mat, f) => Object.assign(mat, { polygonOffset: true, polygonOffsetFactor: f, polygonOffsetUnits: f * 2 });
 
   const signs = makeSignAtlas();
+  const rooms = makeRoomAtlas(tier?.name === 'Low' ? 0.5 : 1); // rooms and shops behind the windows, Deco name plaques
   const m = {
     // Road quality: smooth dark asphalt on main roads, worn and patched tertiary roads,
     // broken rough lanes (drawn over the main surface with a small depth offset).
@@ -199,7 +201,7 @@ export function createMaterials(renderer, lib, tier) {
     roofRust: tex(std({ color: 0x8a5a44 }), 'tex-ph-rusty-corrugated-iron', 2, { onLoad: (x) => x.color.set(0xffffff) }),
     tank: new THREE.MeshStandardMaterial({ color: 0x1d1d1f, roughness: 0.55 }),
     walls: WALL_TEXTURES.map(([id, size]) => {
-      const w = makeFacadeMaterial(signs.texture);
+      const w = makeFacadeMaterial(signs.texture, rooms, { lite: tier?.name === 'Low' });
       lib.apply(w, id, { size, normalScale: 0.9, aoIntensity: 0.5 });
       return w;
     }),
@@ -211,7 +213,7 @@ export function createMaterials(renderer, lib, tier) {
   const ads = makeHoardingAtlas();
   m.hoarding = makeHoardingMaterial(ads.texture);
   const redrawSigns = signs.redraw;
-  signs.redraw = (families) => { redrawSigns(families); ads.redraw(families); };
+  signs.redraw = (families) => { redrawSigns(families); ads.redraw(families); rooms.redraw(families); };
   m.signs = signs;
   return m;
 }

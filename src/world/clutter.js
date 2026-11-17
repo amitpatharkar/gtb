@@ -4,6 +4,7 @@ import { POINT } from './tileFormat.js';
 import { Y } from './levels.js';
 import { HOARDING } from './mesh/hoardingMesh.js';
 import { facadeNight } from './facade.js';
+import { PART_FLOATS } from './facadeRules.js';
 import { POSE, FLAG, SKIN } from '../sim/people.js';
 import { profileOf } from '../sim/traffic.js';
 
@@ -748,8 +749,8 @@ export class StreetClutter {
   /** Cloth awnings, blue tarpaulins and metal awnings over some shopfronts. */
   awnings(sb, ox, oz, px, pz) {
     const S = this.solid, C = this.cloth, R2 = this.R.awn ** 2, T = this.tiles;
-    const dense = sb.length / 7 > 260; // shop bays in this 500 m tile
-    for (let i = 0; i < sb.length; i += 7) {
+    const dense = sb.length / PART_FLOATS > 260; // shop bays in this 500 m tile
+    for (let i = 0; i < sb.length; i += PART_FLOATS) {
       const x = sb[i] + ox, z = sb[i + 2] + oz;
       if ((x - px) ** 2 + (z - pz) ** 2 > R2) continue;
       const r = hash(x, z, 31);

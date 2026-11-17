@@ -8,8 +8,9 @@
 // Layout (version 4):
 //   "GTB1" magic, version, tx, tz, tileSize (m), clip rect x0 z0 x1 z1 (dm)
 //   names[]                                   (road names, referenced by index)
-//   buildings[]: height dm, minHeight dm, r g b (sRGB bytes), flags, style, levels,
-//                rings[], then a bitset over the outer ring's edges: 1 = faces a street
+//   buildings[]: height dm, minHeight dm, r g b (sRGB bytes), flags, style byte (low 4 bits style,
+//                high 4 bits facade kind, FACADE), levels, rings[], then a bitset over the outer
+//                ring's edges: 1 = faces a street
 //   areas[]:     kind, rings[]                (first ring outer, others holes)
 //   roads[]:     class, width dm, flags, name index + 1 (0 = none), OSM layer + 8, street profile (0 = none,
 //                else 1-based index into index.json `profiles`), line; with ROAD_FLAG.ELEVATED also the
@@ -51,6 +52,12 @@ export const STRUCT = { AT_GRADE: 0.22, CLEAR: 4.6, COVER: -5.6, CEILING: 5.4, D
 export const RAIL = { MAIN: 0, SERVICE: 1 };
 export const RAIL_FLAG = { BRIDGE: 1 };
 export const BUILDING_FLAG = { NO_COLLIDE: 1, HERITAGE: 2, SHOPS: 4, HIDDEN: 8, NETTING: 16, ARCADE: 32, WALL: 64 }; // WALL: compound wall, pillar, hoarding or fence (style = kind, lib/walls.mjs); // ARCADE: ground floor set back behind piers on street-facing walls (Fort, Causeway); // NETTING: under repair (green netting + scaffolding); // HIDDEN: collide only (a hand-built landmark stands there)
+// Facade kind (high 4 bits of a building's style byte; scripts/lib/facades.mjs): which windows,
+// details and roof a building gets (src/world/facadeRules.js, mesh/buildings.js, facade.js).
+// MODERN: aluminium sliders, box grilles, enclosed balconies · OLD: wooden casements and louvres ·
+// DECO: steel windows, rounded corners, eyebrows, stepped parapet · GOTHIC: pointed arches, gables,
+// turrets · CHAWL: open galleries with doors in a row on the street or courtyard side.
+export const FACADE = { MODERN: 0, OLD: 1, DECO: 2, GOTHIC: 3, CHAWL: 4 };
 export const POINT = {
   RAIN_TREE: 0, GULMOHAR: 1, PEEPAL: 2, PALM: 3, LIGHT: 4, SIGNAL: 5, BUS_STOP: 6,
   POTHOLE: 7, PUDDLE: 8, GARBAGE: 9, STALL: 10, FUEL: 11, TETRAPOD: 12,
@@ -126,7 +133,8 @@ export function decodeTile(u8) {
   for (let i = r.uvar(); i > 0; i--) {
     const height = r.uvar() / DM, minHeight = r.uvar() / DM;
     const color = [r.u8(), r.u8(), r.u8()];
-    const flags = r.u8(), style = r.u8(), levels = r.u8();
+    const flags = r.u8(), sb = r.u8(), levels = r.u8();
+    const style = sb & 15, facade = sb >> 4;
     const rings = r.rings();
     const n = rings.length ? rings[0].length / 2 : 0;
     const front = new Uint8Array(n);
@@ -134,7 +142,7 @@ export function decodeTile(u8) {
       const byte = r.u8();
       for (let k = 0; k < 8 && b * 8 + k < n; k++) front[b * 8 + k] = (byte >> k) & 1;
     }
-    tile.buildings.push({ height, minHeight, color, flags, style, levels, rings, front });
+    tile.buildings.push({ height, minHeight, color, flags, style, facade, levels, rings, front });
   }
   tile.areas = [];
   for (let i = r.uvar(); i > 0; i--) tile.areas.push({ kind: r.u8(), rings: r.rings() });
