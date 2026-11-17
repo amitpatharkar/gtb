@@ -1,7 +1,8 @@
 // Headless smoke tests for the built game (dist/). Run after `npm run build`:
 //   node tests/smoke.mjs            all checks on the Low tier
 //   node tests/smoke.mjs --only=boot,drive --quality=medium
-//   checks: boot, drive, traffic, steal, missions, trains, night, touch (phone controls), clutter, people, flyover
+//   checks: boot, drive, traffic, steal, missions, trains, ride, stations, metro, night, touch (phone controls), clutter,
+//   flyover, facades, people
 // Needs Playwright with Chromium (a devDependency: `npx playwright install chromium`; a global
 // install found through NODE_PATH works too). In CI it runs inside deploy.yml, before the deploy.
 // Serves dist/ the way GitHub Pages does (under /gtb/, .gz files as plain application/gzip)
@@ -286,60 +287,170 @@ await check('trains', async () => {
   return { info, fails };
 });
 
-await check('people', async () => {
-  // Real characters near the camera wear their looks in one draw call each; the far crowd draws
-  // the rest; looks vary by district (a Koli fishing village: nauvari saris), riders get bodies,
-  // people share one object shape, and drawing them allocates nothing per step.
-  const { page, errors } = await game('hour=10');
-  await page.waitForFunction(() => window.__gtb.characters.ready, null, { timeout: 120000 });
+await check('ride', async () => {
+  // Board a local at Dadar with a ticket, ride it, skip ahead, get off; tickets and checkers work.
+  const { page, errors } = await game('hour=9');
+  await page.waitForFunction(() => window.__gtb.trains?.ride, null, { timeout: 60000 });
   const info = await page.evaluate(async () => {
-    const g = window.__gtb, C = g.characters, ix = g.tiles.index;
-    for (let i = 0; i < 300; i++) g.step(0.05);
-    const shown = C.pool.filter((c) => c.holder.visible);
-    let meshes = 0, bad = 0;
-    for (const c of shown) {
-      let n = 0;
-      c.holder.traverse((o) => { if (o.isMesh && o.visible) n++; });
-      meshes = Math.max(meshes, n);
-      if (!(c.geo.drawRange.count > 1000) || !Number.isFinite(c.holder.position.x + c.holder.position.y)) bad++;
+    const g = window.__gtb, T = g.trains, R = T.ride;
+    const st = T.stops.find((s) => s.name === 'Dadar' && s.line.route === 'W' && !s.line.fast && s.line.dir === 'up');
+    if (!st) return { station: null };
+    g.player.pos.set(st.x + st.fz * 30, 0.02, st.z - st.fx * 30);
+    await g.tiles.whenReady(st.x, st.z, 250);
+    g.toggleFoot();
+    g.walker.pos.set(st.x, 0.3, st.z);
+    g.state.s.money = 5000;
+    // Wait for a train of this line standing at Dadar.
+    let tr = null;
+    for (let i = 0; i < 6000 && !tr; i++) {
+      g.step(0.05);
+      for (const t of T.trains.values()) if (t.line === st.line && t.leg?.station === st.i && t.n === 12 && t.leg.T - t.left > 3 && t.left > 6 && (!t.ac || t.doors > 0.9)) tr = t;
     }
-    const t = C.templates[0], pieces = Object.keys(t.ranges).length;
-    const styles = new Set(g.street.peds.map((p) => p.look?.style));
-    // Who dresses how in a koliwada (Worli) at 9 am.
-    const koli = [];
-    for (let i = 0; i < 400; i++) koli.push(g.outfit('sari', Math.random, 'koli', 9, false).look.style);
-    const school = [];
-    for (let i = 0; i < 200; i++) school.push(g.outfit('kid', Math.random, '', 9, false).look.style);
-    // Riders on two-wheelers: persistent people astride (pose RIDE or PEDAL).
-    const riders = g.traffic.riders.filter((r) => r.person && (r.person.pose === 15 || r.person.pose === 14)).length;
-    // One object shape: every street pedestrian has the same keys in the same order.
-    const keys = new Set(g.street.peds.map((p) => Object.keys(p).join(',')));
-    // Gully cricket as real characters: a batter and a keeper near the camera.
-    const kid = g.makePerson({ ...g.outfit('kid'), kind: 'kid', scale: 0.72, pose: 5, x: g.camera.position.x + 2, z: g.camera.position.z + 2, y: 0 });
-    const keeper = g.makePerson({ ...g.outfit('kid'), kind: 'kid', scale: 0.72, pose: 7, x: g.camera.position.x + 3, z: g.camera.position.z + 2, y: 0 });
-    const before = g.people.beforeEnd;
-    g.people.beforeEnd = (list) => { list.push(kid, keeper); before(list); };
-    for (let i = 0; i < 10; i++) g.step(0.05);
-    g.people.beforeEnd = before;
-    const t0 = performance.now(); for (let i = 0; i < 60; i++) g.step(1 / 60); const ms = (performance.now() - t0) / 60;
-    return {
-      heroes: shown.length, meshesPerCharacter: meshes, broken: bad, pieces, far: g.people.n, styles: styles.size,
-      nauvariPct: Math.round(100 * koli.filter((s) => s === 'nauvari').length / koli.length), schoolPct: Math.round(100 * school.filter((s) => s === 'school').length / school.length),
-      riders, pedShapes: keys.size, cricket: [kid.hero, keeper.hero], stepMs: +ms.toFixed(2),
-    };
+    if (!tr) return { station: st.name, train: false };
+    const bought = g.tickets.buy(g.tickets.local('Dadar', 'Churchgate', 10600, 'II', 'single'));
+    // Stand at a door on the platform side and board.
+    const i = 5, up = tr.line.dir === 'up', tx = up ? tr.sn[i] : -tr.sn[i], tz = up ? tr.cs[i] : -tr.cs[i], l = st.side === 2 || !st.side ? 1 : st.side;
+    // st.side is right (1) / left (-1) of travel; the ride frame's right is that of the town-ward direction (the same for an up line).
+    g.walker.pos.set(tr.cx[i] + tx * 6.6 - tz * l * 2.4, 1.3, tr.cz[i] + tz * 6.6 + tx * l * 2.4);
+    const boarded = R.tryBoard() && R.active;
+    const p0 = [g.walker.pos.x, g.walker.pos.z];
+    for (let k = 0; k < 900 && R.active; k++) g.step(0.05);
+    const moved = Math.hypot(g.walker.pos.x - p0[0], g.walker.pos.z - p0[1]);
+    const target = R.target()?.name;
+    await R.skip();
+    for (let k = 0; k < 20; k++) g.step(0.05);
+    const at = R.active ? R.stopOf(R.r.tr)?.name : null;
+    const off = R.active && R.alight();
+    let worst = 0;
+    for (let k = 0; k < 100; k++) { const t0 = performance.now(); g.step(0.05); worst = Math.max(worst, performance.now() - t0); }
+    return { station: st.name, train: true, ac: tr.ac, bought, boarded, moved: Math.round(moved), target, at, off, riding: R.active, tickets: g.tickets.list.length, money: g.state.s.money, worstMs: +worst.toFixed(1) };
   });
   await page.close();
   const fails = noErrors(errors);
-  if (info.heroes < 3) fails.push(`only ${info.heroes} real characters`);
-  if (info.meshesPerCharacter !== 1) fails.push(`${info.meshesPerCharacter} meshes per character (one draw call each)`);
-  if (info.broken) fails.push(`${info.broken} characters with no clothes drawn or a bad position`);
-  if (info.pieces < 30) fails.push(`wardrobe has only ${info.pieces} pieces`);
-  if (!info.far) fails.push('no far crowd');
-  if (info.styles < 3) fails.push(`only ${info.styles} outfit styles on the street`);
-  if (info.nauvariPct < 30) fails.push(`only ${info.nauvariPct} % nauvari saris in a koliwada`);
-  if (info.schoolPct < 40) fails.push(`only ${info.schoolPct} % school uniforms on a school morning`);
-  if (info.pedShapes > 1) fails.push(`${info.pedShapes} object shapes among pedestrians`);
-  if (!info.cricket[0] || !info.cricket[1]) fails.push('cricketers are not real characters near the camera');
+  if (!info.station) fails.push('no Dadar stop');
+  else if (!info.train) fails.push('no train stopped at Dadar');
+  else {
+    if (!info.bought) fails.push('could not buy a ticket');
+    if (!info.boarded) fails.push('could not board');
+    if (info.moved < 30) fails.push('the rider did not move with the train');
+    if (!info.at || info.at !== info.target) fails.push(`skip ended at ${info.at}, wanted ${info.target}`);
+    if (!info.off || info.riding) fails.push('could not get off');
+    if (info.money !== 4990) fails.push(`wallet ${info.money}, expected 4990 (₹10 ticket, no fine)`);
+    if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms`);
+  }
+  return { info, fails };
+});
+
+await check('stations', async () => {
+  // Raised platforms and foot overbridges: stand on a platform at its real height, climb a stair
+  // to the bridge deck; building the biggest stations (Dadar, CSMT) costs no stutter.
+  const { page, errors } = await game('hour=10');
+  await page.waitForFunction(() => window.__gtb.stations && window.__gtb.trains, null, { timeout: 90000 });
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, S = g.stations, st = S.list.find((s) => s.name === 'Charni Road');
+    if (!st) return { station: null };
+    const all = st.decks.flatMap((d) => d.stairs);
+    const s = all.find((q) => q.y1 > 1 && !q.gen) || all.find((q) => q.y1 > 1);
+    g.player.pos.set(s.x1 + 30, 0.02, s.z1 + 30);
+    await g.tiles.whenReady(s.x1, s.z1, 300);
+    g.toggleFoot();
+    S.buildNow(s.x1, s.z1);
+    const L = Math.hypot(s.x0 - s.x1, s.z0 - s.z1), ux = (s.x0 - s.x1) / L, uz = (s.z0 - s.z1) / L;
+    g.walker.pos.set(s.x1 - ux * 1.5, s.y1, s.z1 - uz * 1.5);
+    for (let i = 0; i < 30; i++) g.step(0.05);
+    const onPlatform = +g.walker.pos.y.toFixed(2);
+    g.view.yaw = Math.atan2(ux, uz); g.input.fwd = true;
+    for (let i = 0; i < 300; i++) g.step(0.05);
+    g.input.fwd = false;
+    const onDeck = +g.walker.pos.y.toFixed(2);
+    // The big ones: no step over 60 ms while they are built.
+    let worst = 0;
+    for (const name of ['Dadar', 'Chhatrapati Chai Terminus', 'Churchgate']) {
+      const b = S.list.find((q) => q.name === name);
+      if (!b) continue;
+      g.walker.pos.set(b.cx, 0.3, b.cz);
+      await g.tiles.whenReady(b.cx, b.cz, 250);
+      for (let i = 0; i < 40; i++) { const t0 = performance.now(); g.step(0.05); worst = Math.max(worst, performance.now() - t0); }
+    }
+    return { station: st.name, onPlatform, onDeck, built: S.list.filter((q) => q.built).length, worstMs: +worst.toFixed(1) };
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (!info.station) fails.push('no Charni Road station');
+  else {
+    if (Math.abs(info.onPlatform - 1.3) > 0.1) fails.push(`platform height ${info.onPlatform}, expected 1.3`);
+    if (info.onDeck < 7.4) fails.push(`did not climb to the footbridge (y ${info.onDeck})`);
+    if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms while building stations`);
+  }
+  return { info, fails };
+});
+
+await check('metro', async () => {
+  // Line 1 at Saki Naka: ticket, fare gate, board, ride to the next station, off, tap out;
+  // a Line 3 trip underground from Churchgate; the closed monorail runs no trains.
+  const { page, errors } = await game('hour=9');
+  await page.waitForFunction(() => window.__gtb.metro && window.__gtb.tickets, null, { timeout: 90000 });
+  const info = await page.evaluate(async () => {
+    const g = window.__gtb, M = g.metro, T = g.tickets, s = M.stations.find((o) => o.name === 'Saki Naka' && o.ref === '1');
+    if (!s) return { station: null };
+    g.state.s.money = 5000;
+    g.player.pos.set(s.x + 40, 0.02, s.z + 40);
+    await g.tiles.whenReady(s.x, s.z, 350);
+    g.toggleFoot();
+    M.buildNow(s.x, s.z);
+    const f = s.frame, at = (a, t, y) => g.walker.pos.set(s.x + f.ux * a + f.vx * t, y, s.z + f.uz * a + f.vz * t);
+    // Concourse, unpaid side, by the gates, with a ticket to the next station.
+    const L = M.lines.find((l) => l.ref === '1' && l.stations.some((o) => o.name === 'Saki Naka'));
+    const i = L.stations.findIndex((o) => o.name === 'Saki Naka'), next = L.stations[i + 1] || L.stations[i - 1];
+    const bought = T.buy(T.metro('1', 'Saki Naka', next.name, Math.abs(next.d - L.stations[i].d)));
+    at(10.5, 0, f.yc + 0.05);
+    for (let k = 0; k < 10; k++) g.step(0.05);
+    const tapped = !!M.tapped;
+    // Platform beside the train when one stands there with its doors open.
+    let tr = null;
+    for (let k = 0; k < 6000 && !tr; k++) { g.step(0.05); for (const q of M.trains.values()) if (q.line === L && q.leg?.station === i && q.doors > 0.95 && q.left > 8) tr = q; }
+    if (!tr) return { station: s.name, train: false, bought, tapped };
+    const c = 1, al = 2.65 * (L.car / 21.9);
+    const side = (() => { const tt = (tr.cx[c] - s.x) * f.vx + (tr.cz[c] - s.z) * f.vz; return tt > 0 ? 1 : -1; })();
+    // The platform side of the train, in the train's lateral frame (cs, -sn).
+    const px = tr.cx[c] + tr.sn[c] * al, pz = tr.cz[c] + tr.cs[c] * al, lat = (s.x + f.vx * side * 6.5 - px) * tr.cs[c] - (s.z + f.vz * side * 6.5 - pz) * tr.sn[c];
+    const ls = lat > 0 ? 1 : -1;
+    g.walker.pos.set(px + tr.cs[c] * ls * 2.0, f.yp, pz - tr.sn[c] * ls * 2.0);
+    const boarded = M.tryBoard() && !!M.r;
+    const p0 = [g.walker.pos.x, g.walker.pos.z];
+    for (let k = 0; k < 5000 && M.r && !(M.r.tr.leg?.station >= 0 && M.r.tr.line.stations[M.r.tr.leg.station].name === next.name && M.r.tr.doors > 0.95); k++) g.step(0.05);
+    const moved = Math.round(Math.hypot(g.walker.pos.x - p0[0], g.walker.pos.z - p0[1]));
+    const riding = !!M.r, off = riding && M.alight() && !M.r;
+    const offY = +g.walker.pos.y.toFixed(2);
+    // Line 3 from Churchgate to Dadar.
+    const cg = M.stations.find((o) => o.ref === '3' && o.name === 'Churchgate');
+    g.walker.pos.set(cg.x, 0.3, cg.z);
+    await g.tiles.whenReady(cg.x, cg.z, 250);
+    M.buildNow(cg.x, cg.z);
+    const L3 = M.lines.find((l) => l.ref === '3'), a3 = L3.stations.find((o) => o.name === 'Churchgate'), b3 = L3.stations.find((o) => o.name === 'Dadar');
+    const t3 = T.metro('3', 'Churchgate', 'Dadar', Math.abs(b3.d - a3.d));
+    T.buy(t3);
+    await M.underground(cg, t3);
+    const dadar = M.stations.find((o) => o.ref === '3' && o.name === 'Dadar');
+    const up = Math.round(Math.hypot(g.walker.pos.x - dadar.x, g.walker.pos.z - dadar.z));
+    const mono = [...M.trains.values()].filter((q) => q.line.closed && q.parked == null).length;
+    let worst = 0;
+    for (let k = 0; k < 60; k++) { const t0 = performance.now(); g.step(0.05); worst = Math.max(worst, performance.now() - t0); }
+    return { station: s.name, train: true, bought, tapped, boarded, moved, off, offY, platform: f.yp, line3: up, monoRunning: mono, money: g.state.s.money, worstMs: +worst.toFixed(1) };
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (!info.station) fails.push('no Saki Naka metro station');
+  else if (!info.train) fails.push('no Line 1 train stopped at Saki Naka');
+  else {
+    if (!info.bought || !info.tapped) fails.push('ticket or gate failed');
+    if (!info.boarded) fails.push('could not board the metro');
+    if (info.moved < 300) fails.push(`the rider moved only ${info.moved} m`);
+    if (!info.off || Math.abs(info.offY - info.platform) > 0.6) fails.push(`did not step off onto the platform (y ${info.offY})`);
+    if (info.line3 > 400) fails.push(`Line 3 trip ended ${info.line3} m from Dadar`);
+    if (info.monoRunning) fails.push('the closed monorail runs trains');
+    if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms`);
+  }
   return { info, fails };
 });
 
@@ -620,6 +731,51 @@ await check('facades', async () => {
   const fails = noErrors(errors);
   for (const k of ['frame', 'shutter', 'arch', 'enclosed', 'clothes', 'pipe', 'grille']) if (!info.all[k]) fails.push(`no ${k} parts in the loaded tiles`);
   if (!info.near) fails.push('no facade parts near the player');
+  return { info, fails };
+});
+
+await check('people', async () => {
+  // Real people (MakeHuman bodies from public/people) near the player on foot: templates load,
+  // bodies are placed and animated, the player has one, building bodies doesn't stutter;
+  // the people lineup page (people.html) loads without errors.
+  const { page, errors } = await game('hour=10');
+  await page.waitForFunction(() => window.__gtb.characters.ready && window.__gtb.characters.heroT, null, { timeout: 180000 });
+  const info = await page.evaluate(() => {
+    const g = window.__gtb;
+    g.toggleFoot();
+    // Step until passers-by come within the bodies' radius (they spawn further out along the
+    // footpaths), up to 30 s of game time.
+    const c = g.characters;
+    const others = () => c.pool.filter((b) => b.holder.visible && !b.who?.isPlayer).length;
+    let worst = 0;
+    for (let i = 0; i < 600 && (i < 120 || others() < 2); i++) { const t = performance.now(); g.step(0.05); if (i > 10) worst = Math.max(worst, performance.now() - t); }
+    const shown = c.pool.filter((b) => b.holder.visible);
+    const bad = shown.filter((b) => !Number.isFinite(b.holder.position.x) || !b.motion.current).length;
+    const b = shown.find((x) => !x.who?.isPlayer);
+    const bone = b?.person.bones.get('lowerarm_l'), q0 = bone?.quaternion.clone();
+    for (let i = 0; i < 10; i++) g.step(0.05);
+    const moved = bone ? 1 - Math.abs(q0.dot(bone.quaternion)) > 1e-7 : false;
+    g.post.render();
+    return { templates: c.templates.length, shown: shown.length, player: shown.some((x) => x.who?.isPlayer), hero: shown.some((x) => x.who?.isPlayer && x.t.hero), bad, moved, worstMs: +worst.toFixed(1) };
+  });
+  await page.close();
+  const fails = noErrors(errors);
+  if (!info.templates) fails.push('no body templates loaded');
+  if (info.shown < 2) fails.push(`only ${info.shown} real people shown`);
+  if (!info.player) fails.push('the player on foot has no body');
+  else if (!info.hero) fails.push('the player is not the main character (public/people/hero)');
+  if (info.bad) fails.push(`${info.bad} bodies unplaced or without motion`);
+  if (!info.moved) fails.push('people do not move (no animation)');
+  if (info.worstMs > 60) fails.push(`worst step ${info.worstMs} ms`);
+  const lp = await browser.newPage({ viewport: { width: 800, height: 500 } });
+  const lpErrors = [];
+  lp.on('pageerror', (e) => lpErrors.push(e.message));
+  lp.on('console', (m) => { if (m.type() === 'error') lpErrors.push(m.text()); });
+  await lp.goto(`${base}people.html`);
+  await lp.waitForFunction(() => window.__people?.people.filter(Boolean).length > 0, null, { timeout: 180000 }).catch(() => lpErrors.push('lineup did not load'));
+  info.lineup = await lp.evaluate(() => window.__people?.people.filter(Boolean).length || 0);
+  await lp.close();
+  fails.push(...lpErrors.map((e) => `lineup: ${e}`));
   return { info, fails };
 });
 

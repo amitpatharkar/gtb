@@ -21,6 +21,11 @@ const LABELS = [
   ['Powai', 19.1240, 72.8990], ['Hiranandani', 19.1170, 72.9100],
 ];
 
+import { drawIcon, EMOJI, icon } from './icons.js';
+
+// Look: a dark, moody map. Black land, teal sea, grey lanes, pale roads, orange main roads.
+const SEA = '#0c262c', LAND = '#121a19';
+
 export class CityMap {
   constructor({ index, baseUrl, fuel, hud, tiles = null }) {
     Object.assign(this, { index, baseUrl, fuel, hud, tiles });
@@ -38,19 +43,26 @@ export class CityMap {
     this.el.hidden = true;
     this.el.innerHTML = `
       <canvas></canvas>
-      <div class="map-top"><b>Map · ${index.name || 'Mumbai'}</b><span class="map-hint">Drag to move · scroll or pinch to zoom · tap to set a waypoint</span>
-        <button class="map-clear">Clear route</button><button class="map-close" aria-label="Close">✕</button></div>
-      <div class="map-legend"><i style="background:#fff"></i>Main road <i style="background:#a9a49b"></i>Lane <i style="background:#7fae6b"></i>Park
-        <i style="background:#c13bd9"></i>GPS route <span>⛽ Petrol</span></div>
+      <div class="map-top"><div class="map-tabs"><b>Map</b><span class="chip on">All</span><span class="map-name">${index.name || 'Mumbai'}</span></div><span class="map-hint">Drag to move · scroll or pinch to zoom · tap to set a waypoint</span>
+        <button class="map-clear">Clear route</button><button class="map-close" aria-label="Close">${icon('x')}</button></div>
+      <div class="map-legend"><i style="background:#e0902f"></i>Main road <i style="background:#cfd2a8"></i>Road <i style="background:#7d8782"></i>Lane <i style="background:#2f4a36"></i>Park
+        <i style="background:#c13bd9"></i>GPS route <span>${icon('fuel')} Petrol</span><span>${icon('star')} Landmark</span></div>
+      <div class="map-bar"><button data-z="0.7"><kbd>−</kbd>Zoom out</button><button data-z="1.43"><kbd>+</kbd>Zoom in</button><button class="map-back"><kbd>Esc</kbd>Back</button></div>
       <div class="map-credit">Map data © OpenStreetMap contributors</div>`;
     document.body.appendChild(this.el);
     this.canvas = this.el.querySelector('canvas');
     this.g = this.canvas.getContext('2d');
     this.el.querySelector('.map-close').onclick = () => this.toggle(false);
+    this.el.querySelector('.map-back').onclick = () => this.toggle(false);
+    for (const b of this.el.querySelectorAll('[data-z]')) b.onclick = () => { this.view.scale = Math.min(4, Math.max(0.05, this.view.scale * Number(b.dataset.z))); this.draw(); };
     this.el.querySelector('.map-clear').onclick = () => { this.setWaypoint(null, this.waypoint?.owner); this.draw(); };
     this.view = { x: 0, z: 0, scale: 0.12 };
+    this.W = innerWidth; this.H = innerHeight;
+    this.host = null; // set by the game: the map then lives inside the hub menu ({ open(), close() })
     this.bindInput();
-    addEventListener('resize', () => this.open && this.resize());
+    const refit = () => { if (this.open) { this.resize(); this.draw(); } };
+    addEventListener('resize', refit);
+    new ResizeObserver(refit).observe(this.el);
   }
 
   // ------------------------------------------------------------------ data (in the worker)
@@ -141,14 +153,24 @@ export class CityMap {
   }
 
   // ------------------------------------------------------------------ screen
-  async toggle(on = !this.open, player = this.player) {
-    this.open = on;
-    this.el.hidden = !on;
-    if (!on) return;
+  /** Open or close the map. With a host (the hub menu) this asks the host, which calls activate()/deactivate(). */
+  toggle(on = !this.open, player = this.player) {
+    if (player) this.player = player;
+    if (this.host) { if (on) this.host.open(); else this.host.close(); return; }
+    return on ? this.activate(player) : this.deactivate();
+  }
+
+  deactivate() { this.open = false; this.el.hidden = true; }
+
+  async activate(player = this.player) {
+    this.open = true;
+    this.el.hidden = false;
+    this.el.classList.toggle('embedded', !!this.host);
     this.player = player;
     this.resize();
     if (player) { this.view.x = player.pos.x; this.view.z = player.pos.z; this.view.scale = Math.max(this.view.scale, 0.35); }
-    this.g.fillStyle = '#1f4a5c'; this.g.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.g.setTransform(1, 0, 0, 1, 0, 0);
+    this.g.fillStyle = SEA; this.g.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.g.fillStyle = '#fff'; this.g.font = '20px sans-serif'; this.g.fillText('Loading map…', 30, 90);
     try { await this.load(); } catch { this.g.fillText('Map unavailable — try again in a moment', 30, 120); return; }
     this.draw();
@@ -157,15 +179,18 @@ export class CityMap {
   resize() {
     const dpr = Math.min(2, devicePixelRatio || 1);
     this.dpr = dpr;
-    this.canvas.width = innerWidth * dpr;
-    this.canvas.height = innerHeight * dpr;
-    this.canvas.style.width = `${innerWidth}px`;
-    this.canvas.style.height = `${innerHeight}px`;
+    this.W = this.el.clientWidth || innerWidth;
+    this.H = this.el.clientHeight || innerHeight;
+    this.canvas.width = this.W * dpr;
+    this.canvas.height = this.H * dpr;
+    this.canvas.style.width = `${this.W}px`;
+    this.canvas.style.height = `${this.H}px`;
   }
 
-  toWorld(sx, sy) {
-    const { x, z, scale } = this.view;
-    return { x: x + (sx - innerWidth / 2) / scale, z: z + (sy - innerHeight / 2) / scale };
+  /** Screen (client) position to world metres. */
+  toWorld(cx, cy) {
+    const { x, z, scale } = this.view, r = this.canvas.getBoundingClientRect();
+    return { x: x + (cx - r.left - this.W / 2) / scale, z: z + (cy - r.top - this.H / 2) / scale };
   }
 
   bindInput() {
@@ -242,9 +267,9 @@ export class CityMap {
   draw() {
     if (!this.open) return;
     const g = this.g, dpr = this.dpr, { x, z, scale } = this.view;
-    const W = innerWidth, H = innerHeight;
+    const W = this.W, H = this.H;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.fillStyle = '#1f4a5c';
+    g.fillStyle = SEA;
     g.fillRect(0, 0, W, H);
     if (!this.data) return;
     g.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (W / 2 - x * scale), dpr * (H / 2 - z * scale));
@@ -252,81 +277,93 @@ export class CityMap {
     const vis = this.data.filter((c) => c.bbox[2] > vx0 && c.bbox[0] < vx1 && c.bbox[3] > vz0 && c.bbox[1] < vz1);
     const px = 1 / scale;
     const fill = (style, layer) => { g.fillStyle = style; for (const c of vis) if (c.layers[layer]) g.fill(this.path(c, layer)); };
-    fill('#d6cfbf', 'land');
-    fill('#1f4a5c', 'water');
-    fill('#9cc286', 'green');
-    fill('#ecdcae', 'sand');
-    fill('#c9c3b8', 'paved');
+    fill(LAND, 'land');
+    fill(SEA, 'water');
+    fill('#1a2b21', 'green');
+    fill('#2a2a22', 'sand');
+    fill('#1d2726', 'paved');
     if (scale > 0.18 && this.tiles) {
-      g.fillStyle = '#bdb4a3';
+      g.fillStyle = '#2c3836';
       for (const t of this.tiles.tiles.values()) if (t.clip[2] > vx0 && t.clip[0] < vx1 && t.clip[3] > vz0 && t.clip[1] < vz1) g.fill(this.buildingsPath(t));
     }
     g.lineCap = 'round'; g.lineJoin = 'round';
-    // Main roads, tertiary roads and links, lanes (only when zoomed in far enough to read them).
-    const roadStyle = [['#ffffff', Math.max(12, 3 * px)], ['#f4efe4', Math.max(8, 2.4 * px)], ['#e9e3d6', Math.max(5, 1.6 * px)]];
+    // Lanes grey, other roads pale, main roads orange; each with a dark casing.
+    const roadStyle = [['#e0902f', Math.max(10, 2.6 * px)], ['#cfd2a8', Math.max(6, 1.9 * px)], ['#7d8782', Math.max(3.5, 1.3 * px)]];
     const groups = scale < 0.1 ? [1, 0] : [2, 1, 0];
     // Tunnels: dashed, under the streets.
-    g.strokeStyle = 'rgba(120,114,104,0.7)'; g.lineWidth = Math.max(5, 1.6 * px); g.setLineDash([8 * px, 6 * px]);
+    g.strokeStyle = 'rgba(81,96,92,0.8)'; g.lineWidth = Math.max(5, 1.6 * px); g.setLineDash([8 * px, 6 * px]);
     for (const c of vis) if (c.layers.tunnel) g.stroke(this.path(c, 'tunnel'));
     g.setLineDash([]);
-    g.strokeStyle = '#8f887a';
-    for (const k of groups) { g.lineWidth = roadStyle[k][1] + 1.5 * px; for (const c of vis) if (c.layers[`road${k}`]) g.stroke(this.path(c, `road${k}`)); }
+    g.strokeStyle = '#05090a';
+    for (const k of groups) { g.lineWidth = roadStyle[k][1] + 2.5 * px; for (const c of vis) if (c.layers[`road${k}`]) g.stroke(this.path(c, `road${k}`)); }
     for (const k of groups) { g.strokeStyle = roadStyle[k][0]; g.lineWidth = roadStyle[k][1]; for (const c of vis) if (c.layers[`road${k}`]) g.stroke(this.path(c, `road${k}`)); }
-    // Flyovers and bridges on top of the streets they cross, with a darker edge.
+    // Flyovers and bridges on top of the streets they cross, with a dark edge.
     for (const k of [1, 0]) {
-      g.strokeStyle = '#5d5850'; g.lineWidth = roadStyle[k][1] + 3 * px;
+      g.strokeStyle = '#05090a'; g.lineWidth = roadStyle[k][1] + 4 * px;
       for (const c of vis) if (c.layers[`deck${k}`]) g.stroke(this.path(c, `deck${k}`));
-      g.strokeStyle = k ? '#efe9dc' : '#fffdf6'; g.lineWidth = roadStyle[k][1];
+      g.strokeStyle = roadStyle[k][0]; g.lineWidth = roadStyle[k][1];
       for (const c of vis) if (c.layers[`deck${k}`]) g.stroke(this.path(c, `deck${k}`));
     }
-    g.strokeStyle = '#6d6a66'; g.lineWidth = 2 * px; g.setLineDash([6 * px, 5 * px]);
+    g.strokeStyle = '#51605c'; g.lineWidth = 2 * px; g.setLineDash([6 * px, 5 * px]);
     for (const c of vis) if (c.layers.rails) g.stroke(this.path(c, 'rails'));
     g.setLineDash([]);
     // GPS route
     if (this.route) {
-      g.strokeStyle = '#c13bd9'; g.lineWidth = Math.max(6, 5 * px);
-      g.beginPath(); this.route.forEach(([rx, rz], i) => (i ? g.lineTo(rx, rz) : g.moveTo(rx, rz))); g.stroke();
+      g.lineWidth = Math.max(6, 5 * px);
+      g.beginPath(); this.route.forEach(([rx, rz], i) => (i ? g.lineTo(rx, rz) : g.moveTo(rx, rz)));
+      g.strokeStyle = 'rgba(193,59,217,0.35)'; g.lineWidth = Math.max(14, 11 * px); g.stroke();
+      g.strokeStyle = '#d65cf0'; g.lineWidth = Math.max(6, 5 * px); g.stroke();
     }
     // Screen-space overlays
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const S = (wx, wz) => [(wx - x) * scale + W / 2, (wz - z) * scale + H / 2];
     g.textAlign = 'center'; g.textBaseline = 'middle';
+    const NARROW = '"Arial Narrow", "Roboto Condensed", "Helvetica Neue", system-ui, sans-serif';
     if (scale > 0.22 && this.labels) {
-      g.font = '600 12px system-ui, sans-serif'; g.fillStyle = '#3b3833';
+      g.font = `600 12px ${NARROW}`; g.fillStyle = '#b9c2bd'; g.strokeStyle = 'rgba(0,0,0,0.8)'; g.lineWidth = 3;
       for (const lb of this.labels) {
         const [sx, sy] = S(lb.x, lb.z);
         if (sx < -100 || sx > W + 100 || sy < -20 || sy > H + 20 || lb.len * scale < g.measureText(lb.name).width * 0.8) continue;
         let a = lb.a; if (a > Math.PI / 2) a -= Math.PI; if (a < -Math.PI / 2) a += Math.PI;
-        g.save(); g.translate(sx, sy); g.rotate(a); g.fillText(lb.name, 0, 0); g.restore();
+        g.save(); g.translate(sx, sy); g.rotate(a); g.strokeText(lb.name, 0, 0); g.fillText(lb.name, 0, 0); g.restore();
       }
     }
     const lat0 = this.index.origin.lat, lon0 = this.index.origin.lon, mp = this.index.metresPerDegree;
-    g.font = `800 ${scale > 0.3 ? 17 : 14}px system-ui, sans-serif`;
+    // District names: big condensed white letters with a soft shadow.
+    g.font = `700 ${scale > 0.3 ? 24 : scale > 0.12 ? 19 : 15}px ${NARROW}`;
+    g.letterSpacing = '1px'; g.fillStyle = '#fff';
+    g.shadowColor = 'rgba(0,0,0,0.9)'; g.shadowBlur = 8;
     for (const [name, lat, lon] of LABELS) {
       const [sx, sy] = S((lon - lon0) * mp.lon, -(lat - lat0) * mp.lat);
-      g.lineWidth = 4; g.strokeStyle = 'rgba(255,255,255,0.85)'; g.strokeText(name.toUpperCase(), sx, sy);
-      g.fillStyle = '#2b2925'; g.fillText(name.toUpperCase(), sx, sy);
+      if (sx < -150 || sx > W + 150 || sy < -30 || sy > H + 30) continue;
+      g.fillText(name, sx, sy);
     }
-    // Landmarks: a star and the (parody) name.
+    g.shadowBlur = 0; g.letterSpacing = '0px';
+    // Round icons: dark disc, white ring, a glyph inside.
+    const disc = (sx, sy, r, glyph, ring = '#fff', fill = '#0b1214', col = '#fff') => {
+      g.fillStyle = fill; g.strokeStyle = ring; g.lineWidth = 2;
+      g.beginPath(); g.arc(sx, sy, r, 0, 7); g.fill(); g.stroke();
+      const name = EMOJI[String(glyph).replace('\uFE0F', '')];
+      if (glyph === '!') { g.fillStyle = col; g.font = `800 ${Math.round(r * 1.25)}px system-ui, sans-serif`; g.fillText('!', sx, sy + 1); }
+      else drawIcon(g, Array.isArray(name) ? name[0] : name || String(glyph), sx, sy, r * 1.15, col, 2.2);
+    };
     for (const L of this.index.landmarks || []) {
       const [sx, sy] = S(L.x, L.z);
-      g.fillStyle = '#f7c600'; g.strokeStyle = '#000'; g.lineWidth = 2;
-      g.font = '18px sans-serif'; g.strokeText('★', sx, sy); g.fillText('★', sx, sy);
-      if (scale > 0.15) { g.font = '700 12px system-ui, sans-serif'; g.lineWidth = 3; g.strokeStyle = '#fff'; g.strokeText(L.name, sx, sy + 16); g.fillStyle = '#5a3c00'; g.fillText(L.name, sx, sy + 16); }
+      disc(sx, sy, 9, 'star', '#fff', '#0b1214', '#ffd60a');
+      if (scale > 0.15) { g.font = `600 12px ${NARROW}`; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.85)'; g.strokeText(L.name, sx, sy + 20); g.fillStyle = '#e8ecea'; g.fillText(L.name, sx, sy + 20); }
     }
-    g.font = '16px sans-serif';
     // Petrol pumps: icons when zoomed in, small dots across the whole city.
     const big = scale >= 0.1;
     for (const [fx, fz] of this.fuel) {
       const [sx, sy] = S(fx, fz);
       if (sx < -12 || sx > W + 12 || sy < -12 || sy > H + 12) continue;
-      g.fillStyle = '#0e8a4a'; g.beginPath(); g.arc(sx, sy, big ? 11 : 4, 0, 7); g.fill();
-      if (big) { g.fillStyle = '#fff'; g.fillText('⛽', sx, sy + 1); }
+      if (big) disc(sx, sy, 10, 'fuel', '#fff', '#0b1214');
+      else { g.fillStyle = '#e8ecea'; g.beginPath(); g.arc(sx, sy, 3, 0, 7); g.fill(); }
     }
+    // Missions and things to find: coloured discs with a white ring and "!" (or their own icon).
     for (const m of this.markers?.() || []) {
       const [sx, sy] = S(m.x, m.z);
-      g.fillStyle = m.color; g.beginPath(); g.arc(sx, sy, m.r || 8, 0, 7); g.fill();
-      if (m.icon) { g.fillStyle = '#fff'; g.font = '13px sans-serif'; g.fillText(m.icon, sx, sy + 1); }
+      disc(sx, sy, Math.max(9, (m.r || 8) + 2), m.icon || '!', '#fff', m.color, '#fff');
     }
     if (this.waypoint) {
       const [sx, sy] = S(this.waypoint.x, this.waypoint.z);
@@ -337,13 +374,13 @@ export class CityMap {
     if (p) {
       const [sx, sy] = S(p.pos.x, p.pos.z);
       g.save(); g.translate(sx, sy); g.rotate(Math.atan2(Math.cos(p.heading), Math.sin(p.heading)) - Math.PI / 2 + Math.PI);
-      g.fillStyle = '#f7c600'; g.strokeStyle = '#000'; g.lineWidth = 2;
+      g.fillStyle = '#ffd60a'; g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.shadowColor = 'rgba(255,214,10,0.8)'; g.shadowBlur = 12;
       g.beginPath(); g.moveTo(0, -13); g.lineTo(10, 10); g.lineTo(0, 5); g.lineTo(-10, 10); g.closePath(); g.fill(); g.stroke();
-      g.restore();
+      g.restore(); g.shadowBlur = 0;
     }
     // Scale bar
     const m = scale > 1 ? 50 : scale > 0.3 ? 200 : scale > 0.1 ? 500 : 1000;
-    g.fillStyle = '#fff'; g.fillRect(20, H - 34, m * scale, 4);
-    g.font = '12px system-ui'; g.textAlign = 'left'; g.fillText(m >= 1000 ? `${m / 1000} km` : `${m} m`, 20, H - 46);
+    g.fillStyle = 'rgba(255,255,255,0.85)'; g.fillRect(24, H - 84, m * scale, 3);
+    g.font = `600 12px ${NARROW}`; g.textAlign = 'left'; g.fillText(m >= 1000 ? `${m / 1000} km` : `${m} m`, 24, H - 96);
   }
 }

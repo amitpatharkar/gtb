@@ -1,6 +1,8 @@
 // Minimap: land, roads (main roads brighter), petrol pumps and traffic around the
 // player, rotating so the direction of travel is always up (like GTA's radar).
 
+import { drawIcon } from './icons.js';
+
 export class Minimap {
   constructor(canvas, tiles, fuel) {
     this.c = canvas;
@@ -39,7 +41,7 @@ export class Minimap {
     const px = player.pos.x, pz = player.pos.z, h = player.heading;
     g.save();
     g.clearRect(0, 0, W, H);
-    g.fillStyle = '#1f4a5c'; // sea
+    g.fillStyle = '#0c262c'; // sea
     g.fillRect(0, 0, W, H);
     g.translate(W / 2, H * 0.62);
     g.rotate(Math.PI + h); // heading up
@@ -52,15 +54,17 @@ export class Minimap {
       if (x1 < px - R || x0 > px + R || z1 < pz - R || z0 > pz + R) continue;
       vis.push(t._radar ||= this.paths(t));
     }
-    g.fillStyle = '#c9c1b0';
+    g.fillStyle = '#131c1b';
     for (const p of vis) g.fill(p.land, 'evenodd');
     g.lineCap = 'round'; g.lineJoin = 'round';
-    g.strokeStyle = 'rgba(124,124,128,0.55)'; g.lineWidth = Math.max(9, 5 / scale); g.setLineDash([14, 10]);
+    g.strokeStyle = 'rgba(125,135,130,0.45)'; g.lineWidth = Math.max(7, 3.6 / scale); g.setLineDash([14, 10]);
     for (const p of vis) g.stroke(p.tunnel);
     g.setLineDash([]);
-    g.strokeStyle = '#7c7c80'; g.lineWidth = Math.max(9, 5 / scale);
+    g.strokeStyle = '#7d8782'; g.lineWidth = Math.max(7, 3.6 / scale);
     for (const p of vis) g.stroke(p.minor);
-    g.strokeStyle = '#ffffff'; g.lineWidth = Math.max(14, 6 / scale);
+    g.strokeStyle = '#05090a'; g.lineWidth = Math.max(15, 6.4 / scale);
+    for (const p of vis) g.stroke(p.main);
+    g.strokeStyle = '#e0902f'; g.lineWidth = Math.max(11, 4.6 / scale);
     for (const p of vis) g.stroke(p.main);
     // Flyovers over everything else, with a dark edge.
     g.strokeStyle = '#4a4a50'; g.lineWidth = Math.max(19, 9 / scale);
@@ -70,8 +74,10 @@ export class Minimap {
     // GPS route and waypoint
     const nav = this.nav;
     if (nav?.route) {
-      g.strokeStyle = '#c13bd9'; g.lineWidth = 7 / scale; g.lineJoin = 'round';
-      g.beginPath(); nav.route.forEach(([x, z], i) => (i ? g.lineTo(x, z) : g.moveTo(x, z))); g.stroke();
+      g.lineJoin = 'round';
+      g.beginPath(); nav.route.forEach(([x, z], i) => (i ? g.lineTo(x, z) : g.moveTo(x, z)));
+      g.strokeStyle = 'rgba(193,59,217,0.35)'; g.lineWidth = 15 / scale; g.stroke();
+      g.strokeStyle = '#d65cf0'; g.lineWidth = 7 / scale; g.stroke();
     }
     if (nav?.waypoint) {
       // Clamp the marker to the radar edge when it is far away.
@@ -81,18 +87,18 @@ export class Minimap {
       g.beginPath(); g.arc(px + (wx - px) * k, pz + (wz - pz) * k, 8 / scale, 0, 7); g.fill(); g.stroke();
     }
     // Traffic dots and petrol pumps
-    g.fillStyle = '#f7c600';
+    g.fillStyle = '#ffd60a';
     for (const car of traffic?.cars || []) { g.beginPath(); g.arc(car.x, car.z, 3 / scale * 0.9, 0, 7); g.fill(); }
     for (const [x, z] of this.fuel) {
       if (Math.abs(x - px) > R || Math.abs(z - pz) > R) continue;
-      g.fillStyle = '#0e8a4a';
-      g.beginPath(); g.arc(x, z, 9 / scale * 0.9, 0, 7); g.fill();
-      g.fillStyle = '#fff'; g.font = `${14 / scale * 0.9}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.save(); g.translate(x, z); g.rotate(-(Math.PI + h)); g.fillText('⛽', 0, 0); g.restore();
+      g.save(); g.translate(x, z); g.rotate(-(Math.PI + h)); g.scale(1 / scale, 1 / scale);
+      g.fillStyle = '#0b1214'; g.strokeStyle = '#fff'; g.lineWidth = 1.6; g.beginPath(); g.arc(0, 0, 8, 0, 7); g.fill(); g.stroke();
+      drawIcon(g, 'fuel', 0, 0, 10, '#fff', 2.2);
+      g.restore();
     }
     g.restore();
     // Player arrow
-    g.fillStyle = '#f7c600'; g.strokeStyle = '#000'; g.lineWidth = 2;
+    g.fillStyle = '#ffd60a'; g.strokeStyle = '#fff'; g.lineWidth = 2;
     g.beginPath(); g.moveTo(W / 2, H * 0.62 - 11); g.lineTo(W / 2 + 8, H * 0.62 + 8); g.lineTo(W / 2, H * 0.62 + 4); g.lineTo(W / 2 - 8, H * 0.62 + 8); g.closePath();
     g.fill(); g.stroke();
     // North marker

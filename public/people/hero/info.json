@@ -1,0 +1,24 @@
+{
+ "id": "hero",
+ "sex": "m",
+ "age": 30,
+ "heightCm": 170.9,
+ "triangles": {
+  "high": 57478,
+  "medium": 34478,
+  "low": 19990
+ },
+ "bytes": {
+  "hero-high.glb": 12776568,
+  "hero-medium.glb": 3779304,
+  "hero-low.glb": 1508324
+ },
+ "version": "12776568-3779304-1508324",
+ "credit": {
+  "asset": "Indian Man In Casuals (main character)",
+  "role": "player",
+  "license": "CC-BY",
+  "author": "Pixel_Monster",
+  "source": "https://sketchfab.com/3d-models/indian-man-in-casuals-fe7de2e1fbb642c9aebb7c3f698bec5e"
+ }
+}
