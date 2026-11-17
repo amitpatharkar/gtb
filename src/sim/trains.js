@@ -666,7 +666,7 @@ export class Trains {
     }
     if (grid.size) for (const seg of this.traffic.segList || []) {
       const s = seg.s, x0 = Math.min(s[0], s[2]), x1 = Math.max(s[0], s[2]), z0 = Math.min(s[1], s[3]), z1 = Math.max(s[1], s[3]);
-      if (x0 > P.x + R || x1 < P.x - R || z0 > P.z + R || z1 < P.z - R) continue;
+      if (x0 > P.x + R || x1 < P.x - R || z0 > P.z + R || z1 < P.z - R || s[5] & 32) continue; // road over-bridges are no level crossings
       const seen = new Set();
       for (let gx = Math.floor(x0 / cell); gx <= Math.floor(x1 / cell); gx++) for (let gz = Math.floor(z0 / cell); gz <= Math.floor(z1 / cell); gz++) {
         for (const piece of grid.get((gx + 4096) * 8192 + gz + 4096) || []) {

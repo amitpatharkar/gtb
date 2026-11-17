@@ -90,14 +90,17 @@ export class Navigator {
     // Chevrons on the road ahead (only while driving).
     let n = 0;
     if (driving) {
+      // Height follows the road from where the player is: up a ramp onto a flyover, or along the street beneath it.
+      let y = body?.pos?.y ?? 0.02;
       for (let s = 8; s < Math.min(total - 2, 110) && n < this.max; s += 8) {
         let [x, z, h] = this.at(route, cum, s);
         // The route runs along the road's centre line; India keeps left, so draw it in the left lane.
-        const r = this.tiles.roadAt?.(x, z, 3, true), hw = r ? this.tiles.segment(r.tile, r.index)[4] : 4;
+        const r = this.tiles.roadAt?.(x, z, 3, true, y), hw = r ? this.tiles.segment(r.tile, r.index)[4] : 4;
         const off = Math.min(1.8, hw * 0.45);
         x += Math.cos(h) * off; z -= Math.sin(h) * off;
+        y = this.tiles.groundHeight(x, z, y, true);
         this.q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, h);
-        this.m.compose(this.p.set(x, this.tiles.groundHeight(x, z) + 0.07, z), this.q, this.one);
+        this.m.compose(this.p.set(x, y + 0.07, z), this.q, this.one);
         this.arrows.setMatrixAt(n++, this.m);
       }
     }

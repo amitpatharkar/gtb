@@ -183,6 +183,8 @@ export function createMaterials(renderer, lib, tier) {
     // Walls from the survey (scripts/lib/walls.mjs, drawn by mesh/buildings.js drawWall).
     compound: new THREE.MeshStandardMaterial({ vertexColors: true, map: plasterTexture(), roughness: 0.93 }),
     sheet: new THREE.MeshStandardMaterial({ map: sheetTexture(), roughness: 0.5, metalness: 0.25 }),
+    // Strip lights on tunnel ceilings (mesh/bridges.js; flyover concrete shares the compound material).
+    tunnelLight: new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.95, 1.5) }),
     wire: new THREE.MeshStandardMaterial({ color: 0x9a9c9e, alphaMap: wireTexture(), alphaTest: 0.45, side: THREE.DoubleSide, metalness: 0.6, roughness: 0.45 }),
     netting: new THREE.MeshStandardMaterial({ color: 0x2e7a3c, alphaMap: nettingTexture(), transparent: true, opacity: 0.92, side: THREE.DoubleSide, depthWrite: false, roughness: 0.95 }),
     // Lanes and side streets: plain weathered concrete kerbs (paint is for main roads).

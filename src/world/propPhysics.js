@@ -30,7 +30,7 @@ export class PropPhysics {
   }
 
   /** Solid street objects near (x, z). Remembers what was touched for impact effects. */
-  hits(x, z, r) {
+  hits(x, z, r, y = 0.02) {
     for (const t of this.tiles.nearTiles(x, z, r + 3)) {
       const ox = t.origin[0], oz = t.origin[1];
       for (const kind of [POINT.RAIN_TREE, POINT.GULMOHAR, POINT.PEEPAL, POINT.PALM, POINT.LIGHT, POINT.BUS_STOP, POINT.STALL]) {
@@ -39,7 +39,7 @@ export class PropPhysics {
         for (let i = 0; i < arr.length; i += 5) {
           const px = arr[i] + ox, pz = arr[i + 2] + oz;
           const dx = x - px, dz = z - pz;
-          if (dx * dx + dz * dz > (r + 2.4) ** 2) continue;
+          if (dx * dx + dz * dz > (r + 2.4) ** 2 || Math.abs(arr[i + 1] - y) > 2.5) continue; // (lamps on flyovers stand up there)
           let hit = false;
           if (TREE.has(kind)) hit = dx * dx + dz * dz < (r + 0.22 + arr[i + 4] * 0.12) ** 2;
           else if (kind === POINT.LIGHT) hit = dx * dx + dz * dz < (r + 0.14) ** 2;
