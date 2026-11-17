@@ -136,6 +136,10 @@ export class Stations {
 
   update(dt, P) {
     const night = this.clock.night ?? 0;
+    // Right after a jump (tow, ride, cheat) the tiles are busy: start building a few frames later.
+    if (Math.hypot(P.x - (this.lastX ?? 1e9), P.z - (this.lastZ ?? 1e9)) > 150) { this.quiet = 3; this.scanT = 0.15; }
+    this.lastX = P.x; this.lastZ = P.z;
+    if (this.quiet > 0) { this.quiet--; return; }
     this.mat.glow.emissiveIntensity = 0.15 + night * 2.2;
     if ((this.scanT -= dt) <= 0) {
       this.scanT = 0.5;
@@ -148,9 +152,10 @@ export class Stations {
       if (todo && !this.job) this.build(todo); // one station at a time
     }
     // Building is spread over frames: a few milliseconds of it per step.
+    // (The metro waits while a station is being built: one builder, about 2 ms, per frame.)
     if (this.job) {
       const j = this.job, t0 = performance.now();
-      while (j.i < j.tasks.length && performance.now() - t0 < 3.5) j.tasks[j.i++]();
+      while (j.i < j.tasks.length && performance.now() - t0 < 2) j.tasks[j.i++]();
       if (j.i >= j.tasks.length) { this.job = null; this.finish(j); }
     }
     // Indicators of the station the player is nearest to: the next trains, every 2 s.
@@ -183,7 +188,7 @@ export class Stations {
     st.built.group.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
     for (const t of st.built.textures) t.dispose();
     for (const m of st.built.mats) m.dispose();
-    st.built = null;
+    st.built = null; st.indicatorCanvas = st.indicatorTex = null;
   }
 
   // ---------------------------------------------------------------- building
@@ -193,32 +198,38 @@ export class Stations {
     for (const p of st.platforms) tasks.push(() => this.platform(p, B, pieces, top));
     for (const d of st.decks) { tasks.push(() => this.deck(d, B, pieces)); for (const s of d.stairs) tasks.push(() => this.stair(s, B, pieces)); }
     st.building = true;
-    this.job = { st, B, pieces, tasks, i: 0 };
+    const job = this.job = { st, B, pieces, tasks, i: 0, group: new THREE.Group(), textures: [], mats: [] };
+    // Finishing is spread over frames too: one mesh per task, the walkable pieces 400 at a time.
+    for (const k of Object.keys(B)) tasks.push(() => this.meshFor(job, k));
+    let at = 0;
+    const register = () => { this.structures.add(st, pieces.slice(at, at + 400)); at += 400; if (at < pieces.length) job.tasks.splice(job.i, 0, register); };
+    tasks.push(register);
   }
 
-  finish({ st, B, pieces }) {
-    st.building = false;
-    const group = new THREE.Group();
-    group.name = `station ${st.name}`;
-    const textures = [], mats = [];
-    for (const [k, buf] of Object.entries(B)) {
-      if (buf.empty) continue;
-      let mat = this.mat[k];
-      if (k === 'board') { const t = this.boardTexture(st); textures.push(t); mat = new THREE.MeshStandardMaterial({ map: t, roughness: 0.55, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.05 + (this.clock.night ?? 0) * 0.35 }); mats.push(mat); }
-      if (k === 'ind') {
-        const c = document.createElement('canvas'); c.width = 512; c.height = 128;
-        const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; textures.push(t);
-        mat = new THREE.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 1.1, roughness: 0.4 }); mats.push(mat);
-        st.indicatorCanvas = c; st.indicatorTex = t;
-      }
-      const mesh = new THREE.Mesh(buf.geometry(), mat);
-      mesh.castShadow = k === 'roof' || k === 'side' || k === 'steel';
-      mesh.receiveShadow = true;
-      group.add(mesh);
+  /** One material's mesh of a station being built. */
+  meshFor(job, k) {
+    const { st, B, group, textures, mats } = job, buf = B[k];
+    if (buf.empty) return;
+    let mat = this.mat[k];
+    if (k === 'board') { const t = this.boardTexture(st); textures.push(t); mat = new THREE.MeshStandardMaterial({ map: t, roughness: 0.55, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.05 + (this.clock.night ?? 0) * 0.35 }); mats.push(mat); }
+    if (k === 'ind') {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; textures.push(t);
+      mat = new THREE.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 1.1, roughness: 0.4 }); mats.push(mat);
+      st.indicatorCanvas = c; st.indicatorTex = t;
     }
+    const mesh = new THREE.Mesh(buf.geometry(), mat);
+    mesh.castShadow = k === 'roof' || k === 'side' || k === 'steel';
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    B[k] = null; // the arrays can go
+  }
+
+  finish({ st, group, textures, mats }) {
+    st.building = false;
+    group.name = `station ${st.name}`;
     this.scene.add(group);
-    this.structures.add(st, pieces);
-    st.built = { group, textures, mats, indicator: !B.ind.empty };
+    st.built = { group, textures, mats, indicator: !!st.indicatorCanvas };
     if (st.built.indicator) this.drawIndicator(st);
   }
 

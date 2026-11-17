@@ -968,6 +968,7 @@ started.then(() => import('./world/metro.js'))
   .then(({ Metro }) => Metro.create({ scene, tiles, structures, materials, clock, tier, state, tickets, hud, bubbles, people, walker, view, audio, compile: (o) => post.compile(o, camera, scene), snap: () => placeCamera(0) }))
   .then((m) => {
     metro = window.__gtb.metro = m;
+    if (m) m.otherBusy = () => !!stations?.job; // one builder per frame: the stations first, then the metro
     if (m) { const markers = cityMap.markers; cityMap.markers = () => [...markers(), ...m.markers()]; }
   })
   .catch((err) => console.warn('Metro is not available:', err));

@@ -265,11 +265,15 @@ export class Metro {
     const P = active.pos, night = this.clock.night ?? 0;
     this.uNight.value = night;
     this.mat.glow.emissiveIntensity = 0.2 + night * 2;
-    if ((this.scanT -= dt) <= 0) { this.scanT = 0.5; this.scan(P); this.stream(P); }
+    // Right after a jump the tiles are busy: start streaming viaducts and stations a few frames later.
+    if (Math.hypot(P.x - (this.lastX ?? 1e9), P.z - (this.lastZ ?? 1e9)) > 150) { this.quiet = 3; this.scanT = 0.15; }
+    this.lastX = P.x; this.lastZ = P.z;
+    if (this.quiet > 0) this.quiet--;
+    else if ((this.scanT -= dt) <= 0) { this.scanT = 0.5; this.scan(P); this.stream(P); }
     // Station and viaduct building is spread over frames.
-    if (this.job) {
+    if (this.job && !this.otherBusy?.() && !(this.quiet > 0)) { // the stations take turns with the metro (about 2 ms a frame)
       const j = this.job, t0 = performance.now();
-      while (j.i < j.tasks.length && performance.now() - t0 < 3) j.tasks[j.i++]();
+      while (j.i < j.tasks.length && performance.now() - t0 < 2) j.tasks[j.i++]();
       if (j.i >= j.tasks.length) { this.job = null; j.done(); }
     }
     this.moveTrains(dt, P);

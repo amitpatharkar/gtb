@@ -453,7 +453,7 @@ export class Trains {
     this.uNight.value = night;
     this.structuresV = this.structures?.version;
     // A jump (tow, cheat, mission): the trains already near the new place are simply there.
-    if (Math.hypot(P.x - this.lastX, P.z - this.lastZ) > 150) { this.fresh = true; this.scanT = 0; }
+    if (Math.hypot(P.x - this.lastX, P.z - this.lastZ) > 150) { this.fresh = true; this.scanT = 0; this.hereT = Math.max(this.hereT, 0.25); } // platform crowds a few frames later
     this.lastX = P.x; this.lastZ = P.z;
     this.scanT -= dt;
     if (this.scanT <= 0) { this.scanT = 0.5; this.scan(P); }
@@ -880,6 +880,7 @@ export class Trains {
       busy.length = Math.min(busy.length, 6);
       const capAll = this.lowTier ? 70 : 170;
       let used = 0;
+      this.fillBudget = 30; // people placed per pass: a crowd builds up over a few passes instead of in one frame
       for (const s of busy) {
         const toTown = s.line.dir === 'up';
         const want = !q ? 0 : Math.min(this.lowTier ? 30 : 60, capAll - used, Math.round(waiting({ name: s.name, hour: this.clock.hour, toTown, sinceTrain: this.sinceTrain(s, q), weekend: this.weekend() }) * 0.55));
@@ -932,7 +933,7 @@ export class Trains {
     let have = s.crowd.reduce((n, p) => n + (p.mode === 0 ? 1 : 0), 0);
     if (have > want + 4) { let drop = have - want; s.crowd = s.crowd.filter((p) => p.mode !== 0 || drop-- <= 0); have = want; }
     void waitingN;
-    for (let k = 0; have < want && k < want * 3; k++) {
+    for (let k = 0; have < want && k < want * 3 && this.fillBudget > 0; k++) {
       const r = hash(s.x + k * 3.1, s.z, (s.seedN = (s.seedN || 0) + 1));
       const side = s.side === 2 ? (r < 0.5 ? -1 : 1) : s.side;
       // Thickest around the middle of the platform (the foot-overbridge stairs), thinning to the ends.
@@ -941,6 +942,7 @@ export class Trains {
       const x = p0[0] - p0[3] * side * off, z = p0[1] + p0[2] * side * off; // right of travel is (-dirZ, dirX)
       if (this.tiles.hits(x, z, 0.3) || this.structures?.hits(x, z, 0.3, 1.4)) continue;
       const look = this.looks[Math.floor(r * 991) % this.looks.length];
+      this.fillBudget--;
       s.crowd.push({ noHero: hash(k, s.seedN) > 0.25, mode: 0, x, z, y: this.floorY(x, z), heading: Math.atan2(p0[3] * side, -p0[2] * side) + (hash(k, s.x) - 0.5) * 1.6, pose: r * 17 % 1 < 0.15 ? POSE.ARGUE : POSE.STAND, phase: r * 30, amp: 1, flags: look.flags, scale: 0.93 + (r * 5 % 1) * 0.12, shirt: look.shirt, pants: look.pants, skin: look.skin, h: 2.1, speed: 1.4, door: null });
       have++;
     }
