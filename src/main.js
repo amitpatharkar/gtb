@@ -56,12 +56,14 @@ import { Minimap } from './ui/minimap.js';
 import { CityAudio } from './audio.js';
 import { POINT } from './world/tileFormat.js';
 import { initSpeedo } from './ui/hud.js';
+import { icon, installEmojiIcons } from './ui/icons.js';
 import { WeaponWheel } from './ui/wheel.js';
 import { titleScreen, loadingScreen, pauseMenu, loadSettings } from './ui/menu.js';
 import { TouchControls } from './ui/touch.js';
 import { registerServiceWorker } from './serviceWorker.js';
 
 const BASE = import.meta.env.BASE_URL;
+installEmojiIcons(); // any emoji that shows up in text becomes an icon
 const TOUCH = matchMedia('(pointer: coarse)').matches || query.has('touch'); // a touch screen: touch controls, no keyboard hints (?touch forces them)
 registerServiceWorker(BASE); // cached map and media on repeat visits (built game only)
 
@@ -529,6 +531,8 @@ function applySettings(st) {
   $('hintbar').classList.toggle('off', !st.hints);
 }
 let paused = false;
+// The map is a tab of the hub menu (Esc), not a separate screen: Tab, the radar and the phone's Maps app all open the hub on it.
+cityMap.host = { open: () => { view.release(); pause.toggle(true, 'map'); }, close: () => { if (pause.open) pause.toggle(false); } };
 const pause = pauseMenu({
   paused: (on) => { paused = on; if (on) view.release(); audio.ctx?.[on ? 'suspend' : 'resume']?.(); },
   quality: (t) => changeQuality(t),
@@ -538,7 +542,8 @@ const pause = pauseMenu({
   abandon: () => story.fail('abandoned'),
   skipHour: () => skipHour(),
   tow: () => teleportHome(), // touch screens have no R key
-  map: () => { view.release(); cityMap.toggle(true, player); },
+  mapEl: cityMap.el,
+  mapActive: (on) => { if (on) cityMap.activate(player); else cityMap.deactivate(); },
   profile: () => ({
     name: 'Driver', title: 'Kaali-peeli taxi · Powai', day: state.s.day, clock: clock.label, money: player.money, rides: state.s.rides, rating: state.rating, earned: state.s.earned || 0,
     missions: story.s.done.length, missionsTotal: story.missions.length, chai: (state.s.eggs?.chai || []).length, hunger: state.s.hunger, energy: state.s.energy, fines: police.fines || 0,
@@ -563,14 +568,14 @@ addEventListener('blur', () => wheel.hide(false));
 
 addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && wheel.open) { wheel.hide(false); return; }
-  if (e.code === 'Escape' && !phone.open && !cityMap.open) { pause.toggle(); return; }
-  if (pause.open) return;
+  if (wheel.open && /^Digit[1-7]$/.test(e.code)) { wheel.pickIndex(Number(e.code.slice(5)) - 1); return; }
+  if (e.code === 'Escape' && !phone.open) { pause.toggle(); return; }
+  if (pause.open) { if (e.code === 'Tab') { e.preventDefault(); if (pause.tab === 'map') pause.toggle(false); else pause.show('map'); } return; }
   if ((e.code === 'Space' || e.code === 'Enter') && (story.lines?.length || story.ext) && story.camera) { story.skip(); return; }
   if (e.code === 'Slash') { helpTimer = helpTimer > 0 ? 0 : 30; $('help').classList.toggle('show', helpTimer > 0); }
   audio.start();
   if (e.repeat) return;
-  if (e.code === 'Tab') { e.preventDefault(); view.release(); cityMap.toggle(!cityMap.open, player); return; }
-  if (e.code === 'Escape' && cityMap.open) { cityMap.toggle(false); return; }
+  if (e.code === 'Tab') { e.preventDefault(); view.release(); cityMap.toggle(true, player); return; }
   if (cityMap.open) return;
   if (interiors.blocks(e.code)) return; // indoors: no vehicles, taxi duty, crackers, kicks or insults
   if (e.code === 'KeyQ' && pressedTwice('Q', `Press Q again to switch graphics to ${nextTier(tierKey)} (the game reloads where you are)`)) changeQuality(nextTier(tierKey));
@@ -1081,7 +1086,16 @@ $('coords').addEventListener('click', () => {
   if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
 });
 
-let shownStars = -1, shownHints = '';
+let shownStars = -1, shownHints = '', shownMessage = null, wasOnFoot = false, vehTimer = 0;
+/** The name of the vehicle you just got into, in a bottom corner for 1.5 seconds. */
+function showVehicleName() {
+  const el = $('vehname');
+  el.querySelector('i').textContent = vehicleIcon(garage.inTaxi ? 'taxi' : garage.type);
+  el.querySelector('b').textContent = garage.inTaxi ? 'Kaali-peeli taxi' : garage.spec.name;
+  el.classList.add('on');
+  clearTimeout(vehTimer);
+  vehTimer = setTimeout(() => el.classList.remove('on'), 1500);
+}
 const HINTS = {
   drive: [['W A S D', 'Drive'], ['Space', 'Handbrake'], ['H', 'Horn'], ['N', 'Radio'], ['P', 'Phone'], ['F', 'Get out']],
   foot: [['W A S D', 'Walk'], ['Shift', 'Run'], ['Click', 'Punch'], ['B', 'Weapons'], ['V', 'Kick'], ['F', 'Get in']],
@@ -1092,7 +1106,10 @@ const GEO_RAD = Math.PI / 180;
 const GEO_M_LAT = 111132.92 - 559.82 * Math.cos(2 * 19.03 * GEO_RAD) + 1.175 * Math.cos(4 * 19.03 * GEO_RAD);
 const GEO_M_LON = 111412.84 * Math.cos(19.03 * GEO_RAD) - 93.5 * Math.cos(3 * 19.03 * GEO_RAD);
 
+function setMeterIcon(label, name) { const mi = label.closest('.meter').querySelector('.mi'); if (mi.dataset.ic !== name) { mi.dataset.ic = name; mi.innerHTML = icon(name); } }
 function updateHud() {
+  if (wasOnFoot && !onFoot) showVehicleName();
+  wasOnFoot = onFoot;
   const hintMode = interiors.inside ? 'inside' : onFoot ? 'foot' : 'drive';
   if (hintMode !== shownHints) { shownHints = hintMode; $('hintbar').innerHTML = HINTS[hintMode].map(([k, v]) => `<span><b>${k}</b> ${v}</span>`).join(''); }
   const mover = onFoot ? walker : player;
@@ -1112,30 +1129,27 @@ function updateHud() {
   $('cond-bar').style.width = `${Math.round((onFoot ? walker.health : player.condition) * 100)}%`;
   $('weapon').hidden = !onFoot || !!touch;
   if (onFoot) {
-    // The hotbar: one slot per attack, the active one lit; written only when it changes.
+    // Only the active weapon shows (B opens the wheel to switch); written only when it changes.
     const pk = combat.weapon === 'pichkari';
-    const slot = (key, icon, name, sub, on, f) => `<div class="slot${on ? ' on' : ''}"><kbd>${key}</kbd><i>${icon}</i><b>${name}</b><small>${sub}</small><u style="--f:${f ?? 0}"></u></div>`;
-    const html = TOUCH ? '' :
-      slot(1, '👊', 'Fists', 'click · ×3 combo', !pk, 1)
-      + `<div class="slot${pk ? ' on' : ''}" style="--dot:#${HOLI[pichkari.colour].getHexString()}"><kbd>2</kbd><i>💦</i><b>Pichkari</b><small><em></em>${pichkari.colourName} · ${'●'.repeat(pichkari.pressure)}${'○'.repeat(5 - pichkari.pressure)}</small><u style="--f:${pichkari.tank.toFixed(2)}"></u></div>`
-      + slot('X', '🎆', crackers.current.name.split(' (')[0], 'Z: next type', false, 1)
-      + slot('V', '🦵', 'Kick', 'knock back', false, 1)
-      + slot('G', '🗣️', 'Insult', 'bleeped', false, 1);
+    const html = TOUCH ? '' : pk
+      ? `<div class="slot one on" style="--dot:#${HOLI[pichkari.colour].getHexString()}"><i>${icon('droplets')}</i><div class="meta"><b>Pichkari</b><small><em></em>${pichkari.colourName} · ${'●'.repeat(pichkari.pressure)}${'○'.repeat(5 - pichkari.pressure)}</small></div><u style="--f:${pichkari.tank.toFixed(2)}"></u></div>`
+      : `<div class="slot one on"><i>${icon('hand-fist')}</i><div class="meta"><b>Fists</b><small>click · ×3 combo</small></div></div>`;
     if (html !== weaponHtml) $('weapon').innerHTML = weaponHtml = html;
   }
   const foe = onFoot ? combat.foe : null;
   $('foe').hidden = !foe;
-  if (foe) $('foe').innerHTML = `🥊 Opponent <i><b style="width:${Math.round(Math.max(0, Math.min(1, foe.hp ?? 1)) * 100)}%"></b></i>${combat.blocking ? ' · blocking' : ''}`;
+  if (foe) $('foe').innerHTML = `${icon('hand-fist')} Opponent <i><b style="width:${Math.round(Math.max(0, Math.min(1, foe.hp ?? 1)) * 100)}%"></b></i>${combat.blocking ? ' · blocking' : ''}`;
   document.body.classList.toggle('hurt', onFoot && walker.hurt > 0.05);
   $('food-bar').style.width = `${Math.round(state.s.hunger * 100)}%`;
   $('food-bar').classList.toggle('low', state.s.hunger < 0.2);
   $('energy-bar').style.width = `${Math.round(state.s.energy * 100)}%`;
   for (const id of ['fuel', 'cond', 'food', 'energy']) { const m = $(`${id}-bar`).closest('.meter'), v = Math.round(parseFloat($(`${id}-bar`).style.width) || 0); if (m.dataset.v !== String(v)) m.dataset.v = v; }
-  $('fuel-label').closest('.meter').dataset.i = onFoot ? '🏃' : '⛽';
-  $('cond-label').closest('.meter').dataset.i = onFoot ? '❤️' : '🛡️';
+  setMeterIcon($('fuel-label'), onFoot ? 'footprints' : 'fuel');
+  setMeterIcon($('cond-label'), onFoot ? 'heart' : 'shield');
   $('mm-state').className = police.stars ? 'wanted' : 'safe';
   $('mm-state').textContent = police.stars ? `Wanted ${'★'.repeat(police.stars)}` : 'Safe';
   $('btn-phone').dataset.unread = state.unread || '';
+  $('keys').firstElementChild.dataset.unread = state.unread || '';
   $('money').textContent = `₹${player.money.toLocaleString('en-IN')}`;
   $('money').classList.toggle('debt', player.money < 0);
   const w = $('wanted');
@@ -1158,7 +1172,7 @@ function updateHud() {
     if (!message && !police.flagger) message = vehiclePrompt();
     if (touch) message = message.replace(/^[EF]: /, ''); // the context button is the key on a touch screen
   }
-  $('message').textContent = message;
+  if (message !== shownMessage) { shownMessage = message; $('message').textContent = message; }
   $('message').style.opacity = message ? 1 : 0;
   touch?.update(touchState());
 }

@@ -56,6 +56,7 @@ export function setupCredits(baseUrl) {
       const lines = (await res.text()).split('\n').filter((l) => l.startsWith('- ')).map((l) => l.slice(2).trim());
       if (lines.length) parts.push(`<h3>Made for this game</h3><ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`);
     } catch { /* no owner-made models in this build */ }
+    parts.push(`<h3>Icons</h3><p>Interface icons from ${link('https://lucide.dev', 'Lucide')} (ISC licence). Fonts: Damion (SIL Open Font License).</p>`);
     body.innerHTML = parts.join('');
   }
 
