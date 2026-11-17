@@ -41,8 +41,8 @@ const log = (...a) => console.log('[people]', ...a);
 
 // Triangle budgets per part role and level of detail (0 = drop the part at that level).
 const BUDGET = {
-  skin: [9000, 2600, 700], hair: [3200, 900, 260], top: [3000, 900, 260], bottom: [2400, 700, 200],
-  extra: [3000, 900, 260], shoes: [900, 160, 40], facial: [700, 160, 0], eyebrows: [400, 120, 0],
+  skin: [9000, 2600, 1000], hair: [3200, 2400, 1600], top: [3000, 1300, 550], bottom: [2400, 1000, 450],
+  extra: [3000, 1300, 550], shoes: [900, 200, 60], facial: [700, 160, 0], eyebrows: [400, 120, 0],
   eyelashes: [600, 0, 0], eyes: [400, 120, 60], teeth: [500, 0, 0], accessory: [800, 200, 0],
 };
 // Atlas cell size by role (pixels at a 4096 atlas).
@@ -182,6 +182,9 @@ function readParts(file, meta) {
         idx: Uint32Array.from(readAccessor(json, bin, prim.indices).arr), morphs: new Map(),
       };
       (prim.targets || []).forEach((t, k) => { if (names[k] && t.POSITION !== undefined) part.morphs.set(names[k], get(t.POSITION)); });
+      // Joints of the head (by index into the skin's joint list): the head keeps its surface at every level.
+      const joints = json.skins[node.skin ?? 0].joints;
+      part.headJoints = new Set(joints.map((j, k) => (/^(head|neck_01|eye_[lr])$/.test(json.nodes[j].name) ? k : -1)).filter((k) => k >= 0));
       parts.push(part);
     }
   }
@@ -189,7 +192,7 @@ function readParts(file, meta) {
 }
 
 /** Simplify a part to about `tris` triangles; returns new indices (vertices unchanged). */
-function simplify(part, tris, lockBorder) {
+function simplify(part, tris, lockBorder, prune = false) {
   const n = part.idx.length / 3;
   if (tris >= n) return part.idx;
   const vc = part.pos.length / 3;
@@ -198,7 +201,7 @@ function simplify(part, tris, lockBorder) {
     attr[i * 5] = part.nrm[i * 3] * 0.3; attr[i * 5 + 1] = part.nrm[i * 3 + 1] * 0.3; attr[i * 5 + 2] = part.nrm[i * 3 + 2] * 0.3;
     attr[i * 5 + 3] = part.uv ? part.uv[i * 2] : 0; attr[i * 5 + 4] = part.uv ? part.uv[i * 2 + 1] : 0;
   }
-  const flags = lockBorder ? ['LockBorder'] : [];
+  const flags = lockBorder ? ['LockBorder'] : prune ? ['Prune'] : [];
   const [out] = MeshoptSimplifier.simplifyWithAttributes(part.idx, part.pos, 3, attr, 5, [0.5, 0.5, 0.5, 1, 1], null, tris * 3, 0.05, flags);
   return out.length >= 3 ? out : part.idx;
 }
@@ -207,7 +210,7 @@ function simplify(part, tris, lockBorder) {
  * Merge parts (with their simplified indices) into one geometry: compact vertices, atlas UVs,
  * colour slot per vertex, morph deltas (LOD 0 only).
  */
-function merge(parts, cellOf, withMorphs) {
+function merge(parts, cellOf, withMorphs, inset = 0) {
   const used = parts.map((p) => { const m = new Int32Array(p.pos.length / 3).fill(-1); for (const i of p.lodIdx) m[i] = 0; return m; });
   let vc = 0;
   parts.forEach((p, k) => { for (let i = 0; i < used[k].length; i++) if (used[k][i] === 0) used[k][i] = vc++; });
@@ -221,6 +224,9 @@ function merge(parts, cellOf, withMorphs) {
       const o = map[i];
       if (o < 0) continue;
       pos.set(p.pos.subarray(i * 3, i * 3 + 3), o * 3);
+      // Mid and far body skin sits a few millimetres in: simplified, it otherwise pokes through
+      // cloth. Not the head (the inner mouth and eye sockets would show).
+      if (inset && p.role === 'skin' && !p.headJoints.has(p.joints[i * 4])) for (let c = 0; c < 3; c++) pos[o * 3 + c] -= p.nrm[i * 3 + c] * inset;
       nrm.set(p.nrm.subarray(i * 3, i * 3 + 3), o * 3);
       const u = p.uv ? Math.min(1, Math.max(0, p.uv[i * 2])) : 0.5, v = p.uv ? Math.min(1, Math.max(0, p.uv[i * 2 + 1])) : 0.5;
       uv[o * 2] = (cell.x + cell.pad + u * cell.inner) / ATLAS;
@@ -380,8 +386,10 @@ async function main() {
     const cellOf = (p) => cells.get(p.cellKey);
     const lods = [0, 1, 2].map((lod) => {
       const parts = raw.parts.filter((p) => BUDGET[p.role][lod] > 0);
-      for (const p of parts) p.lodIdx = simplify(p, BUDGET[p.role][lod], lod === 0 && p.role === 'skin');
-      return reorder(merge(parts, cellOf, lod === 0));
+      // Skin and garment edges stay put at every level: a moved hem or cuff opened gaps.
+      // Hair is cards: whole strands are dropped (Prune) rather than squashed into dark patches.
+      for (const p of parts) p.lodIdx = simplify(p, BUDGET[p.role][lod], ['skin', 'top', 'bottom', 'extra', 'shoes'].includes(p.role), ['facial', 'eyebrows'].includes(p.role));
+      return reorder(merge(parts, cellOf, lod === 0, [0, 0.002, 0.004][lod]));
     });
     const glb = writePerson(spec, raw, lods);
     fs.writeFileSync(path.join(OUT, `${spec.id}.glb`), glb);

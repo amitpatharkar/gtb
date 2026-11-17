@@ -286,7 +286,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   turns the clips into deltas from the reference rest pose (AdditiveAnimationBlendMode: every body keeps its own
   proportions), `clipsFor(t)` scales the hip track by the template's pelvis height. The material: `_part` attribute
   (slot, alpha flag, roughness, scalp flag) → `uTint[8]` × atlas detail (linear 0.5 = texture average), hard alpha
-  cutout for hair with alpha forced to 1 (partial alpha leaked into the post buffer = grey hair). `SKIN_TONES`,
+  cutout for hair with alpha forced to 1 (partial alpha leaked into the post buffer = grey hair); two-sided (a
+  garment is one sheet: looking into a sleeve or hem showed straight through). `SKIN_TONES`,
   `HAIR_COLOURS`, `LOD_DIST` (near/mid/far by tier). The atlas is rebuilt with every person each run (a changed set of
   textures moves every cell).
 - `src/people/motion.js` — `Motion`: AnimationMixer cross-fades (`once` clips clamp), blinking, eye gaze (eye bones,
@@ -305,10 +306,17 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `build-people.mjs` (`--setup` downloads Blender 4.2, MPFB 2.0.18 and the MakeHuman asset packs into `.people-cache/`;
   runs `blender/person.py` 4 at once, ~5 s a person, rebuilds only changed specs; then the atlas — 4096² as two
   4096×2048 KTX2 pages because the encoder takes ≤ 12 Mpix, quadtree-packed so no cell crosses the middle —, merge,
-  meshopt LOD budgets per part role, `glbwriter.mjs`; `--only=id`, `--force`, `--png` keeps atlas.png), `population.mjs`
+  meshopt LOD budgets per part role (skin and garment edges `LockBorder` at every level, mid/far body skin
+  inset 2/4 mm except the head; very dense garments simplify into ragged hems, so prefer ones under ~5k vertices), `glbwriter.mjs`; `--only=id`, `--force`, `--png` keeps atlas.png), `population.mjs`
   (who: 24 templates with heights, MakeHuman macros incl. ancestry mix, face targets, hair, clothes [role, asset,
   {tint, slot}], kinds), `blender/person.py` (MPFB human → height search → bake modelling shape keys, keep 14 face
-  morphs from the ARKit face units, delete helpers and skin under clothes, eye bones, a hair bone chain down long hair
+  morphs from the ARKit face units, delete helpers and skin under clothes, **remove skin a garment covers**
+  (`delete_covered`: ray along the skin normal meets a garment within 7 cm, area shrunk one ring so cuffs/hems keep
+  no gap — MakeHuman's delete groups left legs and bellies that poked through as orange "tears"), **layer top and
+  bottom** (tops hang over the waistband unless the asset name says tucked: `push_over` lifts the outer garment 6 mm
+  over the inner, `push_under` sinks the inner 5 mm under, then the hidden inner part is cut; directions come from
+  the body under the cloth because some garments face inward; MakeHuman `z_depth` values are unreliable), eye bones,
+  a hair bone chain down long hair
   (`hair_chains`: vertices below the skull and behind its centre, 3–4 bones, weights blended along the chain), export + part metadata with
   licence/author; AGPL assets are refused), `build-anims.mjs` + `blender/retarget.py` (Quaternius UAL 1/2 → MPFB game
   skeleton: limbs calibrated to the source T-pose, world-space rotation deltas per frame, hips scaled by hip height,

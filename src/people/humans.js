@@ -33,7 +33,9 @@ const PATCH = /* glsl */`
  * slot, alpha-test only hair-like parts and take roughness from the vertex.
  */
 export function humanMaterial(lib, tints) {
-  const m = new THREE.MeshStandardMaterial({ map: lib.pages[0], roughness: 0.8, metalness: 0, alphaTest: 0.5 });
+  // Two-sided: a garment is a single sheet, so looking into a sleeve, collar or hem showed
+  // straight through it.
+  const m = new THREE.MeshStandardMaterial({ map: lib.pages[0], roughness: 0.8, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide });
   // Hard cutout for hair cards (alpha to coverage would leave partial alpha in the game's
   // post-processing buffer and the final pass would blend hair with the background).
   const u = { uAtlas1: { value: lib.pages[1] }, uTint: { value: tints }, uHideScalp: { value: 0 }, uPatch: { value: 0 } };
@@ -62,7 +64,7 @@ export function humanMaterial(lib, tints) {
 
 /** Shadow-casting depth material that cuts hair cards by the atlas alpha like the colour pass. */
 function humanDepthMaterial(lib) {
-  const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: lib.pages[0], alphaTest: 0.5 });
+  const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: lib.pages[0], alphaTest: 0.5, side: THREE.DoubleSide });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uAtlas1 = { value: lib.pages[1] };
     sh.vertexShader = sh.vertexShader

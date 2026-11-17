@@ -207,6 +207,116 @@ def delete_hidden(bm):
     return len(drop)
 
 
+def delete_covered(target, covers, reach=0.07, under=0.0015, body_tree=None):
+    """Remove the parts of `target` that `covers` hide. MakeHuman's delete groups leave much skin
+    under clothes (legs under trousers, the belly under a vest), and it poked through the cloth
+    as orange "tears", worst where meshes are simplified for distance; garments overlapping
+    each other did the same (a waistband through a vest). A point is covered when a ray along
+    its normal (from 2 mm inside) meets a cover within `reach`, or a cover lies up to `under`
+    beneath it; the covered area shrinks by one ring of points so no gap opens at cuffs,
+    collars, hems or sandal straps; then faces with every point covered go. For two garments
+    the ray points away from the body under them (`body_tree`, its nearest face normal), not
+    along the garment's own normal (some garments face inward), so only the inner layer is cut."""
+    from mathutils.bvhtree import BVHTree
+    if not covers:
+        return 0
+    trees = [BVHTree.FromPolygons([v.co.copy() for v in g.data.vertices], [tuple(p.vertices) for p in g.data.polygons]) for g in covers]
+    me = target.data
+    n = len(me.vertices)
+    covered = np.zeros(n, dtype=bool)
+    for v in me.vertices:
+        nrm = v.normal
+        if body_tree is not None:
+            hit = body_tree.find_nearest(v.co)
+            if hit[0] is None:
+                continue
+            nrm = hit[1]
+        if nrm.length < 0.5:
+            continue
+        start = v.co - nrm * 0.002
+        for t in trees:
+            if t.ray_cast(start, nrm, reach)[0] is not None or (under > 0 and t.ray_cast(v.co, -nrm, under)[0] is not None):
+                covered[v.index] = True
+                break
+    keep = covered.copy()
+    for e in me.edges:
+        a, b = e.vertices
+        if not covered[a]:
+            keep[b] = False
+        if not covered[b]:
+            keep[a] = False
+    bm_ = bmesh.new()
+    bm_.from_mesh(me)
+    bm_.verts.ensure_lookup_table()
+    faces = [f for f in bm_.faces if all(keep[v.index] for v in f.verts)]
+    if not faces:
+        bm_.free()
+        return 0
+    bmesh.ops.delete(bm_, geom=faces, context='FACES_ONLY')
+    loose = [v for v in bm_.verts if not v.link_faces]
+    bmesh.ops.delete(bm_, geom=loose, context='VERTS')
+    bm_.to_mesh(me)
+    bm_.free()
+    me.update()
+    return len(faces)
+
+
+def push_under(inner, outer, body_tree, gap=0.005):
+    """Layer two garments that MakeHuman fitted crossing each other (a waistband outside a vest
+    in some places and inside in others, which looked torn): every point of `inner` that is
+    outside `outer`, or less than `gap` under it, moves to `gap` under it, along the outward
+    direction of the body beneath."""
+    from mathutils.bvhtree import BVHTree
+    tree = BVHTree.FromPolygons([v.co.copy() for v in outer.data.vertices], [tuple(p.vertices) for p in outer.data.polygons])
+    me = inner.data
+    moved = 0
+    keys = me.shape_keys.key_blocks if me.shape_keys else []
+    for v in me.vertices:
+        hit = body_tree.find_nearest(v.co)
+        if hit[0] is None:
+            continue
+        d = hit[1]
+        start = v.co - d * 0.03
+        loc, _, _, dist = tree.ray_cast(start, d, 0.09)
+        if loc is None or dist - 0.03 > gap:
+            continue
+        shift = loc - d * gap - v.co
+        v.co += shift
+        for k in keys:
+            k.data[v.index].co += shift
+        moved += 1
+    me.update()
+    return moved
+
+
+def push_over(outer, inner, body_tree, gap=0.006):
+    """Drape `outer` over `inner`: every point of the outer garment that lies inside the inner
+    one, or less than `gap` above it, moves out to `gap` above it (along the outward direction
+    of the body beneath), the way a top hangs over a waistband. Its hem moves with it, so no
+    edge gets jagged."""
+    from mathutils.bvhtree import BVHTree
+    tree = BVHTree.FromPolygons([v.co.copy() for v in inner.data.vertices], [tuple(p.vertices) for p in inner.data.polygons])
+    me = outer.data
+    keys = me.shape_keys.key_blocks if me.shape_keys else []
+    moved = 0
+    for v in me.vertices:
+        hit = body_tree.find_nearest(v.co)
+        if hit[0] is None:
+            continue
+        d = hit[1]
+        loc = tree.ray_cast(v.co + d * 0.04, -d, 0.10)[0]   # the inner garment's outer surface here
+        if loc is None or (loc - v.co).dot(d) < -gap:
+            continue
+        shift = loc + d * gap - v.co
+        shift = d * shift.dot(d)
+        v.co += shift
+        for k in keys:
+            k.data[v.index].co += shift
+        moved += 1
+    me.update()
+    return moved
+
+
 def add_eye_bones(rig, eyes):
     """Two eye bones under the head; the eye mesh's halves weighted to them (gaze in the game)."""
     co = np.array([v.co[:] for v in eyes.data.vertices])
@@ -347,6 +457,23 @@ def build(spec, out_dir):
         o.name = f"{role}__{asset or 'body'}"
         o['gtb_role'] = role
         meta['parts'].append(part)
+    from mathutils.bvhtree import BVHTree
+    garments = [o for o in bpy.data.objects if o.type == 'MESH' and o.get('gtb_role') in ('top', 'bottom', 'shoes', 'extra')]
+    body_tree = BVHTree.FromPolygons([v.co.copy() for v in bm.data.vertices], [tuple(p.vertices) for p in bm.data.polygons])
+    meta['coveredFaces'] = {'skin': delete_covered(bm, garments)}
+    # Tops hang over the trousers or skirt unless they are tucked-in shirts: the inner garment
+    # goes 5 mm under the outer one, then what the outer hides is cut away.
+    top = next((g for g in garments if g.get('gtb_role') == 'top'), None)
+    bottom = next((g for g in garments if g.get('gtb_role') == 'bottom'), None)
+    if top and bottom:
+        tucked = re.search(r'(?<!un)tucked', top.name)
+        inner, outer = (top, bottom) if tucked else (bottom, top)
+        meta['drapedOver'] = {outer['gtb_role']: push_over(outer, inner, body_tree)}
+        meta['pushedUnder'] = {inner['gtb_role']: push_under(inner, outer, body_tree)}
+        meta['coveredFaces'][inner['gtb_role']] = delete_covered(inner, [outer], reach=0.06, under=0, body_tree=body_tree)
+    for o in [bm] + [g for g in garments if g.get('gtb_role') != 'shoes']:
+        part = next(p for p in meta['parts'] if p['role'] == o['gtb_role'])
+        part['verts'] = len(o.data.vertices)
     eyes = next((o for o in bpy.data.objects if o.type == 'MESH' and o.get('gtb_role') == 'eyes'), None)
     if eyes:
         meta['eyes'] = add_eye_bones(rig, eyes)

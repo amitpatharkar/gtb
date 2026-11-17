@@ -1,5 +1,5 @@
 {
- "version": "4ae5f5fe0b5e",
+ "version": "98c576c62c79",
  "atlas": [
   "atlas0.ktx2",
   "atlas1.ktx2"
@@ -35,7 +35,7 @@
   {
    "id": "m_office_1",
    "file": "m_office_1.glb",
-   "bytes": 406320,
+   "bytes": 487824,
    "sex": "m",
    "age": 34,
    "build": "average",
@@ -49,9 +49,9 @@
    ],
    "palette": {},
    "tris": [
-    19724,
-    5496,
-    1804
+    19730,
+    8041,
+    4769
    ],
    "eyes": {
     "eye_l": [
@@ -70,7 +70,7 @@
   {
    "id": "m_office_2",
    "file": "m_office_2.glb",
-   "bytes": 418904,
+   "bytes": 477644,
    "sex": "m",
    "age": 45,
    "build": "heavy",
@@ -82,9 +82,9 @@
    ],
    "palette": {},
    "tris": [
-    17575,
-    5543,
-    1715
+    17574,
+    6896,
+    3798
    ],
    "eyes": {
     "eye_l": [
@@ -103,7 +103,7 @@
   {
    "id": "m_office_3",
    "file": "m_office_3.glb",
-   "bytes": 387532,
+   "bytes": 446116,
    "sex": "m",
    "age": 29,
    "build": "slim",
@@ -115,9 +115,9 @@
    ],
    "palette": {},
    "tris": [
-    18452,
-    5498,
-    1617
+    18445,
+    7566,
+    4156
    ],
    "eyes": {
     "eye_l": [
@@ -136,7 +136,7 @@
   {
    "id": "m_casual_1",
    "file": "m_casual_1.glb",
-   "bytes": 375312,
+   "bytes": 482812,
    "sex": "m",
    "age": 22,
    "build": "slim",
@@ -147,9 +147,9 @@
    ],
    "palette": {},
    "tris": [
-    16692,
-    5497,
-    1529
+    18800,
+    7868,
+    3991
    ],
    "eyes": {
     "eye_l": [
@@ -168,7 +168,7 @@
   {
    "id": "m_casual_2",
    "file": "m_casual_2.glb",
-   "bytes": 439252,
+   "bytes": 503508,
    "sex": "m",
    "age": 26,
    "build": "fit",
@@ -180,9 +180,9 @@
    ],
    "palette": {},
    "tris": [
-    20430,
-    5656,
-    1608
+    20432,
+    8188,
+    4139
    ],
    "eyes": {
     "eye_l": [
@@ -201,7 +201,7 @@
   {
    "id": "m_casual_3",
    "file": "m_casual_3.glb",
-   "bytes": 416888,
+   "bytes": 513476,
    "sex": "m",
    "age": 38,
    "build": "stocky",
@@ -214,9 +214,9 @@
    ],
    "palette": {},
    "tris": [
-    19730,
-    5500,
-    1637
+    19304,
+    7784,
+    4521
    ],
    "eyes": {
     "eye_l": [
@@ -235,7 +235,7 @@
   {
    "id": "m_worker_1",
    "file": "m_worker_1.glb",
-   "bytes": 421180,
+   "bytes": 485904,
    "sex": "m",
    "age": 30,
    "build": "slim",
@@ -249,8 +249,8 @@
    "palette": {},
    "tris": [
     17722,
-    5710,
-    2163
+    7608,
+    4281
    ],
    "eyes": {
     "eye_l": [
@@ -269,7 +269,7 @@
   {
    "id": "m_worker_2",
    "file": "m_worker_2.glb",
-   "bytes": 432012,
+   "bytes": 486880,
    "sex": "m",
    "age": 33,
    "build": "muscular",
@@ -281,9 +281,9 @@
    ],
    "palette": {},
    "tris": [
-    19151,
-    6182,
-    2158
+    19152,
+    7898,
+    4336
    ],
    "eyes": {
     "eye_l": [
@@ -302,7 +302,7 @@
   {
    "id": "m_worker_3",
    "file": "m_worker_3.glb",
-   "bytes": 395032,
+   "bytes": 462724,
    "sex": "m",
    "age": 48,
    "build": "slim",
@@ -315,9 +315,9 @@
    ],
    "palette": {},
    "tris": [
-    15571,
-    5707,
-    2155
+    15556,
+    6240,
+    4338
    ],
    "eyes": {
     "eye_l": [
@@ -336,7 +336,7 @@
   {
    "id": "m_old_1",
    "file": "m_old_1.glb",
-   "bytes": 404388,
+   "bytes": 470988,
    "sex": "m",
    "age": 67,
    "build": "slim",
@@ -349,9 +349,9 @@
     "hair": "grey"
    },
    "tris": [
-    18380,
-    5706,
-    1649
+    17954,
+    6644,
+    3984
    ],
    "eyes": {
     "eye_l": [
@@ -370,7 +370,7 @@
   {
    "id": "m_old_2",
    "file": "m_old_2.glb",
-   "bytes": 487544,
+   "bytes": 560916,
    "sex": "m",
    "age": 74,
    "build": "heavy",
@@ -383,9 +383,9 @@
     "hair": "white"
    },
    "tris": [
-    20529,
-    6353,
-    2230
+    20531,
+    8550,
+    4995
    ],
    "eyes": {
     "eye_l": [
@@ -404,7 +404,7 @@
   {
    "id": "m_teen_1",
    "file": "m_teen_1.glb",
-   "bytes": 383020,
+   "bytes": 509648,
    "sex": "m",
    "age": 15,
    "build": "slim",
@@ -416,9 +416,9 @@
    ],
    "palette": {},
    "tris": [
-    15621,
-    5799,
-    2142
+    17156,
+    8978,
+    6134
    ],
    "eyes": {
     "eye_l": [
@@ -437,7 +437,7 @@
   {
    "id": "f_young_1",
    "file": "f_young_1.glb",
-   "bytes": 425928,
+   "bytes": 515656,
    "sex": "f",
    "age": 22,
    "build": "slim",
@@ -449,9 +449,9 @@
    ],
    "palette": {},
    "tris": [
-    19429,
-    6135,
-    2284
+    19469,
+    8484,
+    4840
    ],
    "eyes": {
     "eye_l": [
@@ -479,7 +479,7 @@
   {
    "id": "f_young_2",
    "file": "f_young_2.glb",
-   "bytes": 432360,
+   "bytes": 511624,
    "sex": "f",
    "age": 25,
    "build": "average",
@@ -490,9 +490,9 @@
    ],
    "palette": {},
    "tris": [
-    19431,
-    6142,
-    2628
+    19428,
+    8482,
+    4600
    ],
    "eyes": {
     "eye_l": [
@@ -521,7 +521,7 @@
   {
    "id": "f_office_1",
    "file": "f_office_1.glb",
-   "bytes": 407296,
+   "bytes": 455416,
    "sex": "f",
    "age": 31,
    "build": "average",
@@ -532,9 +532,9 @@
    ],
    "palette": {},
    "tris": [
-    19317,
-    5834,
-    1980
+    19088,
+    8027,
+    4156
    ],
    "eyes": {
     "eye_l": [
@@ -553,7 +553,7 @@
   {
    "id": "f_mid_1",
    "file": "f_mid_1.glb",
-   "bytes": 389800,
+   "bytes": 443560,
    "sex": "f",
    "age": 42,
    "build": "heavy",
@@ -563,9 +563,9 @@
    ],
    "palette": {},
    "tris": [
-    19317,
-    5496,
-    1638
+    19318,
+    7779,
+    3895
    ],
    "eyes": {
     "eye_l": [
@@ -584,7 +584,7 @@
   {
    "id": "f_mid_2",
    "file": "f_mid_2.glb",
-   "bytes": 429428,
+   "bytes": 499964,
    "sex": "f",
    "age": 36,
    "build": "average",
@@ -595,9 +595,9 @@
    ],
    "palette": {},
    "tris": [
-    19731,
-    5497,
-    1975
+    19732,
+    7783,
+    3905
    ],
    "eyes": {
     "eye_l": [
@@ -626,7 +626,7 @@
   {
    "id": "f_old_1",
    "file": "f_old_1.glb",
-   "bytes": 382648,
+   "bytes": 440428,
    "sex": "f",
    "age": 62,
    "build": "heavy",
@@ -638,9 +638,9 @@
     "hair": "grey"
    },
    "tris": [
-    18726,
-    5496,
-    1640
+    18727,
+    7782,
+    3903
    ],
    "eyes": {
     "eye_l": [
@@ -659,7 +659,7 @@
   {
    "id": "f_old_2",
    "file": "f_old_2.glb",
-   "bytes": 410392,
+   "bytes": 468984,
    "sex": "f",
    "age": 71,
    "build": "slim",
@@ -671,9 +671,9 @@
     "hair": "white"
    },
    "tris": [
-    20116,
-    6336,
-    2276
+    20163,
+    8680,
+    4589
    ],
    "eyes": {
     "eye_l": [
@@ -692,7 +692,7 @@
   {
    "id": "f_young_3",
    "file": "f_young_3.glb",
-   "bytes": 479004,
+   "bytes": 515752,
    "sex": "f",
    "age": 20,
    "build": "slim",
@@ -704,9 +704,9 @@
    ],
    "palette": {},
    "tris": [
-    19731,
-    5499,
-    1986
+    18559,
+    8130,
+    4364
    ],
    "eyes": {
     "eye_l": [
@@ -735,7 +735,7 @@
   {
    "id": "f_young_4",
    "file": "f_young_4.glb",
-   "bytes": 417800,
+   "bytes": 478844,
    "sex": "f",
    "age": 27,
    "build": "average",
@@ -747,9 +747,9 @@
    ],
    "palette": {},
    "tris": [
-    18726,
-    5809,
-    1961
+    18333,
+    8012,
+    4140
    ],
    "eyes": {
     "eye_l": [
@@ -777,7 +777,7 @@
   {
    "id": "f_teen_1",
    "file": "f_teen_1.glb",
-   "bytes": 452148,
+   "bytes": 536968,
    "sex": "f",
    "age": 15,
    "build": "slim",
@@ -788,9 +788,9 @@
    ],
    "palette": {},
    "tris": [
-    19413,
-    5579,
-    2471
+    19340,
+    7906,
+    4584
    ],
    "eyes": {
     "eye_l": [
@@ -819,7 +819,7 @@
   {
    "id": "k_boy_1",
    "file": "k_boy_1.glb",
-   "bytes": 384136,
+   "bytes": 511744,
    "sex": "m",
    "age": 9,
    "build": "average",
@@ -829,9 +829,9 @@
    ],
    "palette": {},
    "tris": [
-    15621,
-    5797,
-    2134
+    17151,
+    8992,
+    6139
    ],
    "eyes": {
     "eye_l": [
@@ -850,7 +850,7 @@
   {
    "id": "k_girl_1",
    "file": "k_girl_1.glb",
-   "bytes": 421824,
+   "bytes": 498240,
    "sex": "f",
    "age": 8,
    "build": "average",
@@ -861,8 +861,8 @@
    "palette": {},
    "tris": [
     18737,
-    5506,
-    1897
+    7792,
+    3912
    ],
    "eyes": {
     "eye_l": [
@@ -911,12 +911,6 @@
   {
    "asset": "cortu_jeans_shorts",
    "role": "bottom",
-   "license": "CC0",
-   "author": "MakeHuman team"
-  },
-  {
-   "asset": "cortu_short_messy_hair",
-   "role": "hair",
    "license": "CC0",
    "author": "MakeHuman team"
   },
@@ -981,18 +975,6 @@
    "author": "Elvaerwyn"
   },
   {
-   "asset": "elvs_ladies_tank1",
-   "role": "top",
-   "license": "CC-BY",
-   "author": "Elvaerwyn"
-  },
-  {
-   "asset": "elvs_male_athletic_tank1",
-   "role": "top",
-   "license": "CC-BY",
-   "author": "Elvaerwyn"
-  },
-  {
    "asset": "elvs_male_flip_flop_sandals1",
    "role": "shoes",
    "license": "CC-BY",
@@ -1012,6 +994,12 @@
   },
   {
    "asset": "elvs_male_shirt_untucked_bd1",
+   "role": "top",
+   "license": "CC-BY",
+   "author": "Elvaerwyn"
+  },
+  {
+   "asset": "elvs_male_tankshirt1",
    "role": "top",
    "license": "CC-BY",
    "author": "Elvaerwyn"
@@ -1157,6 +1145,12 @@
   {
    "asset": "punkduck_running_shoes_01",
    "role": "shoes",
+   "license": "CC-BY",
+   "author": "punkduck"
+  },
+  {
+   "asset": "punkduck_spaghetti_strap_tank_top",
+   "role": "top",
    "license": "CC-BY",
    "author": "punkduck"
   },
