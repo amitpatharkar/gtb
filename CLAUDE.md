@@ -108,7 +108,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   worker's `shutterBox` parts: unipoles (V of two boards showing the `ADS` atlas, `UNI`), blue street-name boards
   (two faces) and direction boards / overhead gantries (one panel per destination line), cable bundles (unit
   catenary `cable`, matrix = span × sag × side via `putSpan`), lane and stall tarpaulins (`sheet()`), shamiana over
-  puja stalls, 6 shrine kinds, flower sellers, gates (open leaves, monobloc chair, some security cabins), shopfront
+  puja stalls, 6 shrine kinds, flower sellers, gates (leaves swing: open by day or within 7 m of the player, shut at night and then solid — `gateOpen` state per gate, `swingGates()` poses the leaves every frame; monobloc chair, some security cabins), shopfront
   awnings by the street profile's `awn` shares [cloth, striped, tarp, metal] (`AWN_DEFAULT` elsewhere). 4 draw calls:
   BatchedMesh `solid` (vertex colours, tinted per instance), BatchedMesh `cloth` (two-sided), InstancedMesh `boards`
   (`aRect` = atlas rectangle) and `ads` (`aAd` = ad cell). Board text: atlas of 512 × 128 cells (64, Low 32) drawn on
@@ -296,6 +296,18 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   types via `FILE_TYPES`, and only files in `VERIFIED` (checked by eye: many detailed models lose panels) are used —
   `node scripts/art-index.mjs --preview` ignores the credit gate for a local look. Loaded after play starts, most
   common first, Low 12 / Medium 24 types. Traffic car materials are double-sided (single-sheet panels).
+  Batch 2 (2026-11-17; the list and the eye check are in `docs/art-batch-vehicles-2.md`): `VERIFIED` has amaze, i20, sonata,
+  ix35, kona, ignis, omni; `FILE_TYPES` also maps honda_city, indigo, elantra, harrier, figo (not verified: shells with
+  missing panels, two cars in one file, open roofs). `flip: true` in `VEHICLE_ART` turns a model whose lamp heuristic
+  guessed wrong (i20, kona, omni). Several files for one type: `art-index.mjs` scores them (proportions, paint part, triangles)
+  and uses the best. `HERO` in art-vehicles.mjs gives a model a bigger budget (padmini ~16k triangles).
+  `loadVehicleArt(base, traffic, started, tier, hooks)` calls `hooks[id](near)` with the near parts (hooked ids load first).
+  **The kaali-peeli taxi** (`public/art/vehicles/padmini.glb`, Sunny khude, CC BY 4.0; source FBX in
+  `docs/art-sources/kaali-peeli-taxi/`): `scripts/fbx-taxi.mjs` (no Blender needed) bakes the 2048 px photo texture into vertex
+  colours, welds and simplifies 555k → 60k triangles and splits it by colour (black = paint, pale panes above the beltline =
+  glass, orange = lamps, the rest incl. yellow roof and chrome = trim). Replaces the traffic Padmini's close-up body, and
+  `taxi.useModel(near)` (taxi.js) also swaps the player's taxi body to it (wheels are baked in, so they no longer spin or steer;
+  `damage.rebind()` after the swap; police cars stay procedural).
 - `src/world/models.js` — glTF/GLB → instanced meshes (metres, base on ground); `src/world/streetProps.js` — Poly Haven
   chairs/crates at thelas, trash bags, bins, utility boxes near the player; facade AC parts use the Poly Haven aircon
 - `src/sim/characters.js` — real people for the player and everyone near the camera (pool 11/20/30 within 34–46 m;
