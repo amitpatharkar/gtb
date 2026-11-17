@@ -37,6 +37,20 @@ export function setupCredits(baseUrl) {
       parts.push('<p>No third-party assets in this build yet.</p>');
     }
     try {
+      // People: built from MakeHuman (scripts/people/); every hair and clothing asset is listed
+      // with its author, and the CC BY ones are credited as their licence asks.
+      const res = await fetch(`${baseUrl}people/index.json`, { cache: 'no-cache' });
+      if (!res.ok) throw new Error(res.status);
+      const { credits = [] } = await res.json();
+      const name = (c) => c.asset.replace(/_/g, ' ');
+      const packs = link('https://static.makehumancommunity.org/assets/assetpacks/index.html', 'MakeHuman asset packs');
+      parts.push(`<h3>People</h3><p>Bodies, faces, eyes and skins made with ${link('https://static.makehumancommunity.org', 'MakeHuman')} (CC0) and its plugin for Blender (MPFB 2); hair and clothes from the ${packs}. Motion: ${link('https://quaternius.com/packs/universalanimationlibrary.html', 'Universal Animation Library 1 and 2')} by Quaternius (CC0), retargeted for this game.</p>`);
+      const by = credits.filter((c) => c.license === 'CC-BY');
+      if (by.length) parts.push(`<ul>${by.map((c) => `<li>"${esc(name(c))}" by ${esc(c.author)} — ${link('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0')}, fitted and recoloured</li>`).join('')}</ul>`);
+      const zero = credits.filter((c) => c.license !== 'CC-BY');
+      if (zero.length) parts.push(`<p>Public domain (CC0): ${zero.map((c) => `${esc(name(c))} (${esc(c.author)})`).join(', ')}.</p>`);
+    } catch { /* no people in this build */ }
+    try {
       const res = await fetch(`${baseUrl}art/CREDITS.md`, { cache: 'no-cache' });
       if (!res.ok) throw new Error(res.status);
       const lines = (await res.text()).split('\n').filter((l) => l.startsWith('- ')).map((l) => l.slice(2).trim());
