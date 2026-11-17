@@ -1288,3 +1288,11 @@ body:not(.touch) #wanted:empty { display: none; }
 body:not(.touch) #radar .meter { left: 246px; width: 140px; }
 body:not(.touch) #hintbar { padding: 9px 16px; }
 #hintbar span + span { margin-left: 11px; padding-left: 11px; }
+
+/* Wanted stars in the top-left corner; road name and coordinates sit right on top of the minimap */
+body:not(.touch) #wanted { left: 22px; top: 22px; transform: none; border-radius: 10px; border: 1px solid var(--stroke); padding: 8px 14px; }
+body:not(.touch) #hud { top: auto; bottom: 240px; left: 22px; }
+body:not(.touch) #place { width: 214px; min-width: 0; box-sizing: border-box; gap: 12px; padding: 10px 14px 10px 10px; }
+body:not(.touch) #place .ico { width: 38px; }
+body:not(.touch) #place #road { font-size: 14px; white-space: normal; overflow-wrap: anywhere; }
+body:not(.touch) #message { bottom: 316px; }
