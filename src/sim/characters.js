@@ -323,6 +323,9 @@ export class Characters {
     this.templates = ok;
     for (const t of ok) this.byName.set(t.name, t);
     this.lists = { male: ok.filter((t) => !t.female), female: ok.filter((t) => t.female) };
+    // Everyday bodies for a random pick (no chef's jacket, doctor's coat, suit or hi-vis vest by chance).
+    const plain = (t) => !/chef|doctor|suit|worker/i.test(t.name);
+    this.plain = { male: this.lists.male.filter(plain), female: this.lists.female.filter(plain) };
     this.ready = ok.length > 0;
   }
 
@@ -685,7 +688,10 @@ export class Characters {
     const prefs = PREFER[female ? 'female' : 'male'][L.template] || [];
     let t = null;
     for (const name of prefs) { const x = this.byName.get(name); if (x && x.female === !!female) { t = x; break; } }
-    if (!t || (L.template === 'casual' && L.seed > 0.6)) t = list[Math.floor(L.seed * 977) % list.length];
+    if (!t || (L.template === 'casual' && L.seed > 0.6)) {
+      const pl = this.plain[female ? 'female' : 'male'], from = pl.length ? pl : list;
+      t = from[Math.floor(L.seed * 977) % from.length];
+    }
     p.tpl = t.name;
     return t;
   }

@@ -164,8 +164,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   bag, shorts, long sleeves; colours packed as 24-bit sRGB in `aCol0`/`aCol1`). **Make every person with
   `makePerson(props)`**: all fields any system sets exist from the start (one object shape — mixed shapes made each
   read of a number in `occludes`/`write`/`updatePeds` allocate); new per-person fields go in that list.
-  `outfit(kind, rnd, zone, hour)` = looks.js `dress()`; `people.rider(r, T, dt)` draws traffic riders (persistent
-  `r.person`, pose RIDE/PEDAL, auto passengers); `people.clock` + the player's district set `NOW` (looks.js).
+  `outfit(kind, rnd, zone, hour)` = looks.js `dress()`; `people.rider(r, T, dt, tiles)` draws traffic riders (persistent
+  `r.person`, pose RIDE/PEDAL, auto passengers, handcart porters walking); `people.clock` + the district set `NOW`.
   `src/sim/animals.js` — stray dogs and humped cows
 - `src/sim/looks.js` — who wears what: `dress(kind, rnd, zone, hour, sunday)` → { shirt, pants, skin, look } (one
   object shape for looks: style, hair, beard/moustache, bindi, glasses, hat, garment, pallu/dupatta/lanyard/tie/bag,
@@ -176,7 +176,7 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   without one (cached by their shirt colour); `playerLook(wear)` for the Ghar wardrobe (real kurta, sunglasses).
 - `src/sim/wardrobe.js` — the real characters' clothes, hair and faces as extra triangles of the template's one
   skinned mesh: `buildWardrobe(mesh)` models ~40 pieces on the template's adult rest pose (`Probe`: rest positions,
-  ray casts, convex cross-sections; head pieces in head-bone space, cached per head shape) — 13 hair caps + bun, plait,
+  ray casts, convex cross-sections; head pieces in head-bone space, cached per head shape) — 10 hair caps + bun, plait,
   ponytail, loose fall, schoolgirl plaits, flowers; moustache, two beards, bindi, glasses, shades; police cap, helmet,
   hard hat, Gandhi topi, turban, cap; sari (pleats, border), pallu, kurta, kurti, lungi (full/folded), school skirt,
   dupatta, lanyard + ID card, tie, school bag, nauvari pleats, cricket bat — then `bake()` unskins each vertex into

@@ -204,8 +204,14 @@ const ANIM_GLSL = `
   }
 `;
 
-/** sRGB hex → packed float (24 bits fit a float exactly). */
-const pack = (c) => (c ? c.getHex() : 0x808080);
+/**
+ * A colour (linear) → packed sRGB 24-bit float (exact in a float). A lookup table, not
+ * Color.getHex(): this runs for six colours of every person every frame and must not allocate.
+ */
+const SRGB8 = new Uint8Array(4097);
+for (let i = 0; i <= 4096; i++) { const l = i / 4096; SRGB8[i] = Math.round(255 * (l <= 0.0031308 ? l * 12.92 : 1.055 * l ** (1 / 2.4) - 0.055)); }
+const q8 = (v) => SRGB8[v <= 0 ? 0 : v >= 1 ? 4096 : (v * 4096) | 0];
+const pack = (c) => (c ? (q8(c.r) << 16) | (q8(c.g) << 8) | q8(c.b) : 0x808080);
 const PACK_GLSL = `
   vec3 unpack(float v) { vec3 c = vec3(floor(v / 65536.0), mod(floor(v / 256.0), 256.0), mod(v, 256.0)) / 255.0; return pow(c, vec3(2.2)); }
 `;
