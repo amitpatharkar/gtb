@@ -160,5 +160,44 @@ export function createTaxi(opts = {}) {
   }
   // Panels that can dent (painted body, roof and pillars).
   const dentable = body.children.filter((m) => m.material === black || m.material === yellow);
-  return { root, body, wheels, steerers, lights: { headMat, tailMat, bar }, wheelRadius: WHEEL_R, wheelBase: WB, track: TRACK, length: L, bumpers: { front: bumperF, rear: bumperR }, dentable };
+  const model = { root, body, wheels, steerers, lights: { headMat, tailMat, bar }, wheelRadius: WHEEL_R, wheelBase: WB, track: TRACK, length: L, bumpers: { front: bumperF, rear: bumperR }, dentable };
+  if (!police) model.useModel = (near) => useScannedBody(model, near, { black, glass, headMat, tailMat });
+  return model;
+}
+
+/** Triangles of a non-indexed geometry that pass `keep(cx, cy, cz)` (centroid test). */
+function filterTriangles(geo, keep) {
+  const pos = geo.attributes.position, out = {};
+  const names = Object.keys(geo.attributes);
+  for (const n of names) out[n] = [];
+  for (let t = 0; t < pos.count; t += 3) {
+    const cx = (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, cy = (pos.getY(t) + pos.getY(t + 1) + pos.getY(t + 2)) / 3, cz = (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3;
+    if (!keep(cx, cy, cz)) continue;
+    for (const n of names) { const a = geo.attributes[n]; for (let k = 0; k < 3; k++) for (let c = 0; c < a.itemSize; c++) out[n].push(a.getComponent(t + k, c)); }
+  }
+  const g = new THREE.BufferGeometry();
+  for (const n of names) g.setAttribute(n, new THREE.BufferAttribute(Float32Array.from(out[n]), geo.attributes[n].itemSize));
+  return g;
+}
+
+/**
+ * Swaps the procedural body for the owner's scanned Padmini (public/art/vehicles/padmini.glb →
+ * the build's four parts: paint, glass, trim, lamps). The scan's own wheels (part of the trim)
+ * replace the procedural ones, which are hidden (so they no longer spin or steer); headlamps and
+ * tail lamps keep the car's light materials (night glow, brake lights). Dents act on paint and trim.
+ */
+function useScannedBody(model, near, mats) {
+  for (const m of model.body.children.slice()) model.body.remove(m); // the procedural shell
+  for (const w of model.wheels) w.visible = false;
+  const add = (geo, material) => { const m = new THREE.Mesh(geo, material); m.castShadow = m.receiveShadow = true; model.body.add(m); return m; };
+  const trimMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.2 });
+  const paint = add(near.paint.clone(), mats.black);
+  const trim = add(near.trim.clone(), trimMat);
+  add(near.glass.clone(), mats.glass);
+  for (const m of [mats.headMat, mats.tailMat]) { m.vertexColors = true; m.needsUpdate = true; } // lamp colours from the scan, lit by the car's own emissive control
+  add(filterTriangles(near.lamps, (x, y, z) => z > 0), mats.headMat);
+  add(filterTriangles(near.lamps, (x, y, z) => z <= 0), mats.tailMat);
+  model.dentable = [paint, trim];
+  model.bumpers = { front: new THREE.Object3D(), rear: new THREE.Object3D() }; // (bumpers are part of the scan)
+  model.scanned = true;
 }

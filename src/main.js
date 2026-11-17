@@ -129,7 +129,8 @@ const startHour = Number(query.get('hour'));
 const clock = new GameClock(query.has('hour') && Number.isFinite(startHour) ? startHour : 17.25);
 const traffic = new Traffic(scene, tiles, tier);
 // Owner-uploaded vehicle models (public/art/vehicles) join the fleet once play has started.
-const vehicleArt = loadVehicleArt(BASE, traffic, started, tier).catch(() => []);
+let damage; // (made below with the taxi)
+const vehicleArt = loadVehicleArt(BASE, traffic, started, tier, { padmini: (near) => { taxi.useModel(near); damage?.rebind(); } }).catch(() => []); // the owner's scanned Padmini is also the player's taxi
 setStreetProfiles(index.profiles); // street library: parking and life by street type
 const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
 const skyline = new Skyline(scene, tiles, tier, camera.far); // distant tall buildings beyond the loaded tiles (up to the far plane)
@@ -274,7 +275,7 @@ const walker = new Walker(tiles);
 state.listeners.add(applyOutfit);
 applyOutfit();
 const skids = new SkidMarks(scene);
-const damage = new TaxiDamage(scene, taxi);
+damage = new TaxiDamage(scene, taxi);
 let onFoot = false;
 const footWorld = { hits: (x, z, r) => tiles.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || taxiHits(x, z, r) || stars.hits(x, z, r) };
 /** The vehicle the player left (taxi or borrowed) and the parked taxi are solid for people on foot. */
