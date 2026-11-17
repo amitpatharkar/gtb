@@ -311,7 +311,11 @@ await check('ride', async () => {
     const i = 5, up = tr.line.dir === 'up', tx = up ? tr.sn[i] : -tr.sn[i], tz = up ? tr.cs[i] : -tr.cs[i], l = st.side === 2 || !st.side ? 1 : st.side;
     // st.side is right (1) / left (-1) of travel; the ride frame's right is that of the town-ward direction (the same for an up line).
     g.walker.pos.set(tr.cx[i] + tx * 6.6 - tz * l * 2.4, 1.3, tr.cz[i] + tz * 6.6 + tx * l * 2.4);
+    const hasCoach = !!(await fetch(`${location.pathname}art/index.json`).then((r) => r.json()).catch(() => ({}))).trains?.length;
+    for (let k = 0; k < 200 && hasCoach && !T.coachArt; k++) await new Promise((r) => setTimeout(r, 100));
     const boarded = R.tryBoard() && R.active;
+    g.step(0.05);
+    const coach = !hasCoach ? 'none' : !T.coachArt ? 'not loaded' : tr.ac ? 'ac' : T.coachArt.group.visible ? 'shown' : 'hidden';
     const p0 = [g.walker.pos.x, g.walker.pos.z];
     for (let k = 0; k < 900 && R.active; k++) g.step(0.05);
     const moved = Math.hypot(g.walker.pos.x - p0[0], g.walker.pos.z - p0[1]);
@@ -322,7 +326,7 @@ await check('ride', async () => {
     const off = R.active && R.alight();
     let worst = 0;
     for (let k = 0; k < 100; k++) { const t0 = performance.now(); g.step(0.05); worst = Math.max(worst, performance.now() - t0); }
-    return { station: st.name, train: true, ac: tr.ac, bought, boarded, moved: Math.round(moved), target, at, off, riding: R.active, tickets: g.tickets.list.length, money: g.state.s.money, worstMs: +worst.toFixed(1) };
+    return { station: st.name, train: true, ac: tr.ac, bought, boarded, coach, moved: Math.round(moved), target, at, off, riding: R.active, tickets: g.tickets.list.length, money: g.state.s.money, worstMs: +worst.toFixed(1) };
   });
   await page.close();
   const fails = noErrors(errors);
@@ -331,6 +335,7 @@ await check('ride', async () => {
   else {
     if (!info.bought) fails.push('could not buy a ticket');
     if (!info.boarded) fails.push('could not board');
+    if (info.coach === 'hidden' || info.coach === 'not loaded') fails.push(`the uploaded coach is ${info.coach} while riding`);
     if (info.moved < 30) fails.push('the rider did not move with the train');
     if (!info.at || info.at !== info.target) fails.push(`skip ended at ${info.at}, wanted ${info.target}`);
     if (!info.off || info.riding) fails.push('could not get off');

@@ -127,7 +127,8 @@ export class TrainRide {
     // The train left the map (it runs on to Virar, Kalyan or Panvel): off at the last stop.
     if (!this.T.trains.has(tr.key) || !tr.on[i]) { this.offAtLast(); return; }
     const [tx, tz, rx, rz] = this.frame(tr, i), lat = (HALF_W - 0.42) * r.l;
-    w.pos.set(tr.cx[i] + tx * r.a + rx * lat, RAIL_Y + FLOOR, tr.cz[i] + tz * r.a + rz * lat);
+    const a = this.T.doorA(tr, i, r.a); // the doorway as drawn (the detailed coach has its own)
+    w.pos.set(tr.cx[i] + tx * a + rx * lat, RAIL_Y + FLOOR, tr.cz[i] + tz * a + rz * lat);
     w.speed = 0; w.vx = w.vz = 0;
     // Face out of the door when stopped, along the train (holding the pole, looking ahead) when moving.
     const out = Math.atan2(rx * r.l, rz * r.l), fwd = Math.atan2(tx * (L.dir === 'up' ? 1 : -1), tz * (L.dir === 'up' ? 1 : -1));
@@ -187,7 +188,7 @@ export class TrainRide {
     // Step out on the platform side if there is one.
     let spot = null;
     for (const l of [r.l, -r.l]) for (const off of [HALF_W + 0.7, HALF_W + 1.4]) {
-      const x = tr.cx[i] + tx * r.a + rx * l * off, z = tr.cz[i] + tz * r.a + rz * l * off;
+      const da = this.T.doorA(tr, i, r.a), x = tr.cx[i] + tx * da + rx * l * off, z = tr.cz[i] + tz * da + rz * l * off;
       if (this.tiles.hits(x, z, 0.3)) continue;
       const g = this.tiles.groundHeight(x, z), y = this.structures ? this.structures.groundHeight(x, z, 1.6, g) : g;
       if (!spot || (y > 0.9 && spot.y < 0.9)) spot = { x, z, y };

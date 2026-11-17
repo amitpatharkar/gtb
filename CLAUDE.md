@@ -200,7 +200,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   that grow between trains and board/alight (`stationLife`, `fillPlatform`, `toDoor`, `alighting`), booking office
   (`interact()` → tickets panel, `ticketGroups`), `nearestStation`, `ride()` = quick travel for tests/missions.
 - `src/sim/trainRide.js` — riding a local: F at an open door boards (`tryBoard`), the walker stands in the doorway
-  (`ride`), Space skips to the ticket's station (`skip`: moves `trains.t`, clock by the real trip time), F gets off
+  (`ride`; the coach ridden in is the owner's uploaded coach with seats and partitions, `public/art/trains/emu-coach.glb`
+  → `scripts/art-coach.mjs`: fitted to 20.73 m, clustered to ~110k triangles, underframe added, doorways measured;
+  `trains.loadCoachArt()` after start, the plain instance shrinks to nothing, band tinted to the line, `doorA()` maps
+  DOORS to its doorways for the rider and the doorway crowd; not on AC rakes), Space skips to the ticket's station (`skip`: moves `trains.t`, clock by the real trip time), F gets off
   (`alight`; jumping at a crawl); ticket checkers on board/at exits (₹500 + fare), RPF in the ladies coach (₹2,500);
   a train leaving the map drops you at its last stop. `src/sim/railDemand.js` — the rush model shared by locals and
   metro: `hourIndex`, `townShare` (peak direction), `stationWeight`, `trainLoad`, `waiting`, `COACH_LOAD`.

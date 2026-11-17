@@ -11,6 +11,8 @@
 //   a far version (scripts/art-vehicles.mjs) → public/art/opt/vehicles/<id>.glb and <id>-far.glb.
 // - public/art/stations/<id>.glb (an elevated metro station): trimmed, recoloured and given a
 //   walk grid (scripts/art-station.mjs) → public/art/opt/stations/<id>.glb and <id>.walk.bin.
+// - public/art/trains/<id>.glb (a local-train coach with its interior): fitted to a real coach,
+//   simplified, underframe added, doorways measured (scripts/art-coach.mjs) → opt/trains/<id>.glb.
 // If a file cannot be processed, a model is listed as uploaded and a vehicle is left out.
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -20,15 +22,16 @@ import { MeshoptSimplifier } from 'meshoptimizer';
 import { readGlb, readAccessor, imageBytes, GlbWriter } from './lib/glb.mjs';
 import { buildVehicle } from './art-vehicles.mjs';
 import { buildStation, STATION_FITS } from './art-station.mjs';
+import { buildCoach } from './art-coach.mjs';
 
 const ART = path.resolve('public/art');
-const dir = path.join(ART, 'models'), vdir = path.join(ART, 'vehicles'), sdir = path.join(ART, 'stations'), optDir = path.join(ART, 'opt');
+const dir = path.join(ART, 'models'), vdir = path.join(ART, 'vehicles'), sdir = path.join(ART, 'stations'), tdir = path.join(ART, 'trains'), optDir = path.join(ART, 'opt');
 const glbs = (d) => (fs.existsSync(d) ? fs.readdirSync(d).filter((f) => /\.glb$/i.test(f)) : []);
-const files = glbs(dir), vfiles = glbs(vdir), sfiles = glbs(sdir);
+const files = glbs(dir), vfiles = glbs(vdir), sfiles = glbs(sdir), tfiles = glbs(tdir);
 // Triangle budget by model id (big carts and the shelter get more; small props very few).
 const SMALL = /stool|cylinder|milk-can|dustbin|barricade/;
 const budget = (id) => (SMALL.test(id) ? 900 : 5000);
-const scripts = ['art-index.mjs', 'art-vehicles.mjs', 'art-station.mjs', 'lib/glb.mjs'].map((f) => fs.statSync(new URL(f, import.meta.url)).mtimeMs);
+const scripts = ['art-index.mjs', 'art-vehicles.mjs', 'art-station.mjs', 'art-coach.mjs', 'lib/glb.mjs'].map((f) => fs.statSync(new URL(f, import.meta.url)).mtimeMs);
 /** Short content hash: the game asks for <file>?v=<hash>, so a new upload is never served from an old cache. */
 const hashOf = (f) => crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex').slice(0, 10);
 const stale = (src, ...outs) => outs.some((o) => !fs.existsSync(o) || fs.statSync(o).mtimeMs < Math.max(fs.statSync(src).mtimeMs, ...scripts));
@@ -213,5 +216,25 @@ if (sfiles.length) {
   }
 }
 
-fs.writeFileSync(path.join(ART, 'index.json'), JSON.stringify({ models, vehicles, stations }, null, 1));
-console.log(`art: ${files.length} model(s), ${vehicles.length} vehicle(s), ${stations.length} station(s) listed`);
+// Train coaches: used when CREDITS.md has a line for the file (who made it, under what terms).
+const trains = [];
+if (tfiles.length) {
+  fs.mkdirSync(path.join(optDir, 'trains'), { recursive: true });
+  const credits = fs.existsSync(path.join(ART, 'CREDITS.md')) ? fs.readFileSync(path.join(ART, 'CREDITS.md'), 'utf8') : '';
+  for (const f of tfiles) {
+    const id = f.replace(/\.glb$/i, '').toLowerCase(), src = path.join(tdir, f);
+    if (!credits.includes(`trains/${f}`)) { console.log(`art: coach ${f} not used — add a credit line to public/art/CREDITS.md`); continue; }
+    const glb = path.join(optDir, 'trains', `${id}.glb`), meta = path.join(optDir, 'trains', `${id}.json`);
+    try {
+      if (stale(src, glb, meta)) {
+        const r = await buildCoach(fs.readFileSync(src));
+        fs.writeFileSync(glb, r.glb); fs.writeFileSync(meta, JSON.stringify(r.info));
+        console.log(`art: coach ${f} ${r.info.before} → ${r.info.triangles} triangles, ${(r.glb.length / 1e6).toFixed(2)} MB, doorways at ${r.info.doors.join(', ')} m`);
+      }
+      trains.push({ id, file: `opt/trains/${id}.glb`, v: hashOf(glb), ...JSON.parse(fs.readFileSync(meta, 'utf8')) });
+    } catch (e) { console.warn(`art: coach ${f} left out (${e.message})`); }
+  }
+}
+
+fs.writeFileSync(path.join(ART, 'index.json'), JSON.stringify({ models, vehicles, stations, trains }, null, 1));
+console.log(`art: ${files.length} model(s), ${vehicles.length} vehicle(s), ${stations.length} station(s), ${trains.length} coach(es) listed`);

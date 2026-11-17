@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { POSE, FLAG, outfit } from './people.js';
 import { Y } from '../world/levels.js';
 import { trainLoad, waiting, stationWeight, COACH_LOAD } from './railDemand.js';
@@ -292,6 +294,7 @@ export class Trains {
     // Compile the coach shader before the first train comes into view (no hitch then).
     // ctx.compile (post.compile) picks the variant the post-processing pipeline draws.
     await (ctx.compile ? ctx.compile(t.mesh) : ctx.renderer?.compileAsync?.(t.mesh, ctx.camera, ctx.scene))?.catch(() => {});
+    t.loadCoachArt();
     return t;
   }
 
@@ -460,6 +463,8 @@ export class Trains {
 
     const M = this.mesh.instanceMatrix.array, LV = this.livery.array, OP = this.opt.array, O2 = this.opt2.array, a = this.a, b = this.b, st = this.tmp;
     let n = 0, nearest = null, nd = 1e9;
+    const art = this.coachArt;
+    let artShown = false;
     for (const tr of this.trains.values()) {
       let L = tr.line, tau = this.t - L.offset - tr.k * L.period;
       if (tau >= L.dur) {
@@ -492,7 +497,8 @@ export class Trains {
         let sn = dx / l, cs = dz / l;
         tr.cx[i] = x; tr.cz[i] = z; tr.sn[i] = sn; tr.cs[i] = cs; tr.on[i] = 1; tr.n++;
         // End coaches face outwards (cab at the far end); the others keep facing the way they were built.
-        if (i === COACHES - 1 || (tr.flip && i > 0)) { sn = -sn; cs = -cs; }
+        const flipped = i === COACHES - 1 || (tr.flip && i > 0);
+        if (flipped) { sn = -sn; cs = -cs; }
         const o = n * 16;
         M[o] = cs; M[o + 1] = 0; M[o + 2] = -sn; M[o + 3] = 0; M[o + 4] = 0; M[o + 5] = 1; M[o + 6] = 0; M[o + 7] = 0;
         M[o + 8] = sn; M[o + 9] = 0; M[o + 10] = cs; M[o + 11] = 0; M[o + 12] = x; M[o + 13] = RAIL_Y; M[o + 14] = z; M[o + 15] = 1;
@@ -502,6 +508,14 @@ export class Trains {
         const phys = L.dir === 'up' ? i : COACHES - 1 - i; // counted from the town end
         O2[n * 4] = (COACH_CLASS[L.route] || COACH_CLASS.C)[phys]; O2[n * 4 + 1] = tr.ac ? 1 : 0; O2[n * 4 + 2] = tr.ac ? tr.doors : 0; O2[n * 4 + 3] = 0;
         if (tr.ac) { LV[n * 3] = 0.16; LV[n * 3 + 1] = 0.36; LV[n * 3 + 2] = 0.72; } // AC locals: a blue band
+        // The coach the player rides in: the detailed model (seats, partitions, open doorways)
+        // takes its place, and the plain coach shrinks to nothing.
+        if (art && !tr.ac && this.rider?.tr === tr && i === (L.dir === 'up' ? this.rider.phys : COACHES - 1 - this.rider.phys)) {
+          art.group.matrix.fromArray(M, o); art.group.matrixWorldNeedsUpdate = true; art.group.visible = true; artShown = true;
+          art.tr = tr; art.i = i; art.sign = (flipped ? -1 : 1) * (L.dir === 'up' ? 1 : -1);
+          art.band.value.copy(L.livery);
+          M[o] = M[o + 2] = M[o + 5] = M[o + 8] = M[o + 10] = 0;
+        }
         n++;
       }
       if (!tr.n) continue;
@@ -515,6 +529,10 @@ export class Trains {
     }
     this.mesh.count = n;
     this.mesh.instanceMatrix.needsUpdate = this.livery.needsUpdate = this.opt.needsUpdate = this.opt2.needsUpdate = true;
+    if (art) {
+      if (!artShown) { art.group.visible = false; art.tr = null; }
+      art.light.emissiveIntensity = (this.clock.night ?? 0) * 0.35;
+    }
 
     this.hornT -= dt; this.shoutT -= dt;
     this.sounds(dt, nearest, nd);
@@ -523,6 +541,53 @@ export class Trains {
     this.riders(P);
     this.stationLife(dt, P, onFoot);
     this.fresh = false;
+  }
+
+  /**
+   * The owner's local-train coach with its interior (public/art/trains, scripts/art-coach.mjs),
+   * shown in place of the coach the player rides in; its colour band takes the line's colour.
+   */
+  async loadCoachArt() {
+    try {
+      const idx = await fetch(`${this.base}art/index.json`, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {}));
+      const info = idx.trains?.[0];
+      if (!info) return;
+      const gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`${this.base}art/${info.file}${info.v ? `?v=${info.v}` : ''}`);
+      const band = { value: new THREE.Color() };
+      let light = null;
+      gltf.scene.traverse((o) => {
+        if (!o.isMesh) return;
+        o.castShadow = o.receiveShadow = true;
+        o.frustumCulled = false;
+        const m = o.material;
+        if (m.map) {
+          // Magenta and maroon in the picture → the line's band colour.
+          m.onBeforeCompile = (sh) => {
+            sh.uniforms.uBand = band;
+            sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uBand;').replace('#include <map_fragment>', `#include <map_fragment>
+              { vec3 c = diffuseColor.rgb; float k = smoothstep(0.06, 0.2, c.r - c.g) * step(c.g, c.b + 0.04);
+                diffuseColor.rgb = mix(c, uBand * (0.45 + 0.75 * max(c.r, c.b)), k); }`);
+          };
+          m.customProgramCacheKey = () => 'gtb-coach-band';
+        } else { m.emissive = new THREE.Color(0xfff1d6); m.emissiveIntensity = 0; light = m; } // tube lights at night
+      });
+      const group = new THREE.Group();
+      group.add(gltf.scene);
+      group.matrixAutoUpdate = false;
+      this.scene.add(group);
+      await (this.compile ? this.compile(group) : null)?.catch?.(() => {});
+      group.visible = false;
+      this.coachArt = { group, band, light: light || new THREE.MeshStandardMaterial(), doors: info.doors || [], tr: null, i: -1, sign: 1 };
+    } catch (e) { console.warn('trains: coach model not loaded', e); }
+  }
+
+  /** Along-offset (towards the town end) of the doorway nearest to `a` in coach i, as drawn. */
+  doorA(tr, i, a) {
+    const art = this.coachArt;
+    if (!art || art.tr !== tr || art.i !== i || !art.doors.length) return a;
+    let best = a, bd = Infinity;
+    for (const d of art.doors) { const v = d * art.sign, e = Math.abs(v - a); if (e < bd) { bd = e; best = v; } }
+    return best;
   }
 
   /** Which timetable slots are in range of the player: make their trains. */
@@ -834,7 +899,7 @@ export class Trains {
             const r = hash(r0 * 13 + k, phys, dr), out = k >= inDoor;
             const look = this.looks[(look0 + k * 7 + dr * 3) % this.looks.length];
             const p = this.person();
-            const along = DOORS[dr] + (out ? (k - inDoor - 0.5) * 0.55 : (r - 0.5) * 1.2), lat = side * (out ? HALF_W + 0.18 : HALF_W - 0.3 - (k % 2) * 0.55);
+            const along = this.doorA(tr, i, DOORS[dr]) + (out ? (k - inDoor - 0.5) * 0.55 : (r - 0.5) * 1.2), lat = side * (out ? HALF_W + 0.18 : HALF_W - 0.3 - (k % 2) * 0.55);
             p.x = tr.cx[i] + tx * along - tz * lat; p.z = tr.cz[i] + tz * along + tx * lat; p.y = RAIL_Y + FLOOR;
             p.heading = out ? Math.atan2(tx * (tr.v > 0.5 ? 1 : 0) - tz * side, tz * (tr.v > 0.5 ? 1 : 0) + tx * side) : Math.atan2(-tz * side, tx * side) + (r - 0.5) * 2;
             p.pose = out ? POSE.POINT : POSE.STAND; p.phase = this.t * 1.5 + r * 40;

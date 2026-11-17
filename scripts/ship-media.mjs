@@ -188,7 +188,7 @@ const afterBytes = size(walk(MEDIA));
 console.log(`ship-media: ${kept.length} of ${manifest.assets.length} assets ship, media ${MB(before)} → ${MB(afterBytes)}${removed.length ? ` (left out: ${removed.map((a) => a.id).join(', ')})` : ''}`);
 
 // ------------------------------------------------------------------ owner uploads
-// public/art/models and public/art/vehicles hold the raw uploads (often 5–40 MB each); the game
+// public/art/models, vehicles, stations and trains hold the raw uploads (often 5–40 MB each); the game
 // loads only the light copies in art/opt (scripts/art-index.mjs), so the raw files never ship —
 // except a model whose light copy could not be made (art/index.json then points at the raw file).
 {
@@ -196,7 +196,7 @@ console.log(`ship-media: ${kept.length} of ${manifest.assets.length} assets ship
   let listed = new Set();
   try { const ix = JSON.parse(fs.readFileSync(path.join(ART, 'index.json'), 'utf8')); listed = new Set([...(ix.models || []).map((m) => m.file), ...(ix.vehicles || []).flatMap((v) => [v.near, v.far])]); } catch { /* no art index */ }
   let dropped = 0, bytes = 0;
-  for (const dir of ['models', 'vehicles']) {
+  for (const dir of ['models', 'vehicles', 'stations', 'trains']) {
     const d = path.join(ART, dir);
     if (!fs.existsSync(d)) continue;
     for (const f of fs.readdirSync(d)) {
