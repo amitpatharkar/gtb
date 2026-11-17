@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Y } from './levels.js';
-import { WINDOW_RECT, CELL_HASH_GLSL, FEATURES_GLSL, K, SHOP_STOREY, WIN, PIPE_X, ARCH_SPRING, AC_SIZE } from './facadeRules.js';
+import { WINDOW_RECT, CELL_HASH_GLSL, FEATURES_GLSL, BUILDING_HASH_GLSL, K, SHOP_STOREY, WIN, PIPE_X, ARCH_SPRING, AC_SIZE } from './facadeRules.js';
 
 // Facade shader: real wall textures (plaster, stone, concrete…) plus Mumbai facade details
 // computed per pixel. Windows and open shops use "interior mapping": a ray traced into a
@@ -179,12 +179,16 @@ export function makeFacadeMaterial(signAtlas, rooms = null, { lite = false } = {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
         attribute float facadeBay; attribute vec4 facadeA; attribute vec2 facadeB;
-        varying vec2 vFacadeP; varying float vBay; flat varying vec4 vFacadeA; flat varying vec2 vFacadeB;`)
+        varying vec2 vFacadeP; varying float vBay; flat varying vec4 vFacadeA; flat varying vec2 vFacadeB;
+        flat varying vec4 vBuildingA; flat varying vec4 vBuildingB;
+        ${CELL_HASH_GLSL}`)
       .replace('#include <uv_vertex>', `#include <uv_vertex>
-        vFacadeP = uv; vBay = facadeBay; vFacadeA = facadeA; vFacadeB = facadeB;`);
+        vFacadeP = uv; vBay = facadeBay; vFacadeA = facadeA; vFacadeB = facadeB;
+        { int seed = int(facadeA.y + 0.5); ${BUILDING_HASH_GLSL} }`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         varying vec2 vFacadeP; varying float vBay; flat varying vec4 vFacadeA; flat varying vec2 vFacadeB;
+        flat varying vec4 vBuildingA; flat varying vec4 vBuildingB;
         uniform sampler2D tSigns; uniform sampler2D tRooms; uniform float uRoomCell; uniform vec4 uRoomLod; uniform float uNight; uniform float uFacadeDebug;
         vec3 dbgColor = vec3(0.0);
         ${GLSL}`)
@@ -207,7 +211,7 @@ export function makeFacadeMaterial(signAtlas, rooms = null, { lite = false } = {
           float fwU = fwidth(vFacadeP.x);
           float roomLod = log2(max(1.0, uRoomCell * fwF.x * 1.3));
           float y = vFacadeP.y - ${Y.KERB.toFixed(2)};
-          float tint = cellHash(-9, -9, seed, ${K.TINT});
+          float tint = vBuildingA.x;
           vec3 wood = woodPaint(tint), alu = aluColour(tint), steel = steelColour(tint);
           if (code == 5) {
             // ---------- roof slope: Mangalore clay tiles (warm colour) or slate (grey-blue)
@@ -465,7 +469,7 @@ export function makeFacadeMaterial(signAtlas, rooms = null, { lite = false } = {
                   // Gothic: green louvres in some buildings, else glazing with a mullion, a transom at
                   // the springing and a round tracery light in the head.
                   solidC = vec3(0.1, 0.07, 0.05);
-                  slats = kind == ${WIN.ARCH} && cellHash(-9, -9, seed, ${K.LANCET}) < 0.45;
+                  slats = kind == ${WIN.ARCH} && vBuildingB.x < 0.45;
                   float bars = fBand(abs(q.x - 0.5), 0.0, 0.02) * step(q.y, ${f(ARCH_SPRING)}) + fBand(abs(q.y - ${f(ARCH_SPRING)}), 0.0, 0.012);
                   if (kind == ${WIN.ARCH}) { float d = length(vec2((q.x - 0.5) * qs.x, (q.y - 0.8) * qs.y)); bars += fBand(abs(d - 0.18 * qs.x), 0.0, 0.03); }
                   else if (q.y > ${f(ARCH_SPRING)}) { float a = atan(q.y - ${f(ARCH_SPRING)}, (q.x - 0.5) * qs.x / qs.y); bars += fBand(abs(fract(a / 0.5236 + 0.5) - 0.5), 0.0, 0.06); }
@@ -589,7 +593,7 @@ export function makeFacadeMaterial(signAtlas, rooms = null, { lite = false } = {
               // windows stays per pixel: at night small bright windows read better than an
               // averaged grey block.
               float A = enclosed ? 0.55 : (r.y - r.x) * (r.w - r.z) * 0.8;
-              vec3 glassAvg = (kind == ${WIN.LOUVRE} && lst == 0) || (kind == ${WIN.ARCH} && cellHash(-9, -9, seed, ${K.LANCET}) < 0.45) ? wood * 0.7 : vec3(0.03);
+              vec3 glassAvg = (kind == ${WIN.LOUVRE} && lst == 0) || (kind == ${WIN.ARCH} && vBuildingB.x < 0.45) ? wood * 0.7 : vec3(0.03);
               diffuseColor.rgb = mix(diffuseColor.rgb, mix(wallS * 0.9, glassAvg, A), far);
               roughnessFactor = mix(roughnessFactor, mix(0.9, 0.3, A), far);
               metalnessFactor = mix(metalnessFactor, 0.0, far);
@@ -639,7 +643,7 @@ export function makeFacadeMaterial(signAtlas, rooms = null, { lite = false } = {
             wallPx = false;
             int room = int(floor(vBay));
             float lxM = fract(vBay) * bw, xM = vBay * bw, lyM = y - g1 - float(grow) * storey;
-            float rk = cellHash(-9, -9, seed, ${K.DRAPE});
+            float rk = vBuildingB.y;
             vec3 railC = rk < 0.4 ? vec3(0.03, 0.06, 0.04) : rk < 0.75 ? vec3(0.17, 0.09, 0.05) : wallC;
             bool solid;
             if (rk < 0.4) solid = fract(xM / 0.11) < 0.22 || lyM > 0.93 || lyM < 0.08 || (lyM > 0.42 && lyM < 0.47);
@@ -690,7 +694,7 @@ export function makeFacadeMaterial(signAtlas, rooms = null, { lite = false } = {
           } else if (code == 7) {
             // ---------- Art Deco name plaque (bronze letters, room atlas)
             wallPx = false;
-            float idx = floor(cellHash(-9, -9, seed, ${K.PLAQUE}) * 8.0);
+            float idx = floor(vBuildingB.z * 8.0);
             vec2 pq = vec2(1.0 - clamp(vBay, 0.0, 1.0), clamp((vFacadeP.y - roofY) / storey, 0.0, 1.0));
             vec4 t = textureLod(tRooms, vec2((6.0 + floor(idx / 4.0) + clamp(pq.x, 0.004, 0.996)) / 8.0, (3.0 - mod(idx, 4.0) + clamp(pq.y, 0.02, 0.98)) / 16.0), log2(max(1.0, uRoomCell * fwF.x)));
             diffuseColor.rgb = t.rgb + wallC * 1.05 * (1.0 - t.a);
@@ -709,7 +713,7 @@ export function makeFacadeMaterial(signAtlas, rooms = null, { lite = false } = {
               if (wallPx) diffuseColor.rgb *= 1.0 - stain * (fk == 0 ? 0.7 : 1.0);
               float pv = 1.0 - smoothstep(0.03, 0.08, fwU);
               if (abs(px) < 0.05 && pv > 0.0) {
-                vec3 pc = fk == 0 ? (cellHash(-9, -9, seed, ${K.PIPE}) < 0.5 ? ${vec3(0x8d8f8c)} : ${vec3(0xd2cdc2)}) : fk == 2 ? wallC : ${vec3(0x3d3732)};
+                vec3 pc = fk == 0 ? (vBuildingB.w < 0.5 ? ${vec3(0x8d8f8c)} : ${vec3(0xd2cdc2)}) : fk == 2 ? wallC : ${vec3(0x3d3732)};
                 diffuseColor.rgb = mix(diffuseColor.rgb, pc * (0.55 + 0.45 * sqrt(max(0.0, 1.0 - px * px / 0.0025))), pv);
                 roughnessFactor = mix(roughnessFactor, 0.55, pv);
                 metalnessFactor = mix(metalnessFactor, 0.0, pv);

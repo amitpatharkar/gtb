@@ -143,6 +143,14 @@ const vec3 = (hex) => `vec3(${[16, 8, 0].map((sh) => lin(((hex >> sh) & 255) / 2
 const paletteGLSL = (name, list) => `vec3 ${name}(float h) { int i = int(floor(h * ${list.length}.0));
     ${list.map((c, i) => `if (i == ${i}) return ${vec3(c)};`).join(' ')} return ${vec3(list[0])}; }`;
 
+/**
+ * Building-wide hashes, computed once per vertex (flat varyings, the same for the whole building):
+ * vBuildingA = (TINT, KIND, PORT, PORT at -8), vBuildingB = (LANCET, DRAPE, PLAQUE, PIPE).
+ */
+export const BUILDING_HASH_GLSL = `
+    vBuildingA = vec4(cellHash(-9, -9, seed, ${K.TINT}), cellHash(-9, -9, seed, ${K.KIND}), cellHash(-9, -9, seed, ${K.PORT}), cellHash(-8, -8, seed, ${K.PORT}));
+    vBuildingB = vec4(cellHash(-9, -9, seed, ${K.LANCET}), cellHash(-9, -9, seed, ${K.DRAPE}), cellHash(-9, -9, seed, ${K.PLAQUE}), cellHash(-9, -9, seed, ${K.PIPE}));`;
+
 export const FEATURES_GLSL = `
   ${paletteGLSL('woodPaint', WOOD_PAINT)}
   ${paletteGLSL('aluColour', ALU)}
@@ -157,10 +165,10 @@ export const FEATURES_GLSL = `
     bool swap = cellHash(col, row, seed, ${K.SWAP}) < (fk == 0 ? 0.12 : 0.25);
     if (st == 2) {
       if (fk != 2) return ${WIN.SLIDER};
-      if (cellHash(-9, -9, seed, ${K.PORT}) < 0.45 && col == 1 + int(floor(cellHash(-8, -8, seed, ${K.PORT}) * 3.0))) return ${WIN.PORTHOLE};
+      if (vBuildingA.z < 0.45 && col == 1 + int(floor(vBuildingA.w * 3.0))) return ${WIN.PORTHOLE};
       return swap ? ${WIN.SLIDER} : ${WIN.DECO};
     }
-    float b = cellHash(-9, -9, seed, ${K.KIND});
+    float b = vBuildingA.y;
     if (fk == 1 || fk == 4) return swap ? ${WIN.SLIDER} : b < 0.5 ? ${WIN.CASEMENT} : ${WIN.LOUVRE};
     if (b < 0.18) return swap ? ${WIN.SLIDER} : ${WIN.PLAIN};
     return swap ? ${WIN.PLAIN} : ${WIN.SLIDER};

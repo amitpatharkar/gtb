@@ -81,7 +81,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   `windowRect`, `cellFeatures` (recessed/enclosed balconies, box grilles, flat grilles, AC beside or under the window
   `acCentre`), drain pipes `pipeAt` (`PIPE_X` right of a bay line), facade codes `CODE` (facadeB.x: windows, shops,
   blank, chawl gallery wall, gallery railing, roof tiles, gable, Deco plaque; +0.25 = shop-height ground floor), part
-  variants `FRAME`/`SHUTTER`/`ARCHV`, paint palettes (`WOOD_PAINT`, `ALU`, `STEEL`, `STONE_TRIM`, same colours in GLSL).
+  variants `FRAME`/`SHUTTER`/`ARCHV`, paint palettes (`WOOD_PAINT`, `ALU`, `STEEL`, `STONE_TRIM`, same colours in GLSL);
+  building-wide hashes (cell −9,−9) are computed in the vertex shader into flat `vBuildingA/B` (`BUILDING_HASH_GLSL`).
   `src/world/facadeParts.js` — real 3D facade parts near the player (`PART_FLOATS` = 8 per instance: frames per window
   type, louvred shutters, stone arch surrounds, sills, chajjas, grille cages and box grilles with a ledge, AC units,
   balconies, enclosed glass balconies, clothes lines (balconies, chawl galleries), signboards, shutter boxes, drain pipes
@@ -95,7 +96,10 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
   barred window, dado, calendar, tube light per room) and railings (cast iron / wooden / concrete, the corridor seen
   between balusters, saris drying); clay-tile and slate roof slopes; gable vents; Deco name plaques; ground-floor shops
   with shutters and signboards; interior mapping with the room atlas: back wall + furniture cut-out + fan in homes,
-  shelves + counter + hanging goods in shops; lit windows at night) and the shop-sign atlas (128 boards, Marathi in Devanagari over English, BMC style; fonts from `media/`).
+  shelves + counter + hanging goods in shops, atlas look-ups only for rooms big on screen (`uRoomLod`), rooms under
+  ~10 px per window take their average; lit windows at night; Low compiles `FACADE_LITE`: no furniture/hanging-goods
+  layers, TV glow, drips, repainted flats, Deco grooves, polychrome voussoirs or gallery view — SwiftShader and phone
+  GPUs run every branch, so keep the shader short: one `homeInterior` call site, one hash per room) and the shop-sign atlas (128 boards, Marathi in Devanagari over English, BMC style; fonts from `media/`).
   Per-building attributes MUST stay `flat` varyings (interpolation noise + hashing = speckle). Debug:
   `window.__gtb.facadeDebug.value = 1..4` (albedo, roughness, normal, window grid). `src/world/roomAtlas.js` — canvas
   atlas (8 × 4 cells of 256 px, 128 on Low, premultiplied alpha, redrawn with the sign fonts): home back walls, furniture
