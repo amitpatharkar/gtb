@@ -471,6 +471,8 @@ Full analysis: `docs/gta-v-development-analysis.md` (owner's notes on how GTA V 
 - `public/tiles/`, `public/media/`, `public/basis/` — generated, not committed (`npm run build` makes tiles; deploy copies
   media from the `assets` branch, locally `npm run assets:pull`; Vite plugin copies the Basis transcoder)
 - `src/credits.js` — in-game Credits panel
+- `docs/knowledge/` — reference used only for building/improving the game (README lists files; e.g. how Rockstar's GTA
+  series progressed)
 - `docs/research/` — Mumbai street guide, live check, 130 free assets (`assets.json`/`assets.md`); metro and monorail A to Z
   and local trains and stations A to Z (`metro/reports/`, notes in `metro/research_notes/`; stations and tracks in
   game coordinates in `metro/osm-metro.json` and `metro/osm-stations.json` from `scripts/research/*-from-osm.mjs`)
