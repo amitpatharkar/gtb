@@ -83,8 +83,13 @@ The old notes are in `trash/CLAUDE-old.md` (useful for how the map converter and
 - `src/vehicles/vehicle.js` — Rapier `DynamicRayCastVehicleController` (forward axis z), `TUNE` handling numbers
   (tuning panel F2 saves to `gtb.tune`), engine fading to top speed, brakes ≈ 0.8 g, handbrake drops rear grip,
   drag and rolling resistance, anti-roll torque while ≥ 2 wheels touch, `rightUp()`.
-- `src/combat/weapons.js` — fists and pistol (12 + 60, hitscan from the camera, muzzle flash light, tracer, bullet
-  holes, dust, impulse on dynamic bodies, reload).
+- `src/combat/weapons.js` — fists and pistol (12 + 60, hitscan from the camera, muzzle flash light, tracer, reload).
+  The ray tests the world and props with Rapier and cars by their real shape (three-mesh-bvh trees built in
+  carModel.js; shots through windows fly on); bullet holes on walls (instanced) and on car panels (decals parented
+  to the car, 24 max); impulse on dynamic bodies.
+- `src/fx/particles.js` — GPU particles (tyre smoke, dust, debris, sparks): spawned once into a ring of instanced
+  attributes, moved/grown/faded in TSL from a game-time uniform (pause and slow motion apply). Drawn in their own
+  pass (`R.fxScene`, composited after ambient occlusion) and hidden behind walls by the scene depth (soft particles).
 - **Interface: read `docs/ui.md`** (built from a GTA V UI/UX study): `src/ui/hud.js` (priorities, HUD modes full /
   contextual / minimal, GTA-style rectangular radar with route, blips, distance; health/armour/stamina strip; objective,
   notifications with log, prompts with device glyphs `{action}` from `glyphs.js`, area names), `nav.js` (GPS: owners

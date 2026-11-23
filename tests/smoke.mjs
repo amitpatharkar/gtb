@@ -153,6 +153,23 @@ if (want('shoot')) {
     g.input.mouse.right = false; g.input.locked = false; g.step(2);
     return { before, after, reloaded: g.weapons.state.clip, reserve: g.weapons.state.reserve };
   });
+  // Exact hits: a shot at a car marks its body (bullet hole stays on the car).
+  const carHit = await page.evaluate(() => {
+    const g = window.__game, car = g.cars[1], sp = g.world.index.spawn;
+    car.body.setBodyType(0, true);
+    car.body.setTranslation({ x: sp.x - Math.cos(sp.heading) * 3, y: 0.4, z: sp.z + Math.sin(sp.heading) * 3 }, true);
+    car.body.setLinvel({ x: 0, y: 0, z: 0 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    g.step(40);
+    const p = car.position.clone();
+    g.freeCam = true;
+    g.camera.position.set(p.x + 6, p.y + 1.0, p.z + 0.3); g.camera.lookAt(p.x, p.y + 0.75, p.z); g.camera.updateMatrixWorld();
+    g.weapons.select(1); g.weapons.cool = 0; g.weapons.reloading = 0; g.weapons.state.clip = 12;
+    const before = car.holes?.length || 0;
+    const shot = g.weapons.update(0.016, true, g.camera, g.player.body);
+    g.freeCam = false;
+    return { hit: !!shot?.point, holes: (car.holes?.length || 0) - before };
+  });
+  check(carHit.holes === 1, `a shot at a car leaves a hole on its body (three-mesh-bvh exact hit)`);
   check(s.after < s.before, `fires (${s.before} → ${s.after} rounds)`);
   check(s.reloaded === 12, `reloads to ${s.reloaded} (${s.reserve} left)`);
 }

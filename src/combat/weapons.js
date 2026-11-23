@@ -4,6 +4,9 @@
 import * as THREE from 'three/webgpu';
 import { GROUP, groups } from '../core/physics.js';
 
+const _ray = new THREE.Raycaster();
+const _inv = new THREE.Matrix4();
+
 export const WEAPONS = [
   { id: 'fists', name: 'Fists', clip: 0, rate: 0.45, range: 1.4 },
   { id: 'pistol', name: 'Pistol', clip: 12, reserve: 60, rate: 0.16, range: 180, reload: 1.4, impulse: 9, spread: 0.004 },
@@ -106,7 +109,23 @@ export class Weapons {
     const dir = camera.getWorldDirection(this._d);
     dir.x += (Math.random() - 0.5) * w.spread; dir.y += (Math.random() - 0.5) * w.spread; dir.z += (Math.random() - 0.5) * w.spread; dir.normalize();
     const o = camera.position;
-    const hit = this.physics.cast(o.x, o.y, o.z, dir.x, dir.y, dir.z, w.range, groups(0xffff, GROUP.WORLD | GROUP.VEHICLE | GROUP.PROP | GROUP.PED), exclude);
+    // The world and loose props from the physics engine; cars from their actual shape (three-mesh-bvh
+    // on the car models): a shot through a window or under a car flies on, a hit marks the panel.
+    let hit = this.physics.cast(o.x, o.y, o.z, dir.x, dir.y, dir.z, w.range, groups(0xffff, GROUP.WORLD | GROUP.PROP | GROUP.PED), exclude);
+    let car = null;
+    const targets = this.vehicles?.() || [];
+    if (targets.length) {
+      _ray.set(o, dir); _ray.far = hit ? hit.toi : w.range; _ray.firstHitOnly = true;
+      const objs = targets.filter((c) => c.object.position.distanceToSquared(o) < (_ray.far + 6) ** 2).map((c) => c.object);
+      for (const obj of objs) obj.updateMatrixWorld(true); // poses were copied this frame, matrices not yet
+      const h = objs.length ? _ray.intersectObjects(objs, true)[0] : null;
+      if (h && h.object.visible && h.face) {
+        car = targets.find((c) => { let p = h.object; while (p && p !== c.object) p = p.parent; return !!p; });
+        const n = h.face.normal.clone().transformDirection(h.object.matrixWorld);
+        if (n.dot(dir) > 0) n.negate();
+        hit = { toi: h.distance, point: h.point, normal: n, collider: car.colliders[0], mesh: h.object };
+      }
+    }
     const end = hit ? new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z) : o.clone().addScaledVector(dir, w.range);
     const muzzle = this.gun.userData.muzzle.getWorldPosition(new THREE.Vector3());
     this.audio.shot();
@@ -124,11 +143,29 @@ export class Weapons {
       // Push whatever was hit (cars, crates) at the hit point.
       const body = hit.collider.parent();
       if (body && body.isDynamic()) body.applyImpulseAtPoint({ x: dir.x * w.impulse, y: dir.y * w.impulse, z: dir.z * w.impulse }, hit.point, true);
-      else this.hole(end, this._v);
-      this.puff(end, this._v);
+      if (car) this.carHole(car, end, this._v, hit.mesh);
+      else if (!(body && body.isDynamic())) this.hole(end, this._v);
+      // Dust and chips; sparks off metal (cars).
+      if (this.particles) this.particles.impact(end, this._v, !!(body && body.isDynamic() && body.mass() > 200));
+      else this.puff(end, this._v);
       return { point: end, normal: this._v.clone(), collider: hit.collider, dir: dir.clone() };
     }
     return { point: end, normal: null };
+  }
+
+  /** A bullet hole that stays on the car (a small decal parented to the car, at most 24 per car). */
+  carHole(car, p, n, mesh) {
+    if (mesh?.material?.transparent) return; // glass: no hole decal
+    car.holes ||= [];
+    if (car.holes.length >= 24) car.holes.shift().removeFromParent();
+    const d = new THREE.Mesh(this.holeGeo ||= new THREE.CircleGeometry(0.03, 8), this.holes.material);
+    car.object.updateMatrixWorld();
+    _inv.copy(car.object.matrixWorld).invert();
+    d.position.copy(p).addScaledVector(n, 0.004).applyMatrix4(_inv);
+    const ln = n.clone().transformDirection(_inv);
+    d.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), ln);
+    car.object.add(d);
+    car.holes.push(d);
   }
 
   hole(p, n) {

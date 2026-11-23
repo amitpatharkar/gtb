@@ -18,6 +18,7 @@ import { ChaseCamera } from './player/camera.js';
 import { CARS, loadCarModel } from './vehicles/carModel.js';
 import { Vehicle } from './vehicles/vehicle.js';
 import { Weapons, WEAPONS } from './combat/weapons.js';
+import { Particles } from './fx/particles.js';
 import { Hud } from './ui/hud.js';
 import { Menu } from './ui/menu.js';
 import { Tuning } from './ui/tuning.js';
@@ -69,6 +70,10 @@ async function boot() {
   const cam = new ChaseCamera(camera, physics);
   cam.yaw = index.spawn.heading;
   const weapons = new Weapons(scene, physics, audio);
+  const particles = new Particles(R.fxScene, R.effects.sceneDepth || null);
+  weapons.particles = particles;
+  weapons.vehicles = () => cars.filter((c) => c !== driving);
+  let gameClock = 0;
   weapons.attach(hero.hand);
   weapons.select(1);
 
@@ -331,6 +336,7 @@ async function boot() {
 
   /** Per rendered frame: copy physics poses, animate, feedback, camera, HUD, streaming. dt is game time, real is wall time. */
   function tick(dt, real = dt) {
+    gameClock += dt;
     for (const c of cars) c.sync();
     props.sync();
     stats.tick(real);
@@ -352,11 +358,25 @@ async function boot() {
       hero.update(dt);
       const slip = lateralSlip(driving);
       audio.car(true, Math.min(1, Math.abs(driving.speed) / driving.spec.top * 0.9 + 0.12 + (driving.gear > 0 ? (Math.abs(driving.speed) * 3.6 % 22) / 60 : 0)), input.throttle, slip);
-      if (driving.crash > 3) { audio.crash(driving.crash); cam.shake = Math.min(1, driving.crash * 0.08); input.rumble(Math.min(1, driving.crash / 12), 0.6, 200); if (driving.crash > 4) stats.add('crashes'); }
+      if (driving.crash > 3) {
+        audio.crash(driving.crash); cam.shake = Math.min(1, driving.crash * 0.08); input.rumble(Math.min(1, driving.crash / 12), 0.6, 200);
+        if (driving.crash > 4) { stats.add('crashes'); const p = driving.position; particles.crash(p.x, p.y + 0.6, p.z, driving.crash); }
+      }
+      // Tyre smoke from sliding or spinning rear wheels.
+      const vc = driving.vc, spinning = input.throttle > 0.9 && Math.abs(driving.speed) < 6 && driving.spec.drive !== 'front';
+      for (let i = 0; i < vc.numWheels(); i++) {
+        if (!vc.wheelIsInContact(i)) continue;
+        const side = Math.abs(vc.wheelSideImpulse(i) || 0) / (driving.spec.mass * 0.012);
+        const hb = !driving.wheels[i].front && driving.handbrake && Math.abs(driving.speed) > 4;
+        const amount = Math.max(side > 1 ? side - 1 : 0, hb ? 0.8 : 0, spinning && !driving.wheels[i].front ? 0.6 : 0);
+        if (amount > 0.2 && Math.random() < amount * dt * 30) { const c = vc.wheelContactPoint(i); if (c) particles.tyreSmoke(c.x, c.y, c.z, Math.min(2, amount)); }
+      }
       stats.add('driven', Math.abs(driving.speed) * dt);
       stats.max('topSpeed', Math.abs(driving.speed));
     }
     if (player.jumps) { stats.add('jumps', player.jumps); player.jumps = 0; }
+    if (player.landed) { player.landed = false; particles.puff(player.pos.x, player.pos.y, player.pos.z, 6); }
+    particles.update(gameClock);
     ob.looked += Math.abs(input.look.x) * 0.002 + Math.abs(input.look.y) * 0.002;
     hitMarker = Math.max(0, hitMarker - dt);
     // Getting hurt: red screen edges, a thud, the controller rumbles.
@@ -423,7 +443,7 @@ async function boot() {
 
   window.__game = {
     THREE, R, scene, camera, renderer, physics, world, player, hero, cars, props, weapons, input, cam, hud, menu, sky, audio,
-    nav, stats, phone, wheel, places,
+    nav, stats, phone, wheel, places, particles,
     get onboarding() { return onboarding; },
     get driving() { return driving; },
     get paused() { return paused; },

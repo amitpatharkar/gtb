@@ -6,6 +6,11 @@
 import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { computeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+
+// Exact ray tests against car bodies (bullets): a bounding-volume tree per car mesh (three-mesh-bvh).
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -97,6 +102,7 @@ function prepare(id, scene) {
   root.traverse((o) => {
     if (!o.isMesh) return;
     o.castShadow = true; o.receiveShadow = true;
+    if (!o.geometry.boundsTree) o.geometry.computeBoundsTree();
     if (HIDE.test(o.name) || [o.material].flat().some((m) => HIDE.test(m?.name || ''))) o.visible = false;
     let wheel = false;
     for (let p = o; p; p = p.parent) if (/^wheel /.test(p.name)) wheel = true;

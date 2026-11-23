@@ -55,6 +55,10 @@ export async function createRenderer(container, tierKey) {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 3000);
+  // See-through effects (smoke, dust, sparks) get their own pass, drawn over the scene after
+  // ambient occlusion; they hide behind walls by comparing with the scene's depth (soft particles).
+  const fxScene = new THREE.Scene();
+  renderer.setClearColor(0x000000, 0);
 
   let pipeline = null;
   const effects = {};
@@ -66,6 +70,7 @@ export async function createRenderer(container, tierKey) {
     if (tier.ssr) targets.metalrough = vec2(metalness, roughness);
     if (tier.taa) targets.velocity = velocity;
     scenePass.setMRT(mrt(targets));
+    effects.targets = Object.keys(targets);
     const color = scenePass.getTextureNode('output');
     const depth = scenePass.getTextureNode('depth');
     let node = color;
@@ -90,6 +95,9 @@ export async function createRenderer(container, tierKey) {
         node = vec4(mix(node.rgb, r.rgb.min(vec3(4)), smooth), node.a);
       }
     }
+    effects.sceneDepth = depth;
+    const fx = pass(fxScene, camera).getTextureNode('output');
+    node = vec4(node.rgb.mul(fx.a.oneMinus()).add(fx.rgb), node.a);
     if (tier.bloom) node = node.add(bloom(node.min(vec4(4, 4, 4, 1)), 0.16, 0.35, 0.95));
     if (tier.taa) node = (effects.taa = traa(node, depth, scenePass.getTextureNode('velocity'), camera));
     pipeline.outputColorTransform = false;
@@ -118,8 +126,9 @@ export async function createRenderer(container, tierKey) {
   addEventListener('resize', resize);
   resize();
 
+  if (!pipeline) scene.add(fxScene); // Low: no post-processing, effects draw with the scene
   return {
-    THREE, renderer, scene, camera, tier, backend, effects,
+    THREE, renderer, scene, camera, tier, backend, effects, fxScene,
     render() { if (pipeline) pipeline.render(); else renderer.render(scene, camera); },
     resize,
   };
