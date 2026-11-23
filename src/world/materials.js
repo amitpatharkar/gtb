@@ -1,215 +1,218 @@
-import * as THREE from 'three';
-import { addMacroVariation } from './textures.js';
-import { makeFacadeMaterial, makeSignAtlas } from './facade.js';
-import { makeHoardingAtlas, makeHoardingMaterial } from './hoardings.js';
-import { addNightLight } from './nightLights.js';
+// Materials: real photo-scanned textures (Poly Haven / ambientCG, KTX2 from media/) with
+// physically based shading, written in TSL (Three.js Shading Language) for the WebGPU renderer.
+// Texture coordinates are metres everywhere, so each texture is scaled by its real-world size.
+import * as THREE from 'three/webgpu';
+import {
+  texture, uv, vec2, vec3, float, attribute, vertexColor, positionWorld, normalMap, normalView, mix, step,
+  fract, floor, mod, hash, mx_noise_float, smoothstep, max, min, sin, time, transformNormalToView,
+} from 'three/tsl';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 
-// Materials for tile meshes, keyed like the worker's mesh keys. Each starts with a flat
-// colour and switches to a real photo-scanned texture set when it has loaded.
+const BASE = import.meta.env.BASE_URL;
 
-function canvas(w, h) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  return [c, c.getContext('2d')];
-}
-const seeded = (seed) => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
-function canvasTexture(c, { srgb = true, aniso = 4 } = {}) {
-  const t = new THREE.CanvasTexture(c);
-  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.anisotropy = aniso;
-  return t;
-}
+// Texture set per use. The ids must appear literally here: scripts/ship-media.mjs ships only
+// the media ids named in src/.
+export const TEX = {
+  road: 'tex-ph-asphalt-02', roadWorn: 'tex-ph-asphalt-03', roadPoor: 'tex-ph-road-damaged',
+  footpath: 'tex-ph-patterned-paving', footway: 'tex-acg-pavingstones152', plot: 'tex-ph-dirty-concrete',
+  paved: 'tex-ph-concrete-pavement', grass: 'tex-acg-grass004', pitch: 'tex-ph-grass-path-2',
+  sand: 'tex-ph-coast-sand-01', dirt: 'tex-ph-brown-mud-dry', gravel: 'tex-ph-gravel-floor-02',
+  kerb: 'tex-ph-concrete-wall-008', stone: 'tex-ph-stone-block-wall',
+  plaster: 'tex-ph-painted-plaster-wall', peeling: 'tex-ph-peeling-painted-wall', plastered: 'tex-ph-plastered-wall-02',
+  sandstone: 'tex-ph-sandstone-blocks-08', tileFacade: 'tex-ph-concrete-tile-facade', corrugated: 'tex-ph-rusty-corrugated-iron',
+  brick: 'tex-ph-red-brick', shutter: 'tex-ph-painted-metal-shutter',
+};
 
-/** Kerb paint: alternating black and yellow, 0.6 m each, a bit dirty. u = metres along the kerb. */
-/** Painted kerb blocks: black and yellow, or black and white (medians, heritage streets — survey). */
-function kerbTexture(second = '#e8b800') {
-  const [c, g] = canvas(128, 64);
-  const rnd = seeded(5);
-  g.fillStyle = '#1b1b1b'; g.fillRect(0, 0, 64, 64);
-  g.fillStyle = second; g.fillRect(64, 0, 64, 64);
-  for (let i = 0; i < 900; i++) {
-    g.fillStyle = `rgba(${rnd() < 0.5 ? '40,35,30' : '200,190,170'},${rnd() * 0.25})`;
-    g.fillRect(rnd() * 128, rnd() * 64, 1 + rnd() * 3, 1 + rnd() * 3);
+export class TextureLibrary {
+  constructor(renderer) {
+    this.loader = new KTX2Loader().setTranscoderPath(`${BASE}basis/`).detectSupport(renderer);
+    this.sets = new Map();
   }
-  const t = canvasTexture(c);
-  t.repeat.set(1 / 1.2, 4);
-  return t;
+  async init(onProgress) {
+    const manifest = await fetch(`${BASE}media/manifest.json`, { cache: 'no-cache' }).then((r) => r.json());
+    this.version = manifest.shipped?.version || manifest.generated || '';
+    const meta = new Map(manifest.assets.map((a) => [a.id, a]));
+    const ids = [...new Set(Object.values(TEX))];
+    let done = 0;
+    const total = ids.length * 3;
+    const load = (id, file, srgb) => this.loader.loadAsync(`${BASE}media/textures/${id}/${file}.ktx2?v=${encodeURIComponent(this.version)}`).then((t) => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = 8;
+      t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+      onProgress?.(++done / total);
+      return t;
+    });
+    await Promise.all(ids.map(async (id) => {
+      const [color, normal, orm] = await Promise.all([load(id, 'color', true), load(id, 'normal', false), load(id, 'orm', false)]);
+      this.sets.set(id, { color, normal, orm, metres: meta.get(id)?.meta?.metres?.[0] || 2 });
+    }));
+  }
+  get(key) { return this.sets.get(TEX[key] || key); }
 }
 
-/**
- * Contact shade along building walls (mesh key `contact`): vertex colours multiplied over the
- * ground (white = no change), fading out with distance so far blocks don't get dark outlines.
- * Lighter on High, where ambient occlusion already darkens the corners.
- */
-function contactShade(tier) {
-  const m = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.MultiplyBlending, premultipliedAlpha: true, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const strength = tier?.name === 'High' ? 0.55 : 1;
-  m.onBeforeCompile = (s) => {
-    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying float vDist;').replace('#include <project_vertex>', '#include <project_vertex>\nvDist = -mvPosition.z;');
-    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vDist;')
-      .replace('#include <premultiplied_alpha_fragment>', `gl_FragColor.rgb = mix(vec3(1.0), gl_FragColor.rgb, ${strength.toFixed(2)} * (1.0 - smoothstep(90.0, 220.0, vDist)));\n#include <premultiplied_alpha_fragment>`);
-  };
-  m.customProgramCacheKey = () => `contact-${strength}`;
+/** Large-scale brightness variation in world space: breaks up visible texture repeats. */
+const macro = (scale = 0.03, amount = 0.16) => mx_noise_float(positionWorld.xz.mul(scale)).mul(amount).add(1);
+
+/** A ground or wall surface from one texture set. */
+function surface(set, { tint = vec3(1), rough = 1, normalScale = 1, variation = 0.16, metresScale = 1, offset = false, sat = 1 } = {}) {
+  const tuv = uv().div(set.metres * metresScale);
+  const orm = texture(set.orm, tuv);
+  const m = new THREE.MeshStandardNodeMaterial();
+  let col = texture(set.color, tuv).rgb;
+  if (sat !== 1) col = mix(vec3(col.dot(vec3(0.2126, 0.7152, 0.0722))), col, sat);
+  m.colorNode = col.mul(vertexColor()).mul(tint).mul(macro(0.03, variation));
+  m.normalNode = normalMap(texture(set.normal, tuv), vec2(normalScale));
+  m.roughnessNode = orm.g.mul(rough).clamp(0.04, 1);
+  m.metalnessNode = float(0);
+  m.aoNode = orm.r;
+  if (offset) { m.polygonOffset = true; m.polygonOffsetFactor = -1; m.polygonOffsetUnits = -2; }
   return m;
 }
 
-/** Green construction netting: a knitted mesh (alpha) with sagging folds, one tile per metre. */
-function nettingTexture() {
-  const [c, g] = canvas(64, 64);
-  g.fillStyle = '#000'; g.fillRect(0, 0, 64, 64);
-  g.strokeStyle = '#fff'; g.lineWidth = 1.4;
-  for (let i = 0; i <= 64; i += 4) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 64); g.stroke(); g.beginPath(); g.moveTo(0, i); g.lineTo(64, i); g.stroke(); }
-  g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(0, 0, 64, 64);
-  const t = canvasTexture(c);
-  t.colorSpace = THREE.NoColorSpace;
-  return t;
-}
-
-/** Plaster for compound walls: soft blotches and monsoon streaks over white (vertex colours tint it). UV = metres. */
-function plasterTexture() {
-  const [c, g] = canvas(256, 256);
-  const rnd = seeded(31);
-  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 260; i++) { const v = 205 + Math.floor(rnd() * 45); g.fillStyle = `rgba(${v},${v - 4},${v - 10},0.18)`; g.beginPath(); g.arc(rnd() * 256, rnd() * 256, 4 + rnd() * 22, 0, 7); g.fill(); }
-  for (let i = 0; i < 26; i++) { const x = rnd() * 256, w = 2 + rnd() * 6, h = 30 + rnd() * 140; const gr = g.createLinearGradient(0, 256 - h, 0, 256); gr.addColorStop(0, 'rgba(90,80,70,0)'); gr.addColorStop(1, 'rgba(90,80,70,0.28)'); g.fillStyle = gr; g.fillRect(x, 256 - h, w, h); }
-  const t = canvasTexture(c);
-  t.repeat.set(0.4, 0.4);
-  return t;
+/** Kerb stones: painted in 1 m blocks (black-yellow, black-white) or plain concrete. */
+function kerb(set, a, b) {
+  const m = surface(set, { variation: 0.08 });
+  if (a) {
+    const stripe = step(0.5, fract(uv().x.div(1.0)));
+    const paint = mix(vec3(...a), vec3(...b), stripe);
+    m.colorNode = paint.mul(texture(set.color, uv().div(set.metres)).rgb.mul(0.5).add(0.6));
+    m.roughnessNode = float(0.75);
+  }
+  return m;
 }
 
 /**
- * Blue corrugated metal hoarding round a construction site (survey: "construction everywhere"):
- * 10 m × 2.6 m per repeat, ridges every ~8 cm, rust and dust at the foot, one white project notice
- * board with a made-up developer and an artist's impression of the tower. UV = metres.
+ * Building facade: the wall texture tinted by the building's colour, with storeys, window bays,
+ * frames, glass that reflects the sky, curtains and ground-floor shop shutters, all laid out in
+ * metres from the per-vertex `facade` attribute [seed, storey height, flags, bay width]
+ * (src/world/mesh/blocks.js).
  */
-function sheetTexture() {
-  const [c, g] = canvas(1024, 256);
-  const rnd = seeded(77);
-  for (let x = 0; x < 1024; x += 8) { g.fillStyle = (x / 8) % 2 ? '#2f63b8' : '#24529c'; g.fillRect(x, 0, 8, 256); g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(x + 1, 0, 1, 256); }
-  const foot = g.createLinearGradient(0, 170, 0, 256); foot.addColorStop(0, 'rgba(120,90,60,0)'); foot.addColorStop(1, 'rgba(120,90,60,0.55)');
-  g.fillStyle = foot; g.fillRect(0, 170, 1024, 86);
-  for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(140,70,30,${0.15 + rnd() * 0.25})`; g.fillRect(rnd() * 1024, 120 + rnd() * 120, 2 + rnd() * 4, 20 + rnd() * 60); }
-  // Notice board and the artist's impression.
-  const bx = 380, by = 36;
-  g.fillStyle = '#f4f2ec'; g.fillRect(bx, by, 220, 120); g.strokeStyle = '#1b3f7a'; g.lineWidth = 4; g.strokeRect(bx, by, 220, 120);
-  g.fillStyle = '#1b3f7a'; g.font = 'bold 15px sans-serif'; g.fillText('REDEVELOPMENT PROJECT', bx + 14, by + 26);
-  g.font = 'bold 13px sans-serif'; g.fillText('SHUBH AANGAN TOWERS', bx + 14, by + 50);
-  g.font = '11px sans-serif'; g.fillStyle = '#333'; g.fillText('Developer: Navratna Constructions', bx + 14, by + 70); g.fillText('Work hours 8 am – 8 pm', bx + 14, by + 86); g.fillText('Inconvenience regretted', bx + 14, by + 102);
-  const sky = g.createLinearGradient(0, by, 0, by + 120); sky.addColorStop(0, '#8fc3ea'); sky.addColorStop(1, '#e9f3fa');
-  g.fillStyle = sky; g.fillRect(650, by, 110, 120);
-  g.fillStyle = '#efe6d2'; g.fillRect(684, by + 14, 40, 106); g.fillStyle = '#7f9aae'; for (let y = by + 20; y < by + 116; y += 9) g.fillRect(688, y, 32, 4);
-  g.fillStyle = '#5c9a4a'; g.fillRect(650, by + 108, 110, 12);
-  const t = canvasTexture(c);
-  t.repeat.set(0.1, 1 / 2.65); t.offset.set(0, -0.06);
-  return t;
-}
+function facade(set, shutterSet, { tintAmount = 1, glassWall = false } = {}) {
+  const F = attribute('facade', 'vec4');
+  const seed = F.x, storey = F.y, flags = F.z, bayW = F.w;
+  const shops = mod(flags, 2), blank = mod(floor(flags.div(2)), 2);
+  const u = uv().x, v = uv().y;
+  const level = floor(v.div(storey)), fy = fract(v.div(storey));
+  const bay = floor(u.div(bayW)), fx = fract(u.div(bayW));
+  const h = hash(seed.mul(9173).add(bay.mul(31.7)).add(level.mul(7.31)));
+  const hBay = hash(seed.mul(5113).add(bay.mul(17.3)));
 
-/** Concertina (razor) wire coils seen from the side: alpha, one coil per 0.4 m. */
-function wireTexture() {
-  const [c, g] = canvas(128, 64);
-  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 64);
-  g.strokeStyle = '#fff'; g.lineWidth = 2;
-  for (let x = -40; x < 168; x += 16) { g.beginPath(); g.ellipse(x, 32, 26, 28, 0.5, 0, 7); g.stroke(); }
-  const t = canvasTexture(c);
-  t.colorSpace = THREE.NoColorSpace;
-  t.repeat.set(0.62, 1);
-  return t;
-}
+  const tuv = uv().div(set.metres);
+  const orm = texture(set.orm, tuv);
+  const tint = mix(vec3(1), vertexColor(), tintAmount);
+  let wallCol = texture(set.color, tuv).rgb.mul(tint).mul(macro(0.05, 0.12));
+  // Monsoon streaks under each window and grime near the street.
+  const streak = smoothstep(0.25, 0.0, fy).mul(step(0.22, fx)).mul(step(fx, 0.78)).mul(0.18);
+  const grime = smoothstep(2.2, 0.0, v).mul(0.25);
+  wallCol = wallCol.mul(float(1).sub(streak).sub(grime));
 
-/** Speckled alpha for worn road paint. */
-function wornPaint() {
-  const [c, g] = canvas(256, 256);
-  const rnd = seeded(9);
-  g.fillStyle = '#e0e0e0'; g.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 2600; i++) {
-    const v = Math.floor(rnd() * 140);
-    g.fillStyle = `rgb(${v},${v},${v})`;
-    g.beginPath(); g.arc(rnd() * 256, rnd() * 256, 0.5 + rnd() * 3.5, 0, 7); g.fill();
-  }
-  const t = canvasTexture(c, { srgb: false });
-  t.repeat.set(1 / 3, 1 / 3);
-  return t;
-}
+  // Window opening (upper floors) and its frame.
+  const wx = step(0.24, fx).mul(step(fx, 0.76)), wy = step(0.28, fy).mul(step(fy, 0.84));
+  const fxo = step(0.2, fx).mul(step(fx, 0.8)), fyo = step(0.24, fy).mul(step(fy, 0.88));
+  const upper = step(1, level).mul(float(1).sub(blank)).mul(step(0.1, hBay)); // some bays are blank wall
+  const win = glassWall ? float(1).sub(blank) : wx.mul(wy).mul(upper);
+  const frame = glassWall ? float(0) : fxo.mul(fyo).mul(upper).sub(win).max(0);
+  // Glass: dark, reflective; some with curtains or half-closed shutters behind.
+  const curtain = step(0.55, h).mul(smoothstep(0.84, 0.5, fy).add(0.3).min(1));
+  const curtainCol = mix(vec3(0.55, 0.45, 0.32), vec3(0.75, 0.72, 0.62), hash(h.mul(13)));
+  const glassCol = mix(vec3(0.03, 0.04, 0.05), curtainCol.mul(0.35), curtain);
+  // Sunshade shadow at the top of each window.
+  const shade = smoothstep(0.84, 0.66, fy).mul(0.6).add(0.4);
+  // Glass curtain walls: mullions every bay and storey.
+  const mullion = glassWall ? max(step(fx, 0.04), step(fy, 0.05)) : float(0);
 
-/** Ballast with one concrete sleeper; v repeats every 0.65 m along the track. */
-function sleeperTexture() {
-  const [c, g] = canvas(64, 64);
-  const rnd = seeded(11);
-  g.fillStyle = '#8a8070'; g.fillRect(0, 0, 64, 64);
-  for (let i = 0; i < 600; i++) {
-    const v = 90 + rnd() * 90;
-    g.fillStyle = `rgb(${v},${v - 8},${v - 20})`;
-    g.fillRect(rnd() * 64, rnd() * 64, 2, 2);
-  }
-  g.fillStyle = '#b4afa6'; g.fillRect(8, 22, 48, 20);
-  return canvasTexture(c);
-}
+  // Ground floor: shops with rolling shutters (some open, showing a lit shop inside).
+  const groundFloor = float(1).sub(step(1, level)).mul(shops);
+  const sx = step(0.06, fx).mul(step(fx, 0.94)), sy = step(0.25, v).mul(step(v, storey.sub(0.6)));
+  const shopMask = groundFloor.mul(sx).mul(sy);
+  const open = step(0.45, h);
+  const shutterUv = vec2(u.div(1.6), v.div(1.6));
+  const shutterCol = texture(shutterSet.color, shutterUv).rgb.mul(mix(vec3(0.55, 0.6, 0.65), vec3(0.35, 0.5, 0.45), hBay));
+  const shopInside = mix(vec3(0.35, 0.3, 0.22), vec3(0.55, 0.5, 0.42), hash(h.mul(7))).mul(0.6);
+  const shopCol = mix(shutterCol, shopInside, open);
+  const signBand = groundFloor.mul(step(storey.sub(0.55), v)).mul(step(v, storey.sub(0.05))).mul(step(0.3, hBay));
+  const signCol = mix(vec3(0.75, 0.12, 0.08), vec3(0.08, 0.2, 0.55), step(0.6, hash(hBay.mul(3)))).mul(0.8);
 
-// Wall texture for each building style (see src/world/mesh/buildings.js STYLES).
-const WALL_TEXTURES = [
-  ['tex-ph-painted-plaster-wall', 2.2], ['tex-ph-peeling-painted-wall', 2.4], ['tex-ph-beige-wall-001', 3],
-  ['tex-ph-sandstone-blocks-08', 3], ['tex-ph-stone-block-wall', 2.4], ['tex-ph-concrete-wall-008', 2.7],
-  ['tex-ph-concrete-tile-facade', 2.1], ['tex-ph-rusty-corrugated-iron', 2], ['tex-ph-red-brick', 1.4],
-];
+  let col = mix(wallCol, vec3(0.78, 0.76, 0.72).mul(tint.mul(0.3).add(0.7)), frame);
+  col = mix(col, glassCol.mul(shade), win);
+  col = mix(col, vec3(0.12), mullion.mul(win));
+  col = mix(col, shopCol, shopMask);
+  col = mix(col, signCol, signBand);
 
-export function createMaterials(renderer, lib, tier) {
-  const std = (o = {}) => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, ...o });
-  const tex = (mat, id, size, opts = {}) => { lib.apply(mat, id, { size, ...opts }); return mat; };
-  const offset = (mat, f) => Object.assign(mat, { polygonOffset: true, polygonOffsetFactor: f, polygonOffsetUnits: f * 2 });
-
-  const signs = makeSignAtlas();
-  const m = {
-    // Road quality: smooth dark asphalt on main roads, worn and patched tertiary roads,
-    // broken rough lanes (drawn over the main surface with a small depth offset).
-    road: addMacroVariation(tex(std({ color: 0x4a4a4e, roughness: 0.85 }), 'tex-acg-asphalt025c', 2.6, { normalScale: 0.3, onLoad: (x) => x.color.set(0x7c7c80) }), { scale: 1 / 45, strength: 0.14 }),
-    roadWorn: offset(addMacroVariation(tex(std({ color: 0x55555a }), 'tex-ph-asphalt-02', 3.2, { normalScale: 0.75, onLoad: (x) => x.color.set(0x9a9a9e) }), { scale: 1 / 30, strength: 0.3 }), -1),
-    roadPoor: offset(addMacroVariation(tex(std({ color: 0x5a5a5c }), 'tex-ph-asphalt-02', 2.2, { normalScale: 1.0, onLoad: (x) => x.color.set(0x8a8884) }), { scale: 1 / 9, strength: 0.42 }), -1), // grey, patchy, broken asphalt (the "damaged road" texture read as red mud)
-    footpath: addMacroVariation(tex(std({ color: 0x8f8c86 }), 'tex-ph-patterned-concrete-pavers', 1.8, { onLoad: (x) => x.color.set(0xd8d4cc) }), { strength: 0.25 }),
-    plot: addMacroVariation(tex(std({ color: 0xa39c8e }), 'tex-ph-dirty-concrete', 3.0, { onLoad: (x) => x.color.set(0xe0d8c8) }), { strength: 0.3 }),
-    paved: addMacroVariation(tex(std({ color: 0xb3ab9e }), 'tex-ph-concrete-pavement', 2.4, { onLoad: (x) => x.color.set(0xe8e2d8) })),
-    grass: addMacroVariation(tex(std({ color: 0x6c9a46 }), 'tex-ph-grass-path-2', 1.6, { onLoad: (x) => x.color.set(0xd8e6c0) }), { scale: 1 / 30, strength: 0.35 }),
-    wood: addMacroVariation(tex(std({ color: 0x4b7838 }), 'tex-acg-grass004', 1.5, { onLoad: (x) => x.color.set(0xa8c090) }), { strength: 0.3 }),
-    pitch: offset(addMacroVariation(tex(std({ color: 0x8fae5a }), 'tex-ph-grass-path-2', 2.2, { onLoad: (x) => x.color.set(0xe6e0b0) }), { strength: 0.3 }), -1),
-    sand: addMacroVariation(tex(std({ color: 0xd8c491 }), 'tex-ph-coast-sand-01', 6, { onLoad: (x) => x.color.set(0xf0e6d0) })),
-    dirt: addMacroVariation(tex(std({ color: 0xa48b68 }), 'tex-ph-brown-mud-dry', 2.2, { onLoad: (x) => x.color.set(0xe8dcc8) })),
-    railyard: tex(std({ color: 0x8c8478 }), 'tex-ph-gravel-floor-02', 2.0, { onLoad: (x) => x.color.set(0xd0c8bc) }),
-    pier: tex(std({ color: 0x9a948a }), 'tex-ph-concrete-pavement', 2.4, { onLoad: (x) => x.color.set(0xcfc8bc) }),
-    pool: std({ color: 0x4fb3cf, roughness: 0.05 }),
-    footway: offset(tex(std({ color: 0xa8a196 }), 'tex-ph-patterned-paving', 2, { onLoad: (x) => x.color.set(0xe0dbd2) }), -1),
-    kerb: std({ map: kerbTexture(), roughness: 0.85 }),
-    kerbBW: std({ map: kerbTexture('#ecebe6'), roughness: 0.85 }),
-    contact: contactShade(tier),
-    // Walls from the survey (scripts/lib/walls.mjs, drawn by mesh/buildings.js drawWall).
-    compound: new THREE.MeshStandardMaterial({ vertexColors: true, map: plasterTexture(), roughness: 0.93 }),
-    sheet: new THREE.MeshStandardMaterial({ map: sheetTexture(), roughness: 0.5, metalness: 0.25 }),
-    wire: new THREE.MeshStandardMaterial({ color: 0x9a9c9e, alphaMap: wireTexture(), alphaTest: 0.45, side: THREE.DoubleSide, metalness: 0.6, roughness: 0.45 }),
-    netting: new THREE.MeshStandardMaterial({ color: 0x2e7a3c, alphaMap: nettingTexture(), transparent: true, opacity: 0.92, side: THREE.DoubleSide, depthWrite: false, roughness: 0.95 }),
-    // Lanes and side streets: plain weathered concrete kerbs (paint is for main roads).
-    kerbPlain: tex(std({ color: 0x8e8a84, roughness: 0.9 }), 'tex-ph-concrete-pavement', 1.5, { onLoad: (x) => x.color.set(0xb4aea6) }),
-    seawall: tex(std({ color: 0x8a847a }), 'tex-ph-castle-brick-07', 2.5, { onLoad: (x) => x.color.set(0xb0aaa0) }),
-    parapet: tex(std({ color: 0xb8b2a8 }), 'tex-ph-concrete-pavement', 1.8, { onLoad: (x) => x.color.set(0xe8e2d8) }),
-    paint: offset(addMacroVariation(std({ color: 0xe9e7e0, roughness: 0.6, transparent: true, depthWrite: false, alphaMap: wornPaint() })), -2),
-    railBed: offset(std({ map: sleeperTexture() }), -0.5),
-    railSteel: std({ color: 0xa6abb0, metalness: 0.85, roughness: 0.3 }),
-    roof: addMacroVariation(tex(std({ color: 0x9a948c }), 'tex-ph-dirty-concrete', 3, { onLoad: (x) => x.color.set(0xd8d2c8) }), { scale: 1 / 12, strength: 0.3 }),
-    roofTarp: tex(std({ color: 0x3d6ea8, roughness: 0.6 }), 'tex-texturecan-plastic-0019', 2.5, { onLoad: (x) => x.color.set(0xffffff) }),
-    roofRust: tex(std({ color: 0x8a5a44 }), 'tex-ph-rusty-corrugated-iron', 2, { onLoad: (x) => x.color.set(0xffffff) }),
-    tank: new THREE.MeshStandardMaterial({ color: 0x1d1d1f, roughness: 0.55 }),
-    walls: WALL_TEXTURES.map(([id, size]) => {
-      const w = makeFacadeMaterial(signs.texture);
-      lib.apply(w, id, { size, normalScale: 0.9, aoIntensity: 0.5 });
-      return w;
-    }),
-  };
-  // Street lamps and headlights light the ground and the walls at night (nightLights.js).
-  for (const k of ['road', 'roadWorn', 'roadPoor', 'footpath', 'plot', 'paved', 'grass', 'wood', 'pitch', 'sand', 'dirt', 'railyard', 'pier', 'footway', 'kerb', 'kerbBW', 'kerbPlain', 'seawall', 'parapet', 'paint', 'compound', 'sheet']) if (m[k]) addNightLight(m[k]);
-  for (const w of m.walls) addNightLight(w);
-  // Rooftop hoardings share the sign fonts: redrawing the shop signs redraws the ads too.
-  const ads = makeHoardingAtlas();
-  m.hoarding = makeHoardingMaterial(ads.texture);
-  const redrawSigns = signs.redraw;
-  signs.redraw = (families) => { redrawSigns(families); ads.redraw(families); };
-  m.signs = signs;
+  const m = new THREE.MeshStandardNodeMaterial();
+  m.colorNode = col;
+  const glassy = win.mul(float(1).sub(mullion)).mul(float(1).sub(curtain.mul(0.6)));
+  m.roughnessNode = mix(orm.g, float(0.06), glassy).sub(shopMask.mul(open.oneMinus()).mul(0.2)).clamp(0.04, 1);
+  m.metalnessNode = mix(float(0), float(0.6), shopMask.mul(open.oneMinus()).mul(0.5));
+  m.normalNode = mix(normalMap(texture(set.normal, tuv)), normalView, max(win, shopMask)).normalize();
+  // Recessed look: windows and shop openings sit in shadow.
+  m.aoNode = mix(orm.r, float(0.55), max(win.mul(0.6), shopMask.mul(open)));
   return m;
+}
+
+/** Sea: dark water with moving ripples (analytic wave normals) that mirror the sky. */
+function sea() {
+  const p = positionWorld.xz, t = time;
+  const dx = sin(p.x.mul(0.21).add(t.mul(1.3))).mul(0.21 * 0.5).add(sin(p.x.add(p.y).mul(0.37).add(t.mul(2.1))).mul(0.37 * 0.25));
+  const dz = sin(p.y.mul(0.17).sub(t.mul(1.1))).mul(0.17 * 0.5).add(sin(p.x.add(p.y).mul(0.37).add(t.mul(2.1))).mul(0.37 * 0.25));
+  const fine = mx_noise_float(vec3(p.mul(0.9), t.mul(0.6))).mul(0.15);
+  const n = vec3(dx.mul(-0.6).add(fine), 1, dz.mul(-0.6).sub(fine)).normalize();
+  const m = new THREE.MeshStandardNodeMaterial();
+  m.colorNode = vec3(0.02, 0.06, 0.065);
+  m.roughnessNode = float(0.06);
+  m.metalnessNode = float(0);
+  m.normalNode = transformNormalToView(n);
+  return m;
+}
+
+export function createMaterials(lib) {
+  const g = (k, o) => surface(lib.get(k), o);
+  const M = {
+    // Mumbai asphalt is a dusty dark grey: the scans are desaturated and darkened a little.
+    road: g('road', { rough: 1.05, variation: 0.22, sat: 0.3, tint: vec3(0.8) }),
+    roadWorn: g('roadWorn', { variation: 0.22, offset: true, sat: 0.35, tint: vec3(0.85) }),
+    roadPoor: g('roadPoor', { variation: 0.22, offset: true, sat: 0.4, tint: vec3(0.85) }),
+    footpath: g('footpath', { variation: 0.14 }),
+    footway: g('footway', { offset: true }),
+    plot: g('plot'),
+    paved: g('paved'),
+    grass: g('grass', { variation: 0.25 }),
+    wood: g('grass', { tint: vec3(0.8, 0.9, 0.75), variation: 0.3 }),
+    pitch: g('pitch'),
+    sand: g('sand'),
+    dirt: g('dirt'),
+    railyard: g('gravel'),
+    railBed: g('gravel'),
+    pier: g('paved'),
+    pool: g('paved', { tint: vec3(0.6, 0.8, 0.9) }),
+    seawall: g('stone', { tint: vec3(0.55, 0.55, 0.52) }),
+    parapet: g('kerb'),
+    kerb: kerb(lib.get('kerb'), [0.02, 0.02, 0.02], [0.85, 0.65, 0.05]),
+    kerbBW: kerb(lib.get('kerb'), [0.02, 0.02, 0.02], [0.8, 0.8, 0.78]),
+    kerbPlain: kerb(lib.get('kerb')),
+    roof: g('plot', { variation: 0.25 }),
+    wall: g('plastered', { variation: 0.1 }),
+    sea: sea(),
+  };
+  const paint = new THREE.MeshStandardNodeMaterial();
+  paint.colorNode = vec3(0.82, 0.82, 0.78).mul(mx_noise_float(positionWorld.xz.mul(1.7)).mul(0.25).add(0.85));
+  paint.roughnessNode = float(0.65);
+  paint.polygonOffset = true; paint.polygonOffsetFactor = -2; paint.polygonOffsetUnits = -4;
+  M.paint = paint;
+  const steel = new THREE.MeshStandardNodeMaterial({ color: 0x8a8a88, roughness: 0.35, metalness: 0.9 });
+  M.railSteel = steel;
+  // Walls by building style (blocks.js STYLES).
+  const sh = lib.get('shutter');
+  M.walls = [
+    facade(lib.get('plaster'), sh),
+    facade(lib.get('peeling'), sh),
+    facade(lib.get('plastered'), sh),
+    facade(lib.get('sandstone'), sh, { tintAmount: 0.35 }),
+    facade(lib.get('stone'), sh, { tintAmount: 0.2 }),
+    facade(lib.get('kerb'), sh, { tintAmount: 0.6 }),
+    facade(lib.get('tileFacade'), sh, { tintAmount: 0.4, glassWall: true }),
+    facade(lib.get('corrugated'), sh, { tintAmount: 0.5 }),
+    facade(lib.get('brick'), sh, { tintAmount: 0.15 }),
+  ];
+  return M;
 }

@@ -20,9 +20,9 @@ function copyBasisTranscoder() {
 export default defineConfig({
   base: '/gtb/',
   plugins: [copyBasisTranscoder()],
+  optimizeDeps: { exclude: ['@dimforge/rapier3d-compat'] },
   build: {
     chunkSizeWarningLimit: 1200,
-    // people.html: the people lineup (src/people/lineup.js), a test page for the characters.
-    rollupOptions: { input: { main: 'index.html', people: 'people.html' } },
+    target: 'es2022', // top-level await in the physics engine's WebAssembly loader
   },
 });

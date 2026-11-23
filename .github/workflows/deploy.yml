@@ -2,8 +2,9 @@ name: Deploy to GitHub Pages
 
 # One build per push: build → smoke tests on that very build → deploy only if they pass.
 # The smoke tests (tests/smoke.mjs) play the built game headless: boots without console
-# errors, drives across tiles without stutter, traffic keeps left, stealing a car works,
-# every mission plays through, nights are visible.
+# errors, Colaba is solid (ground, buildings, no building on a road), walking, kerbs and
+# jumping work, every car drives, steers, brakes and stays upright, the pistol fires and
+# reloads, and the simulation does not stutter.
 on:
   push:
     branches: [main]
@@ -47,7 +48,7 @@ jobs:
         with:
           path: public/tiles
           key: tiles-${{ hashFiles('data/raw/**', 'scripts/build-tiles.mjs', 'scripts/lib/**', 'src/world/tileFormat.js', 'src/world/overviewFormat.js', 'docs/research/street-library/**', 'package-lock.json') }}
-      # Converter → art index → vite build → scripts/ship-media.mjs (keeps only the media the game uses).
+      # Converter → vite build → scripts/ship-media.mjs (keeps only the media and car models the game names).
       - run: npm run build
       - name: Site size
         run: du -sh dist dist/* | tee -a "$GITHUB_STEP_SUMMARY"

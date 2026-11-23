@@ -1,15 +1,15 @@
 {
   "name": "gtb",
   "version": "1.0.0",
-  "description": "Bombay Bawaal (code name GTB): a fun, toned-down open-world browser game set in the real Mumbai",
+  "description": "Bombay Bawaal (code name GTB): an open-world crime game in the real Mumbai, in the browser",
   "scripts": {
     "tiles": "node scripts/build-tiles.mjs",
     "tiles:preview": "node scripts/preview-tiles.mjs",
     "assets": "node scripts/assets/build-assets.mjs",
     "assets:pull": "git fetch -q --depth 1 origin assets && rm -rf public/media && mkdir -p public/media && git archive FETCH_HEAD | tar -x -C public/media",
-    "predev": "npm run tiles && node scripts/art-index.mjs",
+    "predev": "npm run tiles",
     "dev": "vite --host",
-    "build": "npm run tiles && node scripts/art-index.mjs && vite build && node scripts/ship-media.mjs",
+    "build": "npm run tiles && vite build && node scripts/ship-media.mjs",
     "preview": "vite preview --host",
     "test": "node tests/smoke.mjs"
   },
@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/amitpatharkar/gtb#readme",
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
     "earcut": "^3.0.2",
     "three": "^0.187.0"
   },

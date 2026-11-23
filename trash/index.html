@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Bombay Bawaal — open-world Mumbai</title>
+    <link rel="icon" href="./favicon.svg" />
+    <link rel="preload" href="./fonts/Damion-Regular.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="preload" href="./brand/logo.webp" as="image" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <div id="hud">
+      <div id="title">Bombay Bawaal</div>
+      <div id="speed"></div>
+      <div id="place"><i class="ico"><svg viewBox="0 0 64 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M2 38V24h6V14h7v10h5V8h8v30M28 38V20h7v-7l5-4 5 4v7h6v18M52 38V26h10v12M2 38h60"/><path d="M33 4v5M40 2v6" stroke-linecap="round"/></g></svg></i><div class="txt"><div id="road"></div>
+      <div id="coords" style="pointer-events:auto;cursor:pointer;width:max-content" title="Real-world latitude, longitude. Click to copy, then paste into any map"></div></div></div>
+      <div id="cheat" hidden><span>Cheat</span><input type="text" autocomplete="off" spellcheck="false" placeholder="type a code, Enter"></div>
+      <div id="stats" hidden></div>
+      <div id="help">W A S D drive · Space brake · H horn · Mouse look (click to capture) · N radio · Tab map · P phone · J taxi duty · F get out/in · E refuel / snack · T +1 hour · M mute · R R tow · Q Q graphics</div>
+    </div>
+    <div id="status">
+      <div id="timecard"><i class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 1.5M9.5 3h5M12 3v3M18.5 6l1.5-1.5"/></g></svg></i><div class="txt"><div id="clock">5:15 PM</div><div id="aqi"></div></div></div>
+      <div id="money">₹2,000</div>
+      <div id="wanted"></div>
+    </div>
+    <div id="radar">
+      <canvas id="minimap" width="220" height="220"></canvas>
+      <div id="mm-state" class="safe">Safe</div>
+      <div class="meter"><i class="mi" data-ic="fuel"></i><span id="fuel-label">Fuel</span><div class="bar"><div id="fuel-bar"></div></div></div>
+      <div class="meter"><i class="mi" data-ic="shield"></i><span id="cond-label">Car</span><div class="bar"><div id="cond-bar"></div></div></div>
+      <div class="meter"><i class="mi" data-ic="utensils"></i><span>Food</span><div class="bar"><div id="food-bar"></div></div></div>
+      <div class="meter"><i class="mi" data-ic="zap"></i><span>Energy</span><div class="bar"><div id="energy-bar"></div></div></div>
+    </div>
+    <div id="message"></div>
+    <div id="hintbar"></div>
+    <div id="vehname"><i></i><div><small>Now driving</small><b></b></div></div>
+    <div id="cards"><!-- right-hand task cards on desktop: GPS turn, mission, fare, radio -->
+      <div id="nav" hidden></div>
+      <div id="objective" hidden></div>
+      <div id="job" hidden></div>
+      <div id="radio"></div>
+    </div>
+    <div id="cutscene" hidden></div>
+    <div id="brand"><img src="./brand/logo.webp" alt="Bombay Bawaal" draggable="false"></div>
+    <div id="keys"><div><span>Phone</span><kbd>P</kbd></div><div><span>Map</span><kbd>Tab</kbd></div><div><span>Radio</span><kbd>N</kbd></div><div><span>Interact</span><kbd>E</kbd></div><div><span>Weapon wheel</span><kbd>B</kbd></div><div><span>Get in / out</span><kbd>F</kbd></div></div>
+    <div id="weapon" hidden></div>
+    <div id="foe" hidden></div>
+    <div id="crosshair" hidden></div>
+    <div id="choice" hidden></div>
+    <button id="btn-phone" aria-label="Phone"><i data-ic="smartphone"></i></button>
+    <div id="loading">Loading Mumbai…</div>
+    <div id="fade"></div>
+    <div id="credit">
+      Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>
+      · <a href="#" id="credits-open">Credits</a>
+      · <a href="#" id="quality" title="Change graphics quality (Q)">Graphics</a>
+    </div>
+    <div id="credits-panel" hidden>
+      <div class="head">Credits <button class="close" aria-label="Close">✕</button></div>
+      <div class="body">Loading…</div>
+    </div>
+    <div id="touch"></div><!-- touch controls, built by src/ui/touch.js on touch screens -->
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

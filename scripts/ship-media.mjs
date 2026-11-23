@@ -188,25 +188,18 @@ const afterBytes = size(walk(MEDIA));
 console.log(`ship-media: ${kept.length} of ${manifest.assets.length} assets ship, media ${MB(before)} → ${MB(afterBytes)}${removed.length ? ` (left out: ${removed.map((a) => a.id).join(', ')})` : ''}`);
 
 // ------------------------------------------------------------------ owner uploads
-// public/art/models and public/art/vehicles hold the raw uploads (often 5–40 MB each); the game
-// loads only the light copies in art/opt (scripts/art-index.mjs), so the raw files never ship —
-// except a model whose light copy could not be made (art/index.json then points at the raw file).
+// public/art/vehicles holds the raw uploads (often 5–40 MB each). Only the files the game names
+// in src/ (the car list in src/vehicles/carModel.js) ship; the rest stay in git for later.
 {
   const ART = path.join(path.dirname(MEDIA), 'art');
-  let listed = new Set();
-  try { const ix = JSON.parse(fs.readFileSync(path.join(ART, 'index.json'), 'utf8')); listed = new Set([...(ix.models || []).map((m) => m.file), ...(ix.vehicles || []).flatMap((v) => [v.near, v.far])]); } catch { /* no art index */ }
   let dropped = 0, bytes = 0;
-  for (const dir of ['models', 'vehicles']) {
+  for (const dir of ['models', 'vehicles', 'opt']) {
     const d = path.join(ART, dir);
     if (!fs.existsSync(d)) continue;
-    for (const f of fs.readdirSync(d)) {
-      if (!/\.(glb|gltf)$/i.test(f) || listed.has(`${dir}/${f}`)) continue;
-      bytes += fs.statSync(path.join(d, f)).size; fs.rmSync(path.join(d, f)); dropped++;
+    for (const f of walk(d)) {
+      if (!/\.(glb|gltf|bin|png|jpe?g)$/i.test(f) || code.includes(path.basename(f))) continue;
+      bytes += fs.statSync(f).size; fs.rmSync(f); dropped++;
     }
   }
-  // Light copies of vehicles that are not listed (no credit line yet) do not ship either.
-  const vo = path.join(ART, 'opt', 'vehicles');
-  if (fs.existsSync(vo)) for (const f of fs.readdirSync(vo)) if (/\.glb$/i.test(f) && !listed.has(`opt/vehicles/${f}`)) { bytes += fs.statSync(path.join(vo, f)).size; fs.rmSync(path.join(vo, f)); dropped++; }
-  if (dropped) console.log(`ship-media: ${dropped} raw or unlisted art files left out of the site (${MB(bytes)})`);
+  if (dropped) console.log(`ship-media: ${dropped} art files the game does not use left out of the site (${MB(bytes)})`);
 }
-

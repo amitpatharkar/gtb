@@ -1,1249 +1,348 @@
-import * as THREE from 'three';
-import { input } from './input.js';
-import { TileManager } from './world/tiles.js';
-import { createMaterials } from './world/materials.js';
-import { Structures } from './world/structures.js';
-import { Tickets } from './game/tickets.js';
-import { createEnvironment } from './world/environment.js';
-import { setupCredits } from './credits.js';
-import { TIERS, pickTier, query, TierProbe, markTierChosen } from './settings.js';
-import { TextureLibrary, mediaVersion } from './world/textures.js';
-import { createPost } from './render/post.js';
-import { creditedPhoto } from './render/photo.js';
-import { facadeDebug, facadeNight } from './world/facade.js';
-import { createTaxi } from './vehicles/taxi.js';
-import { Car } from './vehicles/car.js';
-import { GameClock } from './sim/clock.js';
-import { Traffic, setStreetProfiles } from './sim/traffic.js';
-import { FacadeParts } from './world/facadeParts.js';
-import { StreetClutter } from './world/clutter.js';
-import { Skyline } from './world/skyline.js';
-import { Birds } from './sim/birds.js';
-import { Art } from './world/art.js';
-import { loadVehicleArt } from './vehicles/vehicleArt.js';
-import { updateNightLights } from './world/nightLights.js';
-import { Signals } from './sim/signals.js';
-import { Police } from './sim/police.js';
-import { PeopleRenderer, POSE, FLAG, HOLI, outfit } from './sim/people.js';
-import { Bubbles } from './ui/bubbles.js';
-import { StreetLife } from './sim/street.js';
-import { Animals } from './sim/animals.js';
-import { CityMap } from './ui/cityMap.js';
-import { Navigator } from './ui/navigator.js';
-import { Landmarks } from './world/landmarks.js';
-import { StreetProps } from './world/streetProps.js';
-import { setPrecompile } from './world/models.js';
-import { Radio } from './radio.js';
-import { Characters } from './sim/characters.js';
-import { Cheats } from './game/cheats.js';
-import { Garage } from './vehicles/garage.js';
-import { Crackers, CRACKERS } from './game/crackers.js';
-import { Stars } from './game/stars.js';
-import { Eggs } from './game/eggs.js';
-import { Interiors } from './world/interiors.js';
-import { Story } from './game/story.js';
-import { GameState } from './game/state.js';
-import { Jobs } from './game/jobs.js';
-import { Phone } from './ui/phone.js';
-import { Walker } from './player/walker.js';
-import { Pichkari } from './player/pichkari.js';
-import { SkidMarks } from './vehicles/skids.js';
-import { TaxiDamage } from './vehicles/damage.js';
-import { PropPhysics } from './world/propPhysics.js';
-import { ViewControl } from './player/view.js';
-import { Combat } from './player/combat.js';
-import { Minimap } from './ui/minimap.js';
-import { CityAudio } from './audio.js';
-import { POINT } from './world/tileFormat.js';
-import { initSpeedo } from './ui/hud.js';
-import { icon, installEmojiIcons } from './ui/icons.js';
-import { WeaponWheel } from './ui/wheel.js';
-import { titleScreen, loadingScreen, pauseMenu, loadSettings } from './ui/menu.js';
-import { TouchControls } from './ui/touch.js';
-import { registerServiceWorker } from './serviceWorker.js';
+// Bombay Bawaal — boot and game loop.
+// Order: renderer → physics → textures → world (tiles around the spawn) → sky → main character
+// → cars and props → HUD. The simulation runs at a fixed 60 Hz (physics.STEP); rendering copies
+// poses once per frame. window.__game exposes the game to headless tests (tests/smoke.mjs).
+import * as THREE from 'three/webgpu';
+import { createRenderer, pickTier } from './core/renderer.js';
+import { createPhysics, STEP } from './core/physics.js';
+import { Input } from './core/input.js';
+import { Audio } from './core/audio.js';
+import { TextureLibrary, createMaterials } from './world/materials.js';
+import { World, AREA } from './world/world.js';
+import { createSky } from './world/sky.js';
+import { Y } from './world/levels.js';
+import { Props } from './world/props.js';
+import { loadHero } from './player/hero.js';
+import { OnFoot } from './player/onFoot.js';
+import { ChaseCamera } from './player/camera.js';
+import { CARS, loadCarModel } from './vehicles/carModel.js';
+import { Vehicle } from './vehicles/vehicle.js';
+import { Weapons, WEAPONS } from './combat/weapons.js';
+import { Hud } from './ui/hud.js';
+import { Menu } from './ui/menu.js';
+import { Tuning } from './ui/tuning.js';
+import { GAME } from './brand.js';
 
-const BASE = import.meta.env.BASE_URL;
-installEmojiIcons(); // any emoji that shows up in text becomes an icon
-const TOUCH = matchMedia('(pointer: coarse)').matches || query.has('touch'); // a touch screen: touch controls, no keyboard hints (?touch forces them)
-registerServiceWorker(BASE); // cached map and media on repeat visits (built game only)
-
-// ------------------------------------------------------------------ title screen
-// A quality change mid-game saves where you are and reloads straight back into the game.
-const RESUME_KEY = 'gtb.resume';
-let resume = null;
-try { resume = JSON.parse(sessionStorage.getItem(RESUME_KEY) || 'null'); sessionStorage.removeItem(RESUME_KEY); } catch { /* ignore */ }
-let settings = loadSettings();
-let newGame = false;
-const skipMenu = resume || query.has('play') || query.has('quality') || query.has('hour');
-// Warm the HTTP cache while the title screen is up: map index, asset manifest, the sky.
-fetch(`${BASE}tiles/index.json`, { priority: 'high', cache: 'no-cache' }).catch(() => {});
-fetch(`${BASE}media/manifest.json`, { priority: 'high', cache: 'no-cache' }).then((r) => r.json()).then((m) => {
-  const sky = m.assets.find((a) => a.id === 'hdri-qwantani-late-afternoon-puresky');
-  if (sky) fetch(`${BASE}media/${sky.files[0]}?v=${mediaVersion(m)}`, { priority: 'high' }).catch(() => {}); // same URL as lib.url()
-}).catch(() => {});
-// Extras (characters, street-prop models, sign fonts) start downloading once play begins.
-let markStarted;
-const started = new Promise((r) => { markStarted = r; });
-if (!skipMenu) {
-  let save = null;
-  try { const raw = JSON.parse(localStorage.getItem('gtb.save.v1') || 'null'); if (raw) save = { money: raw.money ?? 0, day: raw.day ?? 1, rides: raw.rides ?? 0 }; } catch { /* ignore */ }
-  const choice = await titleScreen({ save });
-  settings = choice.settings;
-  newGame = choice.action === 'new';
-}
-const loader = loadingScreen();
-const tierKey = TIERS[query.get('quality')] ? query.get('quality') : TIERS[settings.tier] ? settings.tier : pickTier();
-const tier = TIERS[tierKey];
 const $ = (id) => document.getElementById(id);
+const BASE = import.meta.env.BASE_URL;
+const params = new URLSearchParams(location.search);
+const AUTOMATION = navigator.webdriver || params.has('test');
+const progress = (f, text) => { $('load-fill').style.width = `${Math.round(f * 100)}%`; if (text) $('load-text').textContent = text; };
 
-// ------------------------------------------------------------------ renderer
-const renderer = new THREE.WebGLRenderer({ antialias: !tier.ao && !tier.bloom, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, tier.pixelRatio));
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
-// Khronos Neutral tone mapping: keeps paint and sky colours true (ACES turned Mumbai's cream
-// and white buildings orange and muddied the shade). ?tone=aces|agx for comparisons.
-renderer.toneMapping = { agx: THREE.AgXToneMapping, neutral: THREE.NeutralToneMapping, aces: THREE.ACESFilmicToneMapping }[query.get('tone')] ?? THREE.NeutralToneMapping;
-renderer.exposureScale = Number(query.get('exposure')) || (renderer.toneMapping === THREE.NeutralToneMapping ? 1.05 : 1);
-renderer.toneMappingExposure = 0.62;
-document.body.appendChild(renderer.domElement);
+async function boot() {
+  document.title = GAME.name;
+  progress(0.02, 'Starting the graphics…');
+  const tierKey = pickTier();
+  const R = await createRenderer($('game'), tierKey);
+  const { scene, camera, renderer, tier } = R;
+  progress(0.06, 'Starting the physics…');
+  const physics = await createPhysics();
+  const input = new Input(renderer.domElement);
+  const audio = new Audio();
 
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.4, 2000);
+  progress(0.08, 'Loading materials…');
+  const lib = new TextureLibrary(renderer);
+  await lib.init((f) => progress(0.08 + f * 0.42, 'Loading materials…'));
+  const materials = createMaterials(lib);
 
-setupCredits(BASE);
-$('quality').textContent = `Graphics: ${tier.name}`;
-$('quality').addEventListener('click', (e) => { e.preventDefault(); changeQuality(nextTier(tierKey)); });
-
-// ------------------------------------------------------------------ world
-const lib = await new TextureLibrary(renderer, BASE, tier).init();
-const materials = createMaterials(renderer, lib, tier);
-started.then(() => loadSignFonts(lib, materials.signs));
-const tiles = new TileManager(scene, materials, tier);
-loader.progress(0.1, 'Loading textures and the map…');
-const index = await tiles.init(`${BASE}tiles/`).catch((err) => { $('loading').textContent = String(err.message || err); loader.progress(0, String(err.message || err)); throw err; });
-loader.progress(0.2, 'Lighting the sky…');
-const env = await createEnvironment(renderer, scene, index.bounds, tier, lib);
-const post = createPost(renderer, scene, camera, tier);
-const landmarks = new Landmarks(scene, index.landmarks || [], lib);
-const streetProps = new StreetProps(scene, tiles, BASE, tier, started);
-const art = new Art(scene, tiles, BASE, tier, started); // owner-made models from public/art (docs/art-requests.md)
-// (The Poly Haven AC model was 9k triangles and 7 MB of textures per copy; facade AC units
-// stay procedural.)
-const startHour = Number(query.get('hour'));
-const clock = new GameClock(query.has('hour') && Number.isFinite(startHour) ? startHour : 17.25);
-const traffic = new Traffic(scene, tiles, tier);
-// Owner-uploaded vehicle models (public/art/vehicles) join the fleet once play has started.
-let damage; // (made below with the taxi)
-const vehicleArt = loadVehicleArt(BASE, traffic, started, tier, { padmini: (near) => { taxi.useModel(near); damage?.rebind(); } }).catch(() => []); // the owner's scanned Padmini is also the player's taxi
-setStreetProfiles(index.profiles); // street library: parking and life by street type
-const facadeParts = new FacadeParts(scene, lib, materials.signs.texture, tier);
-const skyline = new Skyline(scene, tiles, tier, camera.far); // distant tall buildings beyond the loaded tiles (up to the far plane)
-const signals = new Signals(scene);
-traffic.signals = signals;
-const people = new PeopleRenderer(scene, tier.name === 'Low' ? 280 : 520);
-// Street clutter near the player: boards, unipoles, cables, awnings and tarps, shrines, flower sellers, gates with watchmen.
-const clutter = new StreetClutter({ scene, renderer, tiles, materials, tier, people });
-const characters = new Characters(scene, BASE, tier, lib, started);
-let frameDt = 0;
-people.beforeEnd = (list) => {
-  interiors?.cull(list); // indoors, only the people in the room are drawn
-  characters.update(frameDt, camera.position, list, onFoot || garage.seated ? walker.person : null);
-};
-const bubbles = new Bubbles(document.body);
-const audio = new CityAudio(lib);
-const radio = new Radio(audio);
-const minimap = new Minimap($('minimap'), tiles, index.fuel || []);
-const cityMap = new CityMap({ index, tiles, baseUrl: `${BASE}tiles/`, fuel: index.fuel || [], hud: { message: (t) => say(t, 4) } });
-minimap.nav = cityMap;
-const navigator = new Navigator(scene, cityMap, tiles);
-$('minimap').addEventListener('click', () => cityMap.toggle(true, player));
-
-// The player drives a kaali-peeli taxi (auto-rickshaws aren't allowed in South Mumbai).
-const taxi = createTaxi();
-scene.add(taxi.root);
-const player = new Car(taxi);
-const state = new GameState();
-if (newGame) state.reset();
-Object.defineProperty(player, 'money', { get: () => state.money, set: (v) => { state.money = v; } }); // ₹ in the wallet
-player.pay = (amount, what) => state.pay(amount, what);
-const hud = { message: (t) => say(t, 4) };
-const police = new Police({ scene, tiles, traffic, signals, people, audio, bubbles, hud });
-const animals = new Animals(scene);
-const birds = new Birds(scene, tiles, audio); // pigeon flocks at famous spots, kites overhead
-const street = new StreetLife({ scene, tiles, traffic, signals, people, animals, bubbles, audio, police, tier, hud });
-// Clothes from the Ghar app wardrobe (bought on Dukaan).
-function applyOutfit() {
-  const o = state.s.outfit || 'default';
-  const L = walker.look;
-  if (o === 'jersey') { L.shirt.setHex(0x1d4fa0); L.pants.setHex(0xf0f0f0); }
-  else if (o === 'kurta') { L.shirt.setHex(0xefe3c6); L.pants.setHex(0xf4f1ea); }
-  else if (o === 'shades') { L.shirt.setHex(0x111111); L.pants.setHex(0x2b3a55); }
-  else { L.shirt.setHex(0x1f8a8a); L.pants.setHex(0x24324a); }
-}
-const pichkari = new Pichkari(scene, { tiles, street, police, traffic, bubbles, audio, hud });
-let combat = null; // created once the camera control exists (below)
-const jobs = new Jobs({ scene, tiles, traffic, signals, people, bubbles, audio, police, cityMap, state, hud, street });
-jobs.taxi = player;
-traffic.car = police.car = player; // driven or left standing: traffic and patrol cars avoid it at its real size
-const story = new Story({ scene, tiles, index, state, cityMap, hud, bubbles, people, jobs, street, clock, audio });
-jobs.paused = () => !!story.s.active; // no new fares while a mission is on (they share the GPS)
-jobs.canFare = () => garage.inTaxi || garage.type === 'auto';
-police.argueOdds = () => (state.owns('dashcam') ? 0.6 : 0.35); // the dashcam footage helps
-const phone = new Phone({ state, jobs, cityMap, clock, audio, player, onTier: () => changeQuality(nextTier(tierKey)), onPhoto: () => takePhoto() });
-const propPhysics = new PropPhysics(scene, tiles, { bubbles, hud, state, audio });
-const structures = new Structures(); // walkable platforms, footbridges and stairs (stations, metro)
-const world = {
-  hits: (x, z, r) => tiles.hits(x, z, r) || structures.hits(x, z, r) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || garage.taxiHits(x, z, r) || stars.hits(x, z, r),
-  bodyAt: (x, z, r) => traffic.bodyAt(x, z, r), // other vehicles are pushed by mass rather than acting as walls
-  groundHeight: (x, z) => { const y = tiles.wheelHeight(x, z); if (tiles.inPothole) world.pothole = true; return y; },
-};
-const spawn = index.spawn;
-function respawn() {
-  player.pos.set(spawn.x, 0.02, spawn.z);
-  player.heading = spawn.heading;
-  player.speed = 0;
-  player.fuel = Math.max(player.fuel, 0.3);
-}
-respawn();
-// Where the world was at the last save (taxi, clock, wanted level, orders on their way).
-state.beforeSave = () => {
-  if (teleporting) return;
-  state.s.world = {
-    ...(garage.home || { x: player.pos.x, z: player.pos.z, heading: player.heading, fuel: player.fuel, condition: player.condition }),
-    hour: clock.hour, stars: police.stars, fines: police.fines, origin: JSON.stringify(index.origin),
-    orders: jobs.riders.filter((r) => r.state === 'coming').map((r) => ({ app: r.app, items: r.items, eta: Math.max(20, r.eta - r.t) })),
-  };
-};
-// After a graphics change (resume) the taxi spot comes from the resume record, but challans,
-// fines and orders still come from the save written just before the reload.
-const saved = !newGame && state.s.world;
-// Positions only make sense on the same map grid (the origin moves if the map is rebuilt differently).
-if (saved && Number.isFinite(saved.x) && saved.origin === JSON.stringify(index.origin) && tiles.walkable(saved.x, saved.z)) {
-  player.pos.set(saved.x, 0.02, saved.z);
-  player.heading = saved.heading || 0;
-  player.fuel = saved.fuel ?? player.fuel;
-  player.condition = saved.condition ?? player.condition;
-  if (Number.isFinite(saved.hour) && !query.has('hour')) clock.hour = saved.hour;
-}
-if (saved) {
-  // Challans don't vanish with a reload; orders already paid for still arrive.
-  police.stars = Math.min(5, saved.stars || 0); police.fines = saved.fines || 0;
-  for (const o of saved.orders || []) {
-    const look = outfit('casual');
-    look.shirt = new THREE.Color(o.app === 'jhatpat' ? 0x2e9e44 : 0xf26722);
-    jobs.riders.push({ app: o.app, items: o.items, eta: o.eta, t: 0, look, state: 'coming', person: null });
-  }
-}
-if (resume) {
-  player.pos.set(resume.x, 0.02, resume.z);
-  player.heading = resume.heading;
-  player.fuel = resume.fuel ?? player.fuel;
-  player.condition = resume.condition ?? player.condition;
-  if (Number.isFinite(resume.hour)) clock.hour = resume.hour;
-}
-
-/** Graphics changes rebuild every buffer, so save where we are and reload straight back in. */
-function nextTier(t) { return { low: 'medium', medium: 'high', high: 'low' }[t] || 'low'; }
-function changeQuality(next, auto = false) {
-  if (jobs.ride?.stage === 'ride') { say('Finish the ride before changing graphics', 3); return; }
-  if (!auto) markTierChosen(); // the player's own choice: no automatic fallback from now on
-  state.save();
-  try {
-    sessionStorage.setItem(RESUME_KEY, JSON.stringify({ x: player.pos.x, z: player.pos.z, heading: player.heading, hour: clock.hour, fuel: player.fuel, condition: player.condition }));
-    localStorage.setItem('gtb.quality', next);
-    const st = loadSettings(); st.tier = next; localStorage.setItem('gtb.settings', JSON.stringify(st));
-  } catch { /* ignore */ }
-  location.reload();
-}
-
-// Night lighting near the player: real lights on the closest street lamps, taxi headlamps.
-const lampLights = Array.from({ length: tier.name === 'Low' ? 3 : 6 }, () => {
-  const l = new THREE.PointLight(0xffd9a6, 0, 40, 1.6);
-  scene.add(l);
-  return l;
-});
-const headlamp = new THREE.SpotLight(0xfff1d6, 0, 130, 0.42, 0.5, 1.3);
-const lowBeam = new THREE.SpotLight(0xfff1d6, 0, 30, 0.95, 0.8, 1.2); // wide light on the road just ahead
-lowBeam.position.set(0, 0.7, 1.9);
-lowBeam.target.position.set(0, 0, 9);
-taxi.root.add(lowBeam, lowBeam.target);
-headlamp.position.set(0, 0.7, 1.9);
-headlamp.target.position.set(0, 0, 30);
-taxi.root.add(headlamp, headlamp.target);
-lowBeam.userData.reach = 7; headlamp.userData.reach = 20;
-// Any vehicle on the street can be taken and driven (F next to it, on foot).
-const garage = new Garage({ scene, player, taxi, traffic, street, police, bubbles, audio, hud, outfit, lamps: [lowBeam, headlamp] });
-jobs.garage = garage; // fares can also be taken in an auto-rickshaw
-
-// ------------------------------------------------------------------ on foot
-const walker = new Walker(tiles);
-state.listeners.add(applyOutfit);
-applyOutfit();
-const skids = new SkidMarks(scene);
-damage = new TaxiDamage(scene, taxi);
-let onFoot = false;
-const footWorld = {
-  hits: (x, z, r, y) => tiles.hits(x, z, r) || structures.hits(x, z, r, y) || propPhysics.hits(x, z, r) || traffic.hits(x, z, r) || police.hits(x, z, r) || street.hits(x, z, r) || taxiHits(x, z, r) || stars.hits(x, z, r),
-  // Platforms, footbridges and stairs (src/world/structures.js) above the street.
-  groundHeight: (x, z, y) => structures.groundHeight(x, z, y, tiles.groundHeight(x, z)),
-};
-/** The vehicle the player left (taxi or borrowed) and the parked taxi are solid for people on foot. */
-function taxiHits(x, z, r) {
-  const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
-  for (const o of player.circles || [player.halfLength, -player.halfLength]) if ((x - player.pos.x - fx * o) ** 2 + (z - player.pos.z - fz * o) ** 2 < (r + player.radius) ** 2) return true;
-  return garage.taxiHits(x, z, r);
-}
-/**
- * F: get out of the vehicle (driver's side, right-hand drive). On foot, F gets into the
- * nearest vehicle: the one you left, your taxi, or anybody else's (that is a theft).
- */
-let footHints = 0;
-function toggleFoot() {
-  if (interiors?.inside) { say('Step outside first', 1.5); return; } // no vehicles indoors
-  if (onFoot && trains?.ride) { if (trains.ride.active) { trains.ride.alight(); return; } if (trains.ride.tryBoard()) return; } // a local's open door
-  if (onFoot && metro) { if (metro.r) { metro.alight(); return; } if (metro.tryBoard()) return; } // a metro train's open door
-  if (!onFoot) {
-    if (Math.abs(player.speed) > 2) { say('Slow down to get out', 1.5); return; }
-    const h = player.heading, rx = -Math.cos(h), rz = Math.sin(h), side = player.radius + 0.8;
-    let x = player.pos.x + rx * side, z = player.pos.z + rz * side;
-    if (tiles.hits(x, z, 0.3)) { x = player.pos.x - rx * side; z = player.pos.z - rz * side; }
-    walker.pos.set(x, tiles.groundHeight(x, z), z);
-    walker.heading = h; walker.speed = 0;
-    onFoot = true;
-    if (jobs.ride?.stage === 'ride') say('Your passenger is waiting in the taxi!', 3);
-    // The long reminder only the first couple of times: it hides door prompts while it is up.
-    if ((footHints = (footHints || 0) + 1) <= 2 && TOUCH) say('On foot: left thumb walks (push all the way to run) · drag the screen to look · 👊 attack · 🛡️ block / 🎯 aim · buttons pop up by vehicles, doors and thelas', 6);
-    else if (footHints <= 2) say('On foot: mouse looks · WASD walk · Shift run · left click punch/spray · right click aim · V kick · G insult · 1 fists, 2 pichkari · X light a cracker (Z changes it) · E at a glowing door goes in · F near any vehicle steals it (run to the driver\'s door, pull them out)', 6);
-  } else {
-    const c = vehicleChoice();
-    if (!c) { say('Walk up to a vehicle to get in (F within a few metres)', 1.5); return; }
-    if (c.own) { if (c.taxi && !garage.inTaxi) garage.toTaxi(); }
-    else if (c.other.d > 1.2) { startJack(c.other); return; } // run to the driver's door first
-    else takeVehicle(c.other);
-    onFoot = false;
-    walker.spraying = false;
-  }
-  hudTimer = 0; // touch controls switch at once
-}
-
-// ------------------------------------------------------------------ taking a vehicle
-// F within a few metres of any vehicle: the player runs to the driver's door (the right side:
-// India drives on the left with right-hand drive), the vehicle stops, the driver is pulled out.
-const JACK_REACH = 7;
-let jack = null;
-function startJack(target) {
-  jack = { target, t: 0 };
-  if (target.kind === 'traffic') target.v.held = 4; // the driver freezes (and then gets yanked out)
-}
-function takeVehicle(target) {
-  if (jobs.onDuty && !jobs.ride) jobs.toggleDuty(player);
-  garage.take(target, walker);
-  onFoot = false;
-  walker.spraying = false;
-}
-function updateJack(dt) {
-  const { target } = jack, v = target.v, T = traffic.types[v.type];
-  const list = target.kind === 'traffic' ? traffic.cars : target.kind === 'parked' ? traffic.parked : traffic.left;
-  jack.t += dt;
-  const moved = input.fwd || input.back || input.left || input.right || (input.analog && Math.hypot(input.moveX, input.moveY) > 0.3);
-  if (!T || !list.includes(v) || (moved && jack.t > 0.25) || walker.down > 0) { jack = null; return; }
-  const h = v.heading, fx = Math.sin(h), fz = Math.cos(h), rx = -Math.cos(h), rz = Math.sin(h);
-  const side = T.rider ? 0.7 : T.wid / 2 + 0.45, ahead = T.rider ? -0.1 : T.len * 0.08;
-  const dx = v.x + rx * side + fx * ahead - walker.pos.x, dz = v.z + rz * side + fz * ahead - walker.pos.z, d = Math.hypot(dx, dz);
-  if (d < 0.5 || jack.t > 3.5) { jack = null; takeVehicle(target); return; }
-  const run = Math.min(d, 5.2 * dt), nx = walker.pos.x + (dx / d) * run, nz = walker.pos.z + (dz / d) * run;
-  walker.heading = Math.atan2(dx, dz);
-  walker.speed = 5.2;
-  // Round the vehicle's body rather than through it: slide sideways if the straight line is blocked.
-  if (!traffic.hits(nx, nz, 0.3) || d < 1.6) walker.pos.set(nx, tiles.groundHeight(nx, nz), nz);
-  else { const sx = walker.pos.x + rx * run, sz = walker.pos.z + rz * run; walker.pos.set(sx, tiles.groundHeight(sx, sz), sz); }
-  walker.phase += dt * 5.2 * 4.3;
-}
-/** HUD prompt on foot next to a vehicle. */
-/**
- * What F does on foot (the prompt shows the same): { own, taxi } = get back into what you were
- * driving (taxi: your parked kaali-peeli), { other } = take that vehicle, null = nothing in reach.
- * Your own vehicles come first when you stand next to them, unless something else is clearly
- * closer or it is a vehicle lent to you for a mission.
- */
-function vehicleChoice() {
-  const wx = walker.pos.x, wz = walker.pos.z;
-  const mine = Math.hypot(wx - player.pos.x, wz - player.pos.z) - player.radius - player.halfLength * 0.6;
-  const home = garage.home ? Math.hypot(wx - garage.home.x, wz - garage.home.z) - 1.4 : Infinity;
-  const other = garage.nearest(wx, wz, JACK_REACH);
-  const own = Math.min(mine, home);
-  if (own > 2.6 && !other) return null;
-  if (own <= 2.6 && !(other && (other.v.lent || other.d < own - 0.6))) return { own: true, taxi: home < mine || garage.inTaxi };
-  return { other };
-}
-function vehiclePrompt() {
-  if (!onFoot || interiors?.inside || jack) return '';
-  const c = vehicleChoice();
-  if (!c) return '';
-  if (c.own) return c.taxi ? 'F: get in your kaali-peeli' : `F: get back in the ${garage.name}`;
-  const t = c.other;
-  const name = traffic.types[t.v.type]?.name || 'vehicle';
-  if (t.v.lent) return `F: take the ${name} (lent to you)`;
-  if (t.v.taken) return `F: get back in the ${name}`;
-  return `F: steal the ${name}${t.kind === 'traffic' ? ' — the driver gets pulled out' : ''}${police.witness(walker.pos.x, walker.pos.z) ? ' · 👮 a constable is watching!' : ''}`;
-}
-
-// ------------------------------------------------------------------ camera
-const camPos = new THREE.Vector3();
-let interiors = null; // created below, once the systems it talks to exist
-const lookAt = new THREE.Vector3();
-const view = new ViewControl(renderer.domElement, input);
-const tickets = new Tickets({ state, clock, hud, audio, view }); // local and metro tickets (src/game/tickets.js)
-function placeCamera(dt) {
-  // GTA-style orbit camera: behind the taxi (mouse to look around, it swings back), or over
-  // the player's right shoulder on foot (closer and zoomed in while aiming).
-  const a = onFoot ? walker : player;
-  view.update(dt, a, onFoot);
-  if (onFoot && view.idle > 2.5 && !view.aim && Math.abs(walker.speed) > 0.5) {
-    // No mouse for a while (keyboard or touch): ease the camera in behind the player.
-    let d = walker.heading - view.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
-    view.yaw += d * Math.min(1, dt * 1.5);
-  }
-  const aim = onFoot && view.aim;
-  const veh = garage.inTaxi ? null : garage.spec; // buses need the camera further back and higher
-  const dist = onFoot ? (aim ? 1.9 : 3.6) : (veh ? veh.len * 1.15 + 2.4 : 6.4) + Math.abs(player.speed) * 0.12;
-  const shoulder = onFoot ? (aim ? 0.6 : 0.4) : 0;
-  const [fx, fy, fz] = view.forward();
-  const rx = -Math.cos(view.yaw), rz = Math.sin(view.yaw);
-  const px = a.pos.x + rx * shoulder, py = a.pos.y + (onFoot ? 1.55 : veh?.big ? 3.4 : 1.6), pz = a.pos.z + rz * shoulder;
-  const target = new THREE.Vector3(px - fx * dist, Math.max(a.pos.y + 0.4, py - fy * dist), pz - fz * dist);
-  // Keep the camera out of buildings: pull it in towards the player if a wall is in the way.
-  // Indoors (interiors.js) the room does this itself: inside its walls and under its ceiling.
-  if (interiors?.inside) interiors.keepCamera(a.pos, target);
-  else for (let i = 1; i <= 8; i++) {
-    const t = i / 8, x = px + (target.x - px) * t, z = pz + (target.z - pz) * t;
-    if (tiles.hits(x, z, 0.25)) { const k = Math.max(0.15, (i - 1) / 8); target.x = px + (target.x - px) * k; target.z = pz + (target.z - pz) * k; break; }
-  }
-  if (story?.camera) {
-    // Cutscene camera: slow orbit around whoever is talking.
-    camPos.lerp(story.camera.pos, 1 - Math.exp(-dt * 3));
-    camera.position.copy(camPos);
-    camera.lookAt(story.camera.look);
-    return;
-  }
-  if (dt === 0) camPos.copy(target);
-  else camPos.lerp(target, 1 - Math.exp(-dt * (onFoot ? (aim ? 14 : 8) : 5)));
-  camera.position.copy(camPos);
-  lookAt.set(px + fx * 6, py + fy * 6 + (onFoot ? 0 : -0.4), pz + fz * 6);
-  camera.lookAt(lookAt);
-  const fov = aim ? 44 : 58;
-  if (Math.abs(camera.fov - fov) > 0.1) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 10); camera.updateProjectionMatrix(); }
-}
-placeCamera(0);
-combat = new Combat({ scene, street, police, bubbles, audio, hud, tiles, walker, pichkari, view });
-pichkari.ctx.combat = combat;
-garage.combat = combat;
-// Phatake: firecrackers the player can light on foot (X; Z changes type); the city lights its own on evenings.
-const crackers = new Crackers({ scene, tiles, audio, bubbles, street, police, traffic, hud, tier, renderer });
-// Fan meets at two (fictional) film stars' houses, in Bandra and Juhu.
-const stars = new Stars({ scene, tiles, index, people, bubbles, audio, hud, story, state, crackers, traffic });
-// Places to walk into (E at a glowing door): the terminus, the palace hotel, an Irani café, the flat in Powai.
-interiors = new Interiors({ scene, camera, renderer, tiles, index, lib, tier, env, clock, state, people, characters, bubbles, audio, hud, phone, view, walker, player, story, onFoot: () => onFoot, snapCamera: () => placeCamera(0) });
-// Hidden golden cutting-chai glasses and easter eggs.
-const eggs = new Eggs({ scene, tiles, index, state, hud, bubbles, people, audio, clock, damage });
-combat.giveRose = (foe) => eggs.useRose(foe, (o, text) => bubbles.say(o, text, 3)); // Gandhigiri: G with a rose ends a fight
-// Your parked kaali-peeli shows on the map while you are on foot or driving something else.
-const taxiMarker = () => (garage.home ? [{ x: garage.home.x, z: garage.home.z, color: '#f2c200', icon: '🚕', r: 9 }] : []);
-cityMap.markers = () => [...taxiMarker(), ...stars.markers(), ...story.markers(), ...eggs.markers(onFoot ? walker : player), ...interiors.markers()];
-// Missions can reach into these systems (vehicle requirements, cracker counts, calling a star out, clearing challans).
-Object.assign(story.world, { stars, garage, crackers, police });
-crackers.onLit = (kind) => story.event('cracker', kind);
-// Collisions with other vehicles: riders come off their bikes, drivers shout, hard hits are hit-and-run.
-traffic.onRiderDown = (bike) => { garage.eject(bike, null, 'down'); if (!onFoot) police.offence('hitrun', player); };
-traffic.onShunt = (car, dv) => { if (dv > 1.5) bubbles.say(car, ['Arre! Andha hai kya?!', 'Gaadi thok di!', 'Dekh ke chala!', 'Mera bumper!'][Math.floor(Math.random() * 4)], 2.5, 'driver'); };
-
-await tiles.whenReady(player.pos.x, player.pos.z, 350, (done, total) => {
-  $('loading').textContent = `Loading ${index.name}… ${done}/${total}`;
-  loader.progress(0.3 + 0.7 * (done / Math.max(1, total)), `Building ${index.name}… ${done}/${total}`);
-});
-// Map and sky are in: let the textures download, and give the street materials a moment.
-lib.openGate();
-loader.progress(0.97, 'Painting the streets…');
-await Promise.race([lib.idle(), new Promise((r) => setTimeout(r, 2000))]);
-// Compile the shaders now (in parallel where the browser can) rather than stalling the first frames.
-placeCamera(0);
-await post.compile(scene, camera).catch(() => {}); // the variants the post-processing pipeline draws
-setPrecompile((obj) => post.compile(obj, camera, scene)); // models loaded during play
-post.render(); // warm-up frame behind the loading screen: shadow-map and post-processing shaders
-$('loading').remove();
-loader.done();
-performance.mark('gtb-playable');
-markStarted();
-
-// ------------------------------------------------------------------ controls
-let teleporting = false;
-async function teleportHome() {
-  if (teleporting) return;
-  // R: a tow truck takes you and the taxi back to the Gateway (free if you're already close).
-  const far = Math.hypot(player.pos.x - spawn.x, player.pos.z - spawn.z) > 150;
-  teleporting = true;
-  if (far) { state.pay(300, 'Tow to the Gateway'); say(state.money < 0 ? 'Tow truck: ₹300 on credit. Back at the Gateway.' : 'Tow truck: ₹300. Back at the Gateway.', 3); }
-  if (onFoot) { onFoot = false; walker.spraying = false; }
-  if (!garage.inTaxi) garage.toTaxi(); // a borrowed vehicle stays where it is
-  $('fade').classList.add('on');
-  await new Promise((r) => setTimeout(r, 250));
-  respawn();
-  placeCamera(0);
-  await tiles.whenReady(spawn.x, spawn.z, 250);
-  $('fade').classList.remove('on');
-  teleporting = false;
-}
-let message = '', messageTimer = 0;
-function skipHour() { clock.hour = (clock.hour + 1) % 24; say(`Time: ${clock.label}`, 1.5); }
-let weaponHtml = '';
-/** Keys that throw away where you are (R tow, Q graphics reload) need a second press within 3 s. */
-let armed = null;
-function pressedTwice(key, hint) {
-  const now = performance.now();
-  if (armed && armed.key === key && now - armed.t < 3000) { armed = null; return true; }
-  armed = { key, t: now };
-  say(hint, 3);
-  return false;
-}
-const say = (text, seconds = 3) => { message = text; messageTimer = seconds; };
-// The hawaldar waves you over and walks up: pay, argue or run.
-police.onFlagGone = () => closeChoice?.(-1);
-// Fines and settlements always come out of the wallet, on foot or in the taxi.
-police.payFn = street.payFn = (amount, what) => state.pay(amount, what);
-
-police.onFlagStop = (f, who) => {
-  choice(`Hawaldar: "Challan ₹${police.fines.toLocaleString('en-IN')}, saheb."`, [
-    [`Pay ₹${police.fines.toLocaleString('en-IN')}`, () => police.pay(false, f, who)],
-    ['Argue ("Main toh dheere chala raha tha!")', () => police.argue(f, who)],
-    ['Drive off (more stars)', () => police.flee(f)],
-  ], () => police.cancelStop()); // closed without an answer (Esc, a click elsewhere, another dialog)
-};
-
-// ------------------------------------------------------------------ settings, pause menu, hints
-function applySettings(st) {
-  settings = st;
-  audio.setVolume(st.volume);
-  view.sens = st.sens;
-  view.invertY = st.invertY;
-  $('help').classList.toggle('show', !!st.hints && helpTimer > 0);
-  $('hintbar').classList.toggle('off', !st.hints);
-}
-let paused = false;
-// The map is a tab of the hub menu (Esc), not a separate screen: Tab, the radar and the phone's Maps app all open the hub on it.
-cityMap.host = { open: () => { view.release(); pause.toggle(true, 'map'); }, close: () => { if (pause.open) pause.toggle(false); } };
-const pause = pauseMenu({
-  paused: (on) => { paused = on; if (on) view.release(); audio.ctx?.[on ? 'suspend' : 'resume']?.(); },
-  quality: (t) => changeQuality(t),
-  settings: (st) => applySettings(st),
-  quit: () => { state.save(); location.reload(); },
-  canAbandon: () => !!story.s.active && !story.busy,
-  abandon: () => story.fail('abandoned'),
-  skipHour: () => skipHour(),
-  tow: () => teleportHome(), // touch screens have no R key
-  mapEl: cityMap.el,
-  mapActive: (on) => { if (on) cityMap.activate(player); else cityMap.deactivate(); },
-  profile: () => ({
-    name: 'Driver', title: 'Kaali-peeli taxi · Powai', day: state.s.day, clock: clock.label, money: player.money, rides: state.s.rides, rating: state.rating, earned: state.s.earned || 0,
-    missions: story.s.done.length, missionsTotal: story.missions.length, chai: (state.s.eggs?.chai || []).length, hunger: state.s.hunger, energy: state.s.energy, fines: police.fines || 0,
-    vehicle: 'Kaali-peeli taxi', condition: player.condition, fuel: player.fuel, aqi: clock.aqi, stars: police.stars,
-  }),
-});
-let helpTimer = 50; // the long key list shows for the first 50 s, then ? brings it back
-applySettings(settings);
-
-const wheel = new WeaponWheel({
-  view,
-  current: () => combat.weapon,
-  detail: (id, short) => id === 'pichkari' ? (short ? `${Math.round(pichkari.tank * 100)}%` : `${pichkari.colourName} · tank ${Math.round(pichkari.tank * 100)}% · pressure ${pichkari.pressure}`)
-    : id.startsWith('cracker:') ? (crackers.current.id === id.slice(8) ? (short ? '●' : 'ready: press X to light') : '') : '',
-  pick: (id) => {
-    if (id.startsWith('cracker:')) { const i = CRACKERS.findIndex((c) => c.id === id.slice(8)); if (i >= 0) { crackers.index = i; say(`🎆 ${crackers.current.name} — X to light it`, 2); } return; }
-    combat.setWeapon(id);
-  },
-});
-addEventListener('keyup', (e) => { if (e.code === 'KeyB') wheel.hide(true); });
-addEventListener('blur', () => wheel.hide(false));
-
-addEventListener('keydown', (e) => {
-  if (e.code === 'Escape' && wheel.open) { wheel.hide(false); return; }
-  if (wheel.open && /^Digit[1-7]$/.test(e.code)) { wheel.pickIndex(Number(e.code.slice(5)) - 1); return; }
-  if (e.code === 'Escape' && !phone.open) { pause.toggle(); return; }
-  if (pause.open) { if (e.code === 'Tab') { e.preventDefault(); if (pause.tab === 'map') pause.toggle(false); else pause.show('map'); } return; }
-  if ((e.code === 'Space' || e.code === 'Enter') && (story.lines?.length || story.ext) && story.camera) { story.skip(); return; }
-  if (e.code === 'Slash') { helpTimer = helpTimer > 0 ? 0 : 30; $('help').classList.toggle('show', helpTimer > 0); }
-  audio.start();
-  if (e.repeat) return;
-  if (e.code === 'Tab') { e.preventDefault(); view.release(); cityMap.toggle(true, player); return; }
-  if (cityMap.open) return;
-  if (interiors.blocks(e.code)) return; // indoors: no vehicles, taxi duty, crackers, kicks or insults
-  if (e.code === 'KeyQ' && pressedTwice('Q', `Press Q again to switch graphics to ${nextTier(tierKey)} (the game reloads where you are)`)) changeQuality(nextTier(tierKey));
-  if (e.code === 'KeyH') honk();
-  if (e.code === 'KeyP') { view.release(); phone.toggle(); }
-  if (e.code === 'Escape' && phone.open) phone.toggle(false);
-  if (e.code === 'KeyJ') jobs.toggleDuty(player, jobs.onDuty ? jobs.mode : 'taxi'); // J ends whichever duty is on (fares or Bhookh deliveries)
-  if (e.code === 'KeyF') toggleFoot();
-  if (e.code === 'KeyN' && !onFoot) radio.next();
-  if (e.code === 'KeyC' && onFoot) { pichkari.nextColour(e.shiftKey ? -1 : 1); if (combat.weapon !== 'pichkari') combat.setWeapon('pichkari'); }
-  if (onFoot && e.code === 'KeyB' && !phone.open && !cityMap.open) { wheel.show(); return; }
-  if (onFoot && e.code === 'Digit1') combat.setWeapon('fists');
-  if (onFoot && e.code === 'Digit2') combat.setWeapon('pichkari');
-  if (onFoot && e.code === 'KeyV') combat.kick();
-  if (onFoot && e.code === 'KeyG') combat.abuse();
-  if (onFoot && e.code === 'KeyX') crackers.playerLight(walker, clock);
-  if (onFoot && e.code === 'KeyZ') crackers.next();
-  if (onFoot && e.code === 'BracketRight') pichkari.setPressure(pichkari.pressure + 1);
-  if (onFoot && e.code === 'BracketLeft') pichkari.setPressure(pichkari.pressure - 1);
-  if (e.code === 'KeyE') interact();
-  if (e.code === 'KeyT') skipHour();
-  if (e.code === 'KeyM') audio.toggleMute();
-});
-addEventListener('pointerdown', () => audio.start());
-// A hidden tab stops sound (and the radio doesn't pile up missed notes on return).
-document.addEventListener('visibilitychange', () => { audio.ctx?.[document.hidden ? 'suspend' : paused ? 'suspend' : 'resume']?.(); });
-// Touch screens: joystick, steering pad, pedals and context buttons (src/ui/touch.js).
-// A tap anywhere moves a cutscene on (Space).
-addEventListener('pointerdown', () => { if (story.camera && (story.lines?.length || story.ext)) story.skip(); });
-const touch = TOUCH ? new TouchControls(input, view, {
-  horn: () => { audio.start(); honk(); },
-  door: () => { audio.start(); toggleFoot(); },
-  radio: () => { audio.start(); if (!onFoot) radio.next(); },
-  duty: () => jobs.toggleDuty(player, jobs.onDuty ? jobs.mode : 'taxi'),
-  kick: () => combat.kick(),
-  insult: () => combat.abuse(),
-  weapon: () => combat.toggleWeapon(),
-  colour: () => { pichkari.nextColour(); combat.setWeapon('pichkari'); say(`💦 ${pichkari.colourName}`, 1.2); },
-  pressure: () => { pichkari.setPressure(pichkari.pressure % 5 + 1); say(`💦 Pressure ${pichkari.pressure}`, 1); },
-  cracker: () => { audio.start(); if (onFoot && !interiors.inside) crackers.playerLight(walker, clock); },
-  crackerType: () => crackers.next(),
-  interact: () => { audio.start(); interact(); },
-  time: () => skipHour(),
-  pause: () => pause.toggle(true),
-  fullscreen: () => toggleFullscreen(),
-}) : null;
-if (touch) combat.touch = true; // touch wording in the weapon hints
-/** Phones: full screen (and landscape where the browser allows it) gives the controls room. */
-function toggleFullscreen(on = !document.fullscreenElement) {
-  if (!document.fullscreenEnabled) return;
-  if (!on) { document.exitFullscreen?.().catch(() => {}); return; }
-  document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }).then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
-}
-// The first tap in the game asks for full screen once (a tap is needed: browsers refuse it otherwise).
-if (touch && !navigator.webdriver) addEventListener('pointerup', () => toggleFullscreen(true), { once: true });
-
-/** E: refuel at a pump (in the taxi), or buy a snack at a thela. */
-function interact() {
-  if (onFoot && interiors.interact()) return; // a door, or something to use indoors
-  if (onFoot && trains?.ride?.active) { trains.ride.alight(); return; }
-  if (onFoot && metro?.interact()) return; // metro: ticket counter, Line 3 entrance
-  if (onFoot && trains?.interact()) return; // local trains: the ticket window at a station
-  if (!onFoot) {
-    const p = nearestPump();
-    if (p && p.d < 16) { refuel(); return; }
-  }
-  if (jobs.buySnack(onFoot ? walker : player)) { if (onFoot) walker.health = Math.min(1, walker.health + 0.2); } // a vada pav heals
-  else say(onFoot ? 'Walk up to a thela (food cart) and press E to buy a snack' : 'Stop at a petrol pump or next to a thela and press E', 2.5);
-}
-
-/** Knocked out on foot: wake up at the spawn, minus the hospital bill. */
-function hospital() {
-  state.pay(1500, 'Hospital bill');
-  walker.health = 1;
-  onFoot = false; walker.spraying = false;
-  if (!garage.inTaxi) garage.toTaxi(); // like the tow: back in the kaali-peeli (a borrowed vehicle stays where it is)
-  respawn();
-  placeCamera(0);
-  say('You woke up in hospital. Bill: ₹1,500. Look both ways next time!', 5);
-}
-
-function honk() {
-  if (onFoot) { pichkari.nextColour(); combat.setWeapon('pichkari'); return; }
-  if (garage.spec?.pull) { if (walker.person) bubbles.say(walker.person, ['Bajoo! Bajoo!', 'Side, side!', 'Hato, hato!'][Math.floor(Math.random() * 3)], 1.6); } // handcart: shout, no horn
-  else if (state.owns('horn')) audio.musicalHorn?.(); else audio.play('horn', 0.9);
-  street.onHorn();
-  birds.scare(player.pos.x, player.pos.z, 10);
-  jobs.honk();
-  const ahead = traffic.honkedBy(player);
-  if (ahead && Math.random() < 0.3) bubbles.say(ahead, ['Haan bhai, jaa!', 'Kitna horn!', 'Udd ke jaayega kya?'][Math.floor(Math.random() * 3)], 2, 'driver');
-}
-$('btn-phone').addEventListener('click', (e) => { e.preventDefault(); audio.start(); phone.toggle(); });
-
-/** Camera app: hide the HUD for one frame and save a screenshot. */
-function takePhoto() {
-  document.body.classList.add('photo');
-  post.render();
-  creditedPhoto(renderer.domElement, post.grade).then((blob) => { // with the OpenStreetMap credit burnt in
-    document.body.classList.remove('photo');
-    if (!blob) return;
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `bombay-bawaal-${Date.now()}.png`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    say('Photo saved', 2);
-  });
-}
-
-function nearestPump() {
-  let best = null;
-  for (const [x, z] of index.fuel || []) {
-    const d = Math.hypot(x - player.pos.x, z - player.pos.z);
-    if (!best || d < best.d) best = { d, x, z };
-  }
-  return best;
-}
-function refuel() {
-  const p = nearestPump();
-  if (!p || p.d > 16) { say('No petrol pump here — find ⛽ on the map'); return; }
-  if (Math.abs(player.speed) > 1) { say('Stop at the pump to fill up'); return; }
-  const want = Math.round((1 - player.fuel) * 35);
-  const afford = Math.max(0, Math.floor(state.money / 103));
-  const litres = Math.min(want, afford);
-  if (litres > 0) { state.pay(litres * 103, `Petrol ${litres} L`); player.fuel = Math.min(1, player.fuel + litres / 35); }
-  say(want === 0 ? 'Tank already full' : litres < want ? (litres ? `Filled ${litres} L — that's all your money covers` : 'Not enough money for petrol — earn some with taxi fares (J)') : `Filled ${litres} L · ₹${litres * 103}`);
-  if (player.condition < 0.9) repairMenu();
-}
-
-/** The pump mechanic: a cheap patch-up or a full repair, priced before you pay. */
-function repairMenu() {
-  const full = Math.round((1 - player.condition) * 1800 / 10) * 10 + 150;
-  const patch = 350;
-  choice('Pump mechanic: "Gaadi ka haal kharab hai, saheb."', [
-    [`Patch-up · ₹${patch} · +30% (dents stay)`, () => { if (!state.canAfford(patch)) return say('Not enough money for the patch-up'); state.pay(patch, 'Patch-up at the pump'); player.condition = Math.min(1, player.condition + 0.3); say('Patched up. Runs better, still looks rough.'); }],
-    [`Full repair · ₹${full} · like new`, () => { if (!state.canAfford(full)) return say('Not enough money for a full repair'); state.pay(full, 'Full repair at the pump'); player.condition = 1; damage.repair(); say('Good as new — dents out, lamps fixed.'); }],
-    ['No thanks', () => {}],
+  progress(0.5, 'Loading Colaba…');
+  const world = new World(scene, physics, materials, tier);
+  const index = await world.init();
+  const [sky] = await Promise.all([
+    createSky(scene, tier),
+    world.whenReady(index.spawn.x, index.spawn.z, 320),
   ]);
-}
+  physics.world.step(); // scene queries (ray casts) only see colliders after a step
+  progress(0.75, 'Loading the main character…');
+  const hero = await loadHero(tierKey);
+  scene.add(hero.object);
+  const player = new OnFoot(physics, hero);
+  const spawnY = physics.groundAt(index.spawn.x, index.spawn.z) ?? 0.2;
+  player.place(index.spawn.x, spawnY, index.spawn.z, index.spawn.heading);
 
-/**
- * A small menu of choices (click or press 1, 2, 3…). Esc, a click outside the box or another
- * menu replacing it closes it without picking anything: then `onCancel` runs instead.
- */
-let closeChoice = null;
-function choice(title, options, onCancel = null) {
-  closeChoice?.(-1);
-  const box = $('choice');
-  box.innerHTML = `<b>${title}</b>${options.map(([label], i) => `<button data-i="${i}"><kbd>${i + 1}</kbd> ${label}</button>`).join('')}`;
-  box.hidden = false;
-  view.release();
-  const done = (i) => {
-    box.hidden = true; removeEventListener('keydown', key, true); removeEventListener('pointerdown', outside, true); closeChoice = null;
-    if (options[i]) options[i][1](); else onCancel?.();
-  };
-  closeChoice = done;
-  const key = (e) => { const i = Number(e.key) - 1; if (i >= 0 && i < options.length) { e.preventDefault(); e.stopPropagation(); done(i); } if (e.code === 'Escape') { e.stopPropagation(); done(-1); } };
-  const outside = (e) => { if (!box.contains(e.target)) done(-1); };
-  addEventListener('keydown', key, true);
-  addEventListener('pointerdown', outside, true); // capture: added now, so it misses the tap that opened the menu
-  box.onclick = (e) => { const b = e.target.closest('button'); if (b) done(Number(b.dataset.i)); };
-}
+  const cam = new ChaseCamera(camera, physics);
+  cam.yaw = index.spawn.heading;
+  const weapons = new Weapons(scene, physics, audio);
+  weapons.attach(hero.hand);
+  weapons.select(1);
 
-// ------------------------------------------------------------------ loop
-window.__gtb = { THREE, garage, crackers, stars, eggs, tiles, player, scene, camera, renderer, post, env, lib, tier, facadeDebug, clock, traffic, materials, input, facadeParts, signals, police, people, bubbles, street, animals, cityMap, state, jobs, phone, walker, pichkari, skids, damage, propPhysics, view, landmarks, streetProps, radio, characters, story, get combat() { return combat; }, toggleFoot, get onFoot() { return onFoot; } };
-window.__gtb.skyline = skyline;
-window.__gtb.navigator = navigator;
-window.__gtb.art = art;
-window.__gtb.vehicleArt = vehicleArt; // resolves to the ids of uploaded vehicle models in use
-window.__gtb.birds = birds;
-{ const startle = crackers.startle.bind(crackers); crackers.startle = (x, z, r, by) => { birds.scare(x, z, r); return startle(x, z, r, by); }; } // crackers scare the pigeons too
-window.__gtb.interiors = interiors;
-window.__gtb.structures = structures;
-window.__gtb.tickets = tickets;
-const cheats = new Cheats(window.__gtb, (t, s) => say(t, s));
-window.__gtb.cheat = (code) => cheats.enter(code);
-window.__gtb.cheats = cheats;
-const timer = new THREE.Timer();
-// Shadows: redraw the shadow map every frame on High, every other frame below.
-renderer.shadowMap.autoUpdate = false;
-let frameNo = 0;
-const crosshair = $('crosshair');
-let hudTimer = 0, lampTimer = 0, seaFactor = 0;
-// Dynamic resolution: when the graphics chip struggles, render fewer pixels rather than drop
-// frames (and give them back when there is room). Off in automated tests (fixed screenshots).
-const dynRes = { base: Math.min(devicePixelRatio, tier.pixelRatio), scale: 1, acc: 0, frames: 0, on: !navigator.webdriver && !query.has('fixedres') };
-const tierProbe = new TierProbe(tierKey);
-function setResolutionScale(k) {
-  dynRes.scale = k;
-  renderer.setPixelRatio(dynRes.base * k);
-  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
-  post.setSize(size.x, size.y);
-}
-renderer.setAnimationLoop((time) => {
-  timer.update(time);
-  const raw = Math.max(0, timer.getDelta()), dt = Math.min(raw, 0.05); // a frame stamped before a long task ended can give a negative delta
-  if (cityMap.open || paused) return; // paused while the map or the pause menu is open
-  if (dynRes.on && raw < 0.5) {
-    dynRes.acc += raw; dynRes.frames++;
-    if (dynRes.acc >= 2) {
-      const fps = dynRes.frames / dynRes.acc;
-      dynRes.acc = 0; dynRes.frames = 0;
-      if (fps < 34 && dynRes.scale > 0.6) setResolutionScale(Math.max(0.6, dynRes.scale - 0.1));
-      else if (fps > 56 && dynRes.scale < 1) setResolutionScale(Math.min(1, dynRes.scale + 0.05));
-    }
-    // Still under 40 fps at the lowest resolution: an automatically picked tier drops to Low.
-    if (tierProbe.update(raw, dynRes.scale)) { say('Graphics: switching to Low for a smoother game (Q changes it)', 3); setTimeout(() => changeQuality('low', true), 2500); }
-  }
-  if (helpTimer > 0) { helpTimer -= dt; if (helpTimer <= 0) $('help').classList.remove('show'); }
-  crosshair.hidden = !(onFoot && (view.aim || (combat.weapon === 'pichkari' && (view.locked || TOUCH))));
-  document.body.classList.toggle('onfoot', onFoot);
-  document.body.classList.toggle('cutscene', !!story.camera);
-  if (input.reset) { input.reset = false; if (pressedTwice('R', 'Press R again: a tow truck takes you and your taxi back to the Gateway (₹300 from far away)')) teleportHome(); }
-  step(dt);
-  // Shadows every frame while anything near the camera moves fast (otherwise a moving car's own
-  // shadow jumps behind it on alternate frames and the drive looks juddery); half rate when still.
-  const moving = Math.abs(onFoot ? walker.speed || 0 : player.speed) > 1.5;
-  renderer.shadowMap.needsUpdate = tier.name === 'High' || moving || (frameNo++ & 1) === 0;
-  post.render();
-});
+  progress(0.85, 'Parking cars…');
+  const cars = [];
+  const props = new Props(scene, physics);
+  await placeCarsAndProps(world, physics, scene, cars, props, index.spawn);
 
-/** One simulation step (also used by headless tests). */
-const NO_INPUT = {};
-const PARKED = { ...NO_INPUT, brake: true };
-function step(dt) {
-  const t0 = performance.now();
-  frameDt = dt;
-  clock.update(dt);
-  // The active body: the taxi, or the player on foot.
-  const body = onFoot ? walker : player;
-  // Indoors, the city carries on around the street door (interiors.anchor) while the walker is in the room.
-  const indoors = !!interiors.inside;
-  const active = indoors ? interiors.anchor : body;
-  const cutscene = !!story.camera;
-  player.update(dt, onFoot ? PARKED : cutscene ? NO_INPUT : input, world); // left on foot, the vehicle stands with its handbrake on
-  // Tyre marks and car sounds.
-  skids.track(player, player.slip || 0, player.braking);
-  audio.squeal(onFoot ? 0 : player.slip || 0);
-  audio.engine(player.speed, onFoot ? 0 : player.throttle || 0, !onFoot);
-  if (player.impact) {
-    if (player.impact > 2.5) {
-      audio.crash(Math.min(1, player.impact / 14));
-      if (garage.inTaxi) damage.impact(player.impactLocal[0], player.impactLocal[1], player.impact);
-      propPhysics.impact(player.impact, Math.sin(player.heading), Math.cos(player.heading));
-    }
-    player.impact = 0;
-  }
-  damage.update(dt, garage.inTaxi ? player : garage.homeBody, camera);
-  // The taxi's driver door swings open when you walk up to it on foot and shuts when you get in or drive off.
-  if (taxi.door) {
-    const T = garage.inTaxi ? player : garage.homeBody, near = onFoot && T && (walker.pos.x - T.pos.x) ** 2 + (walker.pos.z - T.pos.z) ** 2 < 12;
-    taxi.door.set(taxi.door.angle + ((near ? 1.1 : 0) - taxi.door.angle) * Math.min(1, dt * 6));
-  }
-  garage.update(dt);
-  traffic.taxi = police.taxi = garage.inTaxi ? player : garage.homeBody; // NPC cars and patrols avoid the parked taxi
-  if (!onFoot) propPhysics.sweep(player);
-  propPhysics.update(dt, onFoot ? null : player);
-  if (garage.inTaxi && player.condition > 0.97 && (damage.front || damage.rear)) damage.repair();
-  if (onFoot && jack) updateJack(dt);
-  const riding = !!trains?.ride?.active || !!metro?.r; // on a train: it carries the walker
-  if (onFoot && !jack && !riding) {
-    walker.update(dt, cutscene ? NO_INPUT : input, indoors ? interiors.world : footWorld, state.s.energy, clock.aqi, view);
-    // Careless drivers knock you over.
-    for (const c of traffic.cars) {
-      if (c.speed > 2 && Math.hypot(c.x - walker.pos.x, c.z - walker.pos.z) < 1.5 && walker.down <= 0) {
-        walker.knock(0.08 + c.speed * 0.02);
-        bubbles.say(c, 'Arre! Dekh ke chal!', 2, 'driver');
-      }
-    }
-    if (walker.health <= 0) hospital();
-  } else walker.health = Math.min(1, walker.health + dt * 0.002);
-  tiles.update(active.pos.x, active.pos.z);
-  traffic.update(dt, active, clock);
-  signals.update(dt, tiles, traffic, active.pos, clock.night);
-  people.cam = camera.position;
-  people.focus = body.pos;
-  people.begin();
-  police.onFoot = onFoot;
-  police.update(dt, active, clock);
-  street.onFoot = onFoot;
-  street.update(dt, active, clock);
-  clutter.drawPeople(clock.hour); // watchmen at compound gates, flower sellers, puja stall keepers
-  const fire = (input.fire || input.brake) && !indoors && !cutscene && !trains?.ride?.active && !metro?.r; // holstered indoors; Space skips cutscenes, it doesn't shoot
-  combat.update(dt, { fire }, onFoot);
-  if (!onFoot && !cutscene) combat.carVsPeople(player);
-  crackers.update(dt, clock, active.pos, camera.position, onFoot ? walker : null);
-  stars.update(dt, clock, active, clock.night);
-  eggs.update(dt, { player, onFoot, walker });
-  interiors.update(dt, onFoot); // doors on the street; indoors: the room's people, lights and things to use
-  story.update(dt, { player, onFoot, walker });
-  trains?.update(dt, active, onFoot); // local trains (after street life: they add level-crossing stops and doorway commuters)
-  trains?.ride?.update(dt, onFoot && !indoors); // boarding, riding in the doorway, ticket checkers
-  stations?.update(dt, active.pos); // platforms, footbridges and stairs near the player
-  metro?.update(dt, active, onFoot && !indoors); // metro viaducts, stations, trains; the player's metro ride
-  if (onFoot) walker.draw(people, combat.weapon);
-  else if (garage.seated) {
-    // Riding a two-wheeler or driving an auto: the player can be seen in the seat.
-    const seat = garage.spec.seat ?? 0.9, back = -(garage.spec.seatZ ?? -0.28), L = walker.look;
-    const P = (walker.person ||= { isPlayer: true, flags: 0, scale: 1, model: 0, hair: new THREE.Color(0x17110c) });
-    // A handcart is pulled on foot: the player walks between the shafts.
-    const pull = !!garage.spec.pull;
-    if (pull) walker.pullPhase = (walker.pullPhase || 0) + dt * Math.abs(player.speed) * 2.6;
-    Object.assign(P, { x: player.pos.x - Math.sin(player.heading) * back, y: pull ? tiles.groundHeight(player.pos.x, player.pos.z) : player.pos.y + seat - 0.42, z: player.pos.z - Math.cos(player.heading) * back, heading: player.heading, phase: pull ? walker.pullPhase : 0, pose: pull ? (Math.abs(player.speed) > 0.2 ? POSE.WALK : POSE.STAND) : POSE.SIT, amp: 1, speed: pull ? Math.abs(player.speed) : 0, shirt: L.shirt, pants: L.pants, skin: L.skin, patches: walker.patches });
-    people.add(P);
-  }
-  for (const r of traffic.riders) {
-    // Riders sit astride their bikes (most wear helmets); auto drivers sit up front in khaki,
-    // dabbawalas pedal in white caps; some autos carry a passenger on the bench.
-    const T = traffic.types[r.type], seat = T?.seat ?? 0.92, back = -(T?.seatZ ?? -0.28);
-    const sh = Math.sin(r.heading), ch = Math.cos(r.heading), L = r.look;
-    if (T?.pedal) r.pedal = (r.pedal || 0) + dt * (r.speed || 0) * 1.7;
-    if (T?.pull) {
-      // A porter walks between the shafts of his handcart, leaning into the crossbar.
-      r.pedal = (r.pedal || 0) + dt * (r.speed || 0) * 2.6;
-      people.add({ noHero: true, x: r.x - sh * back, y: tiles.groundHeight(r.x, r.z), z: r.z - ch * back, heading: r.heading, phase: r.pedal, pose: r.speed > 0.2 ? POSE.WALK : POSE.STAND, amp: 0.8, flags: L.cap ? FLAG.CAP : 0, scale: 1, shirt: L.shirt, pants: L.pants, skin: L.skin });
-      continue;
-    }
-    people.add({ noHero: true, x: r.x - sh * back, y: seat - (T?.pedal ? 0.86 : 0.42), z: r.z - ch * back, heading: r.heading, phase: r.pedal || 0, pose: T?.pedal ? POSE.PEDAL : POSE.SIT, amp: 1, flags: L.helmet ? FLAG.BERET : L.cap ? FLAG.CAP : 0, scale: 1, shirt: L.shirt, pants: L.pants, skin: L.skin });
-    if (r.pax && T.pax) people.add({ noHero: true, x: r.x + sh * T.pax.z - ch * 0.22, y: T.pax.seat - 0.42, z: r.z + ch * T.pax.z + sh * 0.22, heading: r.heading, phase: 0, pose: POSE.SIT, amp: 1, flags: r.pax.sari ? FLAG.SARI : 0, scale: 0.96, shirt: r.pax.shirt, pants: r.pax.pants, skin: r.pax.skin });
-  }
-  if (view.wheel) { pichkari.setPressure(pichkari.pressure - view.wheel); view.wheel = 0; }
-  pichkari.update(dt, onFoot ? walker : null, onFoot && combat.weapon === 'pichkari' && fire, view);
-  people.end();
-  placeCamera(dt);
-  bubbles.update(dt, camera);
-  if (!interiors.inside) env.update(dt, active.pos, clock); // indoors the room lights itself (interiors.lights)
-
-  // Night: lit windows and signs, glowing lamps, real lights on the nearest lamp posts.
-  const night = clock.night;
-  facadeNight.value = night;
-  landmarks.update(night);
-  streetProps.update(dt, active.pos);
-  art.update(active.pos);
-  facadeParts.update(dt, active, tiles, night);
-  clutter.update(dt, active, night);
-  skyline.update(active.pos);
-  birds.update(dt, active, clock.daylight);
-  tiles.props.lampMat.emissiveIntensity = night * 9;
-  const lamps = damage.headlampFactor(player.condition);
-  taxi.lights.headMat.emissiveIntensity = (0.2 + night * 5) * lamps;
-  headlamp.intensity = night * 420 * lamps;
-  lowBeam.intensity = night * 150 * lamps;
-  lampTimer -= dt;
-  if (lampTimer <= 0) {
-    lampTimer = night > 0.05 ? 0.12 : 0.4; // headlight cones follow the traffic
-    placeLampLights(night);
-    seaFactor = nearSea(active.pos);
-  }
-  for (const [x, z] of traffic.honks.splice(0)) {
-    const d = Math.hypot(x - active.pos.x, z - active.pos.z);
-    if (d < 80 && Math.random() < 0.6) audio.play(Math.random() < 0.25 ? 'truckHorn' : 'horn', 0.5 / (1 + d / 15));
-  }
-  audio.update(seaFactor, clock.traffic, clock.daylight);
-  if (interiors.inside) interiors.ambience(audio); // the street is a murmur behind the walls
-  radio.update(dt, !onFoot, settings.radio !== false, { clock, police, state, road: tiles.roadNameAt(player.pos.x, player.pos.z) });
-  cityMap.update(dt, active);
-  navigator.speech = settings.speech !== false;
-  navigator.update(dt, active, !onFoot);
-  state.update(dt, clock);
-  jobs.focus = active;
-  jobs.update(dt, player);
-  phone.update(dt);
-  minimap.update(dt, active, traffic);
-  hudTimer -= dt;
-  messageTimer -= dt;
-  if (hudTimer <= 0) { hudTimer = 0.2; updateHud(); }
-  cheats.update(dt);
-  window.__gtb.stepMs = window.__gtb.stepMs * 0.9 + (performance.now() - t0) * 0.1 || 0;
-}
-window.__gtb.step = step;
-
-// ------------------------------------------------------------------ local trains
-// Loaded once play has started (not part of the first load). Trains are solid and far heavier
-// than any car; their stations show on the map; E on foot at a station sells tickets.
-let trains = null;
-started.then(() => Promise.all([import('./sim/trains.js'), import('./sim/trainRide.js')]))
-  .then(([{ Trains }, { TrainRide }]) => Trains.create({ base: BASE, scene, renderer, camera, compile: (o) => post.compile(o, camera, scene), tiles, traffic, street, people, bubbles, audio, hud, state, clock, walker, player, view, structures, tickets, tier, stations: () => stations, snap: () => placeCamera(0) })
-    .then((t) => { if (t) t.ride = new TrainRide(t, { walker, tiles, structures, tickets, hud, bubbles, clock, audio, view, people, stations: () => stations, snap: () => placeCamera(0) }); return t; }))
-  .then((t) => { trains = window.__gtb.trains = t; })
-  .catch((err) => console.warn('Local trains are not available:', err));
-for (const w of [world, footWorld]) { const hits = w.hits; w.hits = (x, z, r, y) => hits(x, z, r, y) || !!trains?.hits(x, z, r) || clutter.hits(x, z, r); } // poles, shrines, stalls (world/clutter.js)
-window.__gtb.clutter = clutter;
-
-// ------------------------------------------------------------------ Tikitwala (phone ticket app)
-// Local tickets from the nearest station (not within about 30 m of the tracks, as with the real
-// app), metro QR tickets from the nearest metro station, the next trains, the tickets held.
-phone.tikitHtml = () => {
-  const P = onFoot ? walker.pos : player.pos, rows = [];
-  const near = trains?.nearestStation(P.x, P.z), m = metro?.stations.filter((s) => s.kind !== 'monorail' && s.ref !== 'Mono 1').reduce((b, s) => { const d = Math.hypot(s.x - P.x, s.z - P.z); return !b || d < b.d ? { s, d } : b; }, null);
-  if (near) {
-    const next = trains.nextTrains(near.name).slice(0, 3).map(([sec, L]) => `${L.to} ${L.fast ? 'F' : 'S'} ${sec < 20 ? 'now' : `${Math.ceil(sec / 60)} min`}`).join(' · ');
-    rows.push(`<h4>🚆 Local · ${near.name} (${(near.d / 1000).toFixed(1)} km)</h4><p class="small">Next: ${next || 'no trains now (1:15–4:15 am)'}</p>
-      <button class="primary" data-act="tikit:local" ${near.d < 35 ? 'disabled' : ''}>${near.d < 35 ? 'Too close to the tracks to book (step out of the station)' : 'Book a local ticket or pass'}</button>`);
-  }
-  if (m) rows.push(`<h4>🚇 Metro · ${m.s.name} (${metro.lineName(m.s)}, ${(m.d / 1000).toFixed(1)} km)</h4><p class="small">Next train ${metro.nextTrain(m.s)}</p><button class="primary" data-act="tikit:metro">Book a QR ticket</button>`);
-  rows.push(`<h4>My tickets</h4><p class="small">${tickets.describe()}</p>`);
-  return rows.join('');
-};
-phone.onTikit = (what) => {
-  const P = onFoot ? walker.pos : player.pos;
-  if (what === 'local' && trains) {
-    const near = trains.nearestStation(P.x, P.z);
-    if (near) tickets.open({ title: `🎫 Tikitwala — from ${near.name}`, sub: 'App ticket: show it on the phone when the checker asks.', sys: 'local', from: near.name, groups: trains.ticketGroups(near.name), where: 'app' });
-  }
-  if (what === 'metro' && metro) {
-    const m = metro.stations.filter((s) => s.ref !== 'Mono 1').reduce((b, s) => { const d = Math.hypot(s.x - P.x, s.z - P.z); return !b || d < b.d ? { s, d } : b; }, null);
-    if (m) tickets.open({ title: `🎫 Tikitwala — metro QR from ${m.s.name}`, sub: `${metro.lineName(m.s)}. Scan it at the gate.`, sys: 'metro', from: m.s.name, groups: metro.groups(m.s), where: 'app' });
-  }
-};
-
-// ------------------------------------------------------------------ stations
-// Raised platforms, foot overbridges, stairs, roofs, boards and indicators near the player
-// (tiles/stations.json → src/world/stations.js); walkable through `structures`.
-let stations = null;
-started.then(() => import('./world/stations.js'))
-  .then(({ Stations }) => Stations.create({ scene, tiles, structures, materials, clock, tier, trains: () => trains }))
-  .then((s) => { stations = window.__gtb.stations = s; })
-  .catch((err) => console.warn('Stations are not available:', err));
-
-// ------------------------------------------------------------------ metro and monorail
-// Line 1 and the ends of 2A, 7 and 2B on viaducts with walkable stations, fare gates and running
-// trains; Line 3's street entrances (underground rides); the closed monorail (src/world/metro.js).
-let metro = null;
-started.then(() => import('./world/metro.js'))
-  .then(({ Metro }) => Metro.create({ scene, tiles, structures, materials, clock, tier, state, tickets, hud, bubbles, people, walker, view, audio, compile: (o) => post.compile(o, camera, scene), snap: () => placeCamera(0) }))
-  .then((m) => {
-    metro = window.__gtb.metro = m;
-    if (m) m.otherBusy = () => !!stations?.job; // one builder per frame: the stations first, then the metro
-    if (m) { const markers = cityMap.markers; cityMap.markers = () => [...markers(), ...m.markers()]; }
-  })
-  .catch((err) => console.warn('Metro is not available:', err));
-{
-  const bodyAt = world.bodyAt, markers = cityMap.markers;
-  world.bodyAt = (x, z, r) => trains?.bodyAt(x, z, r) || bodyAt(x, z, r);
-  cityMap.markers = () => [...markers(), ...(trains?.markers() || [])];
-}
-
-function placeLampLights(night) {
-  if (night < 0.05) { lampLights.forEach((l) => (l.intensity = 0)); updateNightLights(0); return; }
-  const focus = interiors?.inside ? interiors.anchor.pos : onFoot ? walker.pos : player.pos;
-  // Lamp heads near the player: the mapped street lights, plus (every half second) a light every
-  // 30 m along the other streets, where the map has none — every road in Mumbai is lit at night.
-  lampScan -= 1;
-  if (lampScan <= 0 || !lampCache) { lampScan = 4; lampCache = gatherLamps(focus); }
-  const near = lampCache.map(([x, z, y]) => [(x - focus.x) ** 2 + (z - focus.z) ** 2, x, z, y ?? 8.4]).sort((a, b) => a[0] - b[0]);
-  updateNightLights(night, focus, near.map(([, x, z, y]) => [x, z, 1, y]), traffic.cars, tier, onFoot || damage.headlampFactor(player.condition) < 0.3 ? null : player);
-  lampLights.forEach((l, i) => {
-    const n = near[i];
-    if (!n || n[0] > 120 * 120) { l.intensity = 0; return; }
-    l.position.set(n[1], n[3] + 0.2, n[2]);
-    l.intensity = night * 30; // street lamps light a pool, not the whole facade
+  const hud = new Hud(world);
+  const tuning = new Tuning(() => cars);
+  const credits = await buildCredits();
+  let paused = false;
+  const menu = new Menu({
+    tier, backend: R.backend, credits,
+    onResume: () => { paused = false; input.release(); if (!AUTOMATION) renderer.domElement.requestPointerLock?.(); },
+    onSettings: (s) => { input.sensitivity = s.sensitivity; cam.invertY = s.invertY; audio.setVolume(s.volume); },
   });
-}
-let lampScan = 0, lampCache = null;
-function gatherLamps(focus) {
-  const out = [], R = 170;
-  const cell = new Set(), ck = (x, z) => `${Math.floor(x / 14)},${Math.floor(z / 14)}`;
-  for (const t of tiles.tiles.values()) {
-    const arr = t.points[POINT.LIGHT];
-    if (!arr) continue;
-    for (let i = 0; i < arr.length; i += 5) {
-      const ang = arr[i + 3], type = Math.round((arr[i + 4] - 1) * 4);
-      // Lamp heads: the plain and tall poles hang out over the road; heritage and globe posts light from the top.
-      const reach = type === 1 ? 2.4 : type >= 2 ? 0 : 1.9, y = [8.4, 10.6, 4.3, 5.0][type] ?? 8.4;
-      const x = arr[i] + t.origin[0] + Math.sin(ang) * reach, z = arr[i + 2] + t.origin[1] + Math.cos(ang) * reach;
-      if (Math.abs(x - focus.x) > R || Math.abs(z - focus.z) > R) continue;
-      out.push([x, z, y]); cell.add(ck(x, z));
+  document.addEventListener('pointerlockchange', () => {
+    if (!document.pointerLockElement && !AUTOMATION && !menu.open && hud.el && !hud.el.hidden) { paused = true; menu.show(); }
+  });
+
+  // ------------------------------------------------------------------ game state
+  let driving = null;     // the Vehicle being driven, or null on foot
+  let hitMarker = 0, fHeld = 0, underwater = 0;
+  const tmp = new THREE.Vector3();
+
+  function nearestCar(maxExtra = 1.6) {
+    let best = null, bd = Infinity;
+    for (const c of cars) {
+      const p = c.position;
+      const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z) - Math.max(c.model.dims.x, c.model.dims.z) / 2;
+      if (d < maxExtra && d < bd && Math.abs(p.y - player.pos.y) < 2.5) { bd = d; best = c; }
+    }
+    return best;
+  }
+
+  function enterCar(car) {
+    driving = car;
+    car.driver = player;
+    player.setActive(false);
+    hero.object.visible = true;
+    car.object.add(hero.object);
+    const [sx, sy, sz] = car.spec.seat;
+    // The driving pose bends the legs but keeps the hips 0.53 m above his feet: lower him onto the seat.
+    hero.object.position.set(sx, sy - 0.53, sz);
+    hero.object.rotation.set(0, 0, 0);
+    hero.play('drive', 1, 0.25);
+    weapons.gun.visible = false;
+    car.body.wakeUp();
+    hud.vehicleName(car.spec.name);
+    cam.idle = 2;
+  }
+
+  function exitCar() {
+    const car = driving;
+    // Out of the driver's door (right side), or the left if a wall is in the way.
+    const half = car.model.dims.x / 2 + 0.55;
+    let spot = null;
+    for (const side of [-1, 1]) {
+      const p = car.toWorld(side * half, 0.5, car.spec.seat[2], new THREE.Vector3());
+      const g = physics.groundAt(p.x, p.z, p.y + 1.5, 4);
+      const blocked = physics.cast(car.position.x, p.y, car.position.z, p.x - car.position.x, 0, p.z - car.position.z, 1, undefined, car.body);
+      if (g !== null && !blocked) { spot = { x: p.x, y: g, z: p.z }; break; }
+    }
+    if (!spot) { const p = car.position; spot = { x: p.x, y: p.y + car.model.dims.y + 0.3, z: p.z }; }
+    car.driver = null;
+    car.control(null);
+    scene.add(hero.object);
+    player.setActive(true);
+    player.place(spot.x, spot.y, spot.z, car.heading);
+    weapons.gun.visible = weapons.weapon.id === 'pistol';
+    driving = null;
+    audio.car(false, 0, 0, 0);
+  }
+
+  function actions(dt) {
+    if (input.pressed('pause')) { paused = true; input.unlock(); menu.show(); return; }
+    if (input.pressed('tuning')) tuning.toggle();
+    if (!driving) {
+      if (input.pressed('weapon1')) weapons.select(0);
+      if (input.pressed('weapon2')) weapons.select(1);
+      if (input.wheel) weapons.select((weapons.current + (input.wheel > 0 ? 1 : WEAPONS.length - 1)) % WEAPONS.length);
+      if (input.pressed('reload')) weapons.reload();
+      const near = nearestCar();
+      hud.prompt(near ? `<kbd>F</kbd>Get in · ${near.spec.name}` : '');
+      if (input.pressed('enter') && near) { enterCar(near); return; }
+    } else {
+      audio.horn(input.down('horn'));
+      if (input.down('enter')) fHeld += dt; else fHeld = 0;
+      if (driving.flippedTime > 1) { hud.prompt('<kbd>F</kbd>Hold to put the car back on its wheels'); if (fHeld > 0.6) { driving.rightUp(); fHeld = 0; } }
+      else { hud.prompt(''); if (input.pressed('enter')) exitCar(); }
     }
   }
-  for (const seg of traffic.segList || []) {
-    const s = seg.s;
-    if (s[4] < 2.5 || seg.len < 12) continue;
-    const mx = (s[0] + s[2]) / 2, mz = (s[1] + s[3]) / 2;
-    if (Math.abs(mx - focus.x) > R + seg.len / 2 || Math.abs(mz - focus.z) > R + seg.len / 2) continue;
-    const fx = (s[2] - s[0]) / seg.len, fz = (s[3] - s[1]) / seg.len;
-    // Same spacing phase for a road everywhere, so lights don't jump as the player moves.
-    for (let d = 6 + (Math.abs(Math.round(s[0] + s[1])) % 30); d < seg.len - 3; d += 30) {
-      const side = Math.round(d / 30) % 2 ? 1 : -1, o = Math.max(0, s[4] - 1.4) * side;
-      const x = s[0] + fx * d + fz * o, z = s[1] + fz * d - fx * o;
-      if (Math.abs(x - focus.x) > R || Math.abs(z - focus.z) > R || cell.has(ck(x, z))) continue;
-      out.push([x, z]); cell.add(ck(x, z));
+
+  function simulate() {
+    const aiming = !driving && weapons.weapon.id === 'pistol' && (input.aim || input.fire);
+    if (driving) driving.control(input); else player.step(input, cam.yaw, aiming);
+    for (const c of cars) c.step();
+    physics.world.step();
+  }
+
+  // ------------------------------------------------------------------ loop
+  let last = performance.now(), acc = 0, frames = 0, fpsT = 0, fps = 0, simMs = 0;
+  const statsEl = $('stats');
+  let showStats = params.has('stats');
+  addEventListener('keydown', (e) => { if (e.code === 'Backquote') showStats = !showStats; });
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    input.update(dt);
+    $('click-to-play').hidden = paused || input.locked || AUTOMATION || input.usingPad;
+    if (!paused) {
+      actions(dt);
+      cam.look(input);
+      const t0 = performance.now();
+      acc += dt;
+      let n = 0;
+      while (acc >= STEP && n < 5) { simulate(); acc -= STEP; n++; }
+      if (n === 5) acc = 0;
+      simMs = performance.now() - t0;
+      tick(dt);
+    }
+    try { R.render(); } catch (e) { if (!frame.failed) console.error('render failed:', e); frame.failed = true; }
+    frames++; fpsT += dt;
+    if (fpsT > 0.5) { fps = frames / fpsT; frames = 0; fpsT = 0; }
+    if (showStats) {
+      statsEl.hidden = false;
+      const info = renderer.info.render;
+      const p = driving ? driving.position : player.pos;
+      statsEl.textContent = `${fps.toFixed(0)} fps · ${R.backend} · ${tier.name}\nsim ${simMs.toFixed(1)} ms · draw calls ${info.drawCalls ?? info.calls} · triangles ${(info.triangles / 1000).toFixed(0)}k\ntiles ${world.tiles.size} · bodies ${physics.world.bodies.len()}\nx ${p.x.toFixed(1)} z ${p.z.toFixed(1)} y ${p.y.toFixed(2)}`;
+    } else statsEl.hidden = true;
+  }
+
+  /** Per rendered frame: copy physics poses, animate, camera, HUD, streaming. */
+  function tick(dt) {
+    for (const c of cars) c.sync();
+    props.sync();
+    const aiming = !driving && weapons.weapon.id === 'pistol' && (input.aim || input.fire);
+    let shot = null;
+    if (!driving) {
+      shot = weapons.update(dt, input.fire, camera, player.body);
+      if (shot?.punch) { hero.play('jab', 1.4, 0.05); punch(); }
+      if (shot && !shot.punch) { cam.kick(0.012); if (shot.collider && shot.collider.parent()?.isDynamic()) hitMarker = 0.15; }
+      player.sync(dt, aiming, weapons.cool > weapons.weapon.rate * 0.4 && weapons.weapon.id === 'pistol');
+    } else {
+      weapons.update(dt, false, camera, null);
+      hero.update(dt);
+      const v = driving.body.linvel();
+      const slip = driving.vc ? lateralSlip(driving) : 0;
+      audio.car(true, Math.min(1, Math.abs(driving.speed) / driving.spec.top * 0.9 + 0.12 + (driving.gear > 0 ? (Math.abs(driving.speed) * 3.6 % 22) / 60 : 0)), input.throttle, slip);
+      if (driving.crash > 3) { audio.crash(driving.crash); cam.shake = Math.min(1, driving.crash * 0.08); }
+      void v;
+    }
+    hitMarker = Math.max(0, hitMarker - dt);
+    // In the sea: no swimming yet — back to the street (and the car back to the kerb).
+    const sink = driving ? driving.position.y : player.pos.y;
+    if (sink < Y.SEA - 0.8) {
+      underwater += dt;
+      if (underwater > (driving ? 2 : 0.6)) {
+        underwater = 0;
+        const s = index.spawn, g = physics.groundAt(s.x, s.z) ?? 0.2;
+        if (driving) { const car = driving; exitCar(); car.body.setTranslation({ x: s.x + 4, y: g + 0.4, z: s.z }, true); car.body.setRotation({ x: 0, y: Math.sin(s.heading / 2), z: 0, w: Math.cos(s.heading / 2) }, true); car.body.setLinvel({ x: 0, y: 0, z: 0 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true); }
+        player.place(s.x, g, s.z, s.heading);
+        hud.message('Mumbai traffic is dangerous enough — no swimming. Back to Apollo Bunder.', 5);
+      }
+    } else underwater = 0;
+    // Camera (tests can take it over with __game.freeCam).
+    if (window.__game?.freeCam) { /* left alone */ } else if (driving) {
+      const p = driving.position;
+      tmp.set(p.x, p.y + driving.model.dims.y * 0.8, p.z);
+      cam.update(dt, tmp, 'car', driving.heading, Math.abs(driving.speed), driving.model.dims.z, driving.body);
+    } else {
+      tmp.set(player.pos.x, player.eye, player.pos.z);
+      cam.update(dt, tmp, aiming ? 'aim' : 'foot', player.heading, player.speed, 1, player.body);
+    }
+    const focus = driving ? driving.position : player.pos;
+    sky.follow(focus.x, focus.y, focus.z);
+    world.update(focus.x, focus.z);
+    hud.update({
+      health: player.health, armour: player.armour, weapon: weapons.weapon, ammo: weapons.state, reloading: weapons.reloading > 0,
+      aiming: aiming && !driving, speed: driving?.speed || 0, gear: driving?.gear || 1, inCar: !!driving,
+      x: focus.x, z: focus.z, yaw: cam.yaw, cars: cars.filter((c) => c !== driving).map((c) => c.position.clone()), hit: hitMarker > 0,
+    });
+  }
+
+  function punch() {
+    const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
+    const h = physics.cast(player.pos.x, player.pos.y + 1.2, player.pos.z, fx, 0, fz, 1.3, undefined, player.body);
+    const body = h?.collider.parent();
+    if (body?.isDynamic()) setTimeout(() => body.applyImpulseAtPoint({ x: fx * 40, y: 8, z: fz * 40 }, h.point, true), 180);
+  }
+
+  function lateralSlip(car) {
+    let s = 0;
+    for (let i = 0; i < car.vc.numWheels(); i++) s = Math.max(s, Math.abs(car.vc.wheelSideImpulse(i) || 0));
+    return Math.min(1, s / (car.spec.mass * 0.05));
+  }
+
+  // ------------------------------------------------------------------ start
+  progress(1, 'Ready');
+  hud.show();
+  hud.message(`${AREA.name}, Mumbai. Click to take control.`, 6);
+  hud.message('F — get in a car · Right mouse — aim · Left mouse — shoot · Esc — menu', 8);
+  setTimeout(() => $('loading').classList.add('done'), 150);
+  requestAnimationFrame((t) => { last = t; frame(t); });
+
+  window.__game = {
+    THREE, R, scene, camera, renderer, physics, world, player, hero, cars, props, weapons, input, cam, hud, menu, sky, audio,
+    get driving() { return driving; },
+    enterNearest() { const c = nearestCar(6); if (c) enterCar(c); return !!c; },
+    exit() { if (driving) exitCar(); },
+    /** Advance the simulation n fixed steps without rendering (headless tests). */
+    step(n = 1) { for (let i = 0; i < n; i++) { input.update(STEP); simulate(); } tick(STEP * n); },
+    render() { R.render(); },
+  };
+}
+
+async function placeCarsAndProps(world, physics, scene, cars, props, spawn) {
+  // Parked at the left kerb (India drives on the left) of the streets near the spawn.
+  const segs = world.segmentsNear(spawn.x, spawn.z, 140).filter((s) => s.len > 14 && s.hw > 3).sort((a, b) => Math.hypot((a.ax + a.bx) / 2 - spawn.x, (a.az + a.bz) / 2 - spawn.z) - Math.hypot((b.ax + b.bx) / 2 - spawn.x, (b.az + b.bz) / 2 - spawn.z));
+  const ids = Object.keys(CARS);
+  let k = 0;
+  const used = [];
+  for (const s of segs) {
+    if (k >= 8) break;
+    const dx = (s.bx - s.ax) / s.len, dz = (s.bz - s.az) / s.len;
+    const lx = dz, lz = -dx; // left of travel
+    for (const f of [0.3, 0.7]) {
+      if (k >= 8) break;
+      const x = s.ax + dx * s.len * f + lx * (s.hw - 1.15), z = s.az + dz * s.len * f + lz * (s.hw - 1.15);
+      if (used.some((u) => Math.hypot(u[0] - x, u[1] - z) < 7)) continue;
+      const g = physics.groundAt(x, z, 30, 40);
+      if (g === null || g > 0.12) continue; // must be on the asphalt
+      used.push([x, z]);
+      const id = ids[k % ids.length];
+      const model = await loadCarModel(id).catch((e) => { console.warn('car', id, e); return null; });
+      if (!model) continue;
+      const car = new Vehicle(physics, model, x, g + 0.05, z, Math.atan2(dx, dz));
+      scene.add(car.object);
+      car.sync();
+      cars.push(car);
+      k++;
     }
   }
-  return out;
-}
-
-/** 0..1: how much open sea is around the player, on foot or driving (for wave sounds). */
-function nearSea(at) {
-  let wet = 0;
-  for (let k = 0; k < 8; k++) {
-    const a = (k / 8) * Math.PI * 2;
-    if (!tiles.walkable(at.x + Math.cos(a) * 45, at.z + Math.sin(a) * 45)) wet++;
+  // A few crates and bins on the footpath by the spawn.
+  const s = segs[0];
+  if (s) {
+    const dx = (s.bx - s.ax) / s.len, dz = (s.bz - s.az) / s.len, rx = -dz, rz = dx;
+    const kinds = ['crate', 'crate', 'plastic', 'plastic', 'bin', 'crate', 'plastic', 'bin'];
+    let i = 0;
+    for (const kind of kinds) {
+      const x = spawn.x + rx * (s.hw + 2.2) + dx * (4 + i * 1.4), z = spawn.z + rz * (s.hw + 2.2) + dz * (4 + i * 1.4);
+      const g = physics.groundAt(x, z, 30, 40);
+      if (g !== null) await props.add(kind, x, g, z, i * 0.7).catch((e) => console.warn('prop', kind, e));
+      i++;
+    }
+    props.syncAll();
   }
-  return Math.min(1, wet / 3);
 }
 
-// Click the coordinates to copy them (works when the mouse is free; press Esc first if the pointer is captured)
-$('coords').addEventListener('click', () => {
-  const el = $('coords'), text = el.textContent;
-  if (!text) return;
-  const done = () => { el.textContent = 'Copied ✓'; el.dataset.hold = '1'; setTimeout(() => { delete el.dataset.hold; }, 1200); };
-  const fallback = () => {
-    const ta = document.createElement('textarea');
-    ta.value = text; document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
-    ta.remove();
-  };
-  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+async function buildCredits() {
+  let carLines = [];
+  try {
+    const md = await fetch(`${BASE}art/CREDITS.md`).then((r) => r.text());
+    const files = Object.values(CARS).map((c) => c.file);
+    carLines = md.split('\n').filter((l) => files.some((f) => l.includes(`vehicles/${f}`))).map((l) => l.replace(/^- /, ''));
+  } catch { /* offline */ }
+  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  return `
+    <p><b>Map data © OpenStreetMap contributors</b> (Open Database License).</p>
+    <p><b>Main character:</b> "Indian Man In Casuals" by Pixel_Monster, CC BY 4.0.</p>
+    <p><b>Cars</b> (CC BY 4.0):</p><ul>${carLines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>
+    <p><b>Materials, sky and props:</b> Poly Haven and ambientCG (CC0). <b>Sounds:</b> Freesound contributors (see media/CREDITS.md).
+    <b>Animations:</b> Quaternius Universal Animation Library (CC0).</p>
+    <p>Physics: Rapier (Apache 2.0). Rendering: three.js (MIT).</p>`;
+}
+
+boot().catch((e) => {
+  console.error(e);
+  $('load-text').textContent = `Could not start: ${e.message}`;
 });
-
-let shownStars = -1, shownHints = '', shownMessage = null, wasOnFoot = false, vehTimer = 0;
-/** The name of the vehicle you just got into, in a bottom corner for 1.5 seconds. */
-function showVehicleName() {
-  const el = $('vehname');
-  el.querySelector('i').textContent = vehicleIcon(garage.inTaxi ? 'taxi' : garage.type);
-  el.querySelector('b').textContent = garage.inTaxi ? 'Kaali-peeli taxi' : garage.spec.name;
-  el.classList.add('on');
-  clearTimeout(vehTimer);
-  vehTimer = setTimeout(() => el.classList.remove('on'), 1500);
-}
-const HINTS = {
-  drive: [['W A S D', 'Drive'], ['Space', 'Handbrake'], ['H', 'Horn'], ['N', 'Radio'], ['P', 'Phone'], ['F', 'Get out']],
-  foot: [['W A S D', 'Walk'], ['Shift', 'Run'], ['Click', 'Punch'], ['B', 'Weapons'], ['V', 'Kick'], ['F', 'Get in']],
-  inside: [['W A S D', 'Walk'], ['E', 'Use'], ['P', 'Phone']],
-};
-const speedo = initSpeedo($('speed'));
-const GEO_RAD = Math.PI / 180;
-const GEO_M_LAT = 111132.92 - 559.82 * Math.cos(2 * 19.03 * GEO_RAD) + 1.175 * Math.cos(4 * 19.03 * GEO_RAD);
-const GEO_M_LON = 111412.84 * Math.cos(19.03 * GEO_RAD) - 93.5 * Math.cos(3 * 19.03 * GEO_RAD);
-
-function setMeterIcon(label, name) { const mi = label.closest('.meter').querySelector('.mi'); if (mi.dataset.ic !== name) { mi.dataset.ic = name; mi.innerHTML = icon(name); } }
-function updateHud() {
-  if (wasOnFoot && !onFoot) showVehicleName();
-  wasOnFoot = onFoot;
-  const hintMode = interiors.inside ? 'inside' : onFoot ? 'foot' : 'drive';
-  if (hintMode !== shownHints) { shownHints = hintMode; $('hintbar').innerHTML = HINTS[hintMode].map(([k, v]) => `<span><b>${k}</b> ${v}</span>`).join(''); }
-  const mover = onFoot ? walker : player;
-  const hour = clock.hour;
-  speedo.update({ kmh: Math.round(Math.abs(mover.speed) * 3.6), reverse: mover.speed < -0.3, foot: onFoot, fuel: player.fuel, cond: player.condition, night: hour < 6 || hour >= 18.5 });
-  $('fuel-label').textContent = onFoot ? 'Stamina' : 'Fuel';
-  $('cond-label').textContent = onFoot ? 'Health' : 'Car';
-  const here = onFoot ? walker : player;
-  $('road').textContent = interiors.inside ? interiors.inside.name : tiles.roadNameAt(here.pos.x, here.pos.z);
-  // Real-world position: inverse of the converter's projection (scripts/build-tiles.mjs), origin Mahim 19.03, 72.85
-  if (!$('coords').dataset.hold) $('coords').textContent = interiors.inside ? '' : `${(19.03 - here.pos.z / GEO_M_LAT).toFixed(5)}, ${(72.85 + here.pos.x / GEO_M_LON).toFixed(5)}`;
-  $('clock').textContent = clock.label;
-  const [label, colour] = clock.aqiLabel;
-  $('aqi').innerHTML = `AQI <b style="color:${colour}">${clock.aqi}</b> ${label}`;
-  $('fuel-bar').style.width = `${Math.round((onFoot ? walker.stamina : player.fuel) * 100)}%`;
-  $('fuel-bar').classList.toggle('low', player.fuel < 0.15);
-  $('cond-bar').style.width = `${Math.round((onFoot ? walker.health : player.condition) * 100)}%`;
-  $('weapon').hidden = !onFoot || !!touch;
-  if (onFoot) {
-    // Only the active weapon shows (B opens the wheel to switch); written only when it changes.
-    const pk = combat.weapon === 'pichkari';
-    const html = TOUCH ? '' : pk
-      ? `<div class="slot one on" style="--dot:#${HOLI[pichkari.colour].getHexString()}"><i>${icon('droplets')}</i><div class="meta"><b>Pichkari</b><small><em></em>${pichkari.colourName} · ${'●'.repeat(pichkari.pressure)}${'○'.repeat(5 - pichkari.pressure)}</small></div><u style="--f:${pichkari.tank.toFixed(2)}"></u></div>`
-      : `<div class="slot one on"><i>${icon('hand-fist')}</i><div class="meta"><b>Fists</b><small>click · ×3 combo</small></div></div>`;
-    if (html !== weaponHtml) $('weapon').innerHTML = weaponHtml = html;
-  }
-  const foe = onFoot ? combat.foe : null;
-  $('foe').hidden = !foe;
-  if (foe) $('foe').innerHTML = `${icon('hand-fist')} Opponent <i><b style="width:${Math.round(Math.max(0, Math.min(1, foe.hp ?? 1)) * 100)}%"></b></i>${combat.blocking ? ' · blocking' : ''}`;
-  document.body.classList.toggle('hurt', onFoot && walker.hurt > 0.05);
-  $('food-bar').style.width = `${Math.round(state.s.hunger * 100)}%`;
-  $('food-bar').classList.toggle('low', state.s.hunger < 0.2);
-  $('energy-bar').style.width = `${Math.round(state.s.energy * 100)}%`;
-  for (const id of ['fuel', 'cond', 'food', 'energy']) { const m = $(`${id}-bar`).closest('.meter'), v = Math.round(parseFloat($(`${id}-bar`).style.width) || 0); if (m.dataset.v !== String(v)) m.dataset.v = v; }
-  setMeterIcon($('fuel-label'), onFoot ? 'footprints' : 'fuel');
-  setMeterIcon($('cond-label'), onFoot ? 'heart' : 'shield');
-  $('mm-state').className = police.stars ? 'wanted' : 'safe';
-  $('mm-state').textContent = police.stars ? `Wanted ${'★'.repeat(police.stars)}` : 'Safe';
-  $('btn-phone').dataset.unread = state.unread || '';
-  $('keys').firstElementChild.dataset.unread = state.unread || '';
-  $('money').textContent = `₹${player.money.toLocaleString('en-IN')}`;
-  $('money').classList.toggle('debt', player.money < 0);
-  const w = $('wanted');
-  if (police.stars !== shownStars) { shownStars = police.stars; w.innerHTML = Array.from({ length: 5 }, (_, i) => `<i${i < police.stars ? ' class="on"' : ''}>★</i>`).join(''); w.classList.toggle('none', !police.stars); }
-  w.title = police.fines ? `Unpaid challans: ₹${police.fines.toLocaleString('en-IN')}` : '';
-  w.classList.toggle('blink', police.stars > 0 && police.unseen > 0.6);
-  if (messageTimer <= 0) {
-    if (police.flagger) message = 'Traffic police is waving you down: stop next to him to pay the challan';
-    else if (police.stars >= 2 && police.patrols.length) message = 'Police chasing! Stop to pay up, or get out of sight';
-    const p = nearestPump();
-    if (!police.flagger && !(police.stars >= 2 && police.patrols.length)) message = player.fuel <= 0 ? (touch ? 'Out of fuel! ⏸ → Call a tow truck' : 'Out of fuel! Press R to get towed back') :
-      p && p.d < 16 ? (touch ? 'Petrol pump: stop and tap ⛽ Fill up' : 'Petrol pump: stop and press E to fill up') :
-      player.fuel < 0.12 ? 'Low fuel — find ⛽ on the map' :
-      player.condition < 0.35 ? 'Car is battered: get it checked at a ⛽' :
-      state.s.hunger < 0.15 ? 'Pet mein chuhe daud rahe hain! Eat at a thela (E) or order on Bhookh (P)' :
-      state.s.energy < 0.12 ? 'So tired… have a cutting chai (E at a thela)' : '';
-    if (interiors.prompt && !police.flagger) message = interiors.prompt; // "E: enter …" at a door, things to use indoors
-    if (trains?.ride?.prompt && !police.flagger) message = trains.ride.prompt; // "F: board", "F: get off"
-    if (metro?.prompt && !police.flagger) message = metro.prompt; // metro: gates, counters, boarding
-    if (!message && !police.flagger) message = vehiclePrompt();
-    if (touch) message = message.replace(/^[EF]: /, ''); // the context button is the key on a touch screen
-  }
-  if (message !== shownMessage) { shownMessage = message; $('message').textContent = message; }
-  $('message').style.opacity = message ? 1 : 0;
-  touch?.update(touchState());
-}
-
-// ------------------------------------------------------------------ touch controls: what to show
-const VEHICLE_ICON = { padmini: '🚕', taxi: '🚕', taxiI10: '🚕', bus: '🚌', decker: '🚌', school: '🚌', ace: '🚚', tempo: '🚚', tanker: '🚚', compactor: '🚚', scooter: '🛵', delivery: '🛵', bike: '🏍️', bullet: '🏍️', ambulance: '🚑', auto: '🛺', cycle: '🚲', dabba: '🚲' };
-const vehicleIcon = (type) => VEHICLE_ICON[type] || (/taxi/i.test(type) ? '🚕' : '🚗');
-/** A short button for an "E: …" prompt (doors, things to use indoors). */
-function promptButton(prompt) {
-  const t = prompt.slice(prompt.indexOf('E:') + 2).trim().toLowerCase();
-  if (/^go (out|outside|down)/.test(t)) return { icon: '🚪', label: 'Exit' };
-  if (/^(enter|go up|go in)/.test(t)) return { icon: '🚪', label: 'Enter' };
-  if (/sleep/.test(t)) return { icon: '🛏️', label: 'Sleep' };
-  if (/ticket/.test(t)) return { icon: '🎫', label: 'Ticket' };
-  if (/chai|tea|maska|vada|tiffin/.test(t)) return { icon: '☕', label: 'Buy' };
-  if (t.includes('₹')) return { icon: '🛒', label: 'Buy' };
-  return { icon: '✋', label: 'Use' };
-}
-/** What the touch controls show right now (src/ui/touch.js reads this five times a second). */
-function touchState() {
-  if (story.camera || phone.open || cityMap.open) return { mode: 'hidden' };
-  const st = story.active?.steps[story.s.step];
-  const wait = !!st?.waitHour && !(clock.hour >= st.waitHour[0] && clock.hour <= st.waitHour[1]); // a mission waits for an hour
-  if (!onFoot) {
-    const pump = nearestPump();
-    const interact = pump && pump.d < 16 ? { icon: '⛽', label: 'Fill up' } : jobs.stallNear(player) ? { icon: '☕', label: 'Snack' } : null;
-    return {
-      mode: 'drive', stopped: Math.abs(player.speed) < 0.6, canExit: Math.abs(player.speed) <= 2,
-      radio: settings.radio !== false, duty: jobs.onDuty ? true : jobs.canFare() ? false : null, interact, wait,
-    };
-  }
-  const indoor = !!interiors.inside;
-  let vehicle = null;
-  const c = !indoor && !jack ? vehicleChoice() : null;
-  if (c?.own) vehicle = { icon: c.taxi ? '🚕' : vehicleIcon(garage.type), label: 'Get in' };
-  else if (c) {
-    const v = c.other.v;
-    vehicle = { icon: vehicleIcon(v.type), label: v.lent ? 'Take it' : v.taken ? 'Get in' : 'Steal', warn: !v.lent && !v.taken && police.witness(walker.pos.x, walker.pos.z) };
-  }
-  let interact = null;
-  if (interiors.prompt?.includes('E:')) interact = promptButton(interiors.prompt);
-  else if (!indoor && trains?.here && !trains.riding) interact = { icon: '🎫', label: 'Ticket' };
-  else if (!indoor && jobs.stallNear(walker)) interact = { icon: '☕', label: 'Snack' };
-  return {
-    mode: 'foot', indoor, weapon: combat.weapon, colour: `#${HOLI[pichkari.colour].getHexString()}`, pressure: pichkari.pressure,
-    tank: pichkari.tank, cracker: crackers.current.name.split(' (')[0], fight: !!combat.foe, vehicle, interact, wait,
-  };
-}
-
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-  dynRes.base = Math.min(devicePixelRatio, tier.pixelRatio); renderer.setPixelRatio(dynRes.base * dynRes.scale);
-  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
-  post.setSize(size.x, size.y);
-});
-
-/** Load the Devanagari + Latin sign fonts from media/ and redraw the shop signs with them. */
-async function loadSignFonts(library, signs) {
-  if (!library.available || !('FontFace' in window)) return;
-  const want = { deva: ['font-baloo2', 'Baloo 2'], latin1: ['font-yatraone', 'Yatra One'], latin2: ['font-rozhaone', 'Rozha One'], latin3: ['font-teko', 'Teko'] };
-  const families = {};
-  await Promise.all(Object.entries(want).map(async ([slot, [id, family]]) => {
-    const url = library.url(id);
-    if (!url) return;
-    try {
-      const face = await new FontFace(family, `url(${url})`).load();
-      document.fonts.add(face);
-      families[slot] = family;
-    } catch { /* keep the fallback font */ }
-  }));
-  signs.redraw(families);
-}
