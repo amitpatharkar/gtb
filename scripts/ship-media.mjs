@@ -188,18 +188,15 @@ const afterBytes = size(walk(MEDIA));
 console.log(`ship-media: ${kept.length} of ${manifest.assets.length} assets ship, media ${MB(before)} → ${MB(afterBytes)}${removed.length ? ` (left out: ${removed.map((a) => a.id).join(', ')})` : ''}`);
 
 // ------------------------------------------------------------------ owner uploads
-// public/art/vehicles holds the raw uploads (often 5–40 MB each). Only the files the game names
-// in src/ (the car list in src/vehicles/carModel.js) ship; the rest stay in git for later.
+// public/art/vehicles holds the raw car uploads (often 5–40 MB each): the game loads only the light
+// copies scripts/cars.mjs makes in art/cars, so the raw files (and anything in models/ or opt/) never ship.
 {
   const ART = path.join(path.dirname(MEDIA), 'art');
   let dropped = 0, bytes = 0;
   for (const dir of ['models', 'vehicles', 'opt']) {
     const d = path.join(ART, dir);
     if (!fs.existsSync(d)) continue;
-    for (const f of walk(d)) {
-      if (!/\.(glb|gltf|bin|png|jpe?g)$/i.test(f) || code.includes(path.basename(f))) continue;
-      bytes += fs.statSync(f).size; fs.rmSync(f); dropped++;
-    }
+    for (const f of walk(d)) { if (/\.md$/i.test(f)) continue; bytes += fs.statSync(f).size; fs.rmSync(f); dropped++; }
   }
-  if (dropped) console.log(`ship-media: ${dropped} art files the game does not use left out of the site (${MB(bytes)})`);
+  if (dropped) console.log(`ship-media: ${dropped} raw art files left out of the site (${MB(bytes)})`);
 }

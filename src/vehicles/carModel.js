@@ -1,6 +1,7 @@
 // Car models: owner-uploaded GLB files (public/art/vehicles/, CC BY, credited in
-// public/art/CREDITS.md), loaded as-is, turned to face +z, scaled to the real car's length and
-// set on the ground. Wheels are found by node name, grouped into the four corners and moved
+// public/art/CREDITS.md), made light by scripts/cars.mjs (public/art/cars/<id>.glb: no textures,
+// simplified, meshopt-compressed), turned to face +z, scaled to the real car's length and set on
+// the ground. Wheels are found by node name, grouped into the four corners and moved
 // into their own pivots so they can spin, steer and follow the suspension.
 import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -8,27 +9,8 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const BASE = import.meta.env.BASE_URL;
 
-// Visible names are parodies (no real brands). length: metres bumper to bumper. turn: extra
-// rotation (radians) so the car faces +z. seat: driver's hip position (model space, right-hand drive).
-// Handling numbers are a starting point; the tuning panel (F2) changes them live.
-export const CARS = {
-  ambassador: {
-    file: 'hindustan_ambassador.glb', name: 'Hindostan Envoy', length: 4.33, turn: Math.PI, drive: 'rear', mass: 1150,
-    accel: 3.6, top: 36, seat: [-0.36, 0.55, -0.25],
-  },
-  wagonr: {
-    file: 'wagon_r_tkanimationsd742.glb', name: 'Wagon Arre', length: 3.6, turn: 0, drive: 'front', mass: 880,
-    accel: 3.9, top: 40, seat: [-0.33, 0.55, -0.1],
-  },
-  sx4: {
-    file: 'suzuki_sx4_sportback.glb', name: 'Zuzuki SX5', length: 4.15, turn: Math.PI, drive: 'front', mass: 1150,
-    accel: 4.4, top: 48, seat: [-0.36, 0.55, -0.2],
-  },
-  city: {
-    file: '2008_honda_city_v_at.glb', name: 'Handa Metro', length: 4.4, turn: 0, drive: 'front', mass: 1100,
-    accel: 4.6, top: 50, seat: [-0.36, 0.55, -0.25],
-  },
-};
+export { CARS } from './cars.js';
+import { CARS } from './cars.js';
 
 const WHEEL = /wheel|tire|tyre|rim\b|rim_|roda/i;
 const NOT_WHEEL = /steer|stwheel|dummy|arch|well|mud|spare|brake|caliper|disc/i;
@@ -41,7 +23,7 @@ const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const cache = new Map();
 
 export function loadCarModel(id, colour) {
-  if (!cache.has(id)) cache.set(id, loader.loadAsync(`${BASE}art/vehicles/${CARS[id].file}`).then((g) => prepare(id, g.scene)));
+  if (!cache.has(id)) cache.set(id, loader.loadAsync(`${BASE}art/cars/${id}.glb`).then((g) => prepare(id, g.scene)));
   return cache.get(id).then((proto) => instantiate(proto, colour));
 }
 
@@ -109,23 +91,13 @@ function prepare(id, scene) {
       wheels.push({ key, centre, radius, front: key[1] === 'F', left: key[0] === 'L', pivotName: pivot.name });
     }
   }
-  // No textures: they carry real badges and number plates. Colours, gloss and glass stay.
-  // The paint is the biggest-area material that is not glass, trim, rubber or lights.
+  // The build removed the textures (real badges, number plates). The paint is the biggest-area material that is not glass, trim, rubber or lights.
   const area = new Map();
   const tri = new THREE.Triangle(), a = new THREE.Vector3(), b = new THREE.Vector3(), c3 = new THREE.Vector3();
   root.traverse((o) => {
     if (!o.isMesh) return;
     o.castShadow = true; o.receiveShadow = true;
     if (HIDE.test(o.name) || [o.material].flat().some((m) => HIDE.test(m?.name || ''))) o.visible = false;
-    o.material = [o.material].flat().map((m) => {
-      const c = m.clone();
-      // A dropped colour texture is replaced by its average colour (tyres stay dark, glass tinted).
-      if (m.map && c.color) c.color.multiply(averageColour(m.map));
-      if (m.emissiveMap && c.emissive) c.emissive.multiply(averageColour(m.emissiveMap));
-      for (const k of ['map', 'emissiveMap', 'aoMap']) c[k] = null;
-      return c;
-    });
-    if (o.material.length === 1) o.material = o.material[0];
     let wheel = false;
     for (let p = o; p; p = p.parent) if (/^wheel /.test(p.name)) wheel = true;
     const mat = [o.material].flat()[0];
@@ -148,25 +120,6 @@ function prepare(id, scene) {
   }
   console.info(`car ${id}: ${found.length} wheel nodes, ${corners.size} corners, ${dims.x.toFixed(2)} × ${dims.y.toFixed(2)} × ${dims.z.toFixed(2)} m, paint "${paint}"`);
   return { id, spec, root, wheels, dims, paint };
-}
-
-const avgCache = new WeakMap();
-/** Average colour of a texture (linear), from a tiny downscaled copy. */
-function averageColour(tex) {
-  if (avgCache.has(tex)) return avgCache.get(tex);
-  const out = new THREE.Color(0.5, 0.5, 0.5);
-  try {
-    const img = tex.image, cv = document.createElement('canvas');
-    cv.width = cv.height = 8;
-    const g = cv.getContext('2d', { willReadFrequently: true });
-    g.drawImage(img, 0, 0, 8, 8);
-    const d = g.getImageData(0, 0, 8, 8).data;
-    let r = 0, gr = 0, b = 0, n = 0;
-    for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 16) continue; r += d[i]; gr += d[i + 1]; b += d[i + 2]; n++; }
-    if (n) out.setRGB(r / n / 255, gr / n / 255, b / n / 255, THREE.SRGBColorSpace);
-  } catch { /* not drawable */ }
-  avgCache.set(tex, out);
-  return out;
 }
 
 function instantiate(proto, colour) {

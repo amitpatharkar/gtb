@@ -1,8 +1,10 @@
 // Sky and sunlight: a real photographed sky (HDRI) for the background and image-based
 // lighting, a sun placed exactly where the photo's sun is (found from the brightest pixel), and
-// a shadow box that follows the player, snapped to shadow-map texels so edges don't shimmer.
+// shadows: cascaded shadow maps on High/Medium, on Low one shadow box that follows the player,
+// snapped to shadow-map texels so edges don't shimmer.
 import * as THREE from 'three/webgpu';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
+import { CSMShadowNode } from 'three/addons/csm/CSMShadowNode.js';
 
 const BASE = import.meta.env.BASE_URL;
 // The id must appear literally: scripts/ship-media.mjs ships only media named in src/.
@@ -53,6 +55,14 @@ export async function createSky(scene, tier) {
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.04;
   scene.add(sun, sun.target);
+  // Cascaded shadow maps (High, Medium): several shadow maps, sharp near the camera and wider
+  // further out, so streets keep their shadows hundreds of metres ahead.
+  if (tier.cascades) {
+    sun.shadow.camera.far = 1000;
+    const csm = new CSMShadowNode(sun, { cascades: tier.cascades, maxFar: tier.shadowFar, mode: 'practical', lightMargin: 120 });
+    csm.fade = true;
+    sun.shadow.shadowNode = csm;
+  }
 
   const texel = (2 * s) / tier.shadow;
   const right = new THREE.Vector3(), up = new THREE.Vector3(), c = new THREE.Vector3();

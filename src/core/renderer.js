@@ -1,14 +1,27 @@
 // Renderer: Three.js WebGPU renderer (WebGL 2 fallback built in), quality tiers and the
-// post-processing chain (multisampled scene → bloom → tone mapping → output).
+// post-processing chain, all from Three.js' own TSL nodes:
+//   scene pass (colour + normals + metalness/roughness + motion vectors in one go)
+//   → ambient occlusion (GTAO: soft contact shadows in corners, under cars and kerbs)
+//   → screen-space reflections (wet asphalt, glass, car paint mirror the street)
+//   → bloom (from a clamped copy: the sky photo's sun would wash the screen white)
+//   → temporal anti-aliasing (TRAA: smooth edges without shimmer on thin lines and leaves)
+//   → tone mapping and output.
 import * as THREE from 'three/webgpu';
-import { pass, renderOutput, vec4 } from 'three/tsl';
+import {
+  pass, mrt, output, normalView, velocity, metalness, roughness, vec2, vec4, packNormalToRGB, unpackRGBToNormal,
+  sample, renderOutput, mix, vec3,
+} from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+import { ao } from 'three/addons/tsl/display/GTAONode.js';
+import { ssr } from 'three/addons/tsl/display/SSRNode.js';
+import { traa } from 'three/addons/tsl/display/TRAANode.js';
 
 export const TIERS = {
-  // shadow: map size and half-extent of the shadow box around the player (metres)
-  high: { name: 'High', scale: 1.0, maxPixelRatio: 2, samples: 4, bloom: true, shadow: 4096, shadowBox: 90, drawDistance: 800 },
-  medium: { name: 'Medium', scale: 0.85, maxPixelRatio: 1.5, samples: 4, bloom: true, shadow: 2048, shadowBox: 70, drawDistance: 600 },
-  low: { name: 'Low', scale: 0.75, maxPixelRatio: 1, samples: 0, bloom: false, shadow: 1024, shadowBox: 45, drawDistance: 400 },
+  // cascades: cascaded shadow maps (0 = one shadow box following the player of ±shadowBox m);
+  // shadowFar: how far the cascades reach; shadow: map size per cascade.
+  high: { name: 'High', scale: 1.0, maxPixelRatio: 2, taa: true, ao: true, ssr: false, bloom: true, shadow: 2048, cascades: 4, shadowFar: 450, shadowBox: 90, drawDistance: 800 },
+  medium: { name: 'Medium', scale: 0.85, maxPixelRatio: 1.5, taa: true, ao: false, ssr: false, bloom: true, shadow: 2048, cascades: 3, shadowFar: 250, shadowBox: 70, drawDistance: 600 },
+  low: { name: 'Low', scale: 0.75, maxPixelRatio: 1, taa: false, ao: false, ssr: false, bloom: false, shadow: 1024, cascades: 0, shadowFar: 0, shadowBox: 45, drawDistance: 400 },
 };
 
 export function pickTier() {
@@ -22,10 +35,16 @@ export function pickTier() {
 
 export async function createRenderer(container, tierKey) {
   const tier = { key: tierKey, ...TIERS[tierKey] };
+  const params = new URLSearchParams(location.search);
   let fellBack = false;
   try { fellBack = sessionStorage.getItem('gtb.webgl') === '1'; } catch { /* */ }
-  const forceWebGL = new URLSearchParams(location.search).has('webgl') || fellBack;
-  const renderer = new THREE.WebGPURenderer({ antialias: false, forceWebGL, powerPreference: 'high-performance' });
+  const forceWebGL = params.has('webgl') || fellBack;
+  // Effects can be switched off one by one for comparisons: ?noao&notaa&nobloom. Screen-space
+  // reflections are off by default (dark smudges on some surfaces in tests; wanted for wet roads
+  // in the monsoon work): ?ssr turns them on.
+  for (const k of ['ao', 'ssr', 'taa', 'bloom']) if (params.has(`no${k}`)) tier[k] = false;
+  if (params.has('ssr')) tier.ssr = true;
+  const renderer = new THREE.WebGPURenderer({ antialias: !tier.taa, forceWebGL, powerPreference: 'high-performance' });
   await renderer.init();
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.9;
@@ -38,15 +57,42 @@ export async function createRenderer(container, tierKey) {
   const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 3000);
 
   let pipeline = null;
-  if (tier.samples || tier.bloom) {
+  const effects = {};
+  if (tier.taa || tier.bloom || tier.ao || tier.ssr) {
     pipeline = new THREE.RenderPipeline(renderer);
-    pipeline.outputColorTransform = false;
-    const scenePass = pass(scene, camera, { samples: tier.samples });
+    const scenePass = pass(scene, camera, { samples: tier.taa ? 0 : 4 });
+    const targets = { output };
+    if (tier.ao || tier.ssr) targets.normal = packNormalToRGB(normalView);
+    if (tier.ssr) targets.metalrough = vec2(metalness, roughness);
+    if (tier.taa) targets.velocity = velocity;
+    scenePass.setMRT(mrt(targets));
     const color = scenePass.getTextureNode('output');
+    const depth = scenePass.getTextureNode('depth');
     let node = color;
-    // Bloom from a clamped copy: the sun in the sky photo is thousands of times brighter than
-    // anything else and would wash the whole screen white.
-    if (tier.bloom) node = color.add(bloom(color.min(vec4(4, 4, 4, 1)), 0.16, 0.35, 0.95));
+    if (tier.ao || tier.ssr) {
+      const normalTex = scenePass.getTextureNode('normal');
+      const normal = sample((uv) => unpackRGBToNormal(normalTex.sample(uv)));
+      if (tier.ao) {
+        const a = (effects.ao = ao(depth, normal, camera));
+        a.resolutionScale = 0.5;
+        a.radius.value = 0.6;
+        a.distanceExponent.value = 1.5;
+        node = vec4(node.rgb.mul(a.getTextureNode().r), node.a);
+      }
+      if (tier.ssr) {
+        const mr = scenePass.getTextureNode('metalrough');
+        const r = (effects.ssr = ssr(color, depth, normal, { metalnessNode: mr.r, roughnessNode: mr.g, reflectNonMetals: true, camera }));
+        r.resolutionScale = 0.5;
+        r.maxDistance.value = 40;
+        r.thickness.value = 0.35;
+        // Only smooth surfaces mirror (glass, car paint, wet patches); rough asphalt and plaster don't.
+        const smooth = mr.g.oneMinus().pow(4).mul(r.a).clamp(0, 1);
+        node = vec4(mix(node.rgb, r.rgb.min(vec3(4)), smooth), node.a);
+      }
+    }
+    if (tier.bloom) node = node.add(bloom(node.min(vec4(4, 4, 4, 1)), 0.16, 0.35, 0.95));
+    if (tier.taa) node = (effects.taa = traa(node, depth, scenePass.getTextureNode('velocity'), camera));
+    pipeline.outputColorTransform = false;
     pipeline.outputNode = renderOutput(node);
   }
 
@@ -73,7 +119,7 @@ export async function createRenderer(container, tierKey) {
   resize();
 
   return {
-    THREE, renderer, scene, camera, tier, backend,
+    THREE, renderer, scene, camera, tier, backend, effects,
     render() { if (pipeline) pipeline.render(); else renderer.render(scene, camera); },
     resize,
   };

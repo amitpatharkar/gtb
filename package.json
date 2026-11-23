@@ -7,9 +7,9 @@
     "tiles:preview": "node scripts/preview-tiles.mjs",
     "assets": "node scripts/assets/build-assets.mjs",
     "assets:pull": "git fetch -q --depth 1 origin assets && rm -rf public/media && mkdir -p public/media && git archive FETCH_HEAD | tar -x -C public/media",
-    "predev": "npm run tiles",
+    "predev": "npm run tiles && node scripts/cars.mjs",
     "dev": "vite --host",
-    "build": "npm run tiles && vite build && node scripts/ship-media.mjs",
+    "build": "npm run tiles && node scripts/cars.mjs && vite build && node scripts/ship-media.mjs",
     "preview": "vite preview --host",
     "test": "node tests/smoke.mjs"
   },
@@ -27,9 +27,13 @@
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
     "earcut": "^3.0.2",
-    "three": "^0.187.0"
+    "three": "^0.187.0",
+    "three-mesh-bvh": "^0.9.18"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "clipper-lib": "^6.4.2",
     "fflate": "^0.8.2",
     "ktx2-encoder": "^0.6.0",
