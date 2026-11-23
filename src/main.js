@@ -133,7 +133,7 @@ async function boot() {
   // ------------------------------------------------------------------ game state
   let driving = null;     // the Vehicle being driven, or null on foot
   let hitMarker = 0, fHeld = 0, underwater = 0, wastedT = 0, timeScale = 1;
-  const tmp = new THREE.Vector3();
+  const tmp = new THREE.Vector3(), tmpA = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
   const ob = { looked: 0, walked: 0, driving: false, arrived: null, userArrived: false, weapon: null, usedWheel: false, hitProp: false };
 
   function nearestCar(maxExtra = 1.6) {
@@ -362,14 +362,21 @@ async function boot() {
         audio.crash(driving.crash); cam.shake = Math.min(1, driving.crash * 0.08); input.rumble(Math.min(1, driving.crash / 12), 0.6, 200);
         if (driving.crash > 4) { stats.add('crashes'); const p = driving.position; particles.crash(p.x, p.y + 0.6, p.z, driving.crash); }
       }
-      // Tyre smoke from sliding or spinning rear wheels.
-      const vc = driving.vc, spinning = input.throttle > 0.9 && Math.abs(driving.speed) < 6 && driving.spec.drive !== 'front';
+      // Tyre smoke only when a tyre really slides (sideways faster than 3 m/s at the contact patch)
+      // or under the handbrake at speed — never in ordinary driving.
+      const vc = driving.vc, b = driving.body, lv = b.linvel(), av = b.angvel(), bp = b.translation(), br = b.rotation();
+      const bq = tmpQ.set(br.x, br.y, br.z, br.w), axle = tmpA.set(1, 0, 0).applyQuaternion(bq);
       for (let i = 0; i < vc.numWheels(); i++) {
         if (!vc.wheelIsInContact(i)) continue;
-        const side = Math.abs(vc.wheelSideImpulse(i) || 0) / (driving.spec.mass * 0.012);
-        const hb = !driving.wheels[i].front && driving.handbrake && Math.abs(driving.speed) > 4;
-        const amount = Math.max(side > 1 ? side - 1 : 0, hb ? 0.8 : 0, spinning && !driving.wheels[i].front ? 0.6 : 0);
-        if (amount > 0.2 && Math.random() < amount * dt * 30) { const c = vc.wheelContactPoint(i); if (c) particles.tyreSmoke(c.x, c.y, c.z, Math.min(2, amount)); }
+        const c = vc.wheelContactPoint(i);
+        if (!c) continue;
+        const rx = c.x - bp.x, ry = c.y - bp.y, rz = c.z - bp.z;
+        const vx = lv.x + av.y * rz - av.z * ry, vy = lv.y + av.z * rx - av.x * rz, vz = lv.z + av.x * ry - av.y * rx;
+        const side = Math.abs(vx * axle.x + vy * axle.y + vz * axle.z);
+        const rear = !driving.wheels[i].front;
+        const hb = rear && driving.handbrake && Math.abs(driving.speed) > 8;
+        const amount = Math.max(side > 3 ? (side - 3) / 4 : 0, hb ? 0.6 : 0);
+        if (amount > 0 && Math.random() < Math.min(1, amount) * dt * 24) particles.tyreSmoke(c.x, c.y, c.z, Math.min(1.5, amount));
       }
       stats.add('driven', Math.abs(driving.speed) * dt);
       stats.max('topSpeed', Math.abs(driving.speed));

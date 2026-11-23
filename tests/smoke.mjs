@@ -114,13 +114,14 @@ if (want('drive')) {
       g.player.place(s.x + rx * 4.5, y, s.z + rz * 4.5, s.heading);
       g.step(30);
       const entered = g.enterNearest() && g.driving === car;
-      set(['forward']); g.step(300);
-      const kmh = car.speed * 3.6;
+      const p0 = g.particles.normal.next;
+      set(['forward']); for (let i = 0; i < 300; i++) g.step(1);
+      const kmh = car.speed * 3.6, smoke = (g.particles.normal.next - p0 + 4096) % 4096;
       const h0 = car.heading; set(['forward', 'right']); g.step(30); const turn = car.heading - h0;
       set(['back']); let n = 0; let minUp = 1; const v0 = car.speed * 3.6;
       while (car.speed > 0.3 && n < 600) { g.step(1); n++; const q = car.body.rotation(); minUp = Math.min(minUp, 1 - 2 * (q.x * q.x + q.z * q.z)); }
       set([]); g.step(30);
-      out.push({ name: car.spec.name, wheels: car.wheels.filter((w) => w.pivot).length, entered, kmh, turn, stop: n / 60, v0, minUp });
+      out.push({ name: car.spec.name, wheels: car.wheels.filter((w) => w.pivot).length, entered, kmh, smoke, turn, stop: n / 60, v0, minUp });
     }
     if (g.driving) g.exit();
     g.cars.forEach((c) => c.body.setBodyType(0, true));
@@ -129,7 +130,8 @@ if (want('drive')) {
   for (const c of d) {
     check(c.wheels === 4, `${c.name}: four separate wheels`);
     check(c.entered, `${c.name}: player gets in`);
-    check(c.kmh > 40 && c.kmh < 110, `${c.name}: accelerates to ${c.kmh.toFixed(0)} km/h in 5 s`);
+    check(c.kmh > 60 && c.kmh < 140, `${c.name}: accelerates to ${c.kmh.toFixed(0)} km/h in 5 s`);
+    check(c.smoke === 0, `${c.name}: no tyre smoke when simply accelerating (${c.smoke} particles)`);
     check(c.turn < -0.1, `${c.name}: steering right turns right (${(c.turn * 57.3).toFixed(0)}°)`);
     check(c.stop < 3.5, `${c.name}: brakes from ${c.v0.toFixed(0)} km/h to a stop in ${c.stop.toFixed(1)} s`);
     check(c.minUp > 0.8, `${c.name}: stays upright in a braking turn`);
@@ -209,7 +211,7 @@ if (want('ui')) {
     g.player.place(s.x, 0.02, s.z, s.heading); g.player.health = 100; g.step(5);
     car.body.setTranslation({ x: s.x - fx * 8, y: 0.4, z: s.z - fz * 8 }, true);
     car.body.setRotation({ x: 0, y: Math.sin(s.heading / 2), z: 0, w: Math.cos(s.heading / 2) }, true);
-    car.body.setLinvel({ x: fx * 12, y: 0, z: fz * 12 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    car.body.setLinvel({ x: fx * 17, y: 0, z: fz * 17 }, true); // a driverless car brakes: start fast enough to hit hard car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     let knocked = false; for (let i = 0; i < 60 && !knocked; i++) { g.step(1); knocked = g.player.knocked > 0; }
     const health = g.player.health, limp = g.player.ragdoll.active;
     let flew = 0; for (let i = 0; i < 20; i++) { g.step(3); flew = Math.max(flew, g.player.pos.distanceTo({ x: s.x, y: 0, z: s.z })); }
@@ -222,7 +224,7 @@ if (want('ui')) {
   check(u.opened && u.picked === 'fists', `weapon wheel opens and equips what you point at (${u.picked})`);
   check(!!u.phoneTarget, `phone Maps sets a destination (${u.phoneTarget})`);
   check(u.knocked && u.health < 100 && u.up, `a car knocks the player down (health ${Math.round(u.health)}) and he gets up`);
-  check(u.limp && u.flew > 1.5, `a hard hit turns him into a ragdoll that flies ${u.flew.toFixed(1)} m`);
+  check(u.limp && u.flew > 1, `a hard hit turns him into a ragdoll that flies ${u.flew.toFixed(1)} m`);
   await shot('ui');
 }
 

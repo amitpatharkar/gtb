@@ -6,8 +6,8 @@ import { RAPIER, GROUP, groups, STEP } from '../core/physics.js';
 import { Ragdoll } from './ragdoll.js';
 
 const RADIUS = 0.3, HALF = 0.55; // capsule: 1.7 m tall
-const SPEED = { walk: 1.5, run: 3.6, sprint: 6.4, aim: 1.6 };
-const ACCEL = 14, AIR_ACCEL = 3, JUMP = 4.4, GRAVITY = 18;
+const SPEED = { walk: 1.5, run: 4.0, sprint: 6.9, aim: 1.7 };
+const ACCEL = 8, DECEL = 11, AIR_ACCEL = 2.5, JUMP = 4.4, GRAVITY = 18;
 
 export class OnFoot {
   constructor(physics, hero) {
@@ -128,11 +128,26 @@ export class OnFoot {
     const down = this.knocked > 0;
     if (down) { this.knocked -= dt; if (this.grounded) { this.vel.multiplyScalar(0.85); } }
     const target = down ? 0 : amount * (aiming ? SPEED.aim : walk ? SPEED.walk : sprint ? SPEED.sprint : SPEED.run);
-    const a = this.grounded ? ACCEL : AIR_ACCEL;
-    const k = 1 - Math.exp(-a * dt);
+    // Momentum: away from aiming he runs where he faces and turns in an arc (quicker when slow);
+    // a sharp change of direction slows him first. Aiming: he faces the camera and strides sideways.
+    const want = down ? this.heading : aiming ? camYaw : amount > 0.1 ? Math.atan2(dx, dz) : this.heading;
+    let turn = want - this.heading;
+    turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+    const cur = Math.hypot(this.vel.x, this.vel.z);
+    const rate = aiming ? 25 : down ? 0 : THREE.MathUtils.lerp(14, 6.5, Math.min(1, cur / SPEED.sprint));
+    this.heading += turn * (1 - Math.exp(-rate * dt));
+    let speedWanted = target;
+    if (!aiming && amount > 0.1 && Math.abs(turn) > 1.6 && cur > 2.5) speedWanted *= 0.35; // pivot: slow down to turn round
+    const accel = !this.grounded ? AIR_ACCEL : speedWanted > cur ? ACCEL : DECEL;
+    const k = 1 - Math.exp(-accel * dt);
     if (!down) {
-      this.vel.x += (dx * target - this.vel.x) * k;
-      this.vel.z += (dz * target - this.vel.z) * k;
+      if (aiming) {
+        this.vel.x += (dx * target - this.vel.x) * k;
+        this.vel.z += (dz * target - this.vel.z) * k;
+      } else if (this.grounded) {
+        const sp = cur + (speedWanted - cur) * k;
+        this.vel.x = Math.sin(this.heading) * sp; this.vel.z = Math.cos(this.heading) * sp;
+      }
     }
 
     if (this.grounded) {
@@ -163,11 +178,6 @@ export class OnFoot {
     if (this.speed < Math.hypot(this.vel.x, this.vel.z) * 0.5) { this.vel.x = mv.x / dt; this.vel.z = mv.z / dt; }
     if (mv.y > this.vy * dt + 0.001 && this.vy > 0) this.vy = 0; // bumped head
 
-    // Facing: towards movement, or the camera when aiming.
-    const want = down ? this.heading : aiming ? camYaw : amount > 0.1 ? Math.atan2(dx, dz) : this.heading;
-    let d = want - this.heading;
-    d = Math.atan2(Math.sin(d), Math.cos(d));
-    this.heading += d * (1 - Math.exp(-(aiming ? 25 : 12) * dt));
     this.sprinting = sprint && this.speed > 4.5;
   }
 
@@ -186,12 +196,9 @@ export class OnFoot {
     o.rotation.y = this.heading;
     const h = this.hero, s = this.speed;
     if (this.knocked > 0) { h.play(this.knocked > 0.7 ? 'fall' : 'getUp', 1.2, 0.15); h.update(dt); return; }
-    if (!this.grounded && this.airTime > 0.15) h.play('jump', 1);
-    else if (aiming) h.play(firing ? 'shoot' : s > 0.4 ? 'walk' : 'aimIdle', firing ? 1.6 : s > 0.4 ? s / 1.4 : 1, 0.1);
-    else if (s < 0.25) h.play('idle');
-    else if (s < 2.2) h.play('walk', s / 1.4);
-    else if (s < 5) h.play('jog', s / 3.4);
-    else h.play('sprint', s / 6.2);
+    if (!this.grounded && this.airTime > 0.15) h.play('jump', 1, 0.15);
+    else if (aiming && s < 0.4) h.play(firing ? 'shoot' : 'aimIdle', firing ? 1.6 : 1, 0.08);
+    else h.locomotion(s);
     if (this.grounded) this.jumped = false;
     h.update(dt);
   }

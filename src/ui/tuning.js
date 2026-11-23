@@ -6,7 +6,7 @@ import { TUNE } from '../vehicles/vehicle.js';
 const RANGES = {
   stiffness: [10, 80, 1], compression: [0.5, 8, 0.1], relaxation: [0.5, 8, 0.1], suspensionRest: [0.1, 0.4, 0.01],
   suspensionTravel: [0.05, 0.4, 0.01], frictionSlip: [0.5, 5, 0.05], sideStiffness: [0.3, 2, 0.05], rearGripHandbrake: [0.1, 1, 0.05],
-  engine: [0.3, 3, 0.05], brake: [0.2, 3, 0.05], steerMax: [0.2, 0.9, 0.01], steerSpeed: [0.5, 8, 0.1], steerFade: [0, 0.15, 0.005],
+  engine: [0.3, 3, 0.05], brake: [0.2, 3, 0.05], steerMax: [0.2, 0.9, 0.01], steerSpeed: [0.5, 8, 0.1], steerReturn: [1, 12, 0.1], steerFade: [0, 0.15, 0.005], yawAssist: [0, 1.5, 0.05],
   drag: [0, 1.5, 0.01], rolling: [0, 0.05, 0.001],
 };
 

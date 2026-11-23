@@ -9,10 +9,11 @@ import { RAPIER, GROUP, groups, STEP } from '../core/physics.js';
 export const TUNE = {
   suspensionRest: 0.22, suspensionTravel: 0.18, stiffness: 32, compression: 3.2, relaxation: 3.6,
   frictionSlip: 2.1, sideStiffness: 1.0, rearGripHandbrake: 0.45,
-  engine: 1.0, brake: 1.0, steerMax: 0.62, steerSpeed: 3.2, steerFade: 0.045,
+  engine: 1.0, brake: 1.0, steerMax: 0.6, steerSpeed: 2.4, steerReturn: 6, steerFade: 0.075, yawAssist: 0.35,
   comHeight: 0.3, drag: 0.42, rolling: 0.015, maxSuspensionForce: 60000, antiRoll: 4, antiRollDamp: 0.7,
 };
-try { Object.assign(TUNE, JSON.parse(localStorage.getItem('gtb.tune') || '{}')); } catch { /* none saved */ }
+TUNE.version = 2; // numbers saved by an older handling model are ignored
+try { const saved = JSON.parse(localStorage.getItem('gtb.tune') || '{}'); if (saved.version === TUNE.version) Object.assign(TUNE, saved); } catch { /* none saved */ }
 
 const _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _f = new THREE.Vector3();
 
@@ -93,9 +94,13 @@ export class Vehicle {
     const abs = Math.abs(fwdSpeed);
     if (this.driver || abs > 0.05 || !this.body.isSleeping()) {
       // Steering: slower and smaller at speed.
+      // Steering: turns in progressively, straightens up quickly (self-centring), and the lock
+      // shrinks with speed (full at walking pace, about a third at 100 km/h): no twitch at speed.
       const max = TUNE.steerMax / (1 + abs * TUNE.steerFade);
       const target = -(this.steerIn || 0) * max;
-      this.steer += Math.max(-TUNE.steerSpeed * dt, Math.min(TUNE.steerSpeed * dt, target - this.steer));
+      const back = Math.abs(target) < Math.abs(this.steer) || Math.sign(target) !== Math.sign(this.steer);
+      const rate = (back ? TUNE.steerReturn : TUNE.steerSpeed) * dt;
+      this.steer += Math.max(-rate, Math.min(rate, target - this.steer));
       // Engine: full force at low speed, fading to zero at top speed. S brakes, then reverses.
       const driven = this.wheels.map((w) => (spec.drive === 'rear' ? !w.front : spec.drive === 'front' ? w.front : true));
       const nDriven = driven.filter(Boolean).length;
@@ -103,7 +108,7 @@ export class Vehicle {
       const F = mass * spec.accel * TUNE.engine;
       if (this.throttle > 0.02) {
         if (fwdSpeed < -0.5) brake = this.throttle;
-        else engine = this.throttle * F * Math.max(0, 1 - (fwdSpeed / spec.top) ** 2);
+        else engine = this.throttle * F * Math.max(0, 1 - (fwdSpeed / spec.top) ** 3); // strong pull until near top speed
       }
       if (this.brakeIn > 0.02) {
         if (fwdSpeed > 0.8) brake = Math.max(brake, this.brakeIn);
@@ -127,13 +132,16 @@ export class Vehicle {
       // crash or a ramp can still roll one (then F puts it back).
       let contacts = 0;
       for (let i = 0; i < this.wheels.length; i++) if (vc.wheelIsInContact(i)) contacts++;
+      // Yaw assist: with the wheel straight, damp the car's spin a little so it tracks straight
+      // instead of wandering (keeps slides catchable; the handbrake turns it off).
+      const yawDamp = !this.handbrake && Math.abs(this.steerIn || 0) < 0.1 && abs > 5 ? mass * TUNE.yawAssist : 0;
       if (contacts >= 2) {
         const r = this.body.rotation(), w = this.body.angvel();
         _q.set(r.x, r.y, r.z, r.w);
         _f.set(0, 1, 0).applyQuaternion(_q); // body up
         const k = mass * TUNE.antiRoll, c = mass * TUNE.antiRollDamp;
         // cross(up, worldUp) = (-up.z, 0, up.x); damping on the horizontal part of the spin.
-        this.body.addTorque({ x: -_f.z * k - w.x * c, y: 0, z: _f.x * k - w.z * c }, true);
+        this.body.addTorque({ x: -_f.z * k - w.x * c, y: -w.y * yawDamp, z: _f.x * k - w.z * c }, true);
       }
       if (sp > 0.1) {
         const drag = TUNE.drag * sp * sp + TUNE.rolling * mass * 9.81 * Math.min(1, sp);
