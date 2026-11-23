@@ -59,6 +59,7 @@ export class Weapons {
     this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._v = new THREE.Vector3(); this._d = new THREE.Vector3();
   }
 
+  get list() { return WEAPONS; }
   get weapon() { return WEAPONS[this.current]; }
   get state() { return this.ammo[this.current]; }
 

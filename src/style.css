@@ -1,11 +1,14 @@
 :root {
   --ink: #f4f1ea;
   --dim: rgba(244, 241, 234, 0.62);
-  --panel: rgba(12, 13, 15, 0.72);
-  --accent: #f2b705;        /* kaali-peeli yellow */
+  --panel: rgba(10, 11, 13, 0.74);
+  --panel-solid: #121316;
+  --accent: #f2b705;        /* kaali-peeli yellow: objectives, selection */
+  --route: #c46bff;         /* GPS route and waypoint */
   --danger: #d9433b;
-  --armour: #5aa0e0;
-  --health: #59b36a;
+  --health: #5fbf6e;
+  --armour: #4f9be0;
+  --stamina: #e8c84a;
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --display: 'Oswald', 'Bebas Neue', 'Arial Narrow', Impact, sans-serif;
 }
@@ -14,38 +17,92 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--ink); font-
 #game { position: fixed; inset: 0; }
 #view { display: block; width: 100%; height: 100%; }
 [hidden] { display: none !important; }
+kbd { display: inline-block; min-width: 22px; padding: 1px 6px; margin: 0 3px; border-radius: 4px; background: var(--ink); color: #111;
+  font: 700 12px var(--font); text-align: center; text-shadow: none; line-height: 18px; vertical-align: 1px; }
+kbd.pad { border-radius: 11px; }
 
 /* ---------- HUD ---------- */
 #hud { position: fixed; inset: 0; pointer-events: none; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
-#messages { position: absolute; top: 24px; left: 28px; max-width: 420px; display: flex; flex-direction: column; gap: 6px; }
-#messages div { background: var(--panel); padding: 8px 12px; border-left: 3px solid var(--accent); font-size: 14px; line-height: 1.35; transition: opacity 0.6s; }
-#weapon { position: absolute; top: 24px; right: 28px; text-align: right; }
-#weapon-name { font-family: var(--display); font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; }
-#weapon-ammo { font-size: 15px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.fade { transition: opacity 0.5s; }
+.gone { opacity: 0 !important; }
+#vignette { position: absolute; inset: 0; opacity: 0; transition: opacity 0.4s; background: radial-gradient(ellipse at center, transparent 45%, rgba(170, 0, 0, 0.55) 100%); }
+#top-left { position: absolute; top: 24px; left: 28px; width: min(420px, 40vw); display: flex; flex-direction: column; gap: 8px; }
+#objective { display: flex; gap: 10px; align-items: flex-start; background: var(--panel); padding: 10px 14px; border-radius: 3px; font-size: 15px; line-height: 1.35; }
+#objective i { flex: none; width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+#objective.done { border-left: 3px solid var(--health); }
+#messages { display: flex; flex-direction: column; gap: 6px; }
+#messages div { background: var(--panel); padding: 8px 12px; border-radius: 3px; font-size: 14px; line-height: 1.4; transition: opacity 0.6s, transform 0.3s; }
+#messages div.new { transform: translateX(-8px); opacity: 0; }
+#top-right { position: absolute; top: 24px; right: 28px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+#weapon { display: flex; align-items: center; gap: 12px; text-align: right; transition: opacity 0.5s; }
+#weapon-icon { width: 64px; height: 28px; background: center / contain no-repeat; filter: drop-shadow(0 1px 2px #000); }
+#weapon-name { font-family: var(--display); font-size: 20px; letter-spacing: 0.06em; text-transform: uppercase; }
+#weapon-ammo { font-size: 14px; color: var(--dim); font-variant-numeric: tabular-nums; }
 #weapon-ammo b { color: var(--ink); font-size: 20px; }
-#radar { position: absolute; left: 28px; bottom: 26px; width: 220px; }
-#minimap { width: 220px; height: 220px; border-radius: 50%; background: rgba(20, 24, 22, 0.78); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5), 0 4px 18px rgba(0, 0, 0, 0.4); display: block; }
-#street { margin-top: 8px; font-size: 14px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bars { display: flex; gap: 4px; margin-top: 6px; }
-.bar { flex: 1; height: 7px; background: rgba(0, 0, 0, 0.55); border-radius: 2px; overflow: hidden; }
+#weapon-ammo.low b { color: var(--danger); }
+#wanted { font-size: 26px; letter-spacing: 2px; color: var(--ink); }
+#radar { position: absolute; left: 28px; bottom: 26px; width: 260px; transition: opacity 0.5s; }
+#minimap { width: 260px; height: 170px; border-radius: 10px; display: block; background: #1c2022; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55), 0 6px 20px rgba(0, 0, 0, 0.4); }
+#radar-distance { position: absolute; left: 10px; bottom: 22px; background: rgba(0, 0, 0, 0.6); padding: 2px 8px; border-radius: 3px; font-size: 13px; font-weight: 600; color: #fff; }
+#radar-distance::before { content: '➚ '; color: var(--route); }
+.strip { display: flex; gap: 3px; margin-top: 5px; }
+.bar { flex: 2; height: 6px; background: rgba(0, 0, 0, 0.55); border-radius: 2px; overflow: hidden; }
+.bar.stamina { flex: 1; }
 .bar i { display: block; height: 100%; width: 100%; transition: width 0.25s; }
-.bar.health i { background: var(--health); }
-.bar.armour i { background: var(--armour); }
-#speedo { position: absolute; right: 30px; bottom: 30px; text-align: right; font-family: var(--display); }
+.bar.health i { background: var(--health); } .bar.armour i { background: var(--armour); } .bar.stamina i { background: var(--stamina); }
+.bar.health.low i { background: var(--danger); animation: pulse 0.8s infinite alternate; }
+@keyframes pulse { from { opacity: 1; } to { opacity: 0.4; } }
+#bottom-right { position: absolute; right: 30px; bottom: 28px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; text-align: right; }
+#area { display: flex; flex-direction: column; align-items: flex-end; transition: opacity 0.8s; }
+#area-name { font-family: var(--display); font-size: 26px; letter-spacing: 0.04em; }
+#street { font-size: 14px; color: var(--dim); }
+#speedo { font-family: var(--display); }
 #speedo b { font-size: 54px; font-weight: 600; font-variant-numeric: tabular-nums; }
 #speedo span { font-size: 16px; margin-left: 6px; color: var(--dim); }
 #speedo em { display: block; font-style: normal; font-size: 18px; color: var(--accent); }
-#vehicle-name { position: absolute; right: 30px; bottom: 120px; font-family: var(--display); font-size: 26px; letter-spacing: 0.05em; opacity: 0; transition: opacity 0.8s; text-transform: uppercase; }
+#vehicle-name { position: absolute; right: 30px; bottom: 150px; font-family: var(--display); font-size: 26px; letter-spacing: 0.05em; opacity: 0; transition: opacity 0.8s; text-transform: uppercase; }
 #vehicle-name.show { opacity: 1; }
-#prompt { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); background: var(--panel); padding: 8px 14px; border-radius: 4px; font-size: 15px; }
-#prompt kbd { display: inline-block; min-width: 24px; padding: 1px 7px; margin-right: 8px; border-radius: 3px; background: var(--ink); color: #111; font: 700 13px var(--font); text-align: center; text-shadow: none; }
+#prompt { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); background: var(--panel); padding: 8px 16px; border-radius: 4px; font-size: 15px; white-space: nowrap; }
 #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; }
 #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 2px #000; }
 #crosshair::before { left: 10px; top: 3px; width: 2px; height: 16px; }
 #crosshair::after { top: 10px; left: 3px; height: 2px; width: 16px; }
 #crosshair.hit::before, #crosshair.hit::after { background: var(--danger); }
 #osm { position: absolute; right: 8px; bottom: 4px; font-size: 10px; color: var(--dim); }
-#stats { position: absolute; left: 28px; top: 70px; font: 12px ui-monospace, monospace; background: var(--panel); padding: 6px 8px; white-space: pre; }
+#stats { position: absolute; left: 28px; top: 50%; font: 12px ui-monospace, monospace; background: var(--panel); padding: 6px 8px; white-space: pre; }
+
+/* ---------- Weapon wheel ---------- */
+#wheel { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, rgba(0, 0, 0, 0.5) 0, rgba(0, 0, 0, 0.7) 60%); z-index: 3; }
+#wheel-ring { position: relative; width: 440px; height: 440px; }
+.slot { position: absolute; width: 112px; height: 82px; margin: -41px 0 0 -56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  background: rgba(14, 15, 18, 0.9); border: 2px solid rgba(255, 255, 255, 0.12); border-radius: 12px; font-size: 12px; color: var(--dim); transition: transform 0.12s, border-color 0.12s, background 0.12s; }
+.slot .ico { width: 70px; height: 30px; background: center / contain no-repeat; opacity: 0.85; }
+.slot.empty { opacity: 0.35; }
+.slot.on { border-color: var(--accent); background: rgba(242, 183, 5, 0.18); color: var(--ink); transform: scale(1.1); }
+#wheel-centre { position: absolute; text-align: center; pointer-events: none; }
+#wheel-centre b { display: block; font-family: var(--display); font-size: 26px; letter-spacing: 0.05em; text-transform: uppercase; }
+#wheel-centre span { font-size: 14px; color: var(--dim); }
+
+/* ---------- Phone ---------- */
+#phone { position: fixed; right: 60px; bottom: 40px; width: 250px; height: 470px; padding: 12px; border-radius: 34px; background: #0b0c0e; box-shadow: 0 0 0 2px #2a2c30, 0 20px 60px rgba(0, 0, 0, 0.6); z-index: 4; animation: rise 0.25s ease-out; }
+@keyframes rise { from { transform: translateY(60px); opacity: 0; } }
+#phone .screen { height: 100%; border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; background: linear-gradient(160deg, #1d2a3a, #2b1d34); }
+#phone .status { display: flex; justify-content: space-between; padding: 8px 14px; font-size: 11px; color: var(--dim); }
+#phone-body { flex: 1; overflow: auto; padding: 6px 10px; }
+#phone .apps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 10px 4px; }
+#phone .app { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 10.5px; color: var(--ink); cursor: pointer; }
+#phone .app i { width: 48px; height: 48px; border-radius: 13px; display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 22px; border: 2px solid transparent; }
+#phone .app.on i { border-color: #fff; }
+#phone .list div { padding: 9px 8px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+#phone .list div.on { background: rgba(255, 255, 255, 0.14); }
+#phone .list small { display: block; color: var(--dim); font-size: 11px; }
+#phone h3 { margin: 6px 4px 8px; font: 600 15px var(--font); }
+#phone .nav { padding: 8px; font-size: 11px; color: var(--dim); text-align: center; }
+
+/* ---------- Wasted ---------- */
+#wasted { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(40, 0, 0, 0.35); backdrop-filter: grayscale(1); z-index: 3; }
+#wasted b { font-family: var(--display); font-size: 96px; letter-spacing: 0.08em; color: #c8261e; text-shadow: 0 4px 20px #000; }
+#wasted span { font-size: 15px; color: var(--dim); }
 
 /* ---------- Loading ---------- */
 #loading { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
@@ -54,25 +111,51 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--ink); font-
 .brand { font-family: var(--display); text-transform: uppercase; display: flex; flex-direction: column; align-items: center; line-height: 0.9; }
 .brand span { font-size: 26px; letter-spacing: 0.5em; color: var(--dim); margin-right: -0.5em; }
 .brand b { font-size: 84px; letter-spacing: 0.08em; color: var(--accent); }
-.brand.small span { font-size: 14px; } .brand.small b { font-size: 40px; }
+.brand.small { align-items: flex-start; } .brand.small span { font-size: 12px; } .brand.small b { font-size: 34px; }
 .load-bar { width: min(420px, 70vw); height: 3px; background: rgba(255, 255, 255, 0.12); }
 .load-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.2s; }
 #load-text { font-size: 13px; color: var(--dim); }
 .load-tip { position: absolute; bottom: 30px; font-size: 12px; letter-spacing: 0.25em; text-transform: uppercase; color: rgba(255, 255, 255, 0.35); }
 
-/* ---------- Pause ---------- */
-#pause { position: fixed; inset: 0; background: rgba(5, 6, 8, 0.6); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 5; }
-#pause .panel { width: min(760px, 92vw); max-height: 86vh; overflow: auto; background: rgba(14, 15, 17, 0.92); padding: 26px 30px; border-top: 3px solid var(--accent); }
-#pause nav { display: flex; gap: 8px; margin: 18px 0; flex-wrap: wrap; }
-#pause button, #pause select { font: 600 14px var(--font); color: var(--ink); background: rgba(255, 255, 255, 0.08); border: 0; padding: 10px 16px; cursor: pointer; border-radius: 3px; }
-#pause button:hover, #pause button.on { background: rgba(255, 255, 255, 0.18); }
-#pause button.primary { background: var(--accent); color: #111; }
-#pause section { font-size: 14px; line-height: 1.5; }
-#pause table { width: 100%; border-collapse: collapse; }
-#pause td { padding: 5px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
-#pause td:first-child { color: var(--dim); }
-#pause label { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
-#pause input[type=range] { width: 220px; accent-color: var(--accent); }
-#pause .note { color: var(--dim); font-size: 12px; margin-top: 10px; }
+/* ---------- Pause menu ---------- */
+#pause { position: fixed; inset: 0; z-index: 5; display: flex; flex-direction: column; padding: 34px 6vw 22px; background: rgba(6, 7, 9, 0.72); backdrop-filter: blur(8px) saturate(0.6); }
+#pause header { display: flex; justify-content: space-between; align-items: flex-end; }
+#pause-info { text-align: right; font-size: 13px; line-height: 1.5; color: var(--dim); }
+#pause-info b { color: var(--ink); font-size: 15px; }
+#pause-tabs { display: flex; gap: 4px; margin: 18px 0 12px; }
+#pause-tabs button { flex: 1; font: 700 14px var(--font); letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); background: rgba(255, 255, 255, 0.06); border: 0; padding: 12px 8px; cursor: pointer; border-bottom: 3px solid transparent; }
+#pause-tabs button:hover { color: var(--ink); background: rgba(255, 255, 255, 0.12); }
+#pause-tabs button.on { color: #111; background: var(--ink); border-bottom-color: var(--accent); }
+#pause-body { flex: 1; min-height: 0; overflow: auto; background: rgba(14, 15, 17, 0.88); padding: 18px 22px; }
+#pause footer { display: flex; justify-content: flex-end; gap: 20px; padding-top: 10px; font-size: 13px; color: var(--dim); }
+#pause .cols { display: grid; grid-template-columns: 1fr 280px; gap: 18px; height: 100%; }
+#pause .list { display: flex; flex-direction: column; gap: 2px; }
+#pause .row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 9px 12px; background: rgba(255, 255, 255, 0.04); }
+#pause .row:nth-child(odd) { background: rgba(255, 255, 255, 0.07); }
+#pause .row.on { outline: 2px solid var(--accent); }
+#pause .row span { color: var(--dim); }
+#pause .setting { padding: 10px 12px; background: rgba(255, 255, 255, 0.05); margin-bottom: 4px; }
+#pause .setting.on { outline: 2px solid var(--accent); }
+#pause .setting .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; font-weight: 600; }
+#pause .setting p { margin: 5px 0 0; font-size: 12.5px; color: var(--dim); line-height: 1.45; }
+#pause .choice { display: flex; gap: 4px; }
+#pause .choice button, #pause .btn { font: 600 13px var(--font); color: var(--ink); background: rgba(255, 255, 255, 0.1); border: 0; padding: 7px 12px; cursor: pointer; border-radius: 3px; }
+#pause .choice button.on, #pause .btn.primary { background: var(--accent); color: #111; }
+#pause input[type=range] { width: 200px; accent-color: var(--accent); }
+#pause h2 { font: 700 13px var(--font); letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); margin: 14px 0 8px; }
+#pause h2:first-child { margin-top: 0; }
+#pause .brief-objective { font-size: 18px; padding: 14px; background: rgba(242, 183, 5, 0.12); border-left: 3px solid var(--accent); }
+#pause .log div { padding: 7px 10px; font-size: 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+#pause .log small { color: var(--dim); margin-right: 8px; font-variant-numeric: tabular-nums; }
+#pause p.note { color: var(--dim); font-size: 12.5px; line-height: 1.5; }
+#map-wrap { position: relative; height: 100%; min-height: 360px; background: #0d1a20; overflow: hidden; cursor: crosshair; }
+#map-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#map-tip { position: absolute; left: 12px; bottom: 10px; font-size: 12px; color: var(--dim); background: rgba(0, 0, 0, 0.5); padding: 4px 8px; }
+.legend label { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(255, 255, 255, 0.05); margin-bottom: 3px; cursor: pointer; font-size: 14px; }
+.legend label i { width: 22px; text-align: center; font-style: normal; }
+.legend input { accent-color: var(--accent); }
+.places div { padding: 7px 10px; font-size: 13px; cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+.places div:hover { background: rgba(255, 255, 255, 0.08); }
 #click-to-play { position: fixed; left: 50%; top: 58%; transform: translateX(-50%); background: var(--panel); padding: 10px 18px; font-size: 15px; pointer-events: none; border-radius: 3px; }
 .lil-gui.root { z-index: 20; }
+@media (max-width: 800px) { #pause .cols { grid-template-columns: 1fr; } #radar { width: 200px; } #minimap { width: 200px; height: 130px; } }

@@ -1,5 +1,5 @@
 // Smoke test: plays the built game (dist/) headless and fails on anything a player would notice.
-//   node tests/smoke.mjs [--only=boot,world,foot,drive,shoot] [--quality=low|medium|high] [--shots=dir]
+//   node tests/smoke.mjs [--only=world,foot,drive,shoot,ui] [--quality=low|medium|high] [--shots=dir]
 // Checks: boots without console errors; Colaba loads with solid ground and buildings, and no
 // building stands on a road; the player walks, climbs a kerb and jumps; every car spawns with
 // four separate wheels, stays upright, accelerates, steers the right way and brakes; the pistol
@@ -155,6 +155,56 @@ if (want('shoot')) {
   });
   check(s.after < s.before, `fires (${s.before} → ${s.after} rounds)`);
   check(s.reloaded === 12, `reloads to ${s.reloaded} (${s.reserve} left)`);
+}
+
+if (want('ui')) {
+  console.log('interface');
+  const u = await page.evaluate(async () => {
+    const g = window.__game, $ = (id) => document.getElementById(id);
+    g.step(5);
+    const hud = { radar: !!$('minimap').width, objective: !$('objective').hidden, weapon: $('weapon-name').textContent };
+    // GPS: a waypoint gives a route on the road network and a distance.
+    await g.nav.load();
+    const p = g.places.find((x) => x.id === 'museum');
+    g.setWaypoint(p.x, p.z, p.name);
+    for (let i = 0; i < 40 && !g.nav.route; i++) await new Promise((r) => setTimeout(r, 100));
+    g.step(2);
+    const route = { points: g.nav.route ? g.nav.route.length / 2 : 0, km: g.nav.remaining / 1000, shown: !$('radar-distance').hidden };
+    // Pause menu: every tab renders.
+    const tabs = {};
+    g.openMenu('map');
+    for (const t of ['map', 'brief', 'stats', 'settings', 'game']) { g.menu.select(t); tabs[t] = $('pause-body').textContent.length; }
+    g.closeMenu();
+    // Weapon wheel: hold, point at fists (left), let go.
+    g.weapons.select(1);
+    g.input.forced.add('wheel'); g.step(2);
+    const opened = g.wheel.open;
+    g.input.look.y = 0; g.wheel.cy = 0; g.wheel.update({ look: { x: -200, y: 0 }, pad: null }); // Fists sit on the left
+    g.input.forced.delete('wheel'); g.step(2);
+    const picked = g.weapons.weapon.id;
+    g.weapons.select(1);
+    // Phone → Maps → first place sets a waypoint.
+    g.phone.toggle(); g.phone.app = 'maps'; g.phone.sel = 0; g.phone.activate();
+    const phoneTarget = g.nav.target?.label;
+    // A car driving into the player knocks him down and hurts.
+    const s = g.world.index.spawn, car = g.cars[0];
+    const fx = Math.sin(s.heading), fz = Math.cos(s.heading);
+    g.player.place(s.x, 0.02, s.z, s.heading); g.player.health = 100; g.step(5);
+    car.body.setTranslation({ x: s.x - fx * 8, y: 0.4, z: s.z - fz * 8 }, true);
+    car.body.setRotation({ x: 0, y: Math.sin(s.heading / 2), z: 0, w: Math.cos(s.heading / 2) }, true);
+    car.body.setLinvel({ x: fx * 12, y: 0, z: fz * 12 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    let knocked = false; for (let i = 0; i < 60 && !knocked; i++) { g.step(1); knocked = g.player.knocked > 0; }
+    const health = g.player.health;
+    g.step(180);
+    return { hud, route, tabs, opened, picked, phoneTarget, knocked, health, up: g.player.knocked <= 0 };
+  });
+  check(u.hud.radar && u.hud.weapon === 'Pistol', `HUD shows the radar and the weapon (${u.hud.weapon})`);
+  check(u.route.points > 3 && u.route.km > 0.3 && u.route.shown, `GPS route of ${u.route.points} points, ${u.route.km.toFixed(2)} km, distance on the radar`);
+  check(Object.values(u.tabs).every((n) => n > 20), `pause menu tabs render (${Object.entries(u.tabs).map(([k, v]) => `${k} ${v}`).join(', ')})`);
+  check(u.opened && u.picked === 'fists', `weapon wheel opens and equips what you point at (${u.picked})`);
+  check(!!u.phoneTarget, `phone Maps sets a destination (${u.phoneTarget})`);
+  check(u.knocked && u.health < 100 && u.up, `a car knocks the player down (health ${Math.round(u.health)}) and he gets up`);
+  await shot('ui');
 }
 
 // Frame time: the simulation must not stutter.

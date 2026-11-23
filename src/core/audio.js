@@ -72,6 +72,26 @@ export class Audio {
     void decay;
   }
 
+  /** Short synthesised interface sounds (feedback, §12): move, tick, select, back, open, message, objective, hurt, wasted. */
+  ui(kind) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const tone = (f, at, dur, vol = 0.08, type = 'sine') => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t + at);
+      g.gain.setValueAtTime(0, t + at); g.gain.linearRampToValueAtTime(vol, t + at + 0.008); g.gain.exponentialRampToValueAtTime(0.0008, t + at + dur);
+      o.connect(g); g.connect(this.master); o.start(t + at); o.stop(t + at + dur + 0.02);
+    };
+    if (kind === 'move' || kind === 'tick') tone(kind === 'tick' ? 1500 : 1100, 0, 0.04, 0.05);
+    else if (kind === 'select') { tone(880, 0, 0.07); tone(1320, 0.06, 0.09); }
+    else if (kind === 'back') { tone(900, 0, 0.06); tone(600, 0.05, 0.08); }
+    else if (kind === 'open') { tone(520, 0, 0.08, 0.06); tone(780, 0.05, 0.1, 0.06); }
+    else if (kind === 'message') { tone(1250, 0, 0.12, 0.06); tone(1660, 0.09, 0.16, 0.05); }
+    else if (kind === 'objective') { tone(660, 0, 0.14, 0.08, 'triangle'); tone(880, 0.12, 0.14, 0.08, 'triangle'); tone(1320, 0.24, 0.3, 0.08, 'triangle'); }
+    else if (kind === 'hurt') this.burst({ dur: 0.18, freq: 180, vol: 0.6 });
+    else if (kind === 'wasted') { tone(110, 0, 1.6, 0.25, 'sawtooth'); this.burst({ dur: 1.2, freq: 120, vol: 0.5 }); }
+  }
+
   shot() {
     this.burst({ dur: 0.35, freq: 2400, q: 0.5, vol: 0.9 });
     this.burst({ dur: 0.9, freq: 300, q: 0.8, vol: 0.5 }); // the street echoes

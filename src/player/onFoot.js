@@ -1,5 +1,6 @@
 // On foot: a Rapier kinematic character controller (capsule) that climbs kerbs, slides along
 // walls, pushes loose objects, falls and jumps; the hero's animations follow its real speed.
+// Health (falls and cars hurt; it recovers slowly up to half), stamina (sprinting uses it).
 import * as THREE from 'three/webgpu';
 import { RAPIER, GROUP, groups, STEP } from '../core/physics.js';
 
@@ -33,8 +34,30 @@ export class OnFoot {
     this.active = true;
     this.speed = 0;
     this.airTime = 0;
-    this.health = 100; this.armour = 0;
+    this.health = 100; this.armour = 0; this.stamina = 100;
+    this.tired = false;      // ran out of stamina: no sprinting until it is back to 30
+    this.sinceHurt = 99;
+    this.knocked = 0;        // seconds left lying down after a car hit
+    this.ghost = 0;          // seconds the capsule ignores cars (so a car that hit you drives on)
+    this.damage = [];        // [amount] since the last read (main.js turns them into feedback)
     this.move = { x: 0, z: 0 };
+  }
+
+  hurt(amount) {
+    if (amount <= 0) return;
+    const a = Math.min(this.armour, amount * 0.6);
+    this.armour -= a; this.health = Math.max(0, this.health - (amount - a));
+    this.sinceHurt = 0; this.damage.push(amount);
+  }
+
+  /** Knocked over by a car: flung along (dx, dz) at `speed`, down for a moment. */
+  knock(dx, dz, speed) {
+    this.vel.set(dx * speed * 0.6, 0, dz * speed * 0.6);
+    this.vy = 3 + speed * 0.15; this.grounded = false;
+    this.knocked = 1.6; this.ghost = 0.8;
+    this.collider.setCollisionGroups(groups(GROUP.PLAYER, GROUP.WORLD | GROUP.PROP | GROUP.PED));
+    this.hurt(Math.min(90, (speed - 3) * 7));
+    this.hero.play('fall', 1.2, 0.08);
   }
 
   place(x, y, z, heading = this.heading) {
@@ -63,17 +86,29 @@ export class OnFoot {
     const amount = Math.min(1, Math.hypot(dx, dz));
     if (amount > 0) { const l = Math.hypot(dx, dz); dx /= l; dz /= l; }
     const walk = input.down('walk');
-    const sprint = input.down('sprint') && !aiming && my > 0.3;
-    const target = amount * (aiming ? SPEED.aim : walk ? SPEED.walk : sprint ? SPEED.sprint : SPEED.run);
+    // Stamina: sprinting uses it, it comes back when you stop; empty = jog until it is back to 30.
+    if (this.stamina <= 0) this.tired = true;
+    if (this.tired && this.stamina > 30) this.tired = false;
+    const sprint = input.down('sprint') && !aiming && my > 0.3 && !this.tired && this.knocked <= 0;
+    this.stamina = Math.max(0, Math.min(100, this.stamina + (sprint && this.speed > 4 ? -16 : this.speed > 4 ? 0 : 14) * dt));
+    // Health comes back slowly up to half, a few seconds after the last hurt.
+    this.sinceHurt += dt;
+    if (this.sinceHurt > 5 && this.health < 50 && this.health > 0) this.health = Math.min(50, this.health + 2 * dt);
+    if (this.ghost > 0) { this.ghost -= dt; if (this.ghost <= 0) this.collider.setCollisionGroups(groups(GROUP.PLAYER, GROUP.WORLD | GROUP.VEHICLE | GROUP.PROP | GROUP.PED)); }
+    const down = this.knocked > 0;
+    if (down) { this.knocked -= dt; if (this.grounded) { this.vel.multiplyScalar(0.85); } }
+    const target = down ? 0 : amount * (aiming ? SPEED.aim : walk ? SPEED.walk : sprint ? SPEED.sprint : SPEED.run);
     const a = this.grounded ? ACCEL : AIR_ACCEL;
     const k = 1 - Math.exp(-a * dt);
-    this.vel.x += (dx * target - this.vel.x) * k;
-    this.vel.z += (dz * target - this.vel.z) * k;
+    if (!down) {
+      this.vel.x += (dx * target - this.vel.x) * k;
+      this.vel.z += (dz * target - this.vel.z) * k;
+    }
 
     if (this.grounded) {
       this.vy = -1;
       this.airTime = 0;
-      if (input.pressed('jump') && !aiming) { this.vy = JUMP; this.grounded = false; this.jumped = true; }
+      if (input.pressed('jump') && !aiming && !down) { this.vy = JUMP; this.grounded = false; this.jumped = true; this.jumps = (this.jumps || 0) + 1; }
     } else {
       this.vy -= GRAVITY * dt;
       this.airTime += dt;
@@ -86,14 +121,19 @@ export class OnFoot {
     this.body.setNextKinematicTranslation({ x: p.x + mv.x, y: p.y + mv.y, z: p.z + mv.z });
     const wasGrounded = this.grounded;
     this.grounded = this.ctrl.computedGrounded();
-    if (this.grounded && !wasGrounded && this.airTime > 0.25) this.landed = true;
+    if (this.grounded && !wasGrounded && this.airTime > 0.25) {
+      this.landed = true;
+      // Falls hurt: more than about 3.5 m (landing faster than 8.5 m/s).
+      if (this.fallSpeed > 8.5) this.hurt((this.fallSpeed - 8.5) * 14);
+    }
+    this.fallSpeed = this.grounded ? 0 : Math.max(this.fallSpeed || 0, -this.vy);
     // Real speed after collisions (walking into a wall stops the legs).
     this.speed = Math.hypot(mv.x, mv.z) / dt;
     if (this.speed < Math.hypot(this.vel.x, this.vel.z) * 0.5) { this.vel.x = mv.x / dt; this.vel.z = mv.z / dt; }
     if (mv.y > this.vy * dt + 0.001 && this.vy > 0) this.vy = 0; // bumped head
 
     // Facing: towards movement, or the camera when aiming.
-    const want = aiming ? camYaw : amount > 0.1 ? Math.atan2(dx, dz) : this.heading;
+    const want = down ? this.heading : aiming ? camYaw : amount > 0.1 ? Math.atan2(dx, dz) : this.heading;
     let d = want - this.heading;
     d = Math.atan2(Math.sin(d), Math.cos(d));
     this.heading += d * (1 - Math.exp(-(aiming ? 25 : 12) * dt));
@@ -108,7 +148,8 @@ export class OnFoot {
     o.position.copy(this.pos);
     o.rotation.y = this.heading;
     const h = this.hero, s = this.speed;
-    if (!this.grounded && this.airTime > 0.15) h.play(this.jumped ? 'jump' : 'jump', 1);
+    if (this.knocked > 0) { h.play(this.knocked > 0.7 ? 'fall' : 'getUp', 1.2, 0.15); h.update(dt); return; }
+    if (!this.grounded && this.airTime > 0.15) h.play('jump', 1);
     else if (aiming) h.play(firing ? 'shoot' : s > 0.4 ? 'walk' : 'aimIdle', firing ? 1.6 : s > 0.4 ? s / 1.4 : 1, 0.1);
     else if (s < 0.25) h.play('idle');
     else if (s < 2.2) h.play('walk', s / 1.4);

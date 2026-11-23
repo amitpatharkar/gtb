@@ -43,8 +43,11 @@ The old notes are in `trash/CLAUDE-old.md` (useful for how the map converter and
   HUD), fixed 60 Hz simulation (`simulate()`), per-frame `tick()` (pose sync, weapons, camera, HUD, streaming), enter
   and exit cars (driver's door on the right, India), sea → respawn at Apollo Bunder. `window.__game` for tests:
   `step(n)` (n fixed steps + one tick), `enterNearest()`, `exit()`, `freeCam`, `input.forced` (Set of actions).
-- `src/core/renderer.js` — tiers `high|medium|low` (`?quality=`, saved `gtb.quality`): render scale, MSAA, bloom
-  (clamped input: the sky's sun is huge), shadow map size and box, draw distance. ACES tone mapping, exposure 0.9.
+- `src/core/renderer.js` — tiers `high|medium|low` (`?quality=`, saved `gtb.quality`): one scene pass with colour,
+  normals, metalness/roughness and motion vectors → GTAO ambient occlusion (High) → screen-space reflections (off by
+  default, `?ssr`: dark smudges in tests) → bloom (clamped input: the sky's sun is huge) → TRAA temporal anti-aliasing
+  (High, Medium; MSAA on Low) → ACES tone mapping. `?noao&notaa&nobloom` for comparisons. Cascaded shadow maps (High 4,
+  Medium 3) in `sky.js`.
 - `src/core/physics.js` — world, `STEP`, collision `GROUP`s and `groups()`, `cast()` and `groundAt()`.
 - `src/core/input.js` — actions from keyboard/mouse (pointer lock) and standard gamepads: `down/pressed/released`,
   `move`, `look`, `throttle/brake/steer`, `aim/fire`.
@@ -72,7 +75,9 @@ The old notes are in `trash/CLAUDE-old.md` (useful for how the map converter and
   ground, pushes props), run 3.6 / sprint 6.4 / walk 1.5 m/s, jump, animation by real speed.
 - `src/player/camera.js` — orbit / over-the-shoulder aim / car chase (swings behind when you stop looking around),
   ray-cast so it never goes through walls.
-- `src/vehicles/carModel.js` — `CARS` (file, parody name, length, `turn` to face +z, drive, mass, accel, top speed,
+- `src/vehicles/cars.js` — `CARS` list shared with `scripts/cars.mjs` (glTF-Transform + meshoptimizer: each upload →
+  `public/art/cars/<id>.glb`, textures folded into colours, simplified, meshopt-compressed; ~2 MB for four cars).
+- `src/vehicles/carModel.js` — loads `art/cars/<id>.glb` (`CARS`: file, parody name, length, `turn` to face +z, drive, mass, accel, top speed,
   seat). Loads the owner's GLB as uploaded, drops flat ground planes, scales to real length, finds wheels by name and
   moves them into pivots, drops textures (average colour kept), picks the paint material by area and repaints each car.
 - `src/vehicles/vehicle.js` — Rapier `DynamicRayCastVehicleController` (forward axis z), `TUNE` handling numbers
@@ -80,8 +85,16 @@ The old notes are in `trash/CLAUDE-old.md` (useful for how the map converter and
   drag and rolling resistance, anti-roll torque while ≥ 2 wheels touch, `rightUp()`.
 - `src/combat/weapons.js` — fists and pistol (12 + 60, hitscan from the camera, muzzle flash light, tracer, bullet
   holes, dust, impulse on dynamic bodies, reload).
-- `src/ui/hud.js` (minimap rotates with the camera, road images cached per tile), `menu.js` (pause, controls,
-  settings, credits), `tuning.js` (lil-gui).
+- **Interface: read `docs/ui.md`** (built from a GTA V UI/UX study): `src/ui/hud.js` (priorities, HUD modes full /
+  contextual / minimal, GTA-style rectangular radar with route, blips, distance; health/armour/stamina strip; objective,
+  notifications with log, prompts with device glyphs `{action}` from `glyphs.js`, area names), `nav.js` (GPS: owners
+  'user' / 'objective', A* in `mapWorker.js` on `tiles/overview.bin.gz`, re-route, arrival), `mapView.js` (full map,
+  filters), `menu.js` (MAP/BRIEF/STATS/SETTINGS/GAME, settings with explanations, keyboard and controller navigation),
+  `weaponWheel.js` (hold Tab/LB, slow motion), `phone.js` (P: Maps, Messages, Contacts, Settings), `places.js`
+  (landmarks with altered names, map categories), `icons.js`, `tuning.js` (lil-gui). `src/game/onboarding.js`
+  (adaptive tutorial, Guidance setting), `stats.js` (`gtb.stats`).
+- `src/player/onFoot.js` also has health (falls and cars hurt; recovers to half), stamina (sprint), `knock()` (a car
+  hits you: thrown, down 1.6 s, capsule ignores cars for 0.8 s), WASTED → respawn at Apollo Bunder.
 - `scripts/build-tiles.mjs` + `scripts/lib/` — OpenStreetMap converter (`npm run tiles`, ~75 s, skips when inputs
   are unchanged; details in `trash/CLAUDE-old.md`). `scripts/ship-media.mjs` — ships only media ids and art files
   named in `src/`. `scripts/assets/` — asset pipeline → `assets` branch (`npm run assets:pull` locally).
@@ -98,8 +111,8 @@ The old notes are in `trash/CLAUDE-old.md` (useful for how the map converter and
   Mumbai building kit; day/night and monsoon; sound; missions; the rest of the map.
 
 ## Testing in the session
-- `npm run build` (tiles → vite → ship-media; ~90 MB site) then `npm test` (`tests/smoke.mjs`, `--only=world,foot,
-  drive,shoot`, `--quality=`, `--shots=dir` for screenshots). Runs in the deploy workflow before every deploy; add a
+- `npm run build` (tiles → cars → vite → ship-media; ~76 MB site) then `npm test` (`tests/smoke.mjs`, `--only=world,
+  foot,drive,shoot,ui`, `--quality=`, `--shots=dir` for screenshots). Runs in the deploy workflow before every deploy; add a
   check for every new system.
 - Without `public/media` (`npm run assets:pull`) everything 404s.
 - Headless Chromium uses SwiftShader WebGL 2 (`--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`).

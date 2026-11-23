@@ -8,14 +8,20 @@
 //   input.throttle / brake / steer   vehicle controls, 0..1 / 0..1 / -1..1
 
 const KEYS = {
-  forward: ['KeyW', 'ArrowUp'], back: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
+  forward: ['KeyW'], back: ['KeyS'], left: ['KeyA'], right: ['KeyD'],
   sprint: ['ShiftLeft', 'ShiftRight'], jump: ['Space'], handbrake: ['Space'], enter: ['KeyF'], horn: ['KeyH'],
-  reload: ['KeyR'], weapon1: ['Digit1'], weapon2: ['Digit2'], pause: ['Escape', 'KeyP'], tuning: ['F2'],
-  map: ['KeyM'], camera: ['KeyV'], walk: ['AltLeft', 'AltRight'], crouch: ['KeyC', 'ControlLeft'],
+  reload: ['KeyR'], weapon1: ['Digit1'], weapon2: ['Digit2'], pause: ['Escape'], tuning: ['F2'],
+  map: ['KeyM'], phone: ['KeyP'], wheel: ['Tab'], camera: ['KeyV'], walk: ['AltLeft', 'AltRight'], crouch: ['KeyC', 'ControlLeft'],
+  // Menus and the phone
+  navUp: ['ArrowUp'], navDown: ['ArrowDown'], navLeft: ['ArrowLeft'], navRight: ['ArrowRight'], select: ['Enter', 'NumpadEnter'],
+  cancel: ['Backspace'], tabPrev: ['KeyQ'], tabNext: ['KeyE'],
 };
 // Standard gamepad buttons: 0 A, 1 B, 2 X, 3 Y, 4 LB, 5 RB, 6 LT, 7 RT, 8 Back, 9 Start,
 // 10 left stick, 11 right stick, 12–15 d-pad up/down/left/right.
-const PAD = { sprint: [0], jump: [2], handbrake: [1], reload: [1], enter: [3], horn: [10], pause: [9], map: [8], weapon1: [14], weapon2: [15], camera: [11] };
+const PAD = {
+  sprint: [0], jump: [2], handbrake: [1], reload: [1], enter: [3], horn: [10], pause: [9], map: [8], camera: [11], wheel: [4], phone: [12],
+  navUp: [12], navDown: [13], navLeft: [14], navRight: [15], select: [0], cancel: [1], tabPrev: [4], tabNext: [5],
+};
 const DEAD = 0.15;
 const dz = (v) => (Math.abs(v) < DEAD ? 0 : (v - Math.sign(v) * DEAD) / (1 - DEAD));
 
@@ -34,11 +40,12 @@ export class Input {
     this.locked = false;
     this.sensitivity = 1;
     this.enabled = true;
+    this.vibration = true;
     // Headless tests and the tuning panel can set actions directly.
     this.forced = new Set();
 
     addEventListener('keydown', (e) => {
-      if (e.code === 'Tab' || e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
+      if (e.code === 'Tab' || e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Backspace' || (e.code.startsWith('Alt'))) e.preventDefault();
       this.keys.add(e.code); this.usingPad = false;
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
@@ -106,6 +113,11 @@ export class Input {
   down(action) { return this.now.has(action); }
   pressed(action) { return this.now.has(action) && !this.prev.has(action); }
   released(action) { return !this.now.has(action) && this.prev.has(action); }
+  /** Controller rumble (feedback): strong/weak 0..1, ms. */
+  rumble(strong, weak, ms = 120) {
+    if (!this.vibration || !this.pad?.vibrationActuator) return;
+    this.pad.vibrationActuator.playEffect?.('dual-rumble', { duration: ms, strongMagnitude: strong, weakMagnitude: weak }).catch?.(() => {});
+  }
   release() { this.keys.clear(); this.forced.clear(); this.mouse.left = this.mouse.right = false; }
   unlock() { if (document.pointerLockElement) document.exitPointerLock(); }
 }

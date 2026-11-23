@@ -21,6 +21,12 @@ import { Weapons, WEAPONS } from './combat/weapons.js';
 import { Hud } from './ui/hud.js';
 import { Menu } from './ui/menu.js';
 import { Tuning } from './ui/tuning.js';
+import { Nav } from './ui/nav.js';
+import { placesFrom } from './ui/places.js';
+import { WeaponWheel } from './ui/weaponWheel.js';
+import { Phone } from './ui/phone.js';
+import { Stats } from './game/stats.js';
+import { Onboarding } from './game/onboarding.js';
 import { GAME } from './brand.js';
 
 const $ = (id) => document.getElementById(id);
@@ -71,23 +77,59 @@ async function boot() {
   const props = new Props(scene, physics);
   await placeCarsAndProps(world, physics, scene, cars, props, index.spawn);
 
-  const hud = new Hud(world);
+  // ------------------------------------------------------------------ interface (docs/ui.md)
+  const places = placesFrom(index, AREA);
+  const nav = new Nav(world);
+  const hud = new Hud(world, nav, places);
+  hud.onMessage = (k) => audio.ui(k);
+  const stats = new Stats();
   const tuning = new Tuning(() => cars);
   const credits = await buildCredits();
+  const wheel = new WeaponWheel(weapons, (k) => audio.ui(k));
   let paused = false;
+  let onboarding = null;
   const menu = new Menu({
-    tier, backend: R.backend, credits,
+    tier, backend: R.backend, credits, nav, area: AREA,
     onResume: () => { paused = false; input.release(); if (!AUTOMATION) renderer.domElement.requestPointerLock?.(); },
-    onSettings: (s) => { input.sensitivity = s.sensitivity; cam.invertY = s.invertY; audio.setVolume(s.volume); },
+    onSettings: (s) => {
+      input.sensitivity = s.sensitivity; cam.invertY = s.invertY; audio.setVolume(s.volume); input.vibration = s.vibration;
+      hud.setMode(s.hud);
+      if (onboarding && s.guidance !== onboarding.setting) startOnboarding(s.guidance);
+    },
+    actions: {
+      sound: (k) => audio.ui(k),
+      waypoint: (x, z, label) => setWaypoint(x, z, label),
+      home: () => respawn(),
+      tutorial: () => { onboarding.reset(); onboarding.level = 'more'; },
+      tuning: () => tuning.toggle(),
+    },
   });
+  const phone = new Phone({
+    places, log: () => hud.log,
+    onWaypoint: (x, z, name) => setWaypoint(x, z, name),
+    onSettings: () => openMenu('settings'),
+    sound: (k) => audio.ui(k),
+  });
+  const menuContext = () => ({
+    stats, log: hud.log, nav, places, filters: hud.filters, pad: input.usingPad,
+    objective: onboarding?.active ? onboarding.step.text : null, place: hud.last.area,
+    cars: cars.filter((c) => c !== driving).map((c) => ({ x: c.position.x, z: c.position.z })),
+    player: { x: (driving ? driving.position : player.pos).x, z: (driving ? driving.position : player.pos).z, heading: driving ? driving.heading : player.heading },
+  });
+  function openMenu(tab = 'map') {
+    if (wheel.open) wheel.hide();
+    if (phone.open) phone.close();
+    paused = true; input.unlock(); menu.show(tab, menuContext());
+  }
   document.addEventListener('pointerlockchange', () => {
-    if (!document.pointerLockElement && !AUTOMATION && !menu.open && hud.el && !hud.el.hidden) { paused = true; menu.show(); }
+    if (!document.pointerLockElement && !AUTOMATION && !menu.open && !hud.el.hidden) openMenu('map');
   });
 
   // ------------------------------------------------------------------ game state
   let driving = null;     // the Vehicle being driven, or null on foot
-  let hitMarker = 0, fHeld = 0, underwater = 0;
+  let hitMarker = 0, fHeld = 0, underwater = 0, wastedT = 0, timeScale = 1;
   const tmp = new THREE.Vector3();
+  const ob = { looked: 0, walked: 0, driving: false, arrived: null, userArrived: false, weapon: null, usedWheel: false, hitProp: false };
 
   function nearestCar(maxExtra = 1.6) {
     let best = null, bd = Infinity;
@@ -98,6 +140,23 @@ async function boot() {
     }
     return best;
   }
+
+  function setWaypoint(x, z, label) {
+    if (x === null || x === undefined) { nav.set('user', null); hud.message('Waypoint cleared.', 3); return; }
+    if (x < AREA.minX || x > AREA.maxX || z < AREA.minZ || z > AREA.maxZ) { hud.message(`That's outside ${AREA.name} — the rest of Mumbai opens later.`, 4); audio.ui('back'); return; }
+    const from = driving ? driving.position : player.pos;
+    const name = label || world.roadNameAt(x, z) || 'Waypoint';
+    nav.set('user', { x, z, label: name }, { x: from.x, z: from.z, heading: driving ? driving.heading : null }).then(() => { menu.mapView.draw(); });
+    hud.message(`Waypoint set: <b>${name}</b> · ${Nav.distance(Math.hypot(x - from.x, z - from.z))} away. Follow the purple route.`, 5);
+    audio.ui('select');
+  }
+
+  nav.onArrive = (owner, t) => {
+    stats.add('waypoints');
+    audio.ui('objective');
+    if (owner === 'user') { ob.userArrived = true; hud.message(`You have arrived: <b>${t.label}</b>.`, 4, { sound: false }); }
+    else ob.arrived = t.place;
+  };
 
   function enterCar(car) {
     driving = car;
@@ -114,6 +173,8 @@ async function boot() {
     car.body.wakeUp();
     hud.vehicleName(car.spec.name);
     cam.idle = 2;
+    stats.add('carsEntered');
+    input.rumble(0.1, 0.3, 120);
   }
 
   function exitCar() {
@@ -138,31 +199,99 @@ async function boot() {
     audio.car(false, 0, 0, 0);
   }
 
+  function respawn() {
+    if (driving) exitCar();
+    const s = index.spawn, g = physics.groundAt(s.x, s.z) ?? 0.2;
+    player.place(s.x, g, s.z, s.heading);
+    player.health = 100; player.stamina = 100; player.knocked = 0;
+    cam.yaw = s.heading;
+  }
+
+  // ------------------------------------------------------------------ onboarding (adaptive)
+  function startOnboarding(level) {
+    onboarding = new Onboarding(level, stats.s.sessions);
+    onboarding.setting = level;
+    onboarding.started = -1;
+  }
+  startOnboarding(menu.settings.guidance);
+
+  function onboardingTick() {
+    const o = onboarding;
+    if (!o.active) { hud.objective(null); if (nav.targets.has('objective')) nav.set('objective', null); return; }
+    const st = o.step;
+    const ctx = {
+      ...ob, driving: !!driving, weapon: weapons.weapon.id,
+      nearestCar: () => { let b = null, bd = Infinity; for (const c of cars) { const d = c.position.distanceTo(player.pos); if (d < bd) { bd = d; b = c; } } return b && { x: b.position.x, z: b.position.z }; },
+      nearestProp: () => { const it = props.items[0]; if (!it) return null; const p = it.body.translation(); return { x: p.x, z: p.z }; },
+    };
+    if (o.started !== st.id) {
+      o.started = st.id;
+      const tgt = st.place ? places.find((p) => p.id === st.place) : st.target?.(ctx);
+      const from = driving ? driving.position : player.pos;
+      if (tgt && st.id !== 'shoot' && st.id !== 'car') nav.set('objective', { x: tgt.x, z: tgt.z, label: tgt.name || '', place: st.place, objective: true }, { x: from.x, z: from.z, heading: driving ? driving.heading : null });
+      else nav.set('objective', null);
+      ob.arrived = null; ob.userArrived = false; ob.hitProp = false; ob.usedWheel = false;
+    }
+    hud.objective(o.level === 'more' && st.hint ? `${st.text}<br><small style="color:var(--dim)">${st.hint}</small>` : st.text);
+    if (st.done(ctx)) {
+      hud.objective(null, true);
+      const finished = o.complete();
+      audio.ui('objective');
+      if (!o.step) hud.message('Tutorial done. Colaba is yours: explore, or set a destination on the map with {map}.', 7, { sound: false });
+      else if (finished) hud.message(`Done: ${finished.text}`, 3, { sound: false });
+    }
+  }
+
+  // ------------------------------------------------------------------ input actions
   function actions(dt) {
-    if (input.pressed('pause')) { paused = true; input.unlock(); menu.show(); return; }
+    if (wastedT > 0) return;
+    if (input.pressed('pause')) { openMenu('map'); return; }
+    if (input.pressed('map')) { openMenu('map'); return; }
     if (input.pressed('tuning')) tuning.toggle();
+    if (input.pressed('phone') && !wheel.open) phone.toggle();
+    if (phone.open) { phone.update(input); }
+    // Weapon wheel: hold to open, let go to equip (on foot only).
+    if (!driving && !phone.open) {
+      if (input.pressed('wheel')) wheel.show();
+      if (wheel.open) { wheel.update(input); if (!input.down('wheel')) { if (wheel.hide()) { ob.usedWheel = true; } } }
+    } else if (wheel.open) wheel.hide();
+    timeScale = wheel.open ? 0.25 : 1;
     if (!driving) {
       if (input.pressed('weapon1')) weapons.select(0);
       if (input.pressed('weapon2')) weapons.select(1);
-      if (input.wheel) weapons.select((weapons.current + (input.wheel > 0 ? 1 : WEAPONS.length - 1)) % WEAPONS.length);
+      if (input.wheel && !wheel.open) weapons.select((weapons.current + (input.wheel > 0 ? 1 : WEAPONS.length - 1)) % WEAPONS.length);
       if (input.pressed('reload')) weapons.reload();
-      const near = nearestCar();
-      hud.prompt(near ? `<kbd>F</kbd>Get in · ${near.spec.name}` : '');
+      const near = player.knocked > 0 ? null : nearestCar();
+      hud.prompt(near ? `{enter} Get in · ${near.spec.name}` : '');
       if (input.pressed('enter') && near) { enterCar(near); return; }
     } else {
       audio.horn(input.down('horn'));
       if (input.down('enter')) fHeld += dt; else fHeld = 0;
-      if (driving.flippedTime > 1) { hud.prompt('<kbd>F</kbd>Hold to put the car back on its wheels'); if (fHeld > 0.6) { driving.rightUp(); fHeld = 0; } }
+      if (driving.flippedTime > 1) { hud.prompt('Hold {enter} to put the car back on its wheels'); if (fHeld > 0.6) { driving.rightUp(); fHeld = 0; } }
       else { hud.prompt(''); if (input.pressed('enter')) exitCar(); }
     }
   }
 
   function simulate() {
-    const aiming = !driving && weapons.weapon.id === 'pistol' && (input.aim || input.fire);
-    if (driving) driving.control(input); else player.step(input, cam.yaw, aiming);
+    const aiming = !driving && weapons.weapon.id === 'pistol' && (input.aim || input.fire) && !wheel.open;
+    if (driving) driving.control(wastedT > 0 ? null : input); else player.step(wastedT > 0 || wheel.open ? IDLE : input, cam.yaw, aiming);
     for (const c of cars) c.step();
+    // Cars knock the player over (the capsule lets a car through for a moment after).
+    if (!driving && player.ghost <= 0) {
+      for (const c of cars) {
+        const v = c.body.linvel(), sp = Math.hypot(v.x, v.z);
+        if (sp < 3.5) continue;
+        const p = c.position, h = c.heading, dx = player.pos.x - p.x, dz = player.pos.z - p.z;
+        const lx = dx * Math.cos(h) - dz * Math.sin(h), lz = dx * Math.sin(h) + dz * Math.cos(h);
+        if (Math.abs(lx) < c.model.dims.x / 2 + 0.35 && Math.abs(lz) < c.model.dims.z / 2 + 0.35 && Math.abs(player.pos.y - p.y) < 1.5) {
+          player.knock(v.x / sp, v.z / sp, sp); audio.crash(sp * 0.5);
+          break;
+        }
+      }
+    }
     physics.world.step();
   }
+  const IDLE = { move: { x: 0, y: 0 }, down: () => false, pressed: () => false };
 
   // ------------------------------------------------------------------ loop
   let last = performance.now(), acc = 0, frames = 0, fpsT = 0, fps = 0, simMs = 0;
@@ -175,17 +304,19 @@ async function boot() {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     input.update(dt);
+    hud.pad = input.usingPad;
     $('click-to-play').hidden = paused || input.locked || AUTOMATION || input.usingPad;
-    if (!paused) {
+    if (paused) menu.update(input);
+    else {
       actions(dt);
-      cam.look(input);
+      if (!wheel.open) cam.look(input);
       const t0 = performance.now();
-      acc += dt;
+      acc += dt * timeScale;
       let n = 0;
       while (acc >= STEP && n < 5) { simulate(); acc -= STEP; n++; }
       if (n === 5) acc = 0;
       simMs = performance.now() - t0;
-      tick(dt);
+      tick(dt * timeScale, dt);
     }
     try { R.render(); } catch (e) { if (!frame.failed) console.error('render failed:', e); frame.failed = true; }
     frames++; fpsT += dt;
@@ -198,27 +329,40 @@ async function boot() {
     } else statsEl.hidden = true;
   }
 
-  /** Per rendered frame: copy physics poses, animate, camera, HUD, streaming. */
-  function tick(dt) {
+  /** Per rendered frame: copy physics poses, animate, feedback, camera, HUD, streaming. dt is game time, real is wall time. */
+  function tick(dt, real = dt) {
     for (const c of cars) c.sync();
     props.sync();
-    const aiming = !driving && weapons.weapon.id === 'pistol' && (input.aim || input.fire);
+    stats.tick(real);
+    const aiming = !driving && weapons.weapon.id === 'pistol' && (input.aim || input.fire) && !wheel.open && wastedT <= 0;
     let shot = null;
     if (!driving) {
-      shot = weapons.update(dt, input.fire, camera, player.body);
+      shot = weapons.update(dt, input.fire && !wheel.open && wastedT <= 0 && player.knocked <= 0, camera, player.body);
       if (shot?.punch) { hero.play('jab', 1.4, 0.05); punch(); }
-      if (shot && !shot.punch) { cam.kick(0.012); if (shot.collider && shot.collider.parent()?.isDynamic()) hitMarker = 0.15; }
+      if (shot && !shot.punch) {
+        cam.kick(0.012); stats.add('shots'); input.rumble(0.25, 0.5, 70);
+        const body = shot.collider?.parent();
+        if (body?.isDynamic()) { hitMarker = 0.15; stats.add('hits'); if (props.items.some((it) => it.body === body)) ob.hitProp = true; }
+      }
       player.sync(dt, aiming, weapons.cool > weapons.weapon.rate * 0.4 && weapons.weapon.id === 'pistol');
+      stats.add('walked', player.speed * dt);
+      ob.walked += player.speed * dt;
     } else {
       weapons.update(dt, false, camera, null);
       hero.update(dt);
-      const v = driving.body.linvel();
-      const slip = driving.vc ? lateralSlip(driving) : 0;
+      const slip = lateralSlip(driving);
       audio.car(true, Math.min(1, Math.abs(driving.speed) / driving.spec.top * 0.9 + 0.12 + (driving.gear > 0 ? (Math.abs(driving.speed) * 3.6 % 22) / 60 : 0)), input.throttle, slip);
-      if (driving.crash > 3) { audio.crash(driving.crash); cam.shake = Math.min(1, driving.crash * 0.08); }
-      void v;
+      if (driving.crash > 3) { audio.crash(driving.crash); cam.shake = Math.min(1, driving.crash * 0.08); input.rumble(Math.min(1, driving.crash / 12), 0.6, 200); if (driving.crash > 4) stats.add('crashes'); }
+      stats.add('driven', Math.abs(driving.speed) * dt);
+      stats.max('topSpeed', Math.abs(driving.speed));
     }
+    if (player.jumps) { stats.add('jumps', player.jumps); player.jumps = 0; }
+    ob.looked += Math.abs(input.look.x) * 0.002 + Math.abs(input.look.y) * 0.002;
     hitMarker = Math.max(0, hitMarker - dt);
+    // Getting hurt: red screen edges, a thud, the controller rumbles.
+    while (player.damage.length) { const d = player.damage.pop(); hud.hurt(d); audio.ui('hurt'); input.rumble(Math.min(1, d / 40), 0.8, 180); }
+    if (player.health <= 0 && wastedT <= 0) { wastedT = 3.5; $('wasted').hidden = false; audio.ui('wasted'); stats.add('wasted'); input.rumble(1, 1, 500); }
+    if (wastedT > 0) { wastedT -= real; if (wastedT <= 0) { $('wasted').hidden = true; respawn(); } }
     // In the sea: no swimming yet — back to the street (and the car back to the kerb).
     const sink = driving ? driving.position.y : player.pos.y;
     if (sink < Y.SEA - 0.8) {
@@ -235,18 +379,24 @@ async function boot() {
     if (window.__game?.freeCam) { /* left alone */ } else if (driving) {
       const p = driving.position;
       tmp.set(p.x, p.y + driving.model.dims.y * 0.8, p.z);
-      cam.update(dt, tmp, 'car', driving.heading, Math.abs(driving.speed), driving.model.dims.z, driving.body);
+      cam.update(real, tmp, 'car', driving.heading, Math.abs(driving.speed), driving.model.dims.z, driving.body);
     } else {
       tmp.set(player.pos.x, player.eye, player.pos.z);
-      cam.update(dt, tmp, aiming ? 'aim' : 'foot', player.heading, player.speed, 1, player.body);
+      cam.update(real, tmp, aiming ? 'aim' : 'foot', player.heading, player.speed, 1, player.body);
     }
     const focus = driving ? driving.position : player.pos;
     sky.follow(focus.x, focus.y, focus.z);
     world.update(focus.x, focus.z);
-    hud.update({
-      health: player.health, armour: player.armour, weapon: weapons.weapon, ammo: weapons.state, reloading: weapons.reloading > 0,
-      aiming: aiming && !driving, speed: driving?.speed || 0, gear: driving?.gear || 1, inCar: !!driving,
-      x: focus.x, z: focus.z, yaw: cam.yaw, cars: cars.filter((c) => c !== driving).map((c) => c.position.clone()), hit: hitMarker > 0,
+    nav.update(real, focus.x, focus.z, driving ? driving.heading : null);
+    onboardingTick();
+    if (phone.open) phone.render();
+    hud.update(real, {
+      pad: input.usingPad,
+      health: player.health, armour: player.armour, stamina: player.stamina, wanted: 0,
+      weapon: weapons.weapon, ammo: weapons.state, reloading: weapons.reloading > 0,
+      aiming, speed: driving?.speed || 0, gear: driving?.gear || 1, inCar: !!driving,
+      x: focus.x, z: focus.z, yaw: cam.yaw, heading: driving ? driving.heading : player.heading,
+      cars: cars.filter((c) => c !== driving).map((c) => c.position.clone()), hit: hitMarker > 0,
     });
   }
 
@@ -265,19 +415,24 @@ async function boot() {
 
   // ------------------------------------------------------------------ start
   progress(1, 'Ready');
-  hud.show();
-  hud.message(`${AREA.name}, Mumbai. Click to take control.`, 6);
-  hud.message('F — get in a car · Right mouse — aim · Left mouse — shoot · Esc — menu', 8);
+  hud.start();
+  hud.message(`<b>${AREA.name}, Mumbai.</b> ${AUTOMATION ? '' : 'Click to take control.'}`, 6, { sound: false });
   setTimeout(() => $('loading').classList.add('done'), 150);
   requestAnimationFrame((t) => { last = t; frame(t); });
+  nav.load().catch((e) => console.warn('GPS:', e));
 
   window.__game = {
     THREE, R, scene, camera, renderer, physics, world, player, hero, cars, props, weapons, input, cam, hud, menu, sky, audio,
+    nav, stats, phone, wheel, places,
+    get onboarding() { return onboarding; },
     get driving() { return driving; },
+    get paused() { return paused; },
     enterNearest() { const c = nearestCar(6); if (c) enterCar(c); return !!c; },
     exit() { if (driving) exitCar(); },
+    setWaypoint, openMenu, respawn,
+    closeMenu() { if (menu.open) { menu.hide(); paused = false; } },
     /** Advance the simulation n fixed steps without rendering (headless tests). */
-    step(n = 1) { for (let i = 0; i < n; i++) { input.update(STEP); simulate(); } tick(STEP * n); },
+    step(n = 1) { for (let i = 0; i < n; i++) { input.update(STEP); actions(STEP); simulate(); } tick(STEP * n); },
     render() { R.render(); },
   };
 }

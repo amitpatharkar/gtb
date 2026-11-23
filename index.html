@@ -10,22 +10,42 @@
   <body>
     <div id="game"></div>
 
-    <!-- Heads-up display (src/ui/hud.js) -->
+    <!-- Heads-up display (src/ui/hud.js). High-priority information stays; contextual information
+         appears when it matters and leaves again (see docs/ui.md). -->
     <div id="hud" hidden>
-      <div id="messages"></div>
-      <div id="weapon"><div id="weapon-name">Fists</div><div id="weapon-ammo"></div></div>
-      <div id="radar">
-        <canvas id="minimap" width="220" height="220"></canvas>
-        <div id="street"></div>
-        <div class="bars"><div class="bar health"><i></i></div><div class="bar armour"><i></i></div></div>
+      <div id="vignette"></div>
+      <div id="top-left">
+        <div id="objective" hidden><i></i><span></span></div>
+        <div id="messages"></div>
       </div>
-      <div id="speedo" hidden><b id="speed">0</b><span>km/h</span><em id="gear">1</em></div>
+      <div id="top-right">
+        <div id="weapon"><div id="weapon-icon"></div><div><div id="weapon-name">Fists</div><div id="weapon-ammo"></div></div></div>
+        <div id="wanted" hidden></div>
+      </div>
+      <div id="radar">
+        <canvas id="minimap" width="520" height="340"></canvas>
+        <div id="radar-distance" hidden></div>
+        <div class="strip"><div class="bar health"><i></i></div><div class="bar armour"><i></i></div><div class="bar stamina"><i></i></div></div>
+      </div>
+      <div id="bottom-right">
+        <div id="area"><b id="area-name"></b><span id="street"></span></div>
+        <div id="speedo" hidden><b id="speed">0</b><span>km/h</span><em id="gear">1</em></div>
+      </div>
+      <div id="vehicle-name"></div>
       <div id="prompt" hidden></div>
       <div id="crosshair" hidden></div>
-      <div id="vehicle-name"></div>
       <div id="osm">Map data © OpenStreetMap contributors</div>
       <div id="stats" hidden></div>
     </div>
+
+    <!-- Weapon wheel (hold Tab / LB): src/ui/weaponWheel.js -->
+    <div id="wheel" hidden><div id="wheel-ring"></div><div id="wheel-centre"></div></div>
+
+    <!-- Phone (P / d-pad up): src/ui/phone.js — a diegetic interface, part of the character's world -->
+    <div id="phone" hidden><div class="screen"><div class="status"><span id="phone-time"></span><span>Kidhar Mobile</span></div><div id="phone-body"></div><div class="nav" id="phone-nav"></div></div></div>
+
+    <!-- Wasted -->
+    <div id="wasted" hidden><b>WASTED</b><span>Back on your feet at Apollo Bunder…</span></div>
 
     <!-- Loading screen -->
     <div id="loading">
@@ -35,20 +55,15 @@
       <div class="load-tip">Colaba · Apollo Bunder · Kala Ghoda</div>
     </div>
 
-    <!-- Pause menu (src/ui/menu.js) -->
+    <!-- Pause menu (src/ui/menu.js): Map, Brief, Stats, Settings, Game -->
     <div id="pause" hidden>
-      <div class="panel">
+      <header>
         <div class="brand small"><span>BOMBAY</span><b>BAWAAL</b></div>
-        <nav>
-          <button data-tab="resume" class="primary">Resume</button>
-          <button data-tab="controls">Controls</button>
-          <button data-tab="settings">Settings</button>
-          <button data-tab="credits">Credits</button>
-        </nav>
-        <section id="tab-controls" hidden></section>
-        <section id="tab-settings" hidden></section>
-        <section id="tab-credits" hidden></section>
-      </div>
+        <div id="pause-info"></div>
+      </header>
+      <nav id="pause-tabs"></nav>
+      <main id="pause-body"></main>
+      <footer id="pause-hints"></footer>
     </div>
 
     <div id="click-to-play" hidden>Click to play</div>

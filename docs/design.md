@@ -54,13 +54,15 @@ believable driving, physics everywhere, controls that feel like a modern open-wo
 | Handbrake | Space | B / Circle |
 | Horn | H | Left stick press |
 | Reload | R | B / Circle (on foot) |
-| Weapon: fists / pistol | 1 / 2 or mouse wheel | D-pad left / right |
+| Weapon wheel (hold, point, let go) | Tab | LB |
+| Weapon: fists / pistol | 1 / 2 or mouse wheel | — |
+| Phone | P | D-pad up |
 | Reset car upright | Hold F while stuck | — |
 | Pause | Esc | Start |
-| Map | M (later) | Back |
+| Map | M | View |
 | Car tuning panel (development) | F2 | — |
 
-## HUD (minimal, out of the way)
+## HUD (minimal, out of the way) — the full interface design is `docs/ui.md`
 - Bottom left: round minimap (north up, player arrow), health bar and armour bar under it.
 - Top right: weapon icon with ammo, wanted stars under it (once the police system lands).
 - Bottom right in a vehicle: speed in km/h and gear.
