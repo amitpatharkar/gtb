@@ -73,13 +73,29 @@ function prepare(id, scene) {
     const b = new THREE.Box3().setFromObject(o, true);
     if (b.isEmpty()) continue;
     const s = b.getSize(new THREE.Vector3());
-    // A node holding several wheels spans most of the car: skip it.
+    // A node holding several wheels spans most of the car: skip it. So are trims and hubcaps
+    // named after the wheel that are not wheel-shaped (a wheel is round seen from the side,
+    // narrow across the car, 0.4–1.0 m tall, and sits low).
     if (s.x > dims.x * 0.6 || s.z > dims.z * 0.45 || s.y > dims.y * 0.7) continue;
+    if (s.x > 0.5 || s.y < 0.35 || s.y > 1.0 || s.y / Math.max(s.z, 1e-3) < 0.7 || s.y / Math.max(s.z, 1e-3) > 1.4 || b.min.y > 0.15) continue;
     const m = b.getCenter(new THREE.Vector3());
     const key = `${m.x > 0 ? 'L' : 'R'}${m.z > 0 ? 'F' : 'B'}`; // +x is the car's left when it faces +z
     const e = corners.get(key) || { box: new THREE.Box3(), nodes: [] };
     e.box.union(b); e.nodes.push(o);
     corners.set(key, e);
+  }
+  // Symmetry check: a corner whose wheel differs a lot from its mirror on the other side is
+  // replaced by that mirror (centre with x flipped), and its own nodes stay in the body.
+  const cornerInfo = (e) => { const c = e.box.getCenter(new THREE.Vector3()), s = e.box.getSize(new THREE.Vector3()); return { c, r: Math.max(s.y, s.z) / 2 }; };
+  for (const [key, e] of [...corners]) {
+    const mirror = corners.get(`${key[0] === 'L' ? 'R' : 'L'}${key[1]}`);
+    if (!mirror) continue;
+    const a = cornerInfo(e), m = cornerInfo(mirror);
+    const bad = Math.abs(a.r - m.r) > 0.06 || Math.abs(Math.abs(a.c.x) - Math.abs(m.c.x)) > 0.12 || Math.abs(a.c.z - m.c.z) > 0.12 || Math.abs(a.c.y - m.c.y) > 0.08;
+    // Of the two, keep the one closer to a typical wheel (radius ~0.3 m, centre at its radius).
+    if (bad && Math.abs(a.r - 0.31) + Math.abs(a.c.y - a.r) > Math.abs(m.r - 0.31) + Math.abs(m.c.y - m.r)) {
+      e.box = mirror.box.clone(); const min = e.box.min.x, max = e.box.max.x; e.box.min.x = -max; e.box.max.x = -min; e.nodes = []; e.mirrored = true;
+    }
   }
   const wheels = [];
   if (corners.size === 4) {
@@ -87,13 +103,16 @@ function prepare(id, scene) {
       const centre = e.box.getCenter(new THREE.Vector3());
       const s = e.box.getSize(new THREE.Vector3());
       const radius = Math.max(s.y, s.z) / 2;
-      const pivot = new THREE.Group();
-      pivot.name = `wheel ${key}`;
-      pivot.position.copy(centre);
-      root.add(pivot);
-      pivot.updateMatrixWorld(true);
-      for (const n of e.nodes) pivot.attach(n);
-      wheels.push({ key, centre, radius, front: key[1] === 'F', left: key[0] === 'L', pivotName: pivot.name });
+      let pivotName = null;
+      if (e.nodes.length) {
+        const pivot = new THREE.Group();
+        pivot.name = pivotName = `wheel ${key}`;
+        pivot.position.copy(centre);
+        root.add(pivot);
+        pivot.updateMatrixWorld(true);
+        for (const n of e.nodes) pivot.attach(n);
+      }
+      wheels.push({ key, centre, radius, front: key[1] === 'F', left: key[0] === 'L', pivotName });
     }
   }
   // The build removed the textures (real badges, number plates). The paint is the biggest-area material that is not glass, trim, rubber or lights.

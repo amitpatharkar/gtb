@@ -5,21 +5,33 @@
 import * as THREE from 'three/webgpu';
 import { RAPIER, GROUP, groups, STEP } from '../core/physics.js';
 
-/** Handling settings shared by all cars (scaled per car by its spec); edited live by the tuning panel. */
-export const TUNE = {
-  suspensionRest: 0.22, suspensionTravel: 0.18, stiffness: 32, compression: 3.2, relaxation: 3.6,
-  frictionSlip: 2.1, sideStiffness: 1.0, rearGripHandbrake: 0.45,
-  engine: 1.0, brake: 1.0, steerMax: 0.6, steerSpeed: 2.4, steerReturn: 6, steerFade: 0.075, yawAssist: 0.35,
-  comHeight: 0.3, drag: 0.42, rolling: 0.015, maxSuspensionForce: 60000, antiRoll: 4, antiRollDamp: 0.7,
+/**
+ * Base handling (the owner's tuned numbers, 2026-11-23). Every car starts from these, then its own
+ * `handling` in cars.js (an old soft Envoy, a tall light Wagon Arre…), then anything saved for that
+ * car from the tuning panel (F2, localStorage `gtb.tune.<car id>`).
+ */
+export const BASE_TUNE = {
+  suspensionRest: 0.22, suspensionTravel: 0.18, stiffness: 52, compression: 5.5, relaxation: 6.1,
+  frictionSlip: 2.1, sideStiffness: 1, rearGripHandbrake: 0.45,
+  engine: 1.15, brake: 1.45, steerMax: 0.67, steerSpeed: 4.7, steerReturn: 7.1, steerFade: 0.08, yawAssist: 0.6,
+  comHeight: 0.3, drag: 1.04, rolling: 0.025, maxSuspensionForce: 60000, antiRoll: 4, antiRollDamp: 0.7,
 };
-TUNE.version = 2; // numbers saved by an older handling model are ignored
-try { const saved = JSON.parse(localStorage.getItem('gtb.tune') || '{}'); if (saved.version === TUNE.version) Object.assign(TUNE, saved); } catch { /* none saved */ }
+export const TUNE_VERSION = 3; // saved numbers from an older handling model are ignored
+
+/** The handling numbers for one car model. */
+export function tuneFor(id, spec) {
+  const t = { ...BASE_TUNE, ...(spec.handling || {}) };
+  try { const saved = JSON.parse(localStorage.getItem(`gtb.tune.${id}`) || '{}'); if (saved.version === TUNE_VERSION) Object.assign(t, saved); } catch { /* none saved */ }
+  t.version = TUNE_VERSION;
+  return t;
+}
 
 const _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _f = new THREE.Vector3();
 
 export class Vehicle {
   constructor(physics, model, x, y, z, heading) {
     this.physics = physics; this.model = model; this.spec = model.spec;
+    this.tune = tuneFor(model.id, model.spec);
     const { world } = physics;
     const d = model.dims, mass = this.spec.mass;
     this.object = new THREE.Group();
@@ -32,7 +44,7 @@ export class Vehicle {
     const lowerTop = d.y * 0.58, cabinTop = d.y * 0.96;
     const lower = RAPIER.ColliderDesc.cuboid(d.x * 0.47, (lowerTop - clear) / 2, d.z * 0.48)
       .setTranslation(0, (lowerTop + clear) / 2, 0)
-      .setMassProperties(mass, { x: 0, y: TUNE.comHeight, z: 0 }, inertia(mass, d), { w: 1, x: 0, y: 0, z: 0 })
+      .setMassProperties(mass, { x: 0, y: this.tune.comHeight, z: 0 }, inertia(mass, d), { w: 1, x: 0, y: 0, z: 0 })
       .setFriction(0.45).setRestitution(0.1)
       .setCollisionGroups(groups(GROUP.VEHICLE)).setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS);
     const cabin = RAPIER.ColliderDesc.cuboid(d.x * 0.42, (cabinTop - lowerTop) / 2, d.z * 0.28)
@@ -47,8 +59,8 @@ export class Vehicle {
     this.wheels = model.wheels;
     for (const w of this.wheels) {
       // Connection point so that, at rest under the car's weight, the wheel centre sits where the model has it.
-      const sag = 9.81 / (4 * TUNE.stiffness);
-      vc.addWheel({ x: w.centre.x, y: w.centre.y + TUNE.suspensionRest - sag, z: w.centre.z }, { x: 0, y: -1, z: 0 }, { x: -1, y: 0, z: 0 }, TUNE.suspensionRest, w.radius);
+      const sag = 9.81 / (4 * this.tune.stiffness);
+      vc.addWheel({ x: w.centre.x, y: w.centre.y + this.tune.suspensionRest - sag, z: w.centre.z }, { x: 0, y: -1, z: 0 }, { x: -1, y: 0, z: 0 }, this.tune.suspensionRest, w.radius);
     }
     this.applyTune();
     this.steer = 0; this.throttle = 0; this.brakeIn = 0; this.handbrake = 0;
@@ -59,16 +71,17 @@ export class Vehicle {
   }
 
   applyTune() {
-    const vc = this.vc;
+    const vc = this.vc, T = this.tune, d = this.model.dims, mass = this.spec.mass;
+    this.colliders[0].setMassProperties(mass, { x: 0, y: T.comHeight, z: 0 }, inertia(mass, d), { w: 1, x: 0, y: 0, z: 0 });
     for (let i = 0; i < vc.numWheels(); i++) {
-      vc.setWheelSuspensionRestLength(i, TUNE.suspensionRest);
-      vc.setWheelMaxSuspensionTravel(i, TUNE.suspensionTravel);
-      vc.setWheelSuspensionStiffness(i, TUNE.stiffness);
-      vc.setWheelSuspensionCompression(i, TUNE.compression);
-      vc.setWheelSuspensionRelaxation(i, TUNE.relaxation);
-      vc.setWheelMaxSuspensionForce(i, TUNE.maxSuspensionForce);
-      vc.setWheelFrictionSlip(i, TUNE.frictionSlip);
-      vc.setWheelSideFrictionStiffness(i, TUNE.sideStiffness);
+      vc.setWheelSuspensionRestLength(i, this.tune.suspensionRest);
+      vc.setWheelMaxSuspensionTravel(i, this.tune.suspensionTravel);
+      vc.setWheelSuspensionStiffness(i, this.tune.stiffness);
+      vc.setWheelSuspensionCompression(i, this.tune.compression);
+      vc.setWheelSuspensionRelaxation(i, this.tune.relaxation);
+      vc.setWheelMaxSuspensionForce(i, this.tune.maxSuspensionForce);
+      vc.setWheelFrictionSlip(i, this.tune.frictionSlip);
+      vc.setWheelSideFrictionStiffness(i, this.tune.sideStiffness);
     }
   }
 
@@ -96,16 +109,16 @@ export class Vehicle {
       // Steering: slower and smaller at speed.
       // Steering: turns in progressively, straightens up quickly (self-centring), and the lock
       // shrinks with speed (full at walking pace, about a third at 100 km/h): no twitch at speed.
-      const max = TUNE.steerMax / (1 + abs * TUNE.steerFade);
+      const max = this.tune.steerMax / (1 + abs * this.tune.steerFade);
       const target = -(this.steerIn || 0) * max;
       const back = Math.abs(target) < Math.abs(this.steer) || Math.sign(target) !== Math.sign(this.steer);
-      const rate = (back ? TUNE.steerReturn : TUNE.steerSpeed) * dt;
+      const rate = (back ? this.tune.steerReturn : this.tune.steerSpeed) * dt;
       this.steer += Math.max(-rate, Math.min(rate, target - this.steer));
       // Engine: full force at low speed, fading to zero at top speed. S brakes, then reverses.
       const driven = this.wheels.map((w) => (spec.drive === 'rear' ? !w.front : spec.drive === 'front' ? w.front : true));
       const nDriven = driven.filter(Boolean).length;
       let engine = 0, brake = 0;
-      const F = mass * spec.accel * TUNE.engine;
+      const F = mass * spec.accel * this.tune.engine;
       if (this.throttle > 0.02) {
         if (fwdSpeed < -0.5) brake = this.throttle;
         else engine = this.throttle * F * Math.max(0, 1 - (fwdSpeed / spec.top) ** 3); // strong pull until near top speed
@@ -114,14 +127,14 @@ export class Vehicle {
         if (fwdSpeed > 0.8) brake = Math.max(brake, this.brakeIn);
         else engine = -this.brakeIn * F * 0.5 * Math.max(0, 1 - (-fwdSpeed / 9) ** 2);
       }
-      const brakeForce = brake * TUNE.brake * mass * 0.028; // ≈ 0.8 g on dry asphalt
+      const brakeForce = brake * this.tune.brake * mass * 0.028; // ≈ 0.8 g on dry asphalt
       for (let i = 0; i < this.wheels.length; i++) {
         const w = this.wheels[i];
         vc.setWheelSteering(i, w.front ? this.steer : 0);
         vc.setWheelEngineForce(i, driven[i] ? engine / nDriven : 0);
         const hb = !w.front && this.handbrake ? mass * 0.05 : 0;
         vc.setWheelBrake(i, Math.max(brakeForce, hb, !this.driver ? mass * 0.02 : 0));
-        vc.setWheelFrictionSlip(i, !w.front && this.handbrake && abs > 3 ? TUNE.frictionSlip * TUNE.rearGripHandbrake : TUNE.frictionSlip);
+        vc.setWheelFrictionSlip(i, !w.front && this.handbrake && abs > 3 ? this.tune.frictionSlip * this.tune.rearGripHandbrake : this.tune.frictionSlip);
       }
       // Air drag and rolling resistance against the direction of travel.
       const sp = Math.hypot(v.x, v.y, v.z);
@@ -134,17 +147,17 @@ export class Vehicle {
       for (let i = 0; i < this.wheels.length; i++) if (vc.wheelIsInContact(i)) contacts++;
       // Yaw assist: with the wheel straight, damp the car's spin a little so it tracks straight
       // instead of wandering (keeps slides catchable; the handbrake turns it off).
-      const yawDamp = !this.handbrake && Math.abs(this.steerIn || 0) < 0.1 && abs > 5 ? mass * TUNE.yawAssist : 0;
+      const yawDamp = !this.handbrake && Math.abs(this.steerIn || 0) < 0.1 && abs > 5 ? mass * this.tune.yawAssist : 0;
       if (contacts >= 2) {
         const r = this.body.rotation(), w = this.body.angvel();
         _q.set(r.x, r.y, r.z, r.w);
         _f.set(0, 1, 0).applyQuaternion(_q); // body up
-        const k = mass * TUNE.antiRoll, c = mass * TUNE.antiRollDamp;
+        const k = mass * this.tune.antiRoll, c = mass * this.tune.antiRollDamp;
         // cross(up, worldUp) = (-up.z, 0, up.x); damping on the horizontal part of the spin.
         this.body.addTorque({ x: -_f.z * k - w.x * c, y: -w.y * yawDamp, z: _f.x * k - w.z * c }, true);
       }
       if (sp > 0.1) {
-        const drag = TUNE.drag * sp * sp + TUNE.rolling * mass * 9.81 * Math.min(1, sp);
+        const drag = this.tune.drag * sp * sp + this.tune.rolling * mass * 9.81 * Math.min(1, sp);
         this.body.addForce({ x: (-v.x / sp) * drag, y: (-v.y / sp) * drag, z: (-v.z / sp) * drag }, true);
       }
     }

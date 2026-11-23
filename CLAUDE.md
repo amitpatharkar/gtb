@@ -79,9 +79,11 @@ The old notes are in `trash/CLAUDE-old.md` (useful for how the map converter and
   `public/art/cars/<id>.glb`, textures folded into colours, simplified, meshopt-compressed; ~2 MB for four cars).
 - `src/vehicles/carModel.js` — loads `art/cars/<id>.glb` (`CARS`: file, parody name, length, `turn` to face +z, drive, mass, accel, top speed,
   seat). Loads the owner's GLB as uploaded, drops flat ground planes, scales to real length, finds wheels by name and
-  moves them into pivots, drops textures (average colour kept), picks the paint material by area and repaints each car.
-- `src/vehicles/vehicle.js` — Rapier `DynamicRayCastVehicleController` (forward axis z), `TUNE` handling numbers
-  (tuning panel F2 saves to `gtb.tune`), engine fading to top speed, brakes ≈ 0.8 g, handbrake drops rear grip,
+  moves them into pivots (only wheel-shaped pieces; a corner that disagrees with its mirror on the other side
+  is replaced by the mirror), drops textures (average colour kept), picks the paint material by area and repaints each car.
+- `src/vehicles/vehicle.js` — Rapier `DynamicRayCastVehicleController` (forward axis z). Handling per car: `BASE_TUNE`
+  (the owner's tuned numbers) → the car's `handling` overrides in `cars.js` → numbers saved for that model from the
+  tuning panel (F2 tunes the car you're in; `gtb.tune.<id>`, `TUNE_VERSION`); `car.tune`, engine fading to top speed, brakes ≈ 0.8 g, handbrake drops rear grip,
   drag and rolling resistance, anti-roll torque while ≥ 2 wheels touch, `rightUp()`.
 - `src/combat/weapons.js` — fists and pistol (12 + 60, hitscan from the camera, muzzle flash light, tracer, reload).
   The ray tests the world and props with Rapier and cars by their real shape (three-mesh-bvh trees built in

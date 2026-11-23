@@ -88,7 +88,7 @@ async function boot() {
   const hud = new Hud(world, nav, places);
   hud.onMessage = (k) => audio.ui(k);
   const stats = new Stats();
-  const tuning = new Tuning(() => cars);
+  const tuning = new Tuning(() => driving || nearestCar(8), () => cars);
   const credits = await buildCredits();
   const wheel = new WeaponWheel(weapons, (k) => audio.ui(k));
   let paused = false;
@@ -253,6 +253,7 @@ async function boot() {
     if (input.pressed('pause')) { openMenu('map'); return; }
     if (input.pressed('map')) { openMenu('map'); return; }
     if (input.pressed('tuning')) tuning.toggle();
+    tuning.follow();
     if (input.pressed('phone') && !wheel.open) phone.toggle();
     if (phone.open) { phone.update(input); }
     // Weapon wheel: hold to open, let go to equip (on foot only).
