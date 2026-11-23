@@ -3,6 +3,7 @@
 // Health (falls and cars hurt; it recovers slowly up to half), stamina (sprinting uses it).
 import * as THREE from 'three/webgpu';
 import { RAPIER, GROUP, groups, STEP } from '../core/physics.js';
+import { Ragdoll } from './ragdoll.js';
 
 const RADIUS = 0.3, HALF = 0.55; // capsule: 1.7 m tall
 const SPEED = { walk: 1.5, run: 3.6, sprint: 6.4, aim: 1.6 };
@@ -26,6 +27,7 @@ export class OnFoot {
     c.setCharacterMass(80);
     c.setSlideEnabled(true);
     this.ctrl = c;
+    this.ragdoll = new Ragdoll(physics, hero);
     this.pos = new THREE.Vector3();
     this.vel = new THREE.Vector3();
     this.vy = 0;
@@ -50,8 +52,13 @@ export class OnFoot {
     this.sinceHurt = 0; this.damage.push(amount);
   }
 
-  /** Knocked over by a car: flung along (dx, dz) at `speed`, down for a moment. */
+  /** Knocked over by a car: flung along (dx, dz) at `speed`, down for a moment. Hard hits → ragdoll. */
   knock(dx, dz, speed) {
+    if (speed > 6) {
+      this.hurt(Math.min(90, (speed - 3) * 7));
+      this.goLimp(dx * speed * 0.75, 2.5 + speed * 0.18, dz * speed * 0.75);
+      return;
+    }
     this.vel.set(dx * speed * 0.6, 0, dz * speed * 0.6);
     this.vy = 3 + speed * 0.15; this.grounded = false;
     this.knocked = 1.6; this.ghost = 0.8;
@@ -60,7 +67,16 @@ export class OnFoot {
     this.hero.play('fall', 1.2, 0.08);
   }
 
+  /** Become a ragdoll moving at (vx, vy, vz): the capsule steps aside until he gets up. */
+  goLimp(vx, vy, vz) {
+    if (this.ragdoll.active) return;
+    this.collider.setEnabled(false);
+    this.ragdoll.start(vx, vy, vz);
+    this.knocked = 99;
+  }
+
   place(x, y, z, heading = this.heading) {
+    if (this.ragdoll.active) { this.ragdoll.stop(); this.collider.setEnabled(this.active); this.knocked = 0; }
     this.body.setTranslation({ x, y: y + HALF + RADIUS + 0.05, z }, true);
     this.body.setNextKinematicTranslation({ x, y: y + HALF + RADIUS + 0.05, z });
     this.pos.set(x, y, z);
@@ -79,6 +95,20 @@ export class OnFoot {
    */
   step(input, camYaw, aiming) {
     const dt = STEP;
+    if (this.ragdoll.active) {
+      // Lying there until the body settles (or 5 s), then up where the hips came to rest.
+      this.ragdoll.update(dt);
+      const st = this.ragdoll.state();
+      if (st && ((this.ragdoll.time > 2 && st.speed < 0.7) || this.ragdoll.time > 5) && this.health > 0) {
+        const g = this.physics.groundAt(st.x, st.z, st.y + 1, 4) ?? st.y - 0.2;
+        this.ragdoll.stop();
+        this.collider.setEnabled(true);
+        this.place(st.x, g, st.z, this.heading);
+        this.knocked = 0.7; this.ghost = 0.3;
+      }
+      this.speed = 0;
+      return;
+    }
     // Camera-relative direction: forward = where the camera looks.
     const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
     const mx = input.move.x, my = input.move.y;
@@ -123,8 +153,9 @@ export class OnFoot {
     this.grounded = this.ctrl.computedGrounded();
     if (this.grounded && !wasGrounded && this.airTime > 0.25) {
       this.landed = true;
-      // Falls hurt: more than about 3.5 m (landing faster than 8.5 m/s).
+      // Falls hurt: more than about 3.5 m (landing faster than 8.5 m/s); a big fall knocks him flat.
       if (this.fallSpeed > 8.5) this.hurt((this.fallSpeed - 8.5) * 14);
+      if (this.fallSpeed > 12) this.goLimp(this.vel.x, 0, this.vel.z);
     }
     this.fallSpeed = this.grounded ? 0 : Math.max(this.fallSpeed || 0, -this.vy);
     // Real speed after collisions (walking into a wall stops the legs).
@@ -142,6 +173,12 @@ export class OnFoot {
 
   /** Copy the physics pose to the hero and choose his animation (once per rendered frame). */
   sync(dt, aiming, firing) {
+    if (this.ragdoll.active) {
+      this.ragdoll.sync();
+      const st = this.ragdoll.state();
+      if (st) this.pos.set(st.x, st.y - 0.9, st.z);
+      return;
+    }
     const p = this.body.translation();
     this.pos.set(p.x, p.y - HALF - RADIUS, p.z);
     const o = this.hero.object;

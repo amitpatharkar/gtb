@@ -282,7 +282,7 @@ async function boot() {
     if (driving) driving.control(wastedT > 0 ? null : input); else player.step(wastedT > 0 || wheel.open ? IDLE : input, cam.yaw, aiming);
     for (const c of cars) c.step();
     // Cars knock the player over (the capsule lets a car through for a moment after).
-    if (!driving && player.ghost <= 0) {
+    if (!driving && player.ghost <= 0 && player.knocked <= 0 && !player.ragdoll.active) {
       for (const c of cars) {
         const v = c.body.linvel(), sp = Math.hypot(v.x, v.z);
         if (sp < 3.5) continue;

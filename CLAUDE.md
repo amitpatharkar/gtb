@@ -99,7 +99,10 @@ The old notes are in `trash/CLAUDE-old.md` (useful for how the map converter and
   (landmarks with altered names, map categories), `icons.js`, `tuning.js` (lil-gui). `src/game/onboarding.js`
   (adaptive tutorial, Guidance setting), `stats.js` (`gtb.stats`).
 - `src/player/onFoot.js` also has health (falls and cars hurt; recovers to half), stamina (sprint), `knock()` (a car
-  hits you: thrown, down 1.6 s, capsule ignores cars for 0.8 s), WASTED → respawn at Apollo Bunder.
+  hits you: under 6 m/s thrown and down 1.6 s; harder → `goLimp()`), WASTED → respawn at Apollo Bunder.
+- `src/player/ragdoll.js` — Rapier ragdoll: 11 capsules (pelvis, chest, head, arms, legs) with spherical joints, built
+  from the current pose and speed; bones copy the capsules; group `RAGDOLL_GROUP` (hits world, cars, props); after
+  it settles (2–5 s) the capsule player comes back where the hips lie and plays the get-up clip.
 - `scripts/build-tiles.mjs` + `scripts/lib/` — OpenStreetMap converter (`npm run tiles`, ~75 s, skips when inputs
   are unchanged; details in `trash/CLAUDE-old.md`). `scripts/ship-media.mjs` — ships only media ids and art files
   named in `src/`. `scripts/assets/` — asset pipeline → `assets` branch (`npm run assets:pull` locally).
@@ -112,7 +115,12 @@ The old notes are in `trash/CLAUDE-old.md` (useful for how the map converter and
   pistol; HUD, pause menu, tuning panel; smoke test.
 - Not verified here: the WebGPU path renders (headless WebGPU in the sandbox loses its device even on a bare test);
   the WebGL 2 path is what the tests and screenshots use. Ask the owner how it runs on the Mac.
-- Next (owner picks the order, see `docs/design.md`): pedestrians and ragdolls; traffic; police and wanted system;
+- Done (2026-11-23, later): light car models (glTF-Transform), cascaded shadows, TRAA, GTAO, GPU particles,
+  exact hits (three-mesh-bvh), ragdoll, the full GTA-style interface (`docs/ui.md`).
+- Not used, on purpose: Takram atmosphere/clouds and Spark splats (WebGL-only libraries, not compatible with the
+  WebGPU renderer); Recast Navigation + Yuka wait for pedestrians/traffic; Google Open Buildings (free, CC BY 4.0 /
+  ODbL; per-S2-cell files of 0.8–1.2 GB) needs a GitHub Action to download and merge into the converter.
+- Next (owner picks the order, see `docs/design.md`): pedestrians (Recast + Yuka); traffic; police and wanted system;
   Mumbai building kit; day/night and monsoon; sound; missions; the rest of the map.
 
 ## Testing in the session

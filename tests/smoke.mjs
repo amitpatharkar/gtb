@@ -211,9 +211,10 @@ if (want('ui')) {
     car.body.setRotation({ x: 0, y: Math.sin(s.heading / 2), z: 0, w: Math.cos(s.heading / 2) }, true);
     car.body.setLinvel({ x: fx * 12, y: 0, z: fz * 12 }, true); car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     let knocked = false; for (let i = 0; i < 60 && !knocked; i++) { g.step(1); knocked = g.player.knocked > 0; }
-    const health = g.player.health;
-    g.step(180);
-    return { hud, route, tabs, opened, picked, phoneTarget, knocked, health, up: g.player.knocked <= 0 };
+    const health = g.player.health, limp = g.player.ragdoll.active;
+    let flew = 0; for (let i = 0; i < 20; i++) { g.step(3); flew = Math.max(flew, g.player.pos.distanceTo({ x: s.x, y: 0, z: s.z })); }
+    for (let i = 0; i < 40 && g.player.knocked > 0; i++) g.step(15);
+    return { hud, route, tabs, opened, picked, phoneTarget, knocked, health, limp, flew, up: g.player.knocked <= 0 && !g.player.ragdoll.active };
   });
   check(u.hud.radar && u.hud.weapon === 'Pistol', `HUD shows the radar and the weapon (${u.hud.weapon})`);
   check(u.route.points > 3 && u.route.km > 0.3 && u.route.shown, `GPS route of ${u.route.points} points, ${u.route.km.toFixed(2)} km, distance on the radar`);
@@ -221,6 +222,7 @@ if (want('ui')) {
   check(u.opened && u.picked === 'fists', `weapon wheel opens and equips what you point at (${u.picked})`);
   check(!!u.phoneTarget, `phone Maps sets a destination (${u.phoneTarget})`);
   check(u.knocked && u.health < 100 && u.up, `a car knocks the player down (health ${Math.round(u.health)}) and he gets up`);
+  check(u.limp && u.flew > 1.5, `a hard hit turns him into a ragdoll that flies ${u.flew.toFixed(1)} m`);
   await shot('ui');
 }
 
